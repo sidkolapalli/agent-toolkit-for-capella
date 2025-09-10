@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+    <extension
+        point="org.eclipse.ui.views">
+        <view
+            allowMultiple="false"
+            category="org.polarsys.capella.ai"
+            class="org.polarsys.capella.ai.ChatView"
+            icon="icons/chat.png"
+            id="org.polarsys.capella.ai.chatview"
+            name="Capella AI Assistant"/>
+        <view
+            allowMultiple="false"
+            category="org.polarsys.capella.ai"
+            class="org.polarsys.capella.ai.views.DiagramsView"
+            id="org.polarsys.capella.ai.diagrams"
+            name="AI Diagrams"/>
+    </extension>
+
+    <extension
+        point="org.eclipse.ui.perspectiveExtensions">
+        <perspectiveExtension targetID="capella.perspective">
+            <view
+                closeable="true"
+                id="org.polarsys.capella.ai.chatview"
+                minimized="false"
+                moveable="true"
+                relationship="right"
+                relative="org.eclipse.ui.editorss"
+                visible="true"/>
+            <view
+                closeable="true"
+                id="org.polarsys.capella.ai.diagrams"
+                minimized="false"
+                moveable="true"
+                relationship="right"
+                relative="org.polarsys.capella.ai.chatview"
+                visible="true"/>
+        </perspectiveExtension>
+    </extension>
+</plugin>
+    <extension point="org.eclipse.ui.preferencePages">
+        <page
+            id="org.polarsys.capella.ai.preferences.llm"
+            name="LLM"
+            class="org.polarsys.capella.ai.preferences.LLMPreferencePage"
+            category="org.eclipse.ui.preferencePages.Workbench">
+        </page>
+    </extension>

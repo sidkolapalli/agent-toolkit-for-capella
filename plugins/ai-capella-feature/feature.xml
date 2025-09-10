@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature
+      id="org.polarsys.capella.ai.feature"
+      label="Capella AI Assistant"
+      version="0.1.0.qualifier"
+      provider-name="Capella MCP Team">
+
+   <description>
+      In-IDE AI assistant for Capella: chat view, diagram tools, draw.io import.
+   </description>
+
+   <plugin
+         id="org.polarsys.capella.ai"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+</feature>
+

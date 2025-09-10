@@ -1,0 +1,96 @@
+{
+  "delete_methods": {},
+  "remove_methods": {},
+  "undo_methods": {},
+  "transaction_methods": {},
+  "rollback_methods": {},
+  "snapshot_methods": {
+    "MelodyModel.save": {
+      "type": "method",
+      "signature": "(self, **kw: 't.Any') -> 'None'",
+      "doc": "Save the model back to where it was loaded from.\n\nParameters\n----------\nkw\n    Additional keyword arguments accepted by the file handler in\n    use. Please see the respective documentation for more info.\n\nSee Also\n--------\ncapellambse.filehandler.localfilehandler.LocalFileHandler.write_transaction :\n    Accepted ``**kw`` when using local directories\ncapellambse.filehandler.git.GitFileHandler.write_transaction :\n    Accepted ``**kw`` when using ``git://`` and similar URLs\n\nNotes\n-----\nWith a file handler that contacts a remote location (such as the\n:class:`~capellambse.filehandler.git.GitFileHandler`\nwith non-local repositories), saving might fail if the local\nstate has gone out of sync with the remote state. To avoid this,\nalways leave the ``update_cache`` parameter at its default value\nof ``True`` if you intend to save changes.",
+      "module": "capellambse.model._model",
+      "keywords": [
+        "save"
+      ]
+    }
+  },
+  "cache_methods": {
+    "MelodyModel.update_diagram_cache": {
+      "type": "method",
+      "signature": "(self, capella_cli: 'str', image_format: \"t.Literal['bmp', 'gif', 'jpg', 'png', 'svg']\" = 'svg', *, create_index: 'bool' = False, force: \"t.Literal['docker', 'exe'] | None\" = None, background: 'bool' = True) -> 'None'",
+      "doc": "Update the diagram cache if one has been specified.\n\nIf a ``diagram_cache`` has been specified while loading a\nCapella model it will be updated when this function is called.\n\nThe diagram cache will be populated by executing the Capella\nfunction \"Export representations as images\" which is normally\naccessible via the context menu of an ``.aird`` node in\nCapella's project explorer. The export of diagrams happens with\nthe help of Capella's command line interface (CLI).\n\nThe CLI of Capella must be specified by the caller. It is\npossible to work with a local installation or a Docker image of\nan individual Capella bundle.\n\nAt the moment it is supported to run a Docker image using the\ncontainer system Docker and the ``docker`` executable must be in\nthe ``PATH`` environment variable.\n\nParameters\n----------\ncapella_cli\n    The Capella CLI to use when exporting diagrams from the\n    given Capella model. The provided string can come with a\n    ``\"{VERSION}\"`` placeholder. If specified, this placeholder\n    will be replaced by the x.y.z formatted version of Capella\n    that has been used when the given Capella model was last\n    saved. After consideration of the optional placeholder this\n    function will first check if the value of ``capella_cli``\n    points to a local Capella executable (that can be an\n    absolute path or an executable/ symbolic link that has been\n    made available via the environment variable ``PATH``). If no\n    executable can be found it is expected that ``capella_cli``\n    represents a Docker image name for an image that behaves\n    like the Capella CLI. For the case of passing a Docker image\n    name through ``capella_cli`` this means it is assumed that\n    something like the following\n\n    .. code-block:: bash\n\n        docker run --rm -it <capella_cli> -nosplash \\\n            -consolelog -app APP -appid APPID\n\n    will work.\n    The parameter ``force`` can be set to change the described\n    behaviour and force the function to treat the\n    ``capella_cli`` as a local executable or a Docker image\n    only.\nimage_format\n    Format of the image file(s) for the exported diagram(s).\n    This can be set to any value out of ``\"bmp\"``, ``\"gif\"``,\n    ``\"jpg\"``, ``\"png\"``, or ``\"svg\"``.\ncreate_index\n    If ``True``, two index files ``index.json`` and\n    ``index.html`` will be created. The JSON file consists of a\n    list of dictionaries, each representing a diagram in the\n    model. The dictionaries come with the keys\n\n    - uuid: The unique ID of the diagram\n    - name: Name of the diagram as it has been set in Capella\n    - type: The diagram type as it was created in Capella\n    - viewpoint: The source layer from where the representation\n      is loaded from. It is ``Common`` for layerless diagrams.\n    - success: A boolean stating if a diagram has been exported\n      from Capella\n\n    The HTML file shows a numbered list of diagram names which\n    are hyperlinked to the diagram image file. Right beside a\n    diagram's name one can also see the diagram's UUID in a\n    discreet light gray and tiny font size. The HTML index also\n    provides some meta data like a timestamp for the\n    update of diagrams.\nforce\n    If the value of ``capella_cli`` is ambiguous and can match\n    both a local executable and a Docker image, this parameter\n    can be used to bypass the auto-detection and force the\n    choice. A value of ``\"exe\"`` always interprets\n    ``capella_cli`` as local executable, ``\"docker\"`` always\n    interprets it as a docker image name. ``None`` (the default)\n    enables automatic detection.\nbackground\n    Add a white background to exported SVG images.\n\n    Ignored if the ``image_format`` is not ``\"svg\"``.\n\nExamples\n--------\nPassing a bare filename looks up the executable in the PATH,\nafter replacing a possible '{VERSION}' field:\n\n>>> model.update_diagram_cache(\"capella\", \"png\")\n>>> model.update_diagram_cache(\"capella{VERSION}\", \"png\")\n\nPassing an absolute path to a local installation of Capella that\ncontains the Capella version will use that executable:\n\n>>> model.update_diagram_cache(\"/opt/capella{VERSION}/capella\", \"png\")\n\nPassing a docker image name will launch a docker container, using the\nCapella binary at the image's ENTRYPOINT:\n\n>>> model.update_diagram_cache(\n...     \"ghcr.io/dsd-dbs/capella-dockerimages/capella/base:{VERSION}-selected-dropins-main\",\n...     \"png\",\n... )",
+      "module": "capellambse.model._model",
+      "keywords": [
+        "cache"
+      ]
+    }
+  },
+  "state_methods": {},
+  "advanced_capabilities": {},
+  "virtual_deletion_test": {
+    "can_hide_elements": false,
+    "can_deactivate_elements": false,
+    "can_mark_inactive": false,
+    "can_set_properties": false,
+    "property_based_hiding": []
+  },
+  "current_implementation": {
+    "model_manager.py": {
+      "has_delete_methods": true,
+      "has_transaction_methods": false,
+      "has_rollback_methods": false,
+      "has_undo_methods": false,
+      "has_snapshot_methods": false,
+      "lines_of_code": 1857
+    },
+    "transaction_manager.py": {
+      "has_delete_methods": false,
+      "has_transaction_methods": true,
+      "has_rollback_methods": true,
+      "has_undo_methods": false,
+      "has_snapshot_methods": true,
+      "lines_of_code": 215
+    },
+    "tools.py": {
+      "has_delete_methods": true,
+      "has_transaction_methods": false,
+      "has_rollback_methods": false,
+      "has_undo_methods": false,
+      "has_snapshot_methods": false,
+      "lines_of_code": 1045
+    }
+  },
+  "recommendations": {
+    "high_priority": [
+      {
+        "capability": "Snapshot support exists",
+        "action": "Implement automatic snapshots",
+        "methods": [
+          "MelodyModel.save"
+        ]
+      }
+    ],
+    "medium_priority": [],
+    "workarounds_needed": [
+      {
+        "issue": "No native delete methods found",
+        "workaround": "Implement virtual deletion with element marking"
+      },
+      {
+        "issue": "No native undo methods found",
+        "workaround": "Implement operation history with state restoration"
+      }
+    ],
+    "implementation_strategy": {
+      "approach": "Multi-layer hybrid",
+      "layers": [
+        "Virtual deletion (element marking)",
+        "Operation history tracking",
+        "Automatic snapshots",
+        "Transaction integration",
+        "Undo command interface"
+      ]
+    }
+  }
+}

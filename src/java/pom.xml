@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.polarsys.capella.mcp</groupId>
+    <artifactId>capella-diagram-service</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>Capella Diagram Service - TDD REFACTOR Phase</name>
+    <description>
+        Real Capella integration with Java 17 and Eclipse EMF/Sirius.
+        Creates native .aird diagrams that persist in Capella models.
+    </description>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <spring.boot.version>2.7.8</spring.boot.version>
+    </properties>
+
+    <dependencies>
+        <!-- Spring Boot Web for REST API -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <version>${spring.boot.version}</version>
+        </dependency>
+        
+        <!-- Spring Boot Actuator for health endpoint -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+            <version>${spring.boot.version}</version>
+        </dependency>
+
+        <!-- Lombok for reducing boilerplate -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.24</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Eclipse EMF Core (Required for Capella model manipulation) -->
+        <dependency>
+            <groupId>org.eclipse.emf</groupId>
+            <artifactId>org.eclipse.emf.ecore</artifactId>
+            <version>2.33.0</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.eclipse.emf.ecore_2.33.0.v20230226-0921.jar</systemPath>
+        </dependency>
+        
+        <dependency>
+            <groupId>org.eclipse.emf</groupId>
+            <artifactId>org.eclipse.emf.common</artifactId>
+            <version>2.28.0</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.eclipse.emf.common_2.28.0.v20230223-0922.jar</systemPath>
+        </dependency>
+        
+        <dependency>
+            <groupId>org.eclipse.emf</groupId>
+            <artifactId>org.eclipse.emf.ecore.xmi</artifactId>
+            <version>2.18.0</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.eclipse.emf.ecore.xmi_2.18.0.v20230211-1150.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>org.eclipse.emf</groupId>
+            <artifactId>org.eclipse.emf.transaction</artifactId>
+            <version>1.9.2</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.eclipse.emf.transaction_1.9.2.202208110935.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>org.eclipse.emf</groupId>
+            <artifactId>org.eclipse.emf.workspace</artifactId>
+            <version>1.5.2</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.eclipse.emf.workspace_1.5.2.202208110935.jar</systemPath>
+        </dependency>
+
+        <!-- Eclipse Core (Required for Capella runtime) -->
+        <dependency>
+            <groupId>org.eclipse.core</groupId>
+            <artifactId>org.eclipse.core.runtime</artifactId>
+            <version>3.26.100</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.eclipse.core.runtime_3.26.100.v20221021-0005.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>org.eclipse.core</groupId>
+            <artifactId>org.eclipse.core.resources</artifactId>
+            <version>3.18.200</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.eclipse.core.resources_3.18.200.v20230209-0754.jar</systemPath>
+        </dependency>
+
+        <!-- Eclipse Sirius (For diagram creation) -->
+        <dependency>
+            <groupId>org.eclipse.sirius</groupId>
+            <artifactId>org.eclipse.sirius</artifactId>
+            <version>7.4.5</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.eclipse.sirius_7.4.5.202411261603.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>org.eclipse.sirius</groupId>
+            <artifactId>org.eclipse.sirius.diagram</artifactId>
+            <version>7.4.5</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.eclipse.sirius.diagram_7.4.5.202411261603.jar</systemPath>
+        </dependency>
+        
+        <dependency>
+            <groupId>org.eclipse.sirius</groupId>
+            <artifactId>org.eclipse.sirius.diagram.model</artifactId>
+            <version>7.4.5</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.eclipse.sirius.diagram.model_7.4.5.202411261603.jar</systemPath>
+        </dependency>
+        
+        <dependency>
+            <groupId>org.eclipse.sirius</groupId>
+            <artifactId>org.eclipse.sirius.common</artifactId>
+            <version>7.4.5</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.eclipse.sirius.common_7.4.5.202411261603.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>org.eclipse.sirius</groupId>
+            <artifactId>org.eclipse.sirius.model</artifactId>
+            <version>7.4.5</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.eclipse.sirius.model_7.4.5.202411261603.jar</systemPath>
+        </dependency>
+
+        <!-- Capella Core (For ARCADIA model manipulation) -->
+        <dependency>
+            <groupId>org.polarsys.capella</groupId>
+            <artifactId>org.polarsys.capella.core.data.gen</artifactId>
+            <version>7.0.1</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.polarsys.capella.core.data.gen_7.0.1.202503211540.jar</systemPath>
+        </dependency>
+        
+        <dependency>
+            <groupId>org.polarsys.capella</groupId>
+            <artifactId>org.polarsys.capella.core.sirius.analysis</artifactId>
+            <version>7.0.1</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.polarsys.capella.core.sirius.analysis_7.0.1.202503211540.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>org.polarsys.capella</groupId>
+            <artifactId>org.polarsys.capella.core.model.helpers</artifactId>
+            <version>7.0.1</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/org.polarsys.capella.core.model.helpers_7.0.1.202503211540.jar</systemPath>
+        </dependency>
+
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <version>${spring.boot.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring.boot.version}</version>
+                <configuration>
+                    <includeSystemScope>true</includeSystemScope>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                    <release>17</release>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

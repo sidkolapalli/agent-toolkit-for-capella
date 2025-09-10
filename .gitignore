@@ -1,0 +1,22 @@
+# Exclude reference datasets and private models
+plugins/Reference/
+
+# Python venvs and artifacts
+.venv/
+__pycache__/
+*.pyc
+
+# Build outputs
+plugins/ai-capella-repository/target/
+plugins/ai-capella-feature/target/
+plugins/ai-capella/target/
+src/java/target/
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# OS files
+Thumbs.db
+.DS_Store
