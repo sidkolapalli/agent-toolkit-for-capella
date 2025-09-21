@@ -27,7 +27,8 @@
 
 ## 3. Action Surface Expansion
 
-- [ ] **Operational Analysis Actions** – create capabilities to generate missions, activities, interactions, and link them to System Analysis elements.
+- [x] **Operational Analysis Actions** – create capabilities to generate missions, activities, interactions, and link them to System Analysis elements.
+  - UI templates now cover mission/activity/exchange creation and capability linking, backed by dry-run validation and telemetry counts.
 - [ ] **System Analysis Actions** – support architectural breakdowns, behaviour modelling, interfaces, and capability allocations.
 - [x] **Logical ↔ Physical Transformations** – automate derivations and synchronisations between layers (e.g., propagate logical components to physical architecture with traceability).
   - Plans can now propagate logical components into PA with optional hierarchy cloning, sync existing physical components from logical definitions, and forge trace links, all with dry-run previews and confirmation gates.

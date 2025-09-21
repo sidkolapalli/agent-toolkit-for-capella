@@ -61,15 +61,13 @@ public final class PlanDryRun {
             case "CREATE_LAB":
                 return Outcome.success("Would create LAB diagram in " + safeLayer(item.getLayer()));
             case "CREATE_MISSION":
-                return Outcome.success("Would create mission '" + item.getName() + "' in " + safeLayer(item.getLayer()));
+                return simulateMission(sandbox, item);
             case "CREATE_OPERATIONAL_ACTIVITY":
-                return Outcome.success(item.getParentName() != null && !item.getParentName().isBlank() ?
-                        "Would create operational activity '" + item.getName() + "' under " + item.getParentName()
-                        : "Would create operational activity '" + item.getName() + "' in " + safeLayer(item.getLayer()));
+                return simulateOperationalActivity(sandbox, item);
             case "CREATE_OPERATIONAL_EXCHANGE":
-                return Outcome.success("Would create operational exchange '" + item.getName() + "' between " + defaultString(item.getSourceName(), "?") + " → " + defaultString(item.getTargetName(), "?") + "");
+                return simulateOperationalExchange(sandbox, item);
             case "LINK_OPERATIONAL_TO_CAPABILITY":
-                return Outcome.success("Would link operational activity '" + item.getExistingName() + "' to capability '" + item.getCapabilityName() + "'");
+                return simulateOperationalLink(sandbox, item);
             case "CREATE_SYSTEM_COMPONENT":
                 return Outcome.success(item.getParentName() != null && !item.getParentName().isBlank() ?
                         "Would create system component '" + item.getName() + "' under " + item.getParentName()
@@ -160,6 +158,67 @@ public final class PlanDryRun {
         List<EObject> list = (List<EObject>) container.eGet(containment);
         list.add(exchange);
         return Outcome.success(String.format("Create %s '%s' (%s → %s)", exchangeClass, defaultString(item.getName(), exchangeClass), defaultString(sourceName, "?"), defaultString(targetName, "?")));
+    }
+
+    private static Outcome simulateMission(ResourceSet sandbox, PlanItem item) {
+        String layer = safeLayer(item.getLayer(), "OA");
+        if (item.getName() == null || item.getName().isBlank()) {
+            return Outcome.failure("Mission name missing");
+        }
+        EObject root = ArchitectureLocator.findTargetElement(sandbox, layer);
+        if (root == null) {
+            return Outcome.failure("Layer " + layer + " not found");
+        }
+        return Outcome.success(String.format("Create mission '%s' in %s", item.getName(), layer));
+    }
+
+    private static Outcome simulateOperationalActivity(ResourceSet sandbox, PlanItem item) {
+        String layer = safeLayer(item.getLayer(), "OA");
+        if (item.getName() == null || item.getName().isBlank()) {
+            return Outcome.failure("Operational activity name missing");
+        }
+        EObject container;
+        if (item.getParentName() != null && !item.getParentName().isBlank()) {
+            container = Finders.findByName(sandbox, "OperationalActivity", item.getParentName());
+            if (container == null) {
+                return Outcome.failure("Parent operational activity '" + item.getParentName() + "' not found");
+            }
+            return Outcome.success(String.format("Create operational activity '%s' under %s", item.getName(), item.getParentName()));
+        }
+        container = ArchitectureLocator.findTargetElement(sandbox, layer);
+        if (container == null) {
+            return Outcome.failure("Layer " + layer + " not found");
+        }
+        return Outcome.success(String.format("Create operational activity '%s' in %s", item.getName(), layer));
+    }
+
+    private static Outcome simulateOperationalExchange(ResourceSet sandbox, PlanItem item) {
+        String src = defaultString(item.getSourceName(), "");
+        String tgt = defaultString(item.getTargetName(), "");
+        if (src.isBlank() || tgt.isBlank()) {
+            return Outcome.failure("Operational exchange requires source and target actors");
+        }
+        EObject source = Finders.findByName(sandbox, "OperationalActor", src);
+        EObject target = Finders.findByName(sandbox, "OperationalActor", tgt);
+        if (source == null || target == null) {
+            return Outcome.failure("Operational actors not found for exchange");
+        }
+        return Outcome.success(String.format("Create operational exchange '%s' between %s → %s",
+                defaultString(item.getName(), "OperationalExchange"), src, tgt));
+    }
+
+    private static Outcome simulateOperationalLink(ResourceSet sandbox, PlanItem item) {
+        String activity = defaultString(item.getExistingName(), "");
+        String capability = defaultString(item.getCapabilityName(), "");
+        if (activity.isBlank() || capability.isBlank()) {
+            return Outcome.failure("Operational activity and capability required");
+        }
+        EObject activityObj = Finders.findByName(sandbox, "OperationalActivity", activity);
+        EObject capabilityObj = Finders.findByName(sandbox, "Capability", capability);
+        if (activityObj == null || capabilityObj == null) {
+            return Outcome.failure("Operational activity or capability not found");
+        }
+        return Outcome.success(String.format("Link operational activity '%s' to capability '%s'", activity, capability));
     }
 
     private static Outcome simulatePropagate(ResourceSet sandbox, PlanItem item) {
@@ -474,7 +533,11 @@ public final class PlanDryRun {
     }
 
     private static String safeLayer(String layer) {
-        return defaultString(layer, "LA");
+        return safeLayer(layer, "LA");
+    }
+
+    private static String safeLayer(String layer, String fallback) {
+        return defaultString(layer, fallback);
     }
 
     // --- Result types ---------------------------------------------------------------------------------------------

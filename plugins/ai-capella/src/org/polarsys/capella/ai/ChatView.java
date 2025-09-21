@@ -38,6 +38,7 @@ import org.polarsys.capella.ai.llm.ToolRouter.PlanExecutionResult;
 import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.session.SessionBridge;
+import org.polarsys.capella.ai.actions.OperationalActions;
 import org.polarsys.capella.ai.model.index.ModelIndex;
 import org.polarsys.capella.ai.model.index.ModelIndex.IndexedElement;
 import org.polarsys.capella.ai.tools.DiagramCommands;
@@ -240,6 +241,52 @@ public class ChatView extends ViewPart {
             @Override
             public void widgetSelected(SelectionEvent e) {
                 onDeleteElement();
+            }
+        });
+
+        Group operational = new Group(tools, SWT.NONE);
+        operational.setText("Operational templates");
+        operational.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        operational.setLayout(new GridLayout(3, false));
+
+        Button createMission = new Button(operational, SWT.PUSH);
+        createMission.setText("Create mission");
+        createMission.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        createMission.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onCreateMission();
+            }
+        });
+
+        Button createOperationalActivity = new Button(operational, SWT.PUSH);
+        createOperationalActivity.setText("Create activity");
+        createOperationalActivity.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        createOperationalActivity.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onCreateOperationalActivity();
+            }
+        });
+
+        Button createOperationalExchange = new Button(operational, SWT.PUSH);
+        createOperationalExchange.setText("Create exchange");
+        createOperationalExchange.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        createOperationalExchange.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onCreateOperationalExchange();
+            }
+        });
+
+        Button linkCapability = new Button(operational, SWT.PUSH);
+        linkCapability.setText("Link activity↔capability");
+        GridData linkData = new GridData(SWT.FILL, SWT.CENTER, false, false, 3, 1);
+        linkCapability.setLayoutData(linkData);
+        linkCapability.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onLinkOperationalToCapability();
             }
         });
 
@@ -653,6 +700,158 @@ public class ChatView extends ViewPart {
         } catch (Exception ex) {
             append("Create element failed: " + ex.getMessage());
         }
+    }
+
+    private void onCreateMission() {
+        InputDialog nameDialog = new InputDialog(
+            getSite().getShell(),
+            "Create mission",
+            "Enter mission name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Name must not be empty" : null
+        );
+        if (nameDialog.open() != Window.OK) {
+            return;
+        }
+        String name = nameDialog.getValue().trim();
+
+        InputDialog descDialog = new InputDialog(
+            getSite().getShell(),
+            "Mission description",
+            "Optional description:",
+            "",
+            null
+        );
+        String description = "";
+        if (descDialog.open() == Window.OK && descDialog.getValue() != null) {
+            description = descDialog.getValue().trim();
+        }
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = OperationalActions.createMission(session, "OA", name, description);
+        append(ok ? String.format("Created mission '%s'.", name) : "Mission creation failed.");
+    }
+
+    private void onCreateOperationalActivity() {
+        InputDialog nameDialog = new InputDialog(
+            getSite().getShell(),
+            "Create operational activity",
+            "Enter activity name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Name must not be empty" : null
+        );
+        if (nameDialog.open() != Window.OK) {
+            return;
+        }
+        String name = nameDialog.getValue().trim();
+
+        InputDialog parentDialog = new InputDialog(
+            getSite().getShell(),
+            "Parent activity",
+            "Optional parent activity name:",
+            "",
+            null
+        );
+        String parent = "";
+        if (parentDialog.open() == Window.OK && parentDialog.getValue() != null) {
+            parent = parentDialog.getValue().trim();
+        }
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = OperationalActions.createOperationalActivity(session, "OA", name, parent.isBlank() ? null : parent);
+        append(ok ? String.format("Created operational activity '%s'%s.", name, parent.isBlank() ? "" : " under " + parent)
+                : "Operational activity creation failed.");
+    }
+
+    private void onCreateOperationalExchange() {
+        InputDialog sourceDialog = new InputDialog(
+            getSite().getShell(),
+            "Operational exchange",
+            "Source operational actor:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Source actor required" : null
+        );
+        if (sourceDialog.open() != Window.OK) {
+            return;
+        }
+        String source = sourceDialog.getValue().trim();
+
+        InputDialog targetDialog = new InputDialog(
+            getSite().getShell(),
+            "Operational exchange",
+            "Target operational actor:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Target actor required" : null
+        );
+        if (targetDialog.open() != Window.OK) {
+            return;
+        }
+        String target = targetDialog.getValue().trim();
+
+        InputDialog nameDialog = new InputDialog(
+            getSite().getShell(),
+            "Operational exchange",
+            "Optional exchange name:",
+            "",
+            null
+        );
+        String exchangeName = "";
+        if (nameDialog.open() == Window.OK && nameDialog.getValue() != null) {
+            exchangeName = nameDialog.getValue().trim();
+        }
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = OperationalActions.createOperationalExchange(session, "OA", exchangeName, source, target);
+        append(ok ? String.format("Created operational exchange %s (%s → %s).",
+                exchangeName.isBlank() ? "(auto-named)" : "'" + exchangeName + "'", source, target)
+                : "Operational exchange creation failed.");
+    }
+
+    private void onLinkOperationalToCapability() {
+        InputDialog activityDialog = new InputDialog(
+            getSite().getShell(),
+            "Link activity to capability",
+            "Operational activity name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Activity required" : null
+        );
+        if (activityDialog.open() != Window.OK) {
+            return;
+        }
+        String activity = activityDialog.getValue().trim();
+
+        InputDialog capabilityDialog = new InputDialog(
+            getSite().getShell(),
+            "Link activity to capability",
+            "Capability name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Capability required" : null
+        );
+        if (capabilityDialog.open() != Window.OK) {
+            return;
+        }
+        String capability = capabilityDialog.getValue().trim();
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = OperationalActions.linkActivityToCapability(session, activity, capability);
+        append(ok ? String.format("Linked activity '%s' to capability '%s'.", activity, capability)
+                : "Failed to link operational activity to capability.");
     }
 
     private void onSearchModel() {

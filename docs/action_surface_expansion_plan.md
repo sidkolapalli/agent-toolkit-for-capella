@@ -3,16 +3,18 @@
 This plan breaks down Section 3 of the roadmap into deliverable-sized work items. Each block should be implemented, validated inside Capella, documented, and only then marked complete on the roadmap.
 
 ## 1. Operational Analysis Automation
-- Extend `ToolRouter` schema and prompt to support new action types:
+- [x] Extend `ToolRouter` schema and prompt to support new action types:
   - `create_mission`, `create_operational_activity`, `link_oa_to_sa`, `create_operational_exchange`.
-- Implement EMF helpers in a new `OperationalActions` utility class:
+- [x] Implement EMF helpers in a new `OperationalActions` utility class:
   - Mission creation under OA root, default name + description fields.
   - Activity creation with optional hierarchy and allocation to System Analysis capabilities.
   - Exchange creation between operational actors.
-- Update `PlanEditorDialog` diff preview to recognise the new action categories.
-- Add UI affordances (buttons or command palette entries) to trigger predefined operational templates.
-- Telemetry: log counts of operational actions, validation errors.
-- Tests/validation: run `mvn -f plugins clean verify`, manually create OA artefacts inside Capella.
+- [x] Update `PlanEditorDialog` diff preview to recognise the new action categories.
+- [x] Add UI affordances (buttons or command palette entries) to trigger predefined operational templates.
+- [x] Telemetry: log counts of operational actions, validation errors.
+- [x] Tests/validation: run `mvn -f plugins clean verify`, manually create OA artefacts inside Capella.
+
+Status: Completed – OA plan actions now include sandbox validation and one-click mission/activity/exchange templates with telemetry coverage.
 
 ## 2. System Analysis Modelling Helpers
 - New actions: `create_system_component`, `create_system_function`, `create_interface`, `allocate_capability`.

@@ -36,10 +36,18 @@ public final class Telemetry {
         if (!isEnabled() || plan == null || result == null) {
             return;
         }
+        Map<String, Long> counts = plan.items().stream()
+            .collect(Collectors.groupingBy(PlanItem::getTypeId, LinkedHashMap::new, Collectors.counting()));
+        String actionSummary = counts.isEmpty()
+            ? "none"
+            : counts.entrySet().stream()
+                .map(e -> e.getKey() + "=" + e.getValue())
+                .collect(Collectors.joining(","));
         String errorSummary = result.errors.isEmpty()
             ? "none"
             : result.errors.stream().limit(3).collect(Collectors.joining(" | "));
-        logInfo("plan-executed", String.format("size=%d applied=%d errors=%d details=%s", plan.size(), result.applied, result.errors.size(), errorSummary));
+        logInfo("plan-executed", String.format("size=%d applied=%d errors=%d actions=[%s] details=%s",
+                plan.size(), result.applied, result.errors.size(), actionSummary, errorSummary));
     }
 
     public static void recordPlanError(String context, String message) {
