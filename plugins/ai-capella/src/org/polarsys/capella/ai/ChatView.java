@@ -39,6 +39,7 @@ import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.actions.OperationalActions;
+import org.polarsys.capella.ai.actions.SystemActions;
 import org.polarsys.capella.ai.model.index.ModelIndex;
 import org.polarsys.capella.ai.model.index.ModelIndex.IndexedElement;
 import org.polarsys.capella.ai.tools.DiagramCommands;
@@ -287,6 +288,52 @@ public class ChatView extends ViewPart {
             @Override
             public void widgetSelected(SelectionEvent e) {
                 onLinkOperationalToCapability();
+            }
+        });
+
+        Group system = new Group(tools, SWT.NONE);
+        system.setText("System templates");
+        system.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        system.setLayout(new GridLayout(3, false));
+
+        Button systemComponent = new Button(system, SWT.PUSH);
+        systemComponent.setText("Create system component");
+        systemComponent.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        systemComponent.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onCreateSystemComponent();
+            }
+        });
+
+        Button systemFunction = new Button(system, SWT.PUSH);
+        systemFunction.setText("Create system function");
+        systemFunction.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        systemFunction.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onCreateSystemFunction();
+            }
+        });
+
+        Button systemInterface = new Button(system, SWT.PUSH);
+        systemInterface.setText("Create system interface");
+        systemInterface.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        systemInterface.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onCreateSystemInterface();
+            }
+        });
+
+        Button allocateCapability = new Button(system, SWT.PUSH);
+        allocateCapability.setText("Allocate capability");
+        GridData allocateData = new GridData(SWT.FILL, SWT.CENTER, false, false, 3, 1);
+        allocateCapability.setLayoutData(allocateData);
+        allocateCapability.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onAllocateCapability();
             }
         });
 
@@ -852,6 +899,159 @@ public class ChatView extends ViewPart {
         boolean ok = OperationalActions.linkActivityToCapability(session, activity, capability);
         append(ok ? String.format("Linked activity '%s' to capability '%s'.", activity, capability)
                 : "Failed to link operational activity to capability.");
+    }
+
+    private void onCreateSystemComponent() {
+        InputDialog nameDialog = new InputDialog(
+            getSite().getShell(),
+            "Create system component",
+            "Component name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Name required" : null
+        );
+        if (nameDialog.open() != Window.OK) {
+            return;
+        }
+        String name = nameDialog.getValue().trim();
+
+        InputDialog parentDialog = new InputDialog(
+            getSite().getShell(),
+            "Parent component",
+            "Optional parent component name:",
+            "",
+            null
+        );
+        String parent = "";
+        if (parentDialog.open() == Window.OK && parentDialog.getValue() != null) {
+            parent = parentDialog.getValue().trim();
+        }
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = SystemActions.createComponent(session, "SA", name, parent.isBlank() ? null : parent);
+        append(ok ? String.format("Created system component '%s'%s.", name, parent.isBlank() ? "" : " under " + parent)
+                : "System component creation failed.");
+    }
+
+    private void onCreateSystemFunction() {
+        InputDialog nameDialog = new InputDialog(
+            getSite().getShell(),
+            "Create system function",
+            "Function name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Name required" : null
+        );
+        if (nameDialog.open() != Window.OK) {
+            return;
+        }
+        String name = nameDialog.getValue().trim();
+
+        InputDialog parentDialog = new InputDialog(
+            getSite().getShell(),
+            "Parent function",
+            "Optional parent function name:",
+            "",
+            null
+        );
+        String parent = "";
+        if (parentDialog.open() == Window.OK && parentDialog.getValue() != null) {
+            parent = parentDialog.getValue().trim();
+        }
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = SystemActions.createFunction(session, "SA", name, parent.isBlank() ? null : parent);
+        append(ok ? String.format("Created system function '%s'%s.", name, parent.isBlank() ? "" : " under " + parent)
+                : "System function creation failed.");
+    }
+
+    private void onCreateSystemInterface() {
+        InputDialog sourceDialog = new InputDialog(
+            getSite().getShell(),
+            "System interface",
+            "Source system component:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Source component required" : null
+        );
+        if (sourceDialog.open() != Window.OK) {
+            return;
+        }
+        String source = sourceDialog.getValue().trim();
+
+        InputDialog targetDialog = new InputDialog(
+            getSite().getShell(),
+            "System interface",
+            "Target system component:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Target component required" : null
+        );
+        if (targetDialog.open() != Window.OK) {
+            return;
+        }
+        String target = targetDialog.getValue().trim();
+
+        InputDialog nameDialog = new InputDialog(
+            getSite().getShell(),
+            "System interface",
+            "Optional interface name:",
+            "",
+            null
+        );
+        String name = "";
+        if (nameDialog.open() == Window.OK && nameDialog.getValue() != null) {
+            name = nameDialog.getValue().trim();
+        }
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = SystemActions.createInterface(session, "SA", name, source, target);
+        append(ok ? String.format("Created system interface %s (%s → %s).",
+                name.isBlank() ? "(auto-named)" : "'" + name + "'", source, target)
+                : "System interface creation failed.");
+    }
+
+    private void onAllocateCapability() {
+        InputDialog componentDialog = new InputDialog(
+            getSite().getShell(),
+            "Allocate capability",
+            "System component name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Component required" : null
+        );
+        if (componentDialog.open() != Window.OK) {
+            return;
+        }
+        String component = componentDialog.getValue().trim();
+
+        InputDialog capabilityDialog = new InputDialog(
+            getSite().getShell(),
+            "Allocate capability",
+            "Capability name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Capability required" : null
+        );
+        if (capabilityDialog.open() != Window.OK) {
+            return;
+        }
+        String capability = capabilityDialog.getValue().trim();
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = SystemActions.allocateCapability(session, component, capability);
+        append(ok ? String.format("Allocated capability '%s' to system component '%s'.", capability, component)
+                : "Capability allocation failed.");
     }
 
     private void onSearchModel() {

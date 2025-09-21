@@ -69,17 +69,13 @@ public final class PlanDryRun {
             case "LINK_OPERATIONAL_TO_CAPABILITY":
                 return simulateOperationalLink(sandbox, item);
             case "CREATE_SYSTEM_COMPONENT":
-                return Outcome.success(item.getParentName() != null && !item.getParentName().isBlank() ?
-                        "Would create system component '" + item.getName() + "' under " + item.getParentName()
-                        : "Would create system component '" + item.getName() + "' in " + safeLayer(item.getLayer()));
+                return simulateSystemComponent(sandbox, item);
             case "CREATE_SYSTEM_FUNCTION":
-                return Outcome.success(item.getParentName() != null && !item.getParentName().isBlank() ?
-                        "Would create system function '" + item.getName() + "' under " + item.getParentName()
-                        : "Would create system function '" + item.getName() + "' in " + safeLayer(item.getLayer()));
+                return simulateSystemFunction(sandbox, item);
             case "CREATE_INTERFACE":
-                return Outcome.success("Would create system interface '" + item.getName() + "' between " + defaultString(item.getSourceName(), "?") + " → " + defaultString(item.getTargetName(), "?") + "");
+                return simulateSystemInterface(sandbox, item);
             case "ALLOCATE_CAPABILITY":
-                return Outcome.success("Would allocate capability '" + item.getCapabilityName() + "' to system component '" + defaultString(item.getExistingName(), "?") + "'");
+                return simulateCapabilityAllocation(sandbox, item);
             case "PROPAGATE_LOGICAL_TO_PHYSICAL":
                 return simulatePropagate(sandbox, item);
             case "SYNC_PHYSICAL_FROM_LOGICAL":
@@ -334,6 +330,75 @@ public final class PlanDryRun {
             target.eResource().getContents().remove(target);
         }
         return Outcome.success(String.format("Delete %s '%s'", elementClass, defaultString(item.getExistingName(), "?")));
+    }
+
+    private static Outcome simulateSystemComponent(ResourceSet sandbox, PlanItem item) {
+        String name = defaultString(item.getName(), "");
+        if (name.isBlank()) {
+            return Outcome.failure("System component name missing");
+        }
+        String layer = safeLayer(item.getLayer(), "SA");
+        if (item.getParentName() != null && !item.getParentName().isBlank()) {
+            EObject parent = Finders.findByName(sandbox, "SystemComponent", item.getParentName());
+            if (parent == null) {
+                return Outcome.failure("Parent system component '" + item.getParentName() + "' not found");
+            }
+            return Outcome.success(String.format("Create system component '%s' under %s", name, item.getParentName()));
+        }
+        EObject root = ArchitectureLocator.findTargetElement(sandbox, layer);
+        if (root == null) {
+            return Outcome.failure("Layer " + layer + " not found");
+        }
+        return Outcome.success(String.format("Create system component '%s' in %s", name, layer));
+    }
+
+    private static Outcome simulateSystemFunction(ResourceSet sandbox, PlanItem item) {
+        String name = defaultString(item.getName(), "");
+        if (name.isBlank()) {
+            return Outcome.failure("System function name missing");
+        }
+        String layer = safeLayer(item.getLayer(), "SA");
+        if (item.getParentName() != null && !item.getParentName().isBlank()) {
+            EObject parent = Finders.findByName(sandbox, "SystemFunction", item.getParentName());
+            if (parent == null) {
+                return Outcome.failure("Parent system function '" + item.getParentName() + "' not found");
+            }
+            return Outcome.success(String.format("Create system function '%s' under %s", name, item.getParentName()));
+        }
+        EObject root = ArchitectureLocator.findTargetElement(sandbox, layer);
+        if (root == null) {
+            return Outcome.failure("Layer " + layer + " not found");
+        }
+        return Outcome.success(String.format("Create system function '%s' in %s", name, layer));
+    }
+
+    private static Outcome simulateSystemInterface(ResourceSet sandbox, PlanItem item) {
+        String src = defaultString(item.getSourceName(), "");
+        String tgt = defaultString(item.getTargetName(), "");
+        if (src.isBlank() || tgt.isBlank()) {
+            return Outcome.failure("System interface requires source and target components");
+        }
+        EObject source = Finders.findByName(sandbox, "SystemComponent", src);
+        EObject target = Finders.findByName(sandbox, "SystemComponent", tgt);
+        if (source == null || target == null) {
+            return Outcome.failure("System components not found for interface");
+        }
+        String name = defaultString(item.getName(), "ComponentExchange");
+        return Outcome.success(String.format("Create system interface '%s' between %s → %s", name, src, tgt));
+    }
+
+    private static Outcome simulateCapabilityAllocation(ResourceSet sandbox, PlanItem item) {
+        String component = defaultString(item.getExistingName(), "");
+        String capability = defaultString(item.getCapabilityName(), "");
+        if (component.isBlank() || capability.isBlank()) {
+            return Outcome.failure("Component and capability required for allocation");
+        }
+        EObject componentObj = Finders.findByName(sandbox, "SystemComponent", component);
+        EObject capabilityObj = Finders.findByName(sandbox, "Capability", capability);
+        if (componentObj == null || capabilityObj == null) {
+            return Outcome.failure("Component or capability not found");
+        }
+        return Outcome.success(String.format("Allocate capability '%s' to system component '%s'", capability, component));
     }
 
     private static EObject findBestContainer(EObject root, EClass target) {

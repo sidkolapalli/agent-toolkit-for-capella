@@ -17,11 +17,13 @@ This plan breaks down Section 3 of the roadmap into deliverable-sized work items
 Status: Completed – OA plan actions now include sandbox validation and one-click mission/activity/exchange templates with telemetry coverage.
 
 ## 2. System Analysis Modelling Helpers
-- New actions: `create_system_component`, `create_system_function`, `create_interface`, `allocate_capability`.
-- Utility class `SystemActions` encapsulating component/function hierarchy creation and interface wiring.
-- Diagram integrations: ensure LAB or capability diagrams update when actions run.
-- Extend dry-run to cover system allocations and interface validation (e.g., missing actors, duplicates).
-- Update telemetry categories and Plan Editor messaging.
+- [x] New actions: `create_system_component`, `create_system_function`, `create_interface`, `allocate_capability`.
+- [x] Utility class `SystemActions` encapsulating component/function hierarchy creation and interface wiring.
+- [x] Diagram integrations: ensure LAB or capability diagrams update when actions run. *(covered by existing DiagramCommands refresh when templates invoke creation)*
+- [x] Extend dry-run to cover system allocations and interface validation (e.g., missing actors, duplicates).
+- [x] Update telemetry categories and Plan Editor messaging.
+
+Status: Completed – System templates now expose guided component/function/interface creation with dry-run validation and telemetry counts.
 
 ## 3. Logical ↔ Physical Transformations
 - [x] Actions: `propagate_logical_to_physical`, `sync_physical_from_logical`, `trace_component_mapping`.
