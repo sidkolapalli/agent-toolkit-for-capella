@@ -144,7 +144,12 @@ public final class PlanDryRun {
         @SuppressWarnings("unchecked")
         List<EObject> list = (List<EObject>) container.eGet(containment);
         list.add(created);
-        return Outcome.success(String.format("Create %s '%s' in %s", simpleEClass, defaultString(item.getName(), simpleEClass), safeLayer(item.getLayer())));
+        List<String> details = new ArrayList<>();
+        details.add("Layer: " + safeLayer(item.getLayer()));
+        if (container != null) {
+            details.add("Container: " + label(container));
+        }
+        return Outcome.success(String.format("Create %s '%s' in %s", simpleEClass, defaultString(item.getName(), simpleEClass), safeLayer(item.getLayer())), details);
     }
 
     private static Outcome simulateExchange(ResourceSet sandbox, PlanItem item, String exchangeClass, String sourceName, String targetName) {
@@ -191,7 +196,8 @@ public final class PlanDryRun {
         if (root == null) {
             return Outcome.failure("Layer " + layer + " not found");
         }
-        return Outcome.success(String.format("Create mission '%s' in %s", item.getName(), layer));
+        return Outcome.success(String.format("Create mission '%s' in %s", item.getName(), layer),
+                List.of("Layer: " + layer, "Description: " + defaultString(item.getDescription(), "(none)")));
     }
 
     private static Outcome simulateOperationalActivity(ResourceSet sandbox, PlanItem item) {
@@ -383,7 +389,16 @@ public final class PlanDryRun {
         if (missing > 0) {
             return Outcome.failure(String.format("%d element(s) not found for rename", missing));
         }
-        return Outcome.success(String.format("Rename %d %s", entries.size(), defaultString(item.getElementClass(), "elements")));
+        List<String> samples = new ArrayList<>();
+        for (RenameItem entry : entries) {
+            if (entry == null) {
+                continue;
+            }
+            samples.add(String.format("%s → %s", defaultString(entry.from, "?"), defaultString(entry.to, "?")));
+        }
+        List<String> details = new ArrayList<>();
+        appendSampleLines(details, samples);
+        return Outcome.success(String.format("Rename %d %s", entries.size(), defaultString(item.getElementClass(), "elements")), details);
     }
 
     private static Outcome simulateBatchReparent(ResourceSet sandbox, PlanItem item) {
@@ -410,8 +425,11 @@ public final class PlanDryRun {
         if (missing > 0) {
             return Outcome.failure(String.format("%d element(s) not found for reparent", missing));
         }
+        List<String> details = new ArrayList<>();
+        details.add("Parent: " + item.getParentName());
+        appendSampleLines(details, names);
         return Outcome.success(String.format("Move %d %s under %s", names.size(),
-                defaultString(item.getElementClass(), "elements"), item.getParentName()));
+                defaultString(item.getElementClass(), "elements"), item.getParentName()), details);
     }
 
     private static Outcome simulateBatchAllocate(ResourceSet sandbox, PlanItem item) {
@@ -435,7 +453,10 @@ public final class PlanDryRun {
         if (missing > 0) {
             return Outcome.failure(String.format("%d component(s) not found for allocation", missing));
         }
-        return Outcome.success(String.format("Allocate capability '%s' to %d component(s)", item.getCapabilityName(), components.size()));
+        List<String> details = new ArrayList<>();
+        details.add("Capability: " + item.getCapabilityName());
+        appendSampleLines(details, components);
+        return Outcome.success(String.format("Allocate capability '%s' to %d component(s)", item.getCapabilityName(), components.size()), details);
     }
 
     private static Outcome simulateBatchMap(ResourceSet sandbox, PlanItem item) {
@@ -463,7 +484,16 @@ public final class PlanDryRun {
         if (missing > 0) {
             return Outcome.failure(String.format("%d mapping pair(s) reference missing elements", missing));
         }
-        return Outcome.success(String.format("Link %d %s → %s", pairs.size(), defaultString(item.getElementClass(), "sources"), defaultString(item.getContainerClass(), "targets")));
+        List<String> mappingSamples = new ArrayList<>();
+        for (MappingItem pair : pairs) {
+            if (pair == null) {
+                continue;
+            }
+            mappingSamples.add(String.format("%s → %s", defaultString(pair.source, "?"), defaultString(pair.target, "?")));
+        }
+        List<String> details = new ArrayList<>();
+        appendSampleLines(details, mappingSamples);
+        return Outcome.success(String.format("Link %d %s → %s", pairs.size(), defaultString(item.getElementClass(), "sources"), defaultString(item.getContainerClass(), "targets")), details);
     }
 
     private static Outcome simulateBatchDelete(ResourceSet sandbox, PlanItem item) {
@@ -483,7 +513,9 @@ public final class PlanDryRun {
         if (missing > 0) {
             return Outcome.failure(String.format("%d element(s) not found for delete", missing));
         }
-        return Outcome.success(String.format("Delete %d %s", names.size(), defaultString(item.getElementClass(), "elements")));
+        List<String> details = new ArrayList<>();
+        appendSampleLines(details, names);
+        return Outcome.success(String.format("Delete %d %s", names.size(), defaultString(item.getElementClass(), "elements")), details);
     }
 
     private static Outcome simulatePropagate(ResourceSet sandbox, PlanItem item) {
@@ -576,7 +608,8 @@ public final class PlanDryRun {
             return Outcome.failure("Element does not expose a writable name");
         }
         target.eSet(nameFeat, defaultString(item.getNewName(), item.getExistingName()));
-        return Outcome.success(String.format("Rename %s '%s' → '%s'", elementClass, defaultString(item.getExistingName(), "?"), defaultString(item.getNewName(), "?")));
+        return Outcome.success(String.format("Rename %s '%s' → '%s'", elementClass, defaultString(item.getExistingName(), "?"), defaultString(item.getNewName(), "?")),
+                List.of(String.format("Name: %s → %s", defaultString(item.getExistingName(), "?"), defaultString(item.getNewName(), "?"))));
     }
 
     private static Outcome simulateDelete(ResourceSet sandbox, PlanItem item) {
@@ -598,7 +631,8 @@ public final class PlanDryRun {
         } else if (target.eResource() != null) {
             target.eResource().getContents().remove(target);
         }
-        return Outcome.success(String.format("Delete %s '%s'", elementClass, defaultString(item.getExistingName(), "?")));
+        return Outcome.success(String.format("Delete %s '%s'", elementClass, defaultString(item.getExistingName(), "?")),
+                List.of("Removes element from container"));
     }
 
     private static Outcome simulateSystemComponent(ResourceSet sandbox, PlanItem item) {
@@ -612,13 +646,15 @@ public final class PlanDryRun {
             if (parent == null) {
                 return Outcome.failure("Parent system component '" + item.getParentName() + "' not found");
             }
-            return Outcome.success(String.format("Create system component '%s' under %s", name, item.getParentName()));
+            return Outcome.success(String.format("Create system component '%s' under %s", name, item.getParentName()),
+                    List.of("Parent: " + item.getParentName()));
         }
         EObject root = ArchitectureLocator.findTargetElement(sandbox, layer);
         if (root == null) {
             return Outcome.failure("Layer " + layer + " not found");
         }
-        return Outcome.success(String.format("Create system component '%s' in %s", name, layer));
+        return Outcome.success(String.format("Create system component '%s' in %s", name, layer),
+                List.of("Layer: " + layer));
     }
 
     private static Outcome simulateSystemFunction(ResourceSet sandbox, PlanItem item) {
@@ -632,13 +668,15 @@ public final class PlanDryRun {
             if (parent == null) {
                 return Outcome.failure("Parent system function '" + item.getParentName() + "' not found");
             }
-            return Outcome.success(String.format("Create system function '%s' under %s", name, item.getParentName()));
+            return Outcome.success(String.format("Create system function '%s' under %s", name, item.getParentName()),
+                    List.of("Parent: " + item.getParentName()));
         }
         EObject root = ArchitectureLocator.findTargetElement(sandbox, layer);
         if (root == null) {
             return Outcome.failure("Layer " + layer + " not found");
         }
-        return Outcome.success(String.format("Create system function '%s' in %s", name, layer));
+        return Outcome.success(String.format("Create system function '%s' in %s", name, layer),
+                List.of("Layer: " + layer));
     }
 
     private static Outcome simulateSystemInterface(ResourceSet sandbox, PlanItem item) {
@@ -653,7 +691,8 @@ public final class PlanDryRun {
             return Outcome.failure("System components not found for interface");
         }
         String name = defaultString(item.getName(), "ComponentExchange");
-        return Outcome.success(String.format("Create system interface '%s' between %s → %s", name, src, tgt));
+        return Outcome.success(String.format("Create system interface '%s' between %s → %s", name, src, tgt),
+                List.of(String.format("Source: %s", src), String.format("Target: %s", tgt)));
     }
 
     private static Outcome simulateCapabilityAllocation(ResourceSet sandbox, PlanItem item) {
@@ -667,7 +706,8 @@ public final class PlanDryRun {
         if (componentObj == null || capabilityObj == null) {
             return Outcome.failure("Component or capability not found");
         }
-        return Outcome.success(String.format("Allocate capability '%s' to system component '%s'", capability, component));
+        return Outcome.success(String.format("Allocate capability '%s' to system component '%s'", capability, component),
+                List.of(String.format("Component: %s", component), String.format("Capability: %s", capability)));
     }
 
     private static EObject findBestContainer(EObject root, EClass target) {
@@ -834,6 +874,27 @@ public final class PlanDryRun {
         return null;
     }
 
+    private static String label(EObject element) {
+        String name = readName(element);
+        if (name != null && !name.isBlank()) {
+            return name;
+        }
+        return element == null ? "(none)" : element.eClass().getName();
+    }
+
+    private static void appendSampleLines(List<String> details, List<String> samples) {
+        if (samples == null || samples.isEmpty()) {
+            return;
+        }
+        int limit = Math.min(samples.size(), 5);
+        for (int i = 0; i < limit; i++) {
+            details.add(samples.get(i));
+        }
+        if (samples.size() > limit) {
+            details.add(String.format("… +%d more", samples.size() - limit));
+        }
+    }
+
     private static void addTraceLink(EObject logical, EObject physical) {
         addReference(logical, physical);
         addReference(physical, logical);
@@ -978,18 +1039,28 @@ public final class PlanDryRun {
     public static final class Outcome {
         private final boolean success;
         private final String message;
+        private final List<String> details;
 
-        private Outcome(boolean success, String message) {
+        private Outcome(boolean success, String message, List<String> details) {
             this.success = success;
             this.message = message;
+            this.details = details == null ? List.of() : List.copyOf(details);
         }
 
         public static Outcome success(String message) {
-            return new Outcome(true, message);
+            return new Outcome(true, message, List.of());
+        }
+
+        public static Outcome success(String message, List<String> details) {
+            return new Outcome(true, message, details);
         }
 
         public static Outcome failure(String message) {
-            return new Outcome(false, message);
+            return new Outcome(false, message, List.of());
+        }
+
+        public static Outcome failure(String message, List<String> details) {
+            return new Outcome(false, message, details);
         }
 
         public boolean isSuccess() {
@@ -1000,5 +1071,8 @@ public final class PlanDryRun {
             return message;
         }
 
+        public List<String> getDetails() {
+            return details;
+        }
     }
 }

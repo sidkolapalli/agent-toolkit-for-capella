@@ -18,6 +18,8 @@ import org.eclipse.jface.viewers.TableViewerColumn;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.custom.StyleRange;
+import org.eclipse.swt.custom.StyledText;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
@@ -29,6 +31,9 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableItem;
 import org.eclipse.swt.widgets.Text;
+import org.eclipse.ui.IWorkbenchCommandConstants;
+import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.handlers.IHandlerService;
 import org.polarsys.capella.ai.llm.ToolRouter.ChangeCategory;
 import org.polarsys.capella.ai.llm.ToolRouter.PlanItem;
 import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
@@ -46,8 +51,9 @@ public final class PlanEditorDialog extends TitleAreaDialog {
     private CheckboxTableViewer viewer;
     private Text details;
     private Label selectionSummary;
-    private Text diffPreview;
+    private StyledText diffPreview;
     private Label undoHint;
+    private Button undoButton;
 
     public PlanEditorDialog(Shell parentShell, ToolPlan plan, PlanDryRun.DryRunResult dryRun) {
         super(parentShell);
@@ -188,14 +194,32 @@ public final class PlanEditorDialog extends TitleAreaDialog {
         diffGroup.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
         diffGroup.setLayout(new GridLayout(1, false));
 
-        diffPreview = new Text(diffGroup, SWT.BORDER | SWT.MULTI | SWT.READ_ONLY | SWT.WRAP | SWT.V_SCROLL);
+        diffPreview = new StyledText(diffGroup, SWT.BORDER | SWT.MULTI | SWT.READ_ONLY | SWT.WRAP | SWT.V_SCROLL);
+        diffPreview.setEditable(false);
         GridData diffData = new GridData(SWT.FILL, SWT.FILL, true, true);
         diffData.heightHint = 140;
         diffPreview.setLayoutData(diffData);
 
-        undoHint = new Label(diffGroup, SWT.WRAP);
+        Composite undoRow = new Composite(diffGroup, SWT.NONE);
+        undoRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        GridLayout undoLayout = new GridLayout(2, false);
+        undoLayout.marginWidth = 0;
+        undoLayout.marginHeight = 0;
+        undoLayout.horizontalSpacing = 8;
+        undoRow.setLayout(undoLayout);
+
+        undoButton = new Button(undoRow, SWT.PUSH);
+        undoButton.setText("Undo last plan");
+        undoButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                performUndo();
+            }
+        });
+
+        undoHint = new Label(undoRow, SWT.WRAP);
         undoHint.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        undoHint.setText("Tip: the assistant runs the plan in a single EMF transaction. Use Edit → Undo immediately after execution to revert the changes.");
+        undoHint.setText("Tip: the assistant runs the plan in a single EMF transaction. Undo immediately after execution if needed.");
     }
 
     private void populatePlan() {
@@ -259,19 +283,21 @@ public final class PlanEditorDialog extends TitleAreaDialog {
         if (diffPreview == null || diffPreview.isDisposed()) {
             return;
         }
+        if (undoButton != null && !undoButton.isDisposed()) {
+            undoButton.setEnabled(selected != null && !selected.isEmpty());
+        }
         if (dryRun == null || !dryRun.isAvailable()) {
-            if (dryRun != null && !dryRun.issues().isEmpty()) {
-                diffPreview.setText(String.join(System.lineSeparator(), dryRun.issues()));
-            } else {
-                diffPreview.setText("Dry run unavailable; plan will execute directly.");
-            }
+            String message = (dryRun != null && !dryRun.issues().isEmpty())
+                    ? String.join(System.lineSeparator(), dryRun.issues())
+                    : "Dry run unavailable; plan will execute directly.";
+            applyDiffText(message, List.of());
             if (undoHint != null && !undoHint.isDisposed()) {
                 undoHint.setText("Undo remains available via Edit → Undo immediately after execution.");
             }
             return;
         }
         if (selected == null || selected.isEmpty()) {
-            diffPreview.setText("No structural changes selected.");
+            applyDiffText("No structural changes selected.", List.of());
             if (undoHint != null && !undoHint.isDisposed()) {
                 undoHint.setText("Dry run ready. Undo via Edit → Undo immediately after execution.");
             }
@@ -279,51 +305,126 @@ public final class PlanEditorDialog extends TitleAreaDialog {
         }
         Map<ChangeCategory, List<PlanItem>> grouped = selected.stream()
                 .collect(Collectors.groupingBy(PlanItem::getCategory, LinkedHashMap::new, Collectors.toList()));
-        StringBuilder sb = new StringBuilder();
+        StringBuilder buffer = new StringBuilder();
+        List<StyleRange> styles = new ArrayList<>();
         long failures = 0;
+        org.eclipse.swt.graphics.Color createColor = diffPreview.getDisplay().getSystemColor(SWT.COLOR_DARK_GREEN);
+        org.eclipse.swt.graphics.Color updateColor = diffPreview.getDisplay().getSystemColor(SWT.COLOR_DARK_BLUE);
+        org.eclipse.swt.graphics.Color deleteColor = diffPreview.getDisplay().getSystemColor(SWT.COLOR_DARK_RED);
+        org.eclipse.swt.graphics.Color warnColor = diffPreview.getDisplay().getSystemColor(SWT.COLOR_DARK_YELLOW);
+
         for (ChangeCategory category : ChangeCategory.values()) {
             List<PlanItem> items = grouped.get(category);
             if (items == null || items.isEmpty()) {
                 continue;
             }
-            if (sb.length() > 0) {
-                sb.append(System.lineSeparator());
+            if (buffer.length() > 0) {
+                buffer.append(System.lineSeparator());
             }
-            sb.append(category.label()).append(':').append(System.lineSeparator());
+            appendStyledLine(buffer, styles, category.label() + ':', diffPreview.getDisplay().getSystemColor(SWT.COLOR_WIDGET_DARK_SHADOW));
+            buffer.append(System.lineSeparator());
+            ChangeColors colors = changeColors(category, createColor, updateColor, deleteColor);
             for (PlanItem item : items) {
                 PlanDryRun.Outcome outcome = dryRun.outcomeFor(item.getIndex());
-                sb.append(" • ").append(item.getDiffSummary());
-                if (item.requiresConfirmation()) {
-                    sb.append(" [requires confirmation]");
-                }
+                String prefix = changePrefix(category);
+                appendStyledLine(buffer, styles, " " + prefix + " " + item.getDiffSummary(), colors.primary);
+                buffer.append(System.lineSeparator());
                 if (outcome != null) {
-                    if (outcome.isSuccess()) {
-                        sb.append(" ✓");
-                    } else {
+                    if (!outcome.isSuccess()) {
                         failures++;
-                        sb.append(" ⚠ ").append(outcome.getMessage());
+                        appendStyledLine(buffer, styles, "    ⚠ " + outcome.getMessage(), warnColor);
+                        buffer.append(System.lineSeparator());
+                    }
+                    for (String detail : outcome.getDetails()) {
+                        appendStyledLine(buffer, styles, "    • " + detail, colors.secondary);
+                        buffer.append(System.lineSeparator());
                     }
                 }
-                sb.append(System.lineSeparator());
             }
         }
         if (!dryRun.issues().isEmpty()) {
-            sb.append(System.lineSeparator()).append("Issues:").append(System.lineSeparator());
+            appendStyledLine(buffer, styles, "Issues:", warnColor);
+            buffer.append(System.lineSeparator());
             for (String issue : dryRun.issues()) {
-                sb.append(" ! ").append(issue).append(System.lineSeparator());
+                appendStyledLine(buffer, styles, " ! " + issue, warnColor);
+                buffer.append(System.lineSeparator());
             }
         }
-        if (sb.length() == 0) {
-            diffPreview.setText("No structural changes selected.");
-        } else {
-            diffPreview.setText(sb.toString().stripTrailing());
-        }
+        String content = buffer.length() == 0 ? "No structural changes selected." : buffer.toString().stripTrailing();
+        applyDiffText(content, styles);
         if (undoHint != null && !undoHint.isDisposed()) {
             if (failures > 0) {
                 undoHint.setText(String.format("Dry run flagged %d issue(s). Review warnings before applying. Undo via Edit → Undo remains available.", failures));
             } else {
                 undoHint.setText(String.format("Dry run successful for %d action(s). Undo via Edit → Undo after execution.", selected.size()));
             }
+        }
+    }
+
+    private static ChangeColors changeColors(ChangeCategory category,
+            org.eclipse.swt.graphics.Color createColor,
+            org.eclipse.swt.graphics.Color updateColor,
+            org.eclipse.swt.graphics.Color deleteColor) {
+        return switch (category) {
+            case CREATE -> new ChangeColors(createColor, createColor);
+            case UPDATE -> new ChangeColors(updateColor, updateColor);
+            case DELETE -> new ChangeColors(deleteColor, deleteColor);
+            default -> new ChangeColors(null, null);
+        };
+    }
+
+    private static String changePrefix(ChangeCategory category) {
+        return switch (category) {
+            case CREATE -> "[+]";
+            case UPDATE -> "[~]";
+            case DELETE -> "[-]";
+            default -> "[•]";
+        };
+    }
+
+    private void applyDiffText(String text, List<StyleRange> styles) {
+        diffPreview.setRedraw(false);
+        diffPreview.setText(text);
+        if (styles != null && !styles.isEmpty()) {
+            diffPreview.setStyleRanges(styles.toArray(new StyleRange[0]));
+        } else {
+            diffPreview.setStyleRanges(new StyleRange[0]);
+        }
+        diffPreview.setRedraw(true);
+    }
+
+    private void appendStyledLine(StringBuilder buffer, List<StyleRange> styles, String line,
+            org.eclipse.swt.graphics.Color color) {
+        int start = buffer.length();
+        buffer.append(line);
+        StyleRange range = new StyleRange();
+        range.start = start;
+        range.length = line.length();
+        range.foreground = color;
+        styles.add(range);
+    }
+
+    private void performUndo() {
+        try {
+            IHandlerService handlerService = PlatformUI.getWorkbench().getService(IHandlerService.class);
+            if (handlerService != null) {
+                handlerService.executeCommand(IWorkbenchCommandConstants.EDIT_UNDO, null);
+                return;
+            }
+        } catch (Exception ex) {
+            // fall through to message dialog
+        }
+        MessageDialog.openInformation(getShell(), "Undo unavailable",
+                "Undo the plan via Edit → Undo immediately after closing this dialog.");
+    }
+
+    private static final class ChangeColors {
+        final org.eclipse.swt.graphics.Color primary;
+        final org.eclipse.swt.graphics.Color secondary;
+
+        ChangeColors(org.eclipse.swt.graphics.Color primary, org.eclipse.swt.graphics.Color secondary) {
+            this.primary = primary;
+            this.secondary = secondary;
         }
     }
 
