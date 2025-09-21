@@ -1,0 +1,61 @@
+# Arcadia Copilot Roadmap
+
+> Goal: elevate the Capella AI Assistant from a useful helper to a Cursor-like copilot for Arcadia-based systems engineering. Each checklist item represents a deliverable that should be demonstrably useful before being checked off.
+
+## 1. Foundations & Infrastructure
+
+- [ ] **Session Safety Review** – audit every backend entry point (Jobs, EMF commands, Sirius refresh) to guarantee UI-thread access and robust undo/redo behaviour.
+- [ ] **Telemetry & Logging Hooks** – add opt-in instrumentation so we can prioritise features based on real usage (prompt categories, plan sizes, error rates).
+- [ ] **Scenario Workspace** – introduce a lightweight sandbox (clone of the active session) so plans can run in “dry-run” mode and display diffs before commit.
+
+## 2. Rich Model Comprehension
+
+- [ ] **Layer-Aware Summaries** – extend `ModelSummary` to produce per-layer dashboards (Operational, System, Logical, Physical) with allocations, gaps, and coverage metrics.
+- [ ] **Dependency Graph Cache** – maintain quick lookups for component/function relationships, exchanges, and requirement links to answer “impact of change” queries.
+- [ ] **Validation Insights** – surface Capella validation results, warnings, and TODOs directly in the conversation context.
+- [ ] **Scenario & Functional Chain Snapshots** – summarise functional chains, state machines, and scenarios so the assistant can reason about behaviour, not just structure.
+
+## 3. Action Surface Expansion
+
+- [ ] **Operational Analysis Actions** – create capabilities to generate missions, activities, interactions, and link them to System Analysis elements.
+- [ ] **System Analysis Actions** – support architectural breakdowns, behaviour modelling, interfaces, and capability allocations.
+- [ ] **Logical ↔ Physical Transformations** – automate derivations and synchronisations between layers (e.g., propagate logical components to physical architecture with traceability).
+- [ ] **Functional Chain Authoring** – allow creation, extension, and validation of functional chains, including exchange sequencing and scenario ties.
+- [ ] **Requirement Handling** – enable creation, linking, and coverage checks for requirements and verification elements.
+- [ ] **Mass Edit & Allocation Commands** – provide batch rename, re-parent, allocate, and mapping operations guided by the LLM.
+
+## 4. Conversational Experience
+
+- [ ] **Plan Editor UI** – replace the simple confirmation dialog with a rich plan inspector (editable table/tree, per-action toggles, inline field edits).
+- [ ] **Diff Visualisation** – show Capella element diffs (added/changed/removed) before executing a plan, and provide a one-click “Undo AI plan”.
+- [ ] **Context Cards** – display contextual panels (selected element summary, impacted requirements, diagram thumbnails) alongside chat responses.
+- [ ] **Inline Suggestions & Autocomplete** – add quick command palette (`/command`) and auto-complete prompts for common modelling tasks.
+- [ ] **Streaming Replies** – stream LLM responses live to reduce perceived latency and let users interrupt or refine mid-response.
+- [ ] **Clarification Loop** – implement follow-up prompts when plan validation fails (“Component X not found – did you mean Y?”) instead of silently skipping actions.
+
+## 5. Arcadia Guidance & Best Practices
+
+- [ ] **Methodology Coach** – embed Arcadia step guidance (“You’ve defined missions; next define capabilities…”) and checklists.
+- [ ] **Design Reviews** – generate architecture review reports (coverage, alignment, inconsistencies) and allow the user to request targeted audits.
+- [ ] **Transformation Playbooks** – codify reusable plan templates (e.g., “Break down this system function into logical functions”) that users can trigger via chat or command palette.
+- [ ] **Impact Simulations** – estimate downstream effects of changes (interface updates, component migrations) using the dependency cache.
+
+## 6. Reliability & Quality
+
+- [ ] **Automated Test Suite** – build headless JUnit/SWTBot suites covering plan validation, EMF mutations, undo/redo, and draw.io import edge cases.
+- [ ] **Chaos Testing for Plans** – fuzz-plan executor with malformed/malicious JSON to harden validation and ensure graceful recovery.
+- [ ] **Performance Benchmarks** – establish baseline timings for large models (>100k elements) and optimise caching/queries as needed.
+- [ ] **Documentation & Samples** – ship guided tutorials, sample conversations, and model snippets demonstrating advanced scenarios.
+
+## 7. Deployment & Adoption
+
+- [ ] **Installer UX** – bundle the assistant as an easy-to-install Capella feature with update-site discovery and version checks.
+- [ ] **Release Notes Pipeline** – automate changelog generation so users see new capabilities at each drop.
+- [ ] **Feedback Loop** – add in-IDE feedback (“Was this helpful?”) to capture qualitative insights for future iterations.
+
+---
+
+### Tracking Progress
+
+Update this roadmap during each iteration review. Only tick a checkbox when the capability is demonstrably usable in Capella and has accompanying tests/docs.
+
