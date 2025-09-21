@@ -29,6 +29,7 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableItem;
 import org.eclipse.swt.widgets.Text;
+import org.polarsys.capella.ai.llm.ToolRouter.ChangeCategory;
 import org.polarsys.capella.ai.llm.ToolRouter.PlanItem;
 import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
 
@@ -43,6 +44,8 @@ public final class PlanEditorDialog extends TitleAreaDialog {
     private CheckboxTableViewer viewer;
     private Text details;
     private Label selectionSummary;
+    private Text diffPreview;
+    private Label undoHint;
 
     public PlanEditorDialog(Shell parentShell, ToolPlan plan) {
         super(parentShell);
@@ -70,6 +73,7 @@ public final class PlanEditorDialog extends TitleAreaDialog {
         createTable(container);
         createButtonsRow(container);
         createDetailsSection(container);
+        createDiffSection(container);
 
         populatePlan();
         updateSelectionSummary();
@@ -175,6 +179,22 @@ public final class PlanEditorDialog extends TitleAreaDialog {
         details.setLayoutData(data);
     }
 
+    private void createDiffSection(Composite parent) {
+        Group diffGroup = new Group(parent, SWT.NONE);
+        diffGroup.setText("Diff preview");
+        diffGroup.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
+        diffGroup.setLayout(new GridLayout(1, false));
+
+        diffPreview = new Text(diffGroup, SWT.BORDER | SWT.MULTI | SWT.READ_ONLY | SWT.WRAP | SWT.V_SCROLL);
+        GridData diffData = new GridData(SWT.FILL, SWT.FILL, true, true);
+        diffData.heightHint = 140;
+        diffPreview.setLayoutData(diffData);
+
+        undoHint = new Label(diffGroup, SWT.WRAP);
+        undoHint.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        undoHint.setText("Tip: the assistant runs the plan in a single EMF transaction. Use Edit → Undo immediately after execution to revert the changes.");
+    }
+
     private void populatePlan() {
         List<PlanItem> items = plan.items();
         viewer.setInput(items);
@@ -201,12 +221,17 @@ public final class PlanEditorDialog extends TitleAreaDialog {
         updateSelectionSummary();
     }
 
-    private void updateSelectionSummary() {
+    private List<PlanItem> checkedItems() {
         Object[] checked = viewer.getCheckedElements();
         List<PlanItem> selected = new ArrayList<>(checked.length);
         for (Object obj : checked) {
             selected.add((PlanItem) obj);
         }
+        return selected;
+    }
+
+    private void updateSelectionSummary() {
+        List<PlanItem> selected = checkedItems();
         int total = plan.size();
         if (selected.isEmpty()) {
             selectionSummary.setText(String.format("No actions selected (0 of %d).", total));
@@ -218,7 +243,45 @@ public final class PlanEditorDialog extends TitleAreaDialog {
                     .collect(Collectors.joining(", "));
             selectionSummary.setText(String.format("Selected %d of %d actions (%s)", selected.size(), total, summary));
         }
+        updateDiffPreview(selected);
         selectionSummary.getParent().layout();
+    }
+
+    private void updateDiffPreview(List<PlanItem> selected) {
+        if (diffPreview == null || diffPreview.isDisposed()) {
+            return;
+        }
+        if (selected == null || selected.isEmpty()) {
+            diffPreview.setText("No structural changes selected.");
+            if (undoHint != null && !undoHint.isDisposed()) {
+                undoHint.setText("Tip: the assistant runs the plan in a single EMF transaction. Use Edit → Undo immediately after execution to revert the changes.");
+            }
+            return;
+        }
+        Map<ChangeCategory, List<PlanItem>> grouped = selected.stream()
+                .collect(Collectors.groupingBy(PlanItem::getCategory, LinkedHashMap::new, Collectors.toList()));
+        StringBuilder sb = new StringBuilder();
+        for (ChangeCategory category : ChangeCategory.values()) {
+            List<PlanItem> items = grouped.get(category);
+            if (items == null || items.isEmpty()) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append(System.lineSeparator());
+            }
+            sb.append(category.label()).append(':').append(System.lineSeparator());
+            for (PlanItem item : items) {
+                sb.append(" • ").append(item.getDiffSummary()).append(System.lineSeparator());
+            }
+        }
+        if (sb.length() == 0) {
+            diffPreview.setText("No structural changes selected.");
+        } else {
+            diffPreview.setText(sb.toString().stripTrailing());
+        }
+        if (undoHint != null && !undoHint.isDisposed()) {
+            undoHint.setText(String.format("Will apply %d action(s). Undo via Edit → Undo immediately after execution.", selected.size()));
+        }
     }
 
     private void updateDetails(PlanItem item) {

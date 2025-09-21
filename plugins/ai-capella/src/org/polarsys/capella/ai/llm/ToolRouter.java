@@ -146,6 +146,32 @@ public final class ToolRouter {
         public String getDescription() {
             return action.describe();
         }
+
+        public ChangeCategory getCategory() {
+            return action.category();
+        }
+
+        public String getDiffSummary() {
+            return action.diffSummary();
+        }
+
+    }
+
+    public enum ChangeCategory {
+        CREATE("Creates"),
+        UPDATE("Updates"),
+        DELETE("Deletes"),
+        OPEN("View");
+
+        private final String label;
+
+        ChangeCategory(String label) {
+            this.label = label;
+        }
+
+        public String label() {
+            return label;
+        }
     }
 
     public static final class PlanExecutionResult {
@@ -546,6 +572,64 @@ public final class ToolRouter {
                 default:
                     return typeLabel();
             }
+        }
+
+        ChangeCategory category() {
+            switch (type) {
+                case CREATE_COMPONENT:
+                case CREATE_FUNCTION:
+                case CREATE_COMPONENT_EXCHANGE:
+                case CREATE_FUNCTIONAL_EXCHANGE:
+                case CREATE_LAB:
+                    return ChangeCategory.CREATE;
+                case RENAME:
+                    return ChangeCategory.UPDATE;
+                case DELETE:
+                    return ChangeCategory.DELETE;
+                case OPEN_DIAGRAM:
+                default:
+                    return ChangeCategory.OPEN;
+            }
+        }
+
+        String diffSummary() {
+            switch (type) {
+                case CREATE_COMPONENT:
+                    return summarizeCreate("Component", name, layer);
+                case CREATE_FUNCTION:
+                    return summarizeCreate("Function", name, layer);
+                case CREATE_COMPONENT_EXCHANGE:
+                    return summarizeExchange("Component exchange", name, sourceName, targetName, layer);
+                case CREATE_FUNCTIONAL_EXCHANGE:
+                    return summarizeExchange("Functional exchange", name, sourceName, targetName, layer);
+                case CREATE_LAB:
+                    return String.format("Create LAB diagram in %s", safeLayer(layer));
+                case OPEN_DIAGRAM:
+                    return String.format("Open %s diagram (%s)", defaultString(diagramType, "LAB"), defaultString(name, "auto"));
+                case RENAME:
+                    return String.format("Rename %s '%s' → '%s'", defaultString(elementClass, "element"), defaultString(existingName, "?"), defaultString(newName, "?"));
+                case DELETE:
+                    return String.format("Delete %s '%s'", defaultString(elementClass, "element"), defaultString(existingName, "?"));
+                default:
+                    return describe();
+            }
+        }
+
+        private String summarizeCreate(String kind, String valueName, String layerName) {
+            return String.format("Create %s '%s' in %s", kind, defaultString(valueName, "(auto)"), safeLayer(layerName));
+        }
+
+        private String summarizeExchange(String kind, String valueName, String src, String tgt, String layerName) {
+            return String.format("Create %s '%s' (%s → %s) in %s", kind, defaultString(valueName, kind),
+                    defaultString(src, "?"), defaultString(tgt, "?"), safeLayer(layerName));
+        }
+
+        private String safeLayer(String layerName) {
+            return defaultString(layerName, "LA");
+        }
+
+        private String defaultString(String value, String fallback) {
+            return (value == null || value.isBlank()) ? fallback : value;
         }
 
         private String typeLabel() {
