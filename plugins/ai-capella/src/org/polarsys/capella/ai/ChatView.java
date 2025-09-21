@@ -1,15 +1,16 @@
 package org.polarsys.capella.ai;
 
 import java.io.File;
-import java.util.Arrays;
 import java.util.List;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.InputDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.jface.dialogs.TitleAreaDialog;
 import org.eclipse.jface.window.Window;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.viewpoint.DRepresentation;
@@ -24,21 +25,25 @@ import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Group;
 import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.part.ViewPart;
 import org.osgi.service.prefs.BackingStoreException;
-import org.polarsys.capella.ai.Activator;
 import org.polarsys.capella.ai.llm.LLMService;
+import org.polarsys.capella.ai.llm.ToolRouter;
+import org.polarsys.capella.ai.llm.ToolRouter.PlanExecutionResult;
+import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.tools.DiagramCommands;
 
 /**
- * Chat-centric view that also exposes diagram tools and inline LLM settings.
+ * Chat-centric view providing inline model tools and immediate LLM configuration.
  */
 public class ChatView extends ViewPart {
 
@@ -101,14 +106,11 @@ public class ChatView extends ViewPart {
 
         prompt = new Text(promptRow, SWT.BORDER);
         prompt.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        prompt.addModifyListener(event -> updateSendButtonState());
         prompt.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                if (e.character == SWT.CR || e.character == SWT.LF) {
-                    if (!sending && sendButton.isEnabled()) {
-                        onSend();
-                    }
+                if ((e.character == SWT.CR || e.character == SWT.LF) && !sending && sendButton.isEnabled()) {
+                    onSend();
                 }
             }
         });
@@ -132,8 +134,7 @@ public class ChatView extends ViewPart {
         enableActions.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
-                boolean value = enableActions.getSelection();
-                persistPreference(() -> LLMPreferences.setToolActionsEnabled(value));
+                persistPreference(() -> LLMPreferences.setToolActionsEnabled(enableActions.getSelection()));
                 updateConnectionSummary();
             }
         });
@@ -143,8 +144,7 @@ public class ChatView extends ViewPart {
         useLlmMapping.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
-                boolean value = useLlmMapping.getSelection();
-                persistPreference(() -> LLMPreferences.setUseLlmMapping(value));
+                persistPreference(() -> LLMPreferences.setUseLlmMapping(useLlmMapping.getSelection()));
                 updateConnectionSummary();
             }
         });
@@ -200,8 +200,7 @@ public class ChatView extends ViewPart {
         advanced.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
         advanced.setLayout(new GridLayout(3, false));
 
-        Label uuidLabel = new Label(advanced, SWT.NONE);
-        uuidLabel.setText("Element UUID");
+        new Label(advanced, SWT.NONE).setText("Element UUID");
         elementUuid = new Text(advanced, SWT.BORDER);
         elementUuid.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
 
@@ -215,8 +214,7 @@ public class ChatView extends ViewPart {
             }
         });
 
-        Label newNameLabel = new Label(advanced, SWT.NONE);
-        newNameLabel.setText("New name");
+        new Label(advanced, SWT.NONE).setText("New name");
         newName = new Text(advanced, SWT.BORDER);
         newName.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
@@ -240,8 +238,7 @@ public class ChatView extends ViewPart {
             }
         });
 
-        Label newElementLabel = new Label(advanced, SWT.NONE);
-        newElementLabel.setText("New element name");
+        new Label(advanced, SWT.NONE).setText("New element name");
         newElementName = new Text(advanced, SWT.BORDER);
         newElementName.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
@@ -287,7 +284,6 @@ public class ChatView extends ViewPart {
         modelCombo = new Combo(settings, SWT.DROP_DOWN);
         modelCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        // Fill remaining two columns to keep grid consistent
         new Label(settings, SWT.NONE);
         new Label(settings, SWT.NONE);
 
@@ -307,7 +303,6 @@ public class ChatView extends ViewPart {
         timeoutText = new Text(settings, SWT.BORDER);
         timeoutText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        // pad columns so layout keeps 6 columns total
         new Label(settings, SWT.NONE);
         new Label(settings, SWT.NONE);
         new Label(settings, SWT.NONE);
@@ -377,8 +372,6 @@ public class ChatView extends ViewPart {
         final Session session = SessionBridge.getActiveSession();
         if (session == null) {
             append("No active Capella session.");
-            sending = false;
-            updateSendButtonState();
             return;
         }
         final DRepresentation currentDiagram = DiagramCommands.getLastOpened();
@@ -392,22 +385,8 @@ public class ChatView extends ViewPart {
         Job job = new Job("Capella AI request") {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
-                try {
-                    var res = org.polarsys.capella.ai.llm.ToolRouter.handleChat(session, currentDiagram, text, actionsEnabled);
-                    String reply = res.reply != null ? res.reply : "";
-                    String suffix = res.actionsApplied > 0 ? "\n[Applied " + res.actionsApplied + " action(s)]" : "";
-                    append("Assistant: " + reply + suffix);
-                    if (res.planSummary != null && !res.planSummary.isBlank()) {
-                        append(res.planSummary);
-                    }
-                } catch (Exception ex) {
-                    append("Assistant ERROR: " + ex.getMessage());
-                } finally {
-                    Display.getDefault().asyncExec(() -> {
-                        sending = false;
-                        updateSendButtonState();
-                    });
-                }
+                ToolRouter.Result res = ToolRouter.handleChat(session, text);
+                Display.getDefault().asyncExec(() -> handleChatResult(session, currentDiagram, actionsEnabled, res));
                 return Status.OK_STATUS;
             }
         };
@@ -415,17 +394,86 @@ public class ChatView extends ViewPart {
         job.schedule();
     }
 
+    private void handleChatResult(Session session, DRepresentation diagram, boolean actionsEnabled, ToolRouter.Result result) {
+        try {
+            if (result.error != null) {
+                append("Assistant ERROR: " + result.error);
+            }
+            if (result.reply != null && !result.reply.isBlank()) {
+                append("Assistant: " + result.reply);
+            }
+
+            ToolPlan plan = result.plan;
+            if (plan != null && !plan.isEmpty()) {
+                appendPlanSummary(plan.describe(), actionsEnabled);
+                if (actionsEnabled) {
+                    PlanPreviewDialog dialog = new PlanPreviewDialog(getSite().getShell(), plan.describe());
+                    if (dialog.open() == IDialogConstants.OK_ID) {
+                        schedulePlanExecution(session, diagram, plan);
+                    } else {
+                        append("Plan not applied (cancelled by user).");
+                    }
+                }
+            }
+        } finally {
+            sending = false;
+            updateSendButtonState();
+        }
+    }
+
+    private void schedulePlanExecution(Session session, DRepresentation diagram, ToolPlan plan) {
+        Job job = new Job("Apply AI plan") {
+            @Override
+            protected IStatus run(IProgressMonitor monitor) {
+                PlanExecutionResult execution = ToolRouter.applyPlan(session, diagram, plan);
+                Display.getDefault().asyncExec(() -> {
+                    append("Plan actions applied: " + execution.applied);
+                    for (String error : execution.errors) {
+                        append("Plan warning: " + error);
+                    }
+                    updateConnectionSummary();
+                });
+                return Status.OK_STATUS;
+            }
+        };
+        job.schedule();
+    }
+
+    private void appendPlanSummary(List<String> lines, boolean actionsEnabled) {
+        append("Plan contains " + lines.size() + " action(s):");
+        for (String line : lines) {
+            append(" - " + line);
+        }
+        if (!actionsEnabled) {
+            append("Tool actions are disabled; plan will not be applied.");
+        }
+    }
+
     private void onExplainModel() {
         try {
-            append(org.polarsys.capella.ai.model.ModelSummary.summarize());
+            Session session = SessionBridge.getActiveSession();
+            append(org.polarsys.capella.ai.model.ModelSummary.summarize(session));
         } catch (Exception ex) {
             append("Explain failed: " + ex.getMessage());
         }
     }
 
+    private void append(String text) {
+        Display display = Display.getDefault();
+        if (display.isDisposed()) {
+            return;
+        }
+        display.asyncExec(() -> {
+            if (chatLog != null && !chatLog.isDisposed()) {
+                chatLog.append(text + System.lineSeparator());
+                chatLog.setTopIndex(chatLog.getLineCount() - 1);
+            }
+        });
+    }
+
     private void onListDiagrams() {
         try {
-            List<?> diagrams = org.polarsys.capella.ai.browse.DiagramBrowser.listActive();
+            List<org.polarsys.capella.ai.browse.DiagramBrowser.DiagramInfo> diagrams = org.polarsys.capella.ai.browse.DiagramBrowser.listActive();
             if (diagrams.isEmpty()) {
                 append("No diagrams found in active session.");
             } else {
@@ -439,7 +487,7 @@ public class ChatView extends ViewPart {
 
     private void onCreateLab() {
         try {
-            var session = org.polarsys.capella.ai.session.SessionBridge.getActiveSession();
+            Session session = SessionBridge.getActiveSession();
             if (session == null) {
                 append("No active session.");
                 return;
@@ -449,8 +497,8 @@ public class ChatView extends ViewPart {
                 append("LA architecture not found.");
                 return;
             }
-            String desc = org.polarsys.capella.ai.tools.DiagramMappings.descriptionFor("LA", "LAB");
-            var rep = org.polarsys.capella.ai.tools.DiagramCommands.createAndOpenDiagram(target, desc, "New Logical Architecture");
+            String description = org.polarsys.capella.ai.tools.DiagramMappings.descriptionFor("LA", "LAB");
+            var rep = org.polarsys.capella.ai.tools.DiagramCommands.createAndOpenDiagram(target, description, "New Logical Architecture");
             append(rep != null ? "Created and opened: " + rep.getName() : "Failed to create diagram.");
         } catch (Exception ex) {
             append("Create LAB failed: " + ex.getMessage());
@@ -488,7 +536,7 @@ public class ChatView extends ViewPart {
             return;
         }
         try {
-            var session = org.polarsys.capella.ai.session.SessionBridge.getActiveSession();
+            Session session = SessionBridge.getActiveSession();
             if (session == null) {
                 append("No active session.");
                 return;
@@ -498,8 +546,8 @@ public class ChatView extends ViewPart {
                 append("Open or create a diagram first.");
                 return;
             }
-            int resolved = org.polarsys.capella.ai.tools.DiagramCommands.addElementsByUuid(session, rep, List.of(id));
-            org.polarsys.capella.ai.tools.DiagramCommands.arrange(rep);
+            int resolved = DiagramCommands.addElementsByUuid(session, rep, List.of(id));
+            DiagramCommands.arrange(rep);
             append("Reveal requested; resolved " + resolved + " item(s).");
         } catch (Exception ex) {
             append("Reveal failed: " + ex.getMessage());
@@ -544,7 +592,7 @@ public class ChatView extends ViewPart {
             return;
         }
         try {
-            var session = org.polarsys.capella.ai.session.SessionBridge.getActiveSession();
+            Session session = SessionBridge.getActiveSession();
             if (session == null) {
                 append("No active session.");
                 return;
@@ -560,10 +608,10 @@ public class ChatView extends ViewPart {
                 return;
             }
             append("Created " + simpleEClass + ": " + nm);
-            var rep = org.polarsys.capella.ai.tools.DiagramCommands.lastOpened;
+            var rep = DiagramCommands.getLastOpened();
             if (rep != null) {
-                org.polarsys.capella.ai.tools.DiagramCommands.addElementsByUuid(session, rep, List.of(getUuid(created)));
-                org.polarsys.capella.ai.tools.DiagramCommands.arrange(rep);
+                DiagramCommands.addElementsByUuid(session, rep, List.of(getUuid(created)));
+                DiagramCommands.arrange(rep);
                 append("Diagram refreshed with new element.");
             }
         } catch (Exception ex) {
@@ -670,19 +718,6 @@ public class ChatView extends ViewPart {
         job.schedule();
     }
 
-    private void append(String text) {
-        Display display = Display.getDefault();
-        if (display.isDisposed()) {
-            return;
-        }
-        display.asyncExec(() -> {
-            if (chatLog != null && !chatLog.isDisposed()) {
-                chatLog.append(text + System.lineSeparator());
-                chatLog.setTopIndex(chatLog.getLineCount() - 1);
-            }
-        });
-    }
-
     private void setSettingsStatus(String message, boolean ok) {
         Display display = Display.getDefault();
         if (display.isDisposed()) {
@@ -740,8 +775,7 @@ public class ChatView extends ViewPart {
                     }
                 }
             }
-        } catch (Exception ignore) {
-        }
+        } catch (Exception ignore) {}
         return String.valueOf(eo.hashCode());
     }
 
@@ -794,7 +828,7 @@ public class ChatView extends ViewPart {
             case "anthropic":
                 return "https://api.anthropic.com";
             case "azure":
-                return ""; // Azure base URL varies by deployment
+                return "";
             case "openai":
             default:
                 return "https://api.openai.com";
@@ -829,6 +863,53 @@ public class ChatView extends ViewPart {
     public void setFocus() {
         if (prompt != null && !prompt.isDisposed()) {
             prompt.setFocus();
+        }
+    }
+
+    private static class PlanPreviewDialog extends TitleAreaDialog {
+        private final List<String> lines;
+
+        PlanPreviewDialog(Shell parentShell, List<String> lines) {
+            super(parentShell);
+            this.lines = lines;
+        }
+
+        @Override
+        public void create() {
+            super.create();
+            setTitle("Review AI actions");
+            setMessage("Confirm the actions before applying them to the model.");
+        }
+
+        @Override
+        protected Control createDialogArea(Composite parent) {
+            Composite area = (Composite) super.createDialogArea(parent);
+            Composite container = new Composite(area, SWT.NONE);
+            container.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+            container.setLayout(new GridLayout(1, false));
+
+            Text summary = new Text(container, SWT.BORDER | SWT.MULTI | SWT.READ_ONLY | SWT.WRAP | SWT.V_SCROLL);
+            summary.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+            StringBuilder sb = new StringBuilder();
+            for (String line : lines) {
+                sb.append("• ").append(line).append(System.lineSeparator());
+            }
+            summary.setText(sb.toString());
+            summary.setBackground(container.getDisplay().getSystemColor(SWT.COLOR_WHITE));
+
+            return area;
+        }
+
+        @Override
+        protected void createButtonsForButtonBar(Composite parent) {
+            createButton(parent, IDialogConstants.CANCEL_ID, IDialogConstants.CANCEL_LABEL, false);
+            Button apply = createButton(parent, IDialogConstants.OK_ID, "Apply actions", true);
+            apply.setFocus();
+        }
+
+        @Override
+        protected boolean isResizable() {
+            return true;
         }
     }
 }

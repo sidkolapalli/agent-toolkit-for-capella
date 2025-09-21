@@ -1,12 +1,12 @@
 package org.polarsys.capella.ai.llm;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import org.eclipse.emf.ecore.EObject;
-import org.eclipse.emf.transaction.TransactionalEditingDomain;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.polarsys.capella.ai.model.ArchitectureLocator;
@@ -14,22 +14,57 @@ import org.polarsys.capella.ai.model.ElementFactory;
 import org.polarsys.capella.ai.model.Finders;
 import org.polarsys.capella.ai.model.ModelOps;
 import org.polarsys.capella.ai.model.ModelSummary;
-import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.tools.DiagramCommands;
 import org.polarsys.capella.ai.tools.DiagramMappings;
 
-/** Routes chat requests to LLM and executes tool plans when present. */
+/**
+ * Parses TOOL_PLAN responses and applies requested actions against the active Capella session.
+ */
 public final class ToolRouter {
-    public static final class Result {
-        public String reply;
-        public int actionsApplied;
-        public String error;
-        public String planSummary;
-    }
 
     private ToolRouter() {}
 
-    public static Result handleChat(Session session, DRepresentation diagram, String userMessage, boolean enableActions) {
+    public static final class Result {
+        public String reply;
+        public ToolPlan plan;
+        public String error;
+    }
+
+    public static final class ToolPlan {
+        private final List<Action> actions;
+
+        ToolPlan(List<Action> actions) {
+            this.actions = Collections.unmodifiableList(actions);
+        }
+
+        public boolean isEmpty() {
+            return actions.isEmpty();
+        }
+
+        public List<String> describe() {
+            List<String> lines = new ArrayList<>(actions.size());
+            for (Action action : actions) {
+                lines.add(action.describe());
+            }
+            return lines;
+        }
+
+        List<Action> actions() {
+            return actions;
+        }
+    }
+
+    public static final class PlanExecutionResult {
+        public final int applied;
+        public final List<String> errors;
+
+        PlanExecutionResult(int applied, List<String> errors) {
+            this.applied = applied;
+            this.errors = errors;
+        }
+    }
+
+    public static Result handleChat(Session session, String userMessage) {
         Result result = new Result();
         try {
             if (session == null) {
@@ -39,14 +74,10 @@ public final class ToolRouter {
             String reply = LLMService.get().send(prompt);
             result.reply = reply;
 
-            String json = extractPlan(reply);
-            if (json != null && !json.isBlank()) {
-                List<Action> actions = parseActions(json);
-                result.planSummary = describePlan(actions, enableActions);
-                if (enableActions && !actions.isEmpty()) {
-                    int applied = executePlan(session, diagram, actions);
-                    result.actionsApplied = applied;
-                }
+            String planJson = extractPlan(reply);
+            if (planJson != null && !planJson.isBlank()) {
+                List<Action> actions = parseActions(planJson);
+                result.plan = actions.isEmpty() ? null : new ToolPlan(actions);
             }
         } catch (PlanValidationException ex) {
             result.error = ex.getMessage();
@@ -54,6 +85,55 @@ public final class ToolRouter {
             result.error = ex.getMessage();
         }
         return result;
+    }
+
+    public static PlanExecutionResult applyPlan(Session session, DRepresentation diagram, ToolPlan plan) {
+        if (session == null || plan == null || plan.isEmpty()) {
+            return new PlanExecutionResult(0, List.of());
+        }
+        int applied = 0;
+        List<String> errors = new ArrayList<>();
+        for (Action action : plan.actions()) {
+            try {
+                boolean success = false;
+                switch (action.type) {
+                    case CREATE_COMPONENT:
+                        success = createComponent(session, action.layer, action.name);
+                        break;
+                    case CREATE_FUNCTION:
+                        success = createFunction(session, action.layer, action.name);
+                        break;
+                    case CREATE_COMPONENT_EXCHANGE:
+                        success = createComponentExchange(session, action.layer, action.sourceName, action.targetName, action.name);
+                        break;
+                    case CREATE_FUNCTIONAL_EXCHANGE:
+                        success = createFunctionalExchange(session, action.layer, action.sourceName, action.targetName, action.name);
+                        break;
+                    case CREATE_LAB:
+                        success = createLabDiagram(session, action.layer);
+                        break;
+                    case OPEN_DIAGRAM:
+                        success = openDiagram(session, action.layer, action.diagramType, action.name);
+                        break;
+                    case RENAME:
+                        success = rename(session, action.elementClass, action.existingName, action.newName);
+                        break;
+                    case DELETE:
+                        success = delete(session, action.elementClass, action.existingName);
+                        break;
+                    default:
+                        break;
+                }
+                if (success) {
+                    applied++;
+                } else {
+                    errors.add("Failed: " + action.describe());
+                }
+            } catch (Exception ex) {
+                errors.add(action.describe() + " → " + ex.getMessage());
+            }
+        }
+        return new PlanExecutionResult(applied, errors);
     }
 
     private static String buildPrompt(Session session, String user) {
@@ -113,73 +193,21 @@ public final class ToolRouter {
         if (!(rawActions instanceof List)) {
             throw new PlanValidationException("TOOL_PLAN requires an 'actions' array");
         }
-        List<Action> actions = new ArrayList<>();
         List<?> list = (List<?>) rawActions;
+        if (list.isEmpty()) {
+            return List.of();
+        }
+        List<Action> actions = new ArrayList<>(list.size());
         for (int index = 0; index < list.size(); index++) {
             Object entry = list.get(index);
             if (!(entry instanceof Map)) {
-                throw new PlanValidationException("Action at index " + index + " must be an object");
+                throw new PlanValidationException("Action " + index + " must be an object");
             }
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) entry;
             actions.add(Action.fromMap(index, map));
         }
         return actions;
-    }
-
-    private static int executePlan(Session session, DRepresentation diagram, List<Action> actions) {
-        TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
-        if (domain == null) {
-            return 0;
-        }
-        int applied = 0;
-        for (Action action : actions) {
-            try {
-                switch (action.type) {
-                    case CREATE_COMPONENT:
-                        if (createComponent(session, action.layer, action.name)) applied++;
-                        break;
-                    case CREATE_FUNCTION:
-                        if (createFunction(session, action.layer, action.name)) applied++;
-                        break;
-                    case CREATE_COMPONENT_EXCHANGE:
-                        if (createComponentExchange(session, action.layer, action.sourceName, action.targetName, action.name)) applied++;
-                        break;
-                    case CREATE_FUNCTIONAL_EXCHANGE:
-                        if (createFunctionalExchange(session, action.layer, action.sourceName, action.targetName, action.name)) applied++;
-                        break;
-                    case CREATE_LAB:
-                        if (createLabDiagram(session, action.layer)) applied++;
-                        break;
-                    case OPEN_DIAGRAM:
-                        if (openDiagram(session, action.layer, action.diagramType, action.name)) applied++;
-                        break;
-                    case RENAME:
-                        if (rename(session, action.elementClass, action.existingName, action.newName)) applied++;
-                        break;
-                    case DELETE:
-                        if (delete(session, action.elementClass, action.existingName)) applied++;
-                        break;
-                    default:
-                        break;
-                }
-            } catch (Exception ex) {
-                // continue executing the plan but surface the failure later
-            }
-        }
-        return applied;
-    }
-
-    private static String describePlan(List<Action> actions, boolean willExecute) {
-        if (actions.isEmpty()) {
-            return null;
-        }
-        StringBuilder sb = new StringBuilder();
-        sb.append(willExecute ? "Executed plan actions:" : "Plan (not executed):");
-        for (Action action : actions) {
-            sb.append(System.lineSeparator()).append(" • ").append(action.describe());
-        }
-        return sb.toString();
     }
 
     private static boolean createComponent(Session session, String layer, String name) {
@@ -245,7 +273,7 @@ public final class ToolRouter {
             return false;
         }
         String desc = DiagramMappings.descriptionFor(layer != null ? layer : "LA", type != null ? type : "LAB");
-        String name = suggestedName != null && !suggestedName.isBlank() ? suggestedName : ("AI " + type + " Diagram");
+        String name = (suggestedName != null && !suggestedName.isBlank()) ? suggestedName : ("AI " + type + " Diagram");
         return DiagramCommands.createAndOpenDiagram(root, desc, name) != null;
     }
 
@@ -266,7 +294,9 @@ public final class ToolRouter {
     }
 
     private static void setEndpoint(EObject exchange, String role, EObject end) {
-        if (exchange == null || end == null) return;
+        if (exchange == null || end == null) {
+            return;
+        }
         try {
             for (var feature : exchange.eClass().getEAllStructuralFeatures()) {
                 if (feature instanceof org.eclipse.emf.ecore.EReference) {
