@@ -58,6 +58,16 @@ public final class PlanDryRun {
                 return simulateExchange(sandbox, item, "FunctionalExchange", item.getSourceName(), item.getTargetName());
             case "CREATE_LAB":
                 return Outcome.success("Would create LAB diagram in " + safeLayer(item.getLayer()));
+            case "CREATE_MISSION":
+                return Outcome.success("Would create mission '" + item.getName() + "' in " + safeLayer(item.getLayer()));
+            case "CREATE_OPERATIONAL_ACTIVITY":
+                return Outcome.success(item.getParentName() != null && !item.getParentName().isBlank() ?
+                        "Would create operational activity '" + item.getName() + "' under " + item.getParentName()
+                        : "Would create operational activity '" + item.getName() + "' in " + safeLayer(item.getLayer()));
+            case "CREATE_OPERATIONAL_EXCHANGE":
+                return Outcome.success("Would create operational exchange '" + item.getName() + "' between " + defaultString(item.getSourceName(), "?") + " → " + defaultString(item.getTargetName(), "?") + "");
+            case "LINK_OPERATIONAL_TO_CAPABILITY":
+                return Outcome.success("Would link operational activity '" + item.getExistingName() + "' to capability '" + item.getCapabilityName() + "'");
             case "OPEN_DIAGRAM":
                 return Outcome.success("Would open " + defaultString(item.getDiagramType(), "LAB") + " diagram");
             case "RENAME":

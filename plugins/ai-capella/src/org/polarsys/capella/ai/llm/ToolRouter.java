@@ -13,6 +13,7 @@ import org.polarsys.capella.ai.model.ArchitectureLocator;
 import org.polarsys.capella.ai.model.ElementFactory;
 import org.polarsys.capella.ai.model.Finders;
 import org.polarsys.capella.ai.model.ModelOps;
+import org.polarsys.capella.ai.actions.OperationalActions;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.tools.DiagramCommands;
 import org.polarsys.capella.ai.tools.DiagramMappings;
@@ -148,6 +149,14 @@ public final class ToolRouter {
             return action.describe();
         }
 
+        public String getParentName() {
+            return action.parentName;
+        }
+
+        public String getCapabilityName() {
+            return action.capabilityName;
+        }
+
         public ChangeCategory getCategory() {
             return action.category();
         }
@@ -247,6 +256,14 @@ public final class ToolRouter {
                 return createFunctionalExchange(session, action.layer, action.sourceName, action.targetName, action.name);
             case CREATE_LAB:
                 return createLabDiagram(session, action.layer);
+            case CREATE_MISSION:
+                return OperationalActions.createMission(session, action.layer, action.name, action.description);
+            case CREATE_OPERATIONAL_ACTIVITY:
+                return OperationalActions.createOperationalActivity(session, action.layer, action.name, action.parentName);
+            case CREATE_OPERATIONAL_EXCHANGE:
+                return OperationalActions.createOperationalExchange(session, action.layer, action.name, action.sourceName, action.targetName);
+            case LINK_OPERATIONAL_TO_CAPABILITY:
+                return OperationalActions.linkActivityToCapability(session, action.existingName, action.capabilityName);
             case OPEN_DIAGRAM:
                 return openDiagram(session, action.layer, action.diagramType, action.name);
             case RENAME:
@@ -262,13 +279,17 @@ public final class ToolRouter {
         StringBuilder sb = new StringBuilder();
         sb.append("You are an AI agent inside Capella.\n");
         sb.append("When the user asks for changes, output a line starting with 'TOOL_PLAN:' followed by compact JSON.\n");
-        sb.append("Schema: {\"actions\":[{\"type\":one of \"create_component\",\"create_function\",\"create_component_exchange\",\"create_functional_exchange\",\"create_lab\",\"rename\",\"delete\",\"open_diagram\"},...]}\n");
+        sb.append("Schema: {\"actions\":[{\"type\":one of \"create_component\",\"create_function\",\"create_component_exchange\",\"create_functional_exchange\",\"create_lab\",\"rename\",\"delete\",\"open_diagram\",\"create_mission\",\"create_operational_activity\",\"create_operational_exchange\",\"link_operational_to_capability\"},...]}\n");
         sb.append("Action fields:\n");
         sb.append("- create_component: {layer, name}\n");
         sb.append("- create_function: {layer, name}\n");
         sb.append("- create_component_exchange: {source_name, target_name, layer, name}\n");
         sb.append("- create_functional_exchange: {source_function, target_function, layer, name}\n");
         sb.append("- create_lab: {layer}\n");
+        sb.append("- create_mission: {name, layer?, description?}\n");
+        sb.append("- create_operational_activity: {name, layer?, parent_name?}\n");
+        sb.append("- create_operational_exchange: {source_actor, target_actor, layer?, name?}\n");
+        sb.append("- link_operational_to_capability: {operational_activity, capability, layer?}\n");
         sb.append("- rename: {class, name, new_name}\n");
         sb.append("- delete: {class, name}\n");
         sb.append("- open_diagram: {layer, type}\n");
@@ -466,7 +487,11 @@ public final class ToolRouter {
         CREATE_LAB,
         OPEN_DIAGRAM,
         RENAME,
-        DELETE;
+        DELETE,
+        CREATE_MISSION,
+        CREATE_OPERATIONAL_ACTIVITY,
+        CREATE_OPERATIONAL_EXCHANGE,
+        LINK_OPERATIONAL_TO_CAPABILITY;
 
         static ActionType from(String value) {
             if (value == null) {
@@ -489,6 +514,14 @@ public final class ToolRouter {
                     return RENAME;
                 case "delete":
                     return DELETE;
+                case "create_mission":
+                    return CREATE_MISSION;
+                case "create_operational_activity":
+                    return CREATE_OPERATIONAL_ACTIVITY;
+                case "create_operational_exchange":
+                    return CREATE_OPERATIONAL_EXCHANGE;
+                case "link_operational_to_capability":
+                    return LINK_OPERATIONAL_TO_CAPABILITY;
                 default:
                     throw new PlanValidationException("Unknown action type: " + value);
             }
@@ -505,9 +538,13 @@ public final class ToolRouter {
         final String existingName;
         final String newName;
         final String diagramType;
+        final String parentName;
+        final String description;
+        final String capabilityName;
 
         Action(ActionType type, String layer, String name, String sourceName, String targetName,
-               String elementClass, String existingName, String newName, String diagramType) {
+               String elementClass, String existingName, String newName, String diagramType,
+               String parentName, String description, String capabilityName) {
             this.type = type;
             this.layer = layer;
             this.name = name;
@@ -517,6 +554,9 @@ public final class ToolRouter {
             this.existingName = existingName;
             this.newName = newName;
             this.diagramType = diagramType;
+            this.parentName = parentName;
+            this.description = description;
+            this.capabilityName = capabilityName;
         }
 
         static Action fromMap(int index, Map<String, Object> map) {
@@ -524,31 +564,39 @@ public final class ToolRouter {
             ActionType type = ActionType.from(typeValue);
             switch (type) {
                 case CREATE_COMPONENT:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null);
+                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null, null, null, null);
                 case CREATE_FUNCTION:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null);
+                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null, null, null, null);
                 case CREATE_COMPONENT_EXCHANGE:
                     return new Action(type,
                             stringOrDefault(map.get("layer"), "LA"),
                             stringOrDefault(map.get("name"), "ComponentExchange"),
                             require(map, "source_name", index),
                             require(map, "target_name", index),
-                            null, null, null, null);
+                            null, null, null, null, null, null, null);
                 case CREATE_FUNCTIONAL_EXCHANGE:
                     return new Action(type,
                             stringOrDefault(map.get("layer"), "LA"),
                             stringOrDefault(map.get("name"), "FunctionalExchange"),
                             require(map, "source_function", index),
                             require(map, "target_function", index),
-                            null, null, null, null);
+                            null, null, null, null, null, null, null);
                 case CREATE_LAB:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null, null, null, null, null);
+                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null, null, null, null, null, null, null, null);
                 case OPEN_DIAGRAM:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), stringOrDefault(map.get("name"), ""), null, null, null, null, null, stringOrDefault(map.get("type"), "LAB"));
+                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), stringOrDefault(map.get("name"), ""), null, null, null, null, null, stringOrDefault(map.get("type"), "LAB"), null, null, null);
                 case RENAME:
-                    return new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), require(map, "new_name", index), null);
+                    return new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), require(map, "new_name", index), null, null, null, null);
+                case CREATE_MISSION:
+                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), require(map, "name", index), null, null, null, null, null, null, null, stringOrDefault(map.get("description"), ""), null);
+                case CREATE_OPERATIONAL_ACTIVITY:
+                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null);
+                case CREATE_OPERATIONAL_EXCHANGE:
+                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), stringOrDefault(map.get("name"), "OperationalExchange"), require(map, "source_actor", index), require(map, "target_actor", index), null, null, null, null, null, null, null);
+                case LINK_OPERATIONAL_TO_CAPABILITY:
+                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), null, null, null, null, require(map, "operational_activity", index), null, null, null, null, require(map, "capability", index));
                 case DELETE:
-                    return new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), null, null);
+                    return new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), null, null, null, null, null);
                 default:
                     throw new PlanValidationException("Unsupported action type");
             }
@@ -565,6 +613,16 @@ public final class ToolRouter {
                     return String.format("%s '%s' between %s → %s", typeLabel(), name, sourceName, targetName);
                 case CREATE_LAB:
                     return String.format("Create LAB diagram in %s", layer);
+                case CREATE_MISSION:
+                    return String.format("Create mission '%s' in %s", name, layer);
+                case CREATE_OPERATIONAL_ACTIVITY:
+                    return parentName != null && !parentName.isBlank() ?
+                        String.format("Create operational activity '%s' under %s", name, parentName) :
+                        String.format("Create operational activity '%s' in %s", name, layer);
+                case CREATE_OPERATIONAL_EXCHANGE:
+                    return String.format("Create operational exchange '%s' between %s → %s", name, sourceName, targetName);
+                case LINK_OPERATIONAL_TO_CAPABILITY:
+                    return String.format("Link operational activity '%s' to capability '%s'", existingName, capabilityName);
                 case OPEN_DIAGRAM:
                     return String.format("Open %s diagram (%s)", diagramType, name == null || name.isBlank() ? "auto-named" : name);
                 case RENAME:
@@ -583,8 +641,12 @@ public final class ToolRouter {
                 case CREATE_COMPONENT_EXCHANGE:
                 case CREATE_FUNCTIONAL_EXCHANGE:
                 case CREATE_LAB:
+                case CREATE_MISSION:
+                case CREATE_OPERATIONAL_ACTIVITY:
+                case CREATE_OPERATIONAL_EXCHANGE:
                     return ChangeCategory.CREATE;
                 case RENAME:
+                case LINK_OPERATIONAL_TO_CAPABILITY:
                     return ChangeCategory.UPDATE;
                 case DELETE:
                     return ChangeCategory.DELETE;
@@ -606,6 +668,16 @@ public final class ToolRouter {
                     return summarizeExchange("Functional exchange", name, sourceName, targetName, layer);
                 case CREATE_LAB:
                     return String.format("Create LAB diagram in %s", safeLayer(layer));
+                case CREATE_MISSION:
+                    return summarizeCreate("Mission", name, layer);
+                case CREATE_OPERATIONAL_ACTIVITY:
+                    return parentName != null && !parentName.isBlank() ?
+                        String.format("Create operational activity '%s' under %s", name, parentName) :
+                        summarizeCreate("Operational activity", name, layer);
+                case CREATE_OPERATIONAL_EXCHANGE:
+                    return summarizeExchange("Operational exchange", name, sourceName, targetName, layer);
+                case LINK_OPERATIONAL_TO_CAPABILITY:
+                    return String.format("Link operational activity '%s' to capability '%s'", defaultString(existingName, "?"), defaultString(capabilityName, "?"));
                 case OPEN_DIAGRAM:
                     return String.format("Open %s diagram (%s)", defaultString(diagramType, "LAB"), defaultString(name, "auto"));
                 case RENAME:
