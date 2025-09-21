@@ -5,7 +5,6 @@ import java.util.logging.Logger;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
-import org.eclipse.emf.transaction.RecordingCommand;
 import org.eclipse.emf.transaction.TransactionalEditingDomain;
 import org.eclipse.sirius.business.api.dialect.DialectManager;
 import org.eclipse.sirius.business.api.session.Session;
@@ -16,6 +15,7 @@ import org.eclipse.sirius.viewpoint.description.RepresentationDescription;
 import org.eclipse.sirius.viewpoint.description.Viewpoint;
 import org.eclipse.sirius.ui.business.api.dialect.DialectUIManager;
 import org.polarsys.capella.ai.session.SessionBridge;
+import org.polarsys.capella.ai.session.SessionSafeguards;
 
 /** In‑process diagram helpers using Sirius UI APIs (arrange/layout visible). */
 public final class DiagramCommands {
@@ -37,23 +37,25 @@ public final class DiagramCommands {
         if (domain == null) return null;
 
         final DRepresentation[] rep = new DRepresentation[1];
-        domain.getCommandStack().execute(new RecordingCommand(domain) {
-            @Override
-            protected void doExecute() {
-                RepresentationDescription desc = findDiagramDescription(session, descriptionName);
-                if (desc == null) return;
-                DRepresentation created = DialectManager.INSTANCE.createRepresentation(
-                    diagramName, target, desc, session, new NullProgressMonitor());
-                rep[0] = created;
+        SessionSafeguards.runWrite(session, "Create diagram", () -> {
+            RepresentationDescription desc = findDiagramDescription(session, descriptionName);
+            if (desc == null) {
+                return null;
             }
+            DRepresentation created = DialectManager.INSTANCE.createRepresentation(
+                diagramName, target, desc, session, new NullProgressMonitor());
+            rep[0] = created;
+            return created;
         });
         if (rep[0] != null) {
-            try {
-                DialectUIManager.INSTANCE.openEditor(session, rep[0], new NullProgressMonitor());
-                lastOpened = rep[0];
-            } catch (Exception e) {
-                LOG.warning("Failed to open diagram editor: " + e.getMessage());
-            }
+            SessionSafeguards.runOnUiThread(() -> {
+                try {
+                    DialectUIManager.INSTANCE.openEditor(session, rep[0], new NullProgressMonitor());
+                    lastOpened = rep[0];
+                } catch (Exception e) {
+                    LOG.warning("Failed to open diagram editor: " + e.getMessage());
+                }
+            });
         }
         return rep[0];
     }

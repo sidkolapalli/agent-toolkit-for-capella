@@ -4,9 +4,12 @@
 
 ## 1. Foundations & Infrastructure
 
-- [ ] **Session Safety Review** – audit every backend entry point (Jobs, EMF commands, Sirius refresh) to guarantee UI-thread access and robust undo/redo behaviour.
-- [ ] **Telemetry & Logging Hooks** – add opt-in instrumentation so we can prioritise features based on real usage (prompt categories, plan sizes, error rates).
-- [ ] **Scenario Workspace** – introduce a lightweight sandbox (clone of the active session) so plans can run in “dry-run” mode and display diffs before commit.
+- [x] **Session Safety Review** – audit every backend entry point (Jobs, EMF commands, Sirius refresh) to guarantee UI-thread access and robust undo/redo behaviour.
+  - SessionSafeguards now wraps plan execution in a single UI-thread EMF transaction with deferred saves for reliable undo/redo.
+- [x] **Telemetry & Logging Hooks** – add opt-in instrumentation so we can prioritise features based on real usage (prompt categories, plan sizes, error rates).
+  - Opt-in telemetry checkbox records anonymised plan metrics to the plugin log (suggested vs executed, errors).
+- [x] **Scenario Workspace** – introduce a lightweight sandbox (clone of the active session) so plans can run in “dry-run” mode and display diffs before commit.
+  - PlanDryRun builds an in-memory clone to dry-run TOOL_PLAN actions and feeds warnings into the Plan Editor diff preview.
 
 ## 2. Rich Model Comprehension
 

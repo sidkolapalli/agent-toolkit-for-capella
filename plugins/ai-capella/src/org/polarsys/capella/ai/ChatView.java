@@ -39,6 +39,9 @@ import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.tools.DiagramCommands;
+import org.polarsys.capella.ai.session.PlanDryRun;
+import org.polarsys.capella.ai.session.PlanDryRun.DryRunResult;
+import org.polarsys.capella.ai.telemetry.Telemetry;
 import org.polarsys.capella.ai.ui.PlanEditorDialog;
 
 /**
@@ -55,6 +58,7 @@ public class ChatView extends ViewPart {
     private Button sendButton;
     private Button enableActions;
     private Button useLlmMapping;
+    private Button telemetryToggle;
 
     private Text elementUuid;
     private Text newName;
@@ -338,6 +342,18 @@ public class ChatView extends ViewPart {
             }
         });
 
+        telemetryToggle = new Button(buttonRow, SWT.CHECK);
+        telemetryToggle.setText("Telemetry (opt-in)");
+        telemetryToggle.setToolTipText("Log anonymous assistant usage metrics locally to prioritise improvements.");
+        telemetryToggle.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+        telemetryToggle.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                persistPreference(() -> LLMPreferences.setTelemetryEnabled(telemetryToggle.getSelection()));
+                updateConnectionSummary();
+            }
+        });
+
         Button apiKeyButton = new Button(buttonRow, SWT.PUSH);
         apiKeyButton.setText("Store API key…");
         apiKeyButton.addSelectionListener(new SelectionAdapter() {
@@ -397,6 +413,7 @@ public class ChatView extends ViewPart {
         try {
             if (result.error != null) {
                 append("Assistant ERROR: " + result.error);
+                Telemetry.recordPlanError("plan-generation", result.error);
             }
             if (result.reply != null && !result.reply.isBlank()) {
                 append("Assistant: " + result.reply);
@@ -404,9 +421,11 @@ public class ChatView extends ViewPart {
 
             ToolPlan plan = result.plan;
             if (plan != null && !plan.isEmpty()) {
+                Telemetry.recordPlanSuggested(plan);
+                DryRunResult dryRun = PlanDryRun.evaluate(session, plan);
                 appendPlanSummary(plan.describe(), actionsEnabled);
                 if (actionsEnabled) {
-                    PlanEditorDialog dialog = new PlanEditorDialog(getSite().getShell(), plan);
+                    PlanEditorDialog dialog = new PlanEditorDialog(getSite().getShell(), plan, dryRun);
                     if (dialog.open() == IDialogConstants.OK_ID) {
                         ToolPlan selection = dialog.getFilteredPlan();
                         if (selection != null && !selection.isEmpty()) {
@@ -435,6 +454,7 @@ public class ChatView extends ViewPart {
                     for (String error : execution.errors) {
                         append("Plan warning: " + error);
                     }
+                    Telemetry.recordPlanExecution(plan, execution);
                     updateConnectionSummary();
                 });
                 return Status.OK_STATUS;
@@ -639,6 +659,10 @@ public class ChatView extends ViewPart {
             useLlmMapping.setSelection(LLMPreferences.isUseLlmMapping());
         }
 
+        if (telemetryToggle != null && !telemetryToggle.isDisposed()) {
+            telemetryToggle.setSelection(LLMPreferences.isTelemetryEnabled());
+        }
+
         String key = LLMPreferences.getApiKey();
         boolean hasKey = key != null && !key.isBlank();
         apiKeyStatus.setText(hasKey ? "API key stored" : "API key not set (using env?)");
@@ -739,11 +763,12 @@ public class ChatView extends ViewPart {
     private void updateConnectionSummary() {
         String provider = providerPreference(providerCombo.getText());
         String message = String.format(
-            "Provider: %s • Model: %s • Tool actions: %s • LLM mapping: %s",
+            "Provider: %s • Model: %s • Tool actions: %s • LLM mapping: %s • Telemetry: %s",
             providerCombo.getText(),
             modelCombo != null ? modelCombo.getText() : LLMPreferences.getModel(),
             enableActions != null && enableActions.getSelection() ? "ON" : "OFF",
-            useLlmMapping != null && useLlmMapping.getSelection() ? "ON" : "OFF"
+            useLlmMapping != null && useLlmMapping.getSelection() ? "ON" : "OFF",
+            telemetryToggle != null && telemetryToggle.getSelection() ? "ON" : "OFF"
         );
         if (connectionSummary != null && !connectionSummary.isDisposed()) {
             connectionSummary.setText(message);

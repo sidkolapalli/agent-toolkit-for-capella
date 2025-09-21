@@ -16,6 +16,7 @@ import org.polarsys.capella.ai.model.ModelOps;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.tools.DiagramCommands;
 import org.polarsys.capella.ai.tools.DiagramMappings;
+import org.polarsys.capella.ai.session.SessionSafeguards;
 
 /**
  * Parses TOOL_PLAN responses and applies requested actions against the active Capella session.
@@ -211,39 +212,17 @@ public final class ToolRouter {
         if (session == null || plan == null || plan.isEmpty()) {
             return new PlanExecutionResult(0, List.of());
         }
+        return SessionSafeguards.deferSaves(session, () ->
+            SessionSafeguards.runWrite(session, "Apply AI plan", () -> applyPlanInternal(session, diagram, plan))
+        );
+    }
+
+    private static PlanExecutionResult applyPlanInternal(Session session, DRepresentation diagram, ToolPlan plan) {
         int applied = 0;
         List<String> errors = new ArrayList<>();
         for (Action action : plan.actions()) {
             try {
-                boolean success = false;
-                switch (action.type) {
-                    case CREATE_COMPONENT:
-                        success = createComponent(session, action.layer, action.name);
-                        break;
-                    case CREATE_FUNCTION:
-                        success = createFunction(session, action.layer, action.name);
-                        break;
-                    case CREATE_COMPONENT_EXCHANGE:
-                        success = createComponentExchange(session, action.layer, action.sourceName, action.targetName, action.name);
-                        break;
-                    case CREATE_FUNCTIONAL_EXCHANGE:
-                        success = createFunctionalExchange(session, action.layer, action.sourceName, action.targetName, action.name);
-                        break;
-                    case CREATE_LAB:
-                        success = createLabDiagram(session, action.layer);
-                        break;
-                    case OPEN_DIAGRAM:
-                        success = openDiagram(session, action.layer, action.diagramType, action.name);
-                        break;
-                    case RENAME:
-                        success = rename(session, action.elementClass, action.existingName, action.newName);
-                        break;
-                    case DELETE:
-                        success = delete(session, action.elementClass, action.existingName);
-                        break;
-                    default:
-                        break;
-                }
+                boolean success = applyAction(session, action);
                 if (success) {
                     applied++;
                 } else {
@@ -254,6 +233,29 @@ public final class ToolRouter {
             }
         }
         return new PlanExecutionResult(applied, errors);
+    }
+
+    private static boolean applyAction(Session session, Action action) {
+        switch (action.type) {
+            case CREATE_COMPONENT:
+                return createComponent(session, action.layer, action.name);
+            case CREATE_FUNCTION:
+                return createFunction(session, action.layer, action.name);
+            case CREATE_COMPONENT_EXCHANGE:
+                return createComponentExchange(session, action.layer, action.sourceName, action.targetName, action.name);
+            case CREATE_FUNCTIONAL_EXCHANGE:
+                return createFunctionalExchange(session, action.layer, action.sourceName, action.targetName, action.name);
+            case CREATE_LAB:
+                return createLabDiagram(session, action.layer);
+            case OPEN_DIAGRAM:
+                return openDiagram(session, action.layer, action.diagramType, action.name);
+            case RENAME:
+                return rename(session, action.elementClass, action.existingName, action.newName);
+            case DELETE:
+                return delete(session, action.elementClass, action.existingName);
+            default:
+                return false;
+        }
     }
 
     private static String buildPrompt(Session session, String user) {

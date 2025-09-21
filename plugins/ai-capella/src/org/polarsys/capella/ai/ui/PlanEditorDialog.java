@@ -32,6 +32,7 @@ import org.eclipse.swt.widgets.Text;
 import org.polarsys.capella.ai.llm.ToolRouter.ChangeCategory;
 import org.polarsys.capella.ai.llm.ToolRouter.PlanItem;
 import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
+import org.polarsys.capella.ai.session.PlanDryRun;
 
 /**
  * Rich preview dialog that allows users to granularly review and toggle TOOL_PLAN actions.
@@ -39,6 +40,7 @@ import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
 public final class PlanEditorDialog extends TitleAreaDialog {
 
     private final ToolPlan plan;
+    private final PlanDryRun.DryRunResult dryRun;
     private ToolPlan filteredPlan;
 
     private CheckboxTableViewer viewer;
@@ -47,9 +49,10 @@ public final class PlanEditorDialog extends TitleAreaDialog {
     private Text diffPreview;
     private Label undoHint;
 
-    public PlanEditorDialog(Shell parentShell, ToolPlan plan) {
+    public PlanEditorDialog(Shell parentShell, ToolPlan plan, PlanDryRun.DryRunResult dryRun) {
         super(parentShell);
         this.plan = plan;
+        this.dryRun = dryRun;
         this.filteredPlan = plan;
     }
 
@@ -251,16 +254,28 @@ public final class PlanEditorDialog extends TitleAreaDialog {
         if (diffPreview == null || diffPreview.isDisposed()) {
             return;
         }
+        if (dryRun == null || !dryRun.isAvailable()) {
+            if (dryRun != null && !dryRun.issues().isEmpty()) {
+                diffPreview.setText(String.join(System.lineSeparator(), dryRun.issues()));
+            } else {
+                diffPreview.setText("Dry run unavailable; plan will execute directly.");
+            }
+            if (undoHint != null && !undoHint.isDisposed()) {
+                undoHint.setText("Undo remains available via Edit → Undo immediately after execution.");
+            }
+            return;
+        }
         if (selected == null || selected.isEmpty()) {
             diffPreview.setText("No structural changes selected.");
             if (undoHint != null && !undoHint.isDisposed()) {
-                undoHint.setText("Tip: the assistant runs the plan in a single EMF transaction. Use Edit → Undo immediately after execution to revert the changes.");
+                undoHint.setText("Dry run ready. Undo via Edit → Undo immediately after execution.");
             }
             return;
         }
         Map<ChangeCategory, List<PlanItem>> grouped = selected.stream()
                 .collect(Collectors.groupingBy(PlanItem::getCategory, LinkedHashMap::new, Collectors.toList()));
         StringBuilder sb = new StringBuilder();
+        long failures = 0;
         for (ChangeCategory category : ChangeCategory.values()) {
             List<PlanItem> items = grouped.get(category);
             if (items == null || items.isEmpty()) {
@@ -271,7 +286,23 @@ public final class PlanEditorDialog extends TitleAreaDialog {
             }
             sb.append(category.label()).append(':').append(System.lineSeparator());
             for (PlanItem item : items) {
-                sb.append(" • ").append(item.getDiffSummary()).append(System.lineSeparator());
+                PlanDryRun.Outcome outcome = dryRun.outcomeFor(item.getIndex());
+                sb.append(" • ").append(item.getDiffSummary());
+                if (outcome != null) {
+                    if (outcome.isSuccess()) {
+                        sb.append(" ✓");
+                    } else {
+                        failures++;
+                        sb.append(" ⚠ ").append(outcome.getMessage());
+                    }
+                }
+                sb.append(System.lineSeparator());
+            }
+        }
+        if (!dryRun.issues().isEmpty()) {
+            sb.append(System.lineSeparator()).append("Issues:").append(System.lineSeparator());
+            for (String issue : dryRun.issues()) {
+                sb.append(" ! ").append(issue).append(System.lineSeparator());
             }
         }
         if (sb.length() == 0) {
@@ -280,7 +311,11 @@ public final class PlanEditorDialog extends TitleAreaDialog {
             diffPreview.setText(sb.toString().stripTrailing());
         }
         if (undoHint != null && !undoHint.isDisposed()) {
-            undoHint.setText(String.format("Will apply %d action(s). Undo via Edit → Undo immediately after execution.", selected.size()));
+            if (failures > 0) {
+                undoHint.setText(String.format("Dry run flagged %d issue(s). Review warnings before applying. Undo via Edit → Undo remains available.", failures));
+            } else {
+                undoHint.setText(String.format("Dry run successful for %d action(s). Undo via Edit → Undo after execution.", selected.size()));
+            }
         }
     }
 

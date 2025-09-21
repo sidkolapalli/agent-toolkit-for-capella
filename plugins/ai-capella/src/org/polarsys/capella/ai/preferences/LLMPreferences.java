@@ -18,6 +18,7 @@ public final class LLMPreferences {
     private static final String KEY_TIMEOUT = "timeoutSec";
     private static final String KEY_ENABLE_ACTIONS = "enableActions";
     private static final String KEY_USE_LLM_MAPPING = "useLlmMapping";
+    private static final String KEY_TELEMETRY = "telemetryEnabled";
     private static final String SEC_NODE = Activator.PLUGIN_ID + "/secure/llm";
     private static final String SEC_APIKEY = "apiKey";
 
@@ -31,6 +32,7 @@ public final class LLMPreferences {
     public static int getTimeoutSec() { return getPrefs().getInt(KEY_TIMEOUT, envInt("CAPELLA_AI_TIMEOUT", 60)); }
     public static boolean isToolActionsEnabled() { return getPrefs().getBoolean(KEY_ENABLE_ACTIONS, true); }
     public static boolean isUseLlmMapping() { return getPrefs().getBoolean(KEY_USE_LLM_MAPPING, false); }
+    public static boolean isTelemetryEnabled() { return getPrefs().getBoolean(KEY_TELEMETRY, false); }
 
     public static void setProvider(String v) { getPrefs().put(KEY_PROVIDER, v); }
     public static void setBaseUrl(String v) { getPrefs().put(KEY_BASE, v); }
@@ -40,6 +42,7 @@ public final class LLMPreferences {
     public static void setTimeoutSec(int v) { getPrefs().putInt(KEY_TIMEOUT, v); }
     public static void setToolActionsEnabled(boolean value) { getPrefs().putBoolean(KEY_ENABLE_ACTIONS, value); }
     public static void setUseLlmMapping(boolean value) { getPrefs().putBoolean(KEY_USE_LLM_MAPPING, value); }
+    public static void setTelemetryEnabled(boolean value) { getPrefs().putBoolean(KEY_TELEMETRY, value); }
 
     public static String getApiKey() {
         try {

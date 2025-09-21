@@ -23,11 +23,12 @@ This repository contains only the Capella plugin and p2 update site used to inst
 - The assistant view now exposes an **LLM Connection** panel where you can set provider, model, base URL, temperature, token/timeout limits, test the connection, and securely store API keys. Changes persist immediately via `LLMPreferences`.
 - The legacy preference page still works: `Capella (menu) → Preferences… → Capella AI → LLM`.
 - Environment fallbacks remain available (`CAPELLA_AI_PROVIDER`, `OPENAI_API_KEY`, etc.) if you prefer system-level configuration.
+- Telemetry is opt-in via the "Telemetry (opt-in)" checkbox; when enabled it logs anonymous plan metrics locally to help prioritise features.
 
 ## Using the assistant
 
 - Type in the **Conversation** section; pressing Enter or clicking **Send** dispatches the request on a background job. The assistant replies in the log pane.
-- If the LLM provides a `TOOL_PLAN`, the view displays a summary. When *Enable tool actions* is on, a **Plan Editor** dialog opens so you can inspect every action, toggle unwanted steps, and confirm execution before anything touches the model. The preview groups upcoming creates/updates/deletes, highlights Undo availability, and cancelling still leaves the plan unapplied.
+- If the LLM provides a `TOOL_PLAN`, the view displays a summary. When *Enable tool actions* is on, a **Plan Editor** dialog opens so you can inspect every action, toggle unwanted steps, and confirm execution before anything touches the model. The preview runs a sandbox dry-run that groups upcoming creates/updates/deletes, surfaces warnings inline, highlights Undo availability, and cancelling still leaves the plan unapplied.
 - The **Model & Diagram Tools** group exposes quick actions (list diagrams, create LAB, import draw.io, rename/delete/reveal elements). These operations run in EMF transactions and persist across sessions.
 
 ## Known requirements

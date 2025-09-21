@@ -2,9 +2,6 @@ package org.polarsys.capella.ai.model;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.logging.Logger;
-
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EClassifier;
 import org.eclipse.emf.ecore.EFactory;
@@ -12,15 +9,14 @@ import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
-import org.eclipse.emf.transaction.RecordingCommand;
 import org.eclipse.emf.transaction.TransactionalEditingDomain;
+import org.polarsys.capella.ai.session.SessionSafeguards;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.model.ModelSummary;
 
 /** Generic element creation utilities using EMF dynamic factories. */
 public final class ElementFactory {
-    private static final Logger LOG = Logger.getLogger(ElementFactory.class.getName());
     private ElementFactory() {}
 
     /**
@@ -35,37 +31,33 @@ public final class ElementFactory {
 
     public static EObject createUnder(Session session, EObject architectureRoot, String simpleEClassName, String name) {
         if (session == null) return null;
-        TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
-        if (domain == null) return null;
+        return SessionSafeguards.runWrite(session, "Create " + simpleEClassName, () -> {
+            TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
+            if (domain == null) return null;
 
-        EClass targetClass = findEClass(simpleEClassName);
-        if (targetClass == null) return null;
+            EClass targetClass = findEClass(simpleEClassName);
+            if (targetClass == null) return null;
 
-        EFactory factory = targetClass.getEPackage().getEFactoryInstance();
-        final EObject[] created = new EObject[1];
-
-        EObject container = findBestContainer(architectureRoot, targetClass);
-        if (container == null) container = architectureRoot;
-        final EObject targetContainer = container;
-        final EReference containment = findContainmentFor(targetContainer, targetClass);
-        if (containment == null) return null;
-
-        domain.getCommandStack().execute(new RecordingCommand(domain) {
-            @Override
-            protected void doExecute() {
-                EObject obj = factory.create(targetClass);
-                // Set name if available
-                EStructuralFeature nameFeat = obj.eClass().getEStructuralFeature("name");
-                if (nameFeat != null && nameFeat.isChangeable()) obj.eSet(nameFeat, name);
-                @SuppressWarnings("unchecked")
-                java.util.List<EObject> list = (java.util.List<EObject>) targetContainer.eGet(containment);
-                list.add(obj);
-                created[0] = obj;
+            EObject container = findBestContainer(architectureRoot, targetClass);
+            if (container == null) {
+                container = architectureRoot;
             }
+            EReference containment = findContainmentFor(container, targetClass);
+            if (containment == null) return null;
+
+            EObject obj = targetClass.getEPackage().getEFactoryInstance().create(targetClass);
+            EStructuralFeature nameFeat = obj.eClass().getEStructuralFeature("name");
+            if (nameFeat != null && nameFeat.isChangeable()) {
+                obj.eSet(nameFeat, name);
+            }
+            @SuppressWarnings("unchecked")
+            java.util.List<EObject> list = (java.util.List<EObject>) container.eGet(containment);
+            list.add(obj);
+
+            ModelSummary.invalidate(session);
+            SessionSafeguards.requestSave(session);
+            return obj;
         });
-        ModelSummary.invalidate(session);
-        try { session.save(new NullProgressMonitor()); } catch (Exception e) { LOG.warning("Save failed: " + e.getMessage()); }
-        return created[0];
     }
 
     /** Find an EClass by simple name across registered EPackages. */

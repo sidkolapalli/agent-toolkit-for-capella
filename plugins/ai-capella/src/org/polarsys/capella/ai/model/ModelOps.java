@@ -1,20 +1,16 @@
 package org.polarsys.capella.ai.model;
 
-import java.util.logging.Logger;
-
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.resource.Resource;
-import org.eclipse.emf.transaction.RecordingCommand;
 import org.eclipse.emf.transaction.TransactionalEditingDomain;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.model.ModelSummary;
+import org.polarsys.capella.ai.session.SessionSafeguards;
 
 /** Generic EMF operations (rename/delete) using the active Capella session. */
 public final class ModelOps {
-    private static final Logger LOG = Logger.getLogger(ModelOps.class.getName());
     private ModelOps() {}
 
     /** Rename an element by uuid/id if it has a 'name' feature. */
@@ -26,21 +22,18 @@ public final class ModelOps {
 
     public static boolean renameByUuid(Session session, String uuid, String newName) {
         if (session == null) return false;
-        TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
-        if (domain == null) return false;
-        EObject target = findById(domain.getResourceSet(), uuid);
-        if (target == null) return false;
-        EStructuralFeature nameFeat = target.eClass().getEStructuralFeature("name");
-        if (nameFeat == null || !nameFeat.isChangeable()) return false;
-        domain.getCommandStack().execute(new RecordingCommand(domain) {
-            @Override
-            protected void doExecute() {
-                target.eSet(nameFeat, newName);
-            }
+        return SessionSafeguards.runWrite(session, "Rename element", () -> {
+            TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
+            if (domain == null) return false;
+            EObject target = findById(domain.getResourceSet(), uuid);
+            if (target == null) return false;
+            EStructuralFeature nameFeat = target.eClass().getEStructuralFeature("name");
+            if (nameFeat == null || !nameFeat.isChangeable()) return false;
+            target.eSet(nameFeat, newName);
+            ModelSummary.invalidate(session);
+            SessionSafeguards.requestSave(session);
+            return true;
         });
-        ModelSummary.invalidate(session);
-        trySave(session);
-        return true;
     }
 
     /** Delete an element by uuid/id from its container. */
@@ -52,35 +45,28 @@ public final class ModelOps {
 
     public static boolean deleteByUuid(Session session, String uuid) {
         if (session == null) return false;
-        TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
-        if (domain == null) return false;
-        EObject target = findById(domain.getResourceSet(), uuid);
-        if (target == null) return false;
-        domain.getCommandStack().execute(new RecordingCommand(domain) {
-            @Override
-            protected void doExecute() {
-                EObject container = target.eContainer();
-                if (container != null) {
-                    EStructuralFeature feat = target.eContainingFeature();
-                    if (feat.isMany()) {
-                        @SuppressWarnings("unchecked")
-                        java.util.List<EObject> list = (java.util.List<EObject>) container.eGet(feat);
-                        list.remove(target);
-                    } else {
-                        container.eSet(feat, null);
-                    }
-                } else if (target.eResource() != null) {
-                    target.eResource().getContents().remove(target);
+        return SessionSafeguards.runWrite(session, "Delete element", () -> {
+            TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
+            if (domain == null) return false;
+            EObject target = findById(domain.getResourceSet(), uuid);
+            if (target == null) return false;
+            EObject container = target.eContainer();
+            if (container != null) {
+                EStructuralFeature feat = target.eContainingFeature();
+                if (feat.isMany()) {
+                    @SuppressWarnings("unchecked")
+                    java.util.List<EObject> list = (java.util.List<EObject>) container.eGet(feat);
+                    list.remove(target);
+                } else {
+                    container.eSet(feat, null);
                 }
+            } else if (target.eResource() != null) {
+                target.eResource().getContents().remove(target);
             }
+            ModelSummary.invalidate(session);
+            SessionSafeguards.requestSave(session);
+            return true;
         });
-        ModelSummary.invalidate(session);
-        trySave(session);
-        return true;
-    }
-
-    private static void trySave(Session s) {
-        try { s.save(new NullProgressMonitor()); } catch (Exception e) { LOG.warning("Save failed: " + e.getMessage()); }
     }
 
     /** Resolve an EObject by id/uuid/fragment. */
