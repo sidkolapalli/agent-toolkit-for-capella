@@ -10,6 +10,7 @@ import org.eclipse.emf.transaction.RecordingCommand;
 import org.eclipse.emf.transaction.TransactionalEditingDomain;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.session.SessionBridge;
+import org.polarsys.capella.ai.model.ModelSummary;
 
 /** Generic EMF operations (rename/delete) using the active Capella session. */
 public final class ModelOps {

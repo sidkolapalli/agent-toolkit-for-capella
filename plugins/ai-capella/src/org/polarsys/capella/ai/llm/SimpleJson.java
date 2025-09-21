@@ -11,8 +11,7 @@ final class SimpleJson {
 
     @SuppressWarnings("unchecked")
     static List<Map<String, Object>> parseActions(String json) {
-        Parser parser = new Parser(json);
-        Object root = parser.parseValue();
+        Object root = parse(json);
         if (!(root instanceof Map)) {
             return List.of();
         }
@@ -27,6 +26,11 @@ final class SimpleJson {
             return result;
         }
         return List.of();
+    }
+
+    static Object parse(String json) {
+        Parser parser = new Parser(json);
+        return parser.parseValue();
     }
 
     private static final class Parser {

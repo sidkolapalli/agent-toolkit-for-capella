@@ -5,11 +5,18 @@ import java.util.Deque;
 import java.util.logging.Logger;
 
 import org.eclipse.core.runtime.NullProgressMonitor;
-import org.eclipse.emf.ecore.*;
+import org.eclipse.emf.ecore.EClass;
+import org.eclipse.emf.ecore.EClassifier;
+import org.eclipse.emf.ecore.EFactory;
+import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.EPackage;
+import org.eclipse.emf.ecore.EReference;
+import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.transaction.RecordingCommand;
 import org.eclipse.emf.transaction.TransactionalEditingDomain;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.session.SessionBridge;
+import org.polarsys.capella.ai.model.ModelSummary;
 
 /** Generic element creation utilities using EMF dynamic factories. */
 public final class ElementFactory {
