@@ -14,6 +14,8 @@ import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.sirius.business.api.session.Session;
+import org.polarsys.capella.ai.actions.MassEditActions.MappingItem;
+import org.polarsys.capella.ai.actions.MassEditActions.RenameItem;
 import org.polarsys.capella.ai.llm.ToolRouter.PlanItem;
 import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
 import org.polarsys.capella.ai.model.ArchitectureLocator;
@@ -96,6 +98,16 @@ public final class PlanDryRun {
                 return simulateLinkRequirement(sandbox, item);
             case "RECORD_REQUIREMENT_COVERAGE":
                 return simulateRequirementCoverage(sandbox, item);
+            case "BATCH_RENAME":
+                return simulateBatchRename(sandbox, item);
+            case "BATCH_REPARENT":
+                return simulateBatchReparent(sandbox, item);
+            case "BATCH_ALLOCATE":
+                return simulateBatchAllocate(sandbox, item);
+            case "BATCH_MAP":
+                return simulateBatchMap(sandbox, item);
+            case "BATCH_DELETE":
+                return simulateBatchDelete(sandbox, item);
             case "OPEN_DIAGRAM":
                 return Outcome.success("Would open " + defaultString(item.getDiagramType(), "LAB") + " diagram");
             case "RENAME":
@@ -348,6 +360,130 @@ public final class PlanDryRun {
         }
         return Outcome.success(String.format("Record coverage for %s '%s' (%s)",
                 targetClass, targetName, defaultString(item.getRequirementStatus(), "status")));
+    }
+
+    private static Outcome simulateBatchRename(ResourceSet sandbox, PlanItem item) {
+        if (item.getElementClass() == null || item.getElementClass().isBlank()) {
+            return Outcome.failure("Element class missing for batch rename");
+        }
+        List<RenameItem> entries = item.getRenameItems();
+        if (entries == null || entries.isEmpty()) {
+            return Outcome.failure("No rename items provided");
+        }
+        int missing = 0;
+        for (RenameItem entry : entries) {
+            if (entry == null || entry.from == null || entry.from.isBlank()) {
+                continue;
+            }
+            EObject existing = Finders.findByName(sandbox, item.getElementClass(), entry.from);
+            if (existing == null) {
+                missing++;
+            }
+        }
+        if (missing > 0) {
+            return Outcome.failure(String.format("%d element(s) not found for rename", missing));
+        }
+        return Outcome.success(String.format("Rename %d %s", entries.size(), defaultString(item.getElementClass(), "elements")));
+    }
+
+    private static Outcome simulateBatchReparent(ResourceSet sandbox, PlanItem item) {
+        if (item.getElementClass() == null || item.getElementClass().isBlank()) {
+            return Outcome.failure("Element class missing for reparent");
+        }
+        if (item.getParentName() == null || item.getParentName().isBlank()) {
+            return Outcome.failure("Parent name required for reparent");
+        }
+        EObject parent = Finders.findByName(sandbox, item.getElementClass(), item.getParentName());
+        if (parent == null) {
+            return Outcome.failure("Parent '" + item.getParentName() + "' not found");
+        }
+        List<String> names = item.getItemNames();
+        if (names == null || names.isEmpty()) {
+            return Outcome.failure("No elements provided for reparent");
+        }
+        int missing = 0;
+        for (String name : names) {
+            if (Finders.findByName(sandbox, item.getElementClass(), name) == null) {
+                missing++;
+            }
+        }
+        if (missing > 0) {
+            return Outcome.failure(String.format("%d element(s) not found for reparent", missing));
+        }
+        return Outcome.success(String.format("Move %d %s under %s", names.size(),
+                defaultString(item.getElementClass(), "elements"), item.getParentName()));
+    }
+
+    private static Outcome simulateBatchAllocate(ResourceSet sandbox, PlanItem item) {
+        if (item.getCapabilityName() == null || item.getCapabilityName().isBlank()) {
+            return Outcome.failure("Capability name required");
+        }
+        EObject capability = Finders.findByName(sandbox, "Capability", item.getCapabilityName());
+        if (capability == null) {
+            return Outcome.failure("Capability '" + item.getCapabilityName() + "' not found");
+        }
+        List<String> components = item.getItemNames();
+        if (components == null || components.isEmpty()) {
+            return Outcome.failure("No components provided for allocation");
+        }
+        int missing = 0;
+        for (String comp : components) {
+            if (Finders.findByName(sandbox, "SystemComponent", comp) == null) {
+                missing++;
+            }
+        }
+        if (missing > 0) {
+            return Outcome.failure(String.format("%d component(s) not found for allocation", missing));
+        }
+        return Outcome.success(String.format("Allocate capability '%s' to %d component(s)", item.getCapabilityName(), components.size()));
+    }
+
+    private static Outcome simulateBatchMap(ResourceSet sandbox, PlanItem item) {
+        if (item.getElementClass() == null || item.getElementClass().isBlank()) {
+            return Outcome.failure("Source class missing for mapping");
+        }
+        if (item.getContainerClass() == null || item.getContainerClass().isBlank()) {
+            return Outcome.failure("Target class missing for mapping");
+        }
+        List<MappingItem> pairs = item.getMappingItems();
+        if (pairs == null || pairs.isEmpty()) {
+            return Outcome.failure("No mapping pairs provided");
+        }
+        int missing = 0;
+        for (MappingItem pair : pairs) {
+            if (pair == null) {
+                continue;
+            }
+            EObject source = Finders.findByName(sandbox, item.getElementClass(), pair.source);
+            EObject target = Finders.findByName(sandbox, item.getContainerClass(), pair.target);
+            if (source == null || target == null) {
+                missing++;
+            }
+        }
+        if (missing > 0) {
+            return Outcome.failure(String.format("%d mapping pair(s) reference missing elements", missing));
+        }
+        return Outcome.success(String.format("Link %d %s → %s", pairs.size(), defaultString(item.getElementClass(), "sources"), defaultString(item.getContainerClass(), "targets")));
+    }
+
+    private static Outcome simulateBatchDelete(ResourceSet sandbox, PlanItem item) {
+        if (item.getElementClass() == null || item.getElementClass().isBlank()) {
+            return Outcome.failure("Element class missing for delete");
+        }
+        List<String> names = item.getItemNames();
+        if (names == null || names.isEmpty()) {
+            return Outcome.failure("No elements provided for delete");
+        }
+        int missing = 0;
+        for (String name : names) {
+            if (Finders.findByName(sandbox, item.getElementClass(), name) == null) {
+                missing++;
+            }
+        }
+        if (missing > 0) {
+            return Outcome.failure(String.format("%d element(s) not found for delete", missing));
+        }
+        return Outcome.success(String.format("Delete %d %s", names.size(), defaultString(item.getElementClass(), "elements")));
     }
 
     private static Outcome simulatePropagate(ResourceSet sandbox, PlanItem item) {

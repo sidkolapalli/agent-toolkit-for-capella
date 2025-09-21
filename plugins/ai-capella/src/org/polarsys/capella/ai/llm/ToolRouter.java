@@ -14,6 +14,9 @@ import org.polarsys.capella.ai.model.ElementFactory;
 import org.polarsys.capella.ai.model.Finders;
 import org.polarsys.capella.ai.model.ModelOps;
 import org.polarsys.capella.ai.actions.FunctionalChainActions;
+import org.polarsys.capella.ai.actions.MassEditActions;
+import org.polarsys.capella.ai.actions.MassEditActions.MappingItem;
+import org.polarsys.capella.ai.actions.MassEditActions.RenameItem;
 import org.polarsys.capella.ai.actions.OperationalActions;
 import org.polarsys.capella.ai.actions.RequirementActions;
 import org.polarsys.capella.ai.actions.SystemActions;
@@ -201,6 +204,22 @@ public final class ToolRouter {
             return action.scenarioName;
         }
 
+        public List<RenameItem> getRenameItems() {
+            return action.renameItems;
+        }
+
+        public List<String> getItemNames() {
+            return action.itemNames;
+        }
+
+        public List<String> getSecondaryNames() {
+            return action.secondaryNames;
+        }
+
+        public List<MappingItem> getMappingItems() {
+            return action.mappingItems;
+        }
+
         public String getContainerClass() {
             return action.containerClass;
         }
@@ -359,6 +378,16 @@ public final class ToolRouter {
                 return FunctionalChainActions.addExchange(session, action.chainName, action.exchangeName);
             case ATTACH_SCENARIO:
                 return FunctionalChainActions.attachScenario(session, action.chainName, action.scenarioName);
+            case BATCH_RENAME:
+                return MassEditActions.batchRename(session, action.elementClass, action.renameItems);
+            case BATCH_REPARENT:
+                return MassEditActions.batchReparent(session, action.elementClass, action.parentName, action.itemNames);
+            case BATCH_ALLOCATE:
+                return MassEditActions.batchAllocateCapability(session, action.capabilityName, action.itemNames);
+            case BATCH_MAP:
+                return MassEditActions.batchMap(session, action.elementClass, action.containerClass, action.mappingItems);
+            case BATCH_DELETE:
+                return MassEditActions.batchDelete(session, action.elementClass, action.itemNames);
             case CREATE_REQUIREMENT:
                 return RequirementActions.createRequirement(session, action.containerClass, action.containerName, action.requirementType, action.name, action.description);
             case LINK_REQUIREMENT:
@@ -618,6 +647,11 @@ public final class ToolRouter {
         EXTEND_CHAIN,
         SEQUENCE_EXCHANGE,
         ATTACH_SCENARIO,
+        BATCH_RENAME,
+        BATCH_REPARENT,
+        BATCH_ALLOCATE,
+        BATCH_MAP,
+        BATCH_DELETE,
         CREATE_REQUIREMENT,
         LINK_REQUIREMENT,
         RECORD_REQUIREMENT_COVERAGE;
@@ -673,6 +707,16 @@ public final class ToolRouter {
                     return SEQUENCE_EXCHANGE;
                 case "attach_scenario":
                     return ATTACH_SCENARIO;
+                case "batch_rename":
+                    return BATCH_RENAME;
+                case "batch_reparent":
+                    return BATCH_REPARENT;
+                case "batch_allocate":
+                    return BATCH_ALLOCATE;
+                case "batch_map":
+                    return BATCH_MAP;
+                case "batch_delete":
+                    return BATCH_DELETE;
                 case "create_requirement":
                     return CREATE_REQUIREMENT;
                 case "link_requirement":
@@ -714,6 +758,10 @@ public final class ToolRouter {
         String requirementTargetClass;
         String requirementStatus;
         String requirementNotes;
+        List<RenameItem> renameItems = List.of();
+        List<String> itemNames = List.of();
+        List<String> secondaryNames = List.of();
+        List<MappingItem> mappingItems = List.of();
 
         Action(ActionType type, String layer, String name, String sourceName, String targetName,
                String elementClass, String existingName, String newName, String diagramType,
@@ -838,6 +886,47 @@ public final class ToolRouter {
                     return new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null, null, null, null, null, null, null, null,
                             null, null, null, false, false,
                             require(map, "chain", index), null, null, null, require(map, "scenario", index));
+                case BATCH_RENAME: {
+                    Action renameAction = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null,
+                            require(map, "class", index), null, null, null, null, null, null,
+                            null, null, null, false, false,
+                            null, null, null, null, null);
+                    renameAction.renameItems = parseRenameItems(map, index);
+                    return renameAction;
+                }
+                case BATCH_REPARENT: {
+                    Action reparentAction = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null,
+                            require(map, "class", index), null, null, null, string(map.get("parent")), null, null,
+                            null, null, null, false, false,
+                            null, null, null, null, null);
+                    reparentAction.itemNames = parseStringList(map.get("items"), index, "items");
+                    return reparentAction;
+                }
+                case BATCH_ALLOCATE: {
+                    Action allocateAction = new Action(type, stringOrDefault(map.get("layer"), "SA"), null, null, null,
+                            null, null, null, null, null, null, require(map, "capability", index),
+                            null, null, null, false, false,
+                            null, null, null, null, null);
+                    allocateAction.itemNames = parseStringList(map.get("components"), index, "components");
+                    return allocateAction;
+                }
+                case BATCH_MAP: {
+                    Action mapAction = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null,
+                            require(map, "source_class", index), null, null, null, null, null, null,
+                            null, null, null, false, false,
+                            null, null, null, null, null);
+                    mapAction.containerClass = require(map, "target_class", index);
+                    mapAction.mappingItems = parseMappingItems(map.get("pairs"), index);
+                    return mapAction;
+                }
+                case BATCH_DELETE: {
+                    Action deleteAction = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null,
+                            require(map, "class", index), null, null, null, null, null, null,
+                            null, null, null, false, false,
+                            null, null, null, null, null);
+                    deleteAction.itemNames = parseStringList(map.get("items"), index, "items");
+                    return deleteAction;
+                }
                 case CREATE_REQUIREMENT:
                     Action createReq = new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null, null, stringOrDefault(map.get("description"), ""), null,
                             null, null, null, false, false,
@@ -924,6 +1013,23 @@ public final class ToolRouter {
                     return String.format("Add exchange '%s' to chain '%s'", defaultString(exchangeName, "?"), defaultString(chainName, "?"));
                 case ATTACH_SCENARIO:
                     return String.format("Attach scenario '%s' to chain '%s'", defaultString(scenarioName, "?"), defaultString(chainName, "?"));
+                case BATCH_RENAME:
+                    return String.format("Batch rename %d %s", renameItems != null ? renameItems.size() : 0,
+                            defaultString(elementClass, "elements"));
+                case BATCH_REPARENT:
+                    return String.format("Move %d %s under %s",
+                            itemNames != null ? itemNames.size() : 0,
+                            defaultString(elementClass, "elements"), defaultString(parentName, "(parent)"));
+                case BATCH_ALLOCATE:
+                    return String.format("Allocate capability '%s' to %d component(s)", defaultString(capabilityName, "?"),
+                            itemNames != null ? itemNames.size() : 0);
+                case BATCH_MAP:
+                    return String.format("Map %d %s → %s",
+                            mappingItems != null ? mappingItems.size() : 0,
+                            defaultString(elementClass, "sources"), defaultString(containerClass, "targets"));
+                case BATCH_DELETE:
+                    return String.format("Batch delete %d %s", itemNames != null ? itemNames.size() : 0,
+                            defaultString(elementClass, "elements"));
                 case CREATE_REQUIREMENT:
                     String containerLabel = (containerName != null && !containerName.isBlank()) ? containerName
                             : defaultString(containerClass, "requirements container");
@@ -965,10 +1071,15 @@ public final class ToolRouter {
                 case EXTEND_CHAIN:
                 case SEQUENCE_EXCHANGE:
                 case ATTACH_SCENARIO:
+                case BATCH_RENAME:
+                case BATCH_REPARENT:
+                case BATCH_ALLOCATE:
+                case BATCH_MAP:
                 case LINK_REQUIREMENT:
                 case RECORD_REQUIREMENT_COVERAGE:
                     return ChangeCategory.UPDATE;
                 case DELETE:
+                case BATCH_DELETE:
                     return ChangeCategory.DELETE;
                 case OPEN_DIAGRAM:
                 default:
@@ -1036,6 +1147,23 @@ public final class ToolRouter {
                     return String.format("Add exchange '%s' to chain '%s'", defaultString(exchangeName, "?"), defaultString(chainName, "?"));
                 case ATTACH_SCENARIO:
                     return String.format("Attach scenario '%s' to chain '%s'", defaultString(scenarioName, "?"), defaultString(chainName, "?"));
+                case BATCH_RENAME:
+                    return String.format("Rename %d %s", renameItems != null ? renameItems.size() : 0,
+                            defaultString(elementClass, "elements"));
+                case BATCH_REPARENT:
+                    return String.format("Move %d %s under %s",
+                            itemNames != null ? itemNames.size() : 0,
+                            defaultString(elementClass, "elements"), defaultString(parentName, "(parent)"));
+                case BATCH_ALLOCATE:
+                    return String.format("Allocate capability '%s' to %d component(s)", defaultString(capabilityName, "?"),
+                            itemNames != null ? itemNames.size() : 0);
+                case BATCH_MAP:
+                    return String.format("Link %d %s → %s",
+                            mappingItems != null ? mappingItems.size() : 0,
+                            defaultString(elementClass, "sources"), defaultString(containerClass, "targets"));
+                case BATCH_DELETE:
+                    return String.format("Delete %d %s", itemNames != null ? itemNames.size() : 0,
+                            defaultString(elementClass, "elements"));
                 case CREATE_REQUIREMENT:
                     String containerLabel = (containerName != null && !containerName.isBlank()) ? containerName
                             : defaultString(containerClass, "requirements container");
@@ -1089,6 +1217,69 @@ public final class ToolRouter {
 
     private static String string(Object value) {
         return value == null ? null : String.valueOf(value).trim();
+    }
+
+    private static List<RenameItem> parseRenameItems(Map<String, Object> map, int index) {
+        Object raw = map.get("items");
+        if (!(raw instanceof List<?> list)) {
+            throw new PlanValidationException("Action " + index + " missing 'items' array");
+        }
+        if (list.isEmpty()) {
+            throw new PlanValidationException("Action " + index + " requires at least one rename item");
+        }
+        List<RenameItem> result = new ArrayList<>(list.size());
+        for (Object entry : list) {
+            if (!(entry instanceof Map<?, ?> entryMap)) {
+                throw new PlanValidationException("Rename item must be an object");
+            }
+            String from = string(entryMap.get("from"));
+            String to = string(entryMap.get("to"));
+            if (from == null || from.isBlank() || to == null) {
+                throw new PlanValidationException("Rename items require 'from' and 'to'");
+            }
+            result.add(new RenameItem(from, to));
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<String> parseStringList(Object raw, int index, String field) {
+        if (!(raw instanceof List<?> list)) {
+            throw new PlanValidationException("Action " + index + " missing array '" + field + "'");
+        }
+        if (list.isEmpty()) {
+            throw new PlanValidationException("Action " + index + " requires values in '" + field + "'");
+        }
+        List<String> values = new ArrayList<>(list.size());
+        for (Object entry : list) {
+            String value = string(entry);
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            values.add(value);
+        }
+        if (values.isEmpty()) {
+            throw new PlanValidationException("Action " + index + " contains empty entries in '" + field + "'");
+        }
+        return List.copyOf(values);
+    }
+
+    private static List<MappingItem> parseMappingItems(Object raw, int index) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            throw new PlanValidationException("Action " + index + " missing mapping pairs");
+        }
+        List<MappingItem> pairs = new ArrayList<>(list.size());
+        for (Object entry : list) {
+            if (!(entry instanceof Map<?, ?> mapEntry)) {
+                throw new PlanValidationException("Mapping item must be an object");
+            }
+            String source = string(mapEntry.get("source"));
+            String target = string(mapEntry.get("target"));
+            if (source == null || source.isBlank() || target == null || target.isBlank()) {
+                throw new PlanValidationException("Mapping items require 'source' and 'target'");
+            }
+            pairs.add(new MappingItem(source, target));
+        }
+        return List.copyOf(pairs);
     }
 
     private static boolean bool(Object value, boolean defaultValue) {
