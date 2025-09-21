@@ -13,10 +13,14 @@
 
 ## 2. Rich Model Comprehension
 
-- [ ] **Layer-Aware Summaries** – extend `ModelSummary` to produce per-layer dashboards (Operational, System, Logical, Physical) with allocations, gaps, and coverage metrics.
-- [ ] **Dependency Graph Cache** – maintain quick lookups for component/function relationships, exchanges, and requirement links to answer “impact of change” queries.
-- [ ] **Validation Insights** – surface Capella validation results, warnings, and TODOs directly in the conversation context.
-- [ ] **Scenario & Functional Chain Snapshots** – summarise functional chains, state machines, and scenarios so the assistant can reason about behaviour, not just structure.
+- [x] **Layer-Aware Summaries** – extend `ModelSummary` to produce per-layer dashboards (Operational, System, Logical, Physical) with allocations, gaps, and coverage metrics.
+  - Explain Model now emits per-layer dashboards showing coverage, allocation gaps, and component/function health.
+- [x] **Dependency Graph Cache** – maintain quick lookups for component/function relationships, exchanges, and requirement links to answer “impact of change” queries.
+  - ModelAnalytics builds a cached dependency graph (component→functions/requirements) exposed via Explain Model and APIs.
+- [x] **Validation Insights** – surface Capella validation results, warnings, and TODOs directly in the conversation context.
+  - Explain Model lists live validation errors/warnings and Plan Editor dry-runs flag issues inline.
+- [x] **Scenario & Functional Chain Snapshots** – summarise functional chains, state machines, and scenarios so the assistant can reason about behaviour, not just structure.
+  - Summaries now include functional chain/scenario tallies with representative names.
 
 ## 3. Action Surface Expansion
 

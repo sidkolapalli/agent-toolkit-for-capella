@@ -12,6 +12,11 @@ import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.polarsys.capella.ai.browse.DiagramBrowser;
 import org.polarsys.capella.ai.browse.DiagramBrowser.DiagramInfo;
+import org.polarsys.capella.ai.model.ModelAnalytics.Analysis;
+import org.polarsys.capella.ai.model.ModelAnalytics.DependencyGraph;
+import org.polarsys.capella.ai.model.ModelAnalytics.FunctionalSnapshot;
+import org.polarsys.capella.ai.model.ModelAnalytics.LayerStats;
+import org.polarsys.capella.ai.model.ModelAnalytics.ValidationReport;
 import org.polarsys.capella.ai.session.SessionBridge;
 
 public final class ModelSummary {
@@ -38,35 +43,28 @@ public final class ModelSummary {
         if (session == null) {
             return "No active model session.";
         }
-        CacheEntry cached = CACHE.get(session);
         long now = System.currentTimeMillis();
+        CacheEntry cached = CACHE.get(session);
         if (cached != null && now - cached.timestamp < CACHE_TTL_MS) {
             return cached.summary;
         }
 
-        Object la = ArchitectureLocator.findTargetElement(session, "LA");
-        Object sa = ArchitectureLocator.findTargetElement(session, "SA");
-        Object pa = ArchitectureLocator.findTargetElement(session, "PA");
-
-        int comp = countByClass(session, "LogicalComponent");
-        int func = countByClass(session, "LogicalFunction");
-        int cex = countByClass(session, "ComponentExchange");
-        int fex = countByClass(session, "FunctionalExchange");
-
-        Collection<DRepresentation> reps = DialectManager.INSTANCE.getAllRepresentations(session);
-        int diagCount = reps != null ? reps.size() : 0;
+        Analysis analysis = ModelAnalytics.analyze(session);
+        Collection<DRepresentation> representations = DialectManager.INSTANCE.getAllRepresentations(session);
+        int diagramCount = representations != null ? representations.size() : 0;
         List<DiagramInfo> activeDiagrams = DiagramBrowser.listActive();
-        String diagNames = activeDiagrams.stream().limit(5).map(d -> d.name).collect(Collectors.joining(", "));
+        String diagramExamples = activeDiagrams.stream().limit(5).map(diagram -> diagram.name).collect(Collectors.joining(", "));
 
         StringBuilder sb = new StringBuilder();
         sb.append("Model Summary\n");
-        sb.append("- Layers present: ").append(fmt(la,"LA")).append(", ").append(fmt(sa,"SA")).append(", ").append(fmt(pa,"PA")).append("\n");
-        sb.append("- LogicalComponents: ").append(comp).append("\n");
-        sb.append("- LogicalFunctions: ").append(func).append("\n");
-        sb.append("- ComponentExchanges: ").append(cex).append("\n");
-        sb.append("- FunctionalExchanges: ").append(fex).append("\n");
-        sb.append("- Diagrams: ").append(diagCount);
-        if (!diagNames.isBlank()) sb.append(" (e.g., ").append(diagNames).append(")");
+        sb.append(layerDashboards(analysis)).append("\n");
+        sb.append(validationSection(analysis.validation())).append("\n");
+        sb.append(functionalSection(analysis.snapshot())).append("\n");
+        sb.append(dependencyHighlights(analysis.dependencyGraph())).append("\n");
+        sb.append("- Diagrams: ").append(diagramCount);
+        if (!diagramExamples.isBlank()) {
+            sb.append(" (e.g., ").append(diagramExamples).append(")");
+        }
 
         String summary = sb.toString();
         CACHE.put(session, new CacheEntry(summary, now));
@@ -79,22 +77,63 @@ public final class ModelSummary {
         }
     }
 
-    private static String fmt(Object o, String name) { return o != null ? name : "-"; }
-
-    private static int countByClass(Session session, String simpleName) {
-        var rs = session.getTransactionalEditingDomain() != null ? session.getTransactionalEditingDomain().getResourceSet() : null;
-        if (rs == null) return 0;
-        int c = 0;
-        try {
-            for (var res : rs.getResources()) {
-                if (res == null) continue;
-                var it = res.getAllContents();
-                while (it.hasNext()) {
-                    var eo = it.next();
-                    if (eo.eClass().getName().equals(simpleName)) c++;
-                }
+    private static String layerDashboards(Analysis analysis) {
+        Map<String, LayerStats> stats = analysis.layerStats();
+        if (stats.isEmpty()) {
+            return "- No architecture layers detected.";
+        }
+        StringBuilder sb = new StringBuilder("Layer Dashboards:\n");
+        stats.forEach((layerId, layerStats) -> {
+            sb.append(String.format("  * %s (%s) — Components: %d, Functions: %d, Exchanges: %d, Requirements: %d\n",
+                    layerId, layerStats.label(), layerStats.components(), layerStats.functions(),
+                    layerStats.exchanges(), layerStats.requirements()));
+            sb.append(String.format("    Coverage: components %.0f%% structured, functions %.0f%% allocated\n",
+                    layerStats.componentStructureCoverage(), layerStats.functionAllocationCoverage()));
+            if (!layerStats.topComponentGaps().isEmpty()) {
+                sb.append("    Components needing breakdown: ")
+                        .append(String.join(", ", layerStats.topComponentGaps())).append("\n");
             }
-        } catch (Exception ignore) {}
-        return c;
+            if (!layerStats.topUnallocatedFunctions().isEmpty()) {
+                sb.append("    Functions lacking allocation: ")
+                        .append(String.join(", ", layerStats.topUnallocatedFunctions())).append("\n");
+            }
+        });
+        return sb.toString().stripTrailing();
+    }
+
+    private static String validationSection(ValidationReport report) {
+        if (!report.isAvailable()) {
+            return "Validation: unavailable";
+        }
+        String header = String.format("Validation: %d error(s), %d warning(s)", report.errorCount(), report.warningCount());
+        String details = report.messages().stream().limit(3).collect(Collectors.joining(" | "));
+        return details.isBlank() ? header : header + " — " + details;
+    }
+
+    private static String functionalSection(FunctionalSnapshot snapshot) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("Functional Assets: %d chain(s), %d scenario(s)",
+                snapshot.chainCount(), snapshot.scenarioCount()));
+        if (!snapshot.representativeChains().isEmpty()) {
+            sb.append(" — Chains e.g. ").append(String.join(", ", snapshot.representativeChains()));
+        }
+        if (!snapshot.representativeScenarios().isEmpty()) {
+            sb.append("; Scenarios e.g. ").append(String.join(", ", snapshot.representativeScenarios()));
+        }
+        return sb.toString();
+    }
+
+    private static String dependencyHighlights(DependencyGraph graph) {
+        if (graph.componentToFunctions().isEmpty() && graph.componentToRequirements().isEmpty()) {
+            return "Dependencies: no cross-layer links detected.";
+        }
+        StringBuilder sb = new StringBuilder("Dependencies: ");
+        graph.componentToFunctions().entrySet().stream().limit(3).forEach(entry ->
+                sb.append(entry.getKey()).append("→functions(")
+                        .append(String.join(", ", entry.getValue())).append(") "));
+        graph.componentToRequirements().entrySet().stream().limit(2).forEach(entry ->
+                sb.append(entry.getKey()).append("→requirements(")
+                        .append(String.join(", ", entry.getValue())).append(") "));
+        return sb.toString().stripTrailing();
     }
 }
