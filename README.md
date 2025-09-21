@@ -27,7 +27,7 @@ This repository contains only the Capella plugin and p2 update site used to inst
 ## Using the assistant
 
 - Type in the **Conversation** section; pressing Enter or clicking **Send** dispatches the request on a background job. The assistant replies in the log pane.
-- If the LLM provides a `TOOL_PLAN`, the view displays a summary. When *Enable tool actions* is on, you’ll get a confirmation dialog before anything touches the model. Cancelling leaves the plan unapplied.
+- If the LLM provides a `TOOL_PLAN`, the view displays a summary. When *Enable tool actions* is on, a **Plan Editor** dialog opens so you can inspect every action, toggle unwanted steps, and confirm execution before anything touches the model. Cancelling leaves the plan unapplied.
 - The **Model & Diagram Tools** group exposes quick actions (list diagrams, create LAB, import draw.io, rename/delete/reveal elements). These operations run in EMF transactions and persist across sessions.
 
 ## Known requirements

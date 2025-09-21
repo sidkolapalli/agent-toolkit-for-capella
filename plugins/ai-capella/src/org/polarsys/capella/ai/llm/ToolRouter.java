@@ -41,6 +41,10 @@ public final class ToolRouter {
             return actions.isEmpty();
         }
 
+        public int size() {
+            return actions.size();
+        }
+
         public List<String> describe() {
             List<String> lines = new ArrayList<>(actions.size());
             for (Action action : actions) {
@@ -49,8 +53,98 @@ public final class ToolRouter {
             return lines;
         }
 
+        public List<PlanItem> items() {
+            if (actions.isEmpty()) {
+                return List.of();
+            }
+            List<PlanItem> items = new ArrayList<>(actions.size());
+            for (int i = 0; i < actions.size(); i++) {
+                items.add(new PlanItem(i, actions.get(i)));
+            }
+            return Collections.unmodifiableList(items);
+        }
+
+        public ToolPlan filterByIndex(List<Integer> indices) {
+            if (indices == null || indices.isEmpty()) {
+                return new ToolPlan(List.of());
+            }
+            List<Action> subset = new ArrayList<>(indices.size());
+            for (Integer idx : indices) {
+                if (idx == null) {
+                    continue;
+                }
+                int value = idx.intValue();
+                if (value < 0 || value >= actions.size()) {
+                    continue;
+                }
+                subset.add(actions.get(value));
+            }
+            if (subset.size() == actions.size()) {
+                return this;
+            }
+            return new ToolPlan(subset);
+        }
+
         List<Action> actions() {
             return actions;
+        }
+    }
+
+    public static final class PlanItem {
+        private final int index;
+        private final Action action;
+
+        PlanItem(int index, Action action) {
+            this.index = index;
+            this.action = action;
+        }
+
+        public int getIndex() {
+            return index;
+        }
+
+        public String getTypeId() {
+            return action.type.name();
+        }
+
+        public String getTypeLabel() {
+            return action.typeLabel();
+        }
+
+        public String getLayer() {
+            return action.layer;
+        }
+
+        public String getName() {
+            return action.name;
+        }
+
+        public String getSourceName() {
+            return action.sourceName;
+        }
+
+        public String getTargetName() {
+            return action.targetName;
+        }
+
+        public String getElementClass() {
+            return action.elementClass;
+        }
+
+        public String getExistingName() {
+            return action.existingName;
+        }
+
+        public String getNewName() {
+            return action.newName;
+        }
+
+        public String getDiagramType() {
+            return action.diagramType;
+        }
+
+        public String getDescription() {
+            return action.describe();
         }
     }
 

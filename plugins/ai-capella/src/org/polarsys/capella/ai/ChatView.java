@@ -10,7 +10,6 @@ import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.InputDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
-import org.eclipse.jface.dialogs.TitleAreaDialog;
 import org.eclipse.jface.window.Window;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.viewpoint.DRepresentation;
@@ -25,7 +24,6 @@ import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Group;
@@ -41,6 +39,7 @@ import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.tools.DiagramCommands;
+import org.polarsys.capella.ai.ui.PlanEditorDialog;
 
 /**
  * Chat-centric view providing inline model tools and immediate LLM configuration.
@@ -407,9 +406,14 @@ public class ChatView extends ViewPart {
             if (plan != null && !plan.isEmpty()) {
                 appendPlanSummary(plan.describe(), actionsEnabled);
                 if (actionsEnabled) {
-                    PlanPreviewDialog dialog = new PlanPreviewDialog(getSite().getShell(), plan.describe());
+                    PlanEditorDialog dialog = new PlanEditorDialog(getSite().getShell(), plan);
                     if (dialog.open() == IDialogConstants.OK_ID) {
-                        schedulePlanExecution(session, diagram, plan);
+                        ToolPlan selection = dialog.getFilteredPlan();
+                        if (selection != null && !selection.isEmpty()) {
+                            schedulePlanExecution(session, diagram, selection);
+                        } else {
+                            append("Plan not applied (no actions selected).");
+                        }
                     } else {
                         append("Plan not applied (cancelled by user).");
                     }
@@ -866,50 +870,4 @@ public class ChatView extends ViewPart {
         }
     }
 
-    private static class PlanPreviewDialog extends TitleAreaDialog {
-        private final List<String> lines;
-
-        PlanPreviewDialog(Shell parentShell, List<String> lines) {
-            super(parentShell);
-            this.lines = lines;
-        }
-
-        @Override
-        public void create() {
-            super.create();
-            setTitle("Review AI actions");
-            setMessage("Confirm the actions before applying them to the model.");
-        }
-
-        @Override
-        protected Control createDialogArea(Composite parent) {
-            Composite area = (Composite) super.createDialogArea(parent);
-            Composite container = new Composite(area, SWT.NONE);
-            container.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
-            container.setLayout(new GridLayout(1, false));
-
-            Text summary = new Text(container, SWT.BORDER | SWT.MULTI | SWT.READ_ONLY | SWT.WRAP | SWT.V_SCROLL);
-            summary.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
-            StringBuilder sb = new StringBuilder();
-            for (String line : lines) {
-                sb.append("• ").append(line).append(System.lineSeparator());
-            }
-            summary.setText(sb.toString());
-            summary.setBackground(container.getDisplay().getSystemColor(SWT.COLOR_WHITE));
-
-            return area;
-        }
-
-        @Override
-        protected void createButtonsForButtonBar(Composite parent) {
-            createButton(parent, IDialogConstants.CANCEL_ID, IDialogConstants.CANCEL_LABEL, false);
-            Button apply = createButton(parent, IDialogConstants.OK_ID, "Apply actions", true);
-            apply.setFocus();
-        }
-
-        @Override
-        protected boolean isResizable() {
-            return true;
-        }
-    }
 }

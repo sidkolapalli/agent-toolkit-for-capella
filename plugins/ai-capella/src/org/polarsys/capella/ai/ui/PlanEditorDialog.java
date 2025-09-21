@@ -1,0 +1,307 @@
+package org.polarsys.capella.ai.ui;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.eclipse.jface.dialogs.IDialogConstants;
+import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.jface.dialogs.TitleAreaDialog;
+import org.eclipse.jface.viewers.ArrayContentProvider;
+import org.eclipse.jface.viewers.CheckStateChangedEvent;
+import org.eclipse.jface.viewers.CheckboxTableViewer;
+import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.SelectionChangedEvent;
+import org.eclipse.jface.viewers.TableViewerColumn;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableItem;
+import org.eclipse.swt.widgets.Text;
+import org.polarsys.capella.ai.llm.ToolRouter.PlanItem;
+import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
+
+/**
+ * Rich preview dialog that allows users to granularly review and toggle TOOL_PLAN actions.
+ */
+public final class PlanEditorDialog extends TitleAreaDialog {
+
+    private final ToolPlan plan;
+    private ToolPlan filteredPlan;
+
+    private CheckboxTableViewer viewer;
+    private Text details;
+    private Label selectionSummary;
+
+    public PlanEditorDialog(Shell parentShell, ToolPlan plan) {
+        super(parentShell);
+        this.plan = plan;
+        this.filteredPlan = plan;
+    }
+
+    @Override
+    public void create() {
+        super.create();
+        setTitle("Review AI Plan");
+        setMessage("Toggle any action you do not want to apply, then confirm the execution.");
+    }
+
+    @Override
+    protected Control createDialogArea(Composite parent) {
+        Composite area = (Composite) super.createDialogArea(parent);
+        Composite container = new Composite(area, SWT.NONE);
+        container.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        container.setLayout(new GridLayout(1, false));
+
+        selectionSummary = new Label(container, SWT.WRAP);
+        selectionSummary.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        createTable(container);
+        createButtonsRow(container);
+        createDetailsSection(container);
+
+        populatePlan();
+        updateSelectionSummary();
+        selectFirstRow();
+        return area;
+    }
+
+    private void createTable(Composite parent) {
+        viewer = CheckboxTableViewer.newCheckList(parent, SWT.BORDER | SWT.FULL_SELECTION);
+        Table table = viewer.getTable();
+        table.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        table.setHeaderVisible(true);
+        table.setLinesVisible(true);
+
+        viewer.setContentProvider(ArrayContentProvider.getInstance());
+
+        TableViewerColumn stepColumn = new TableViewerColumn(viewer, SWT.NONE);
+        stepColumn.getColumn().setText("#");
+        stepColumn.getColumn().setWidth(40);
+        stepColumn.setLabelProvider(new PlanLabelProvider(item -> Integer.toString(item.getIndex() + 1)));
+
+        TableViewerColumn typeColumn = new TableViewerColumn(viewer, SWT.NONE);
+        typeColumn.getColumn().setText("Type");
+        typeColumn.getColumn().setWidth(150);
+        typeColumn.setLabelProvider(new PlanLabelProvider(item -> formatType(item)));
+
+        TableViewerColumn layerColumn = new TableViewerColumn(viewer, SWT.NONE);
+        layerColumn.getColumn().setText("Layer");
+        layerColumn.getColumn().setWidth(80);
+        layerColumn.setLabelProvider(new PlanLabelProvider(item -> defaultString(item.getLayer())));
+
+        TableViewerColumn descriptionColumn = new TableViewerColumn(viewer, SWT.NONE);
+        descriptionColumn.getColumn().setText("Description");
+        descriptionColumn.getColumn().setWidth(420);
+        descriptionColumn.setLabelProvider(new PlanLabelProvider(PlanItem::getDescription));
+
+        viewer.addCheckStateListener(this::handleCheckChanged);
+        viewer.addSelectionChangedListener(this::handleSelectionChanged);
+    }
+
+    private static String formatType(PlanItem item) {
+        return prettifyTypeId(item.getTypeId());
+    }
+
+    private static String prettifyTypeId(String typeId) {
+        String lower = typeId.toLowerCase().replace('_', ' ');
+        return lower.isEmpty() ? lower : Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
+    }
+
+
+    private void createButtonsRow(Composite parent) {
+        Composite row = new Composite(parent, SWT.NONE);
+        row.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        GridLayout layout = new GridLayout(3, false);
+        layout.marginWidth = 0;
+        layout.marginHeight = 0;
+        row.setLayout(layout);
+
+        Button selectAll = new Button(row, SWT.PUSH);
+        selectAll.setText("Select all");
+        selectAll.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                viewer.setAllChecked(true);
+                updateSelectionSummary();
+            }
+        });
+
+        Button clearAll = new Button(row, SWT.PUSH);
+        clearAll.setText("Clear all");
+        clearAll.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                viewer.setAllChecked(false);
+                updateSelectionSummary();
+            }
+        });
+
+        Button invert = new Button(row, SWT.PUSH);
+        invert.setText("Invert selection");
+        invert.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                Table table = viewer.getTable();
+                for (TableItem item : table.getItems()) {
+                    Object element = item.getData();
+                    viewer.setChecked(element, !viewer.getChecked(element));
+                }
+                updateSelectionSummary();
+            }
+        });
+    }
+
+    private void createDetailsSection(Composite parent) {
+        Group detailsGroup = new Group(parent, SWT.NONE);
+        detailsGroup.setText("Selected action");
+        detailsGroup.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
+        detailsGroup.setLayout(new GridLayout(1, false));
+
+        details = new Text(detailsGroup, SWT.BORDER | SWT.MULTI | SWT.READ_ONLY | SWT.WRAP | SWT.V_SCROLL);
+        GridData data = new GridData(SWT.FILL, SWT.FILL, true, true);
+        data.heightHint = 140;
+        details.setLayoutData(data);
+    }
+
+    private void populatePlan() {
+        List<PlanItem> items = plan.items();
+        viewer.setInput(items);
+        viewer.setAllChecked(true);
+    }
+
+    private void selectFirstRow() {
+        Table table = viewer.getTable();
+        if (table.getItemCount() > 0) {
+            table.setSelection(0);
+            updateDetails((PlanItem) table.getItem(0).getData());
+        } else {
+            updateDetails(null);
+        }
+    }
+
+    private void handleSelectionChanged(SelectionChangedEvent event) {
+        IStructuredSelection selection = (IStructuredSelection) event.getSelection();
+        PlanItem item = (PlanItem) selection.getFirstElement();
+        updateDetails(item);
+    }
+
+    private void handleCheckChanged(CheckStateChangedEvent event) {
+        updateSelectionSummary();
+    }
+
+    private void updateSelectionSummary() {
+        Object[] checked = viewer.getCheckedElements();
+        List<PlanItem> selected = new ArrayList<>(checked.length);
+        for (Object obj : checked) {
+            selected.add((PlanItem) obj);
+        }
+        int total = plan.size();
+        if (selected.isEmpty()) {
+            selectionSummary.setText(String.format("No actions selected (0 of %d).", total));
+        } else {
+            Map<String, Long> typeCounts = selected.stream()
+                    .collect(Collectors.groupingBy(PlanItem::getTypeId, LinkedHashMap::new, Collectors.counting()));
+            String summary = typeCounts.entrySet().stream()
+                    .map(e -> prettifyTypeId(e.getKey()) + " × " + e.getValue())
+                    .collect(Collectors.joining(", "));
+            selectionSummary.setText(String.format("Selected %d of %d actions (%s)", selected.size(), total, summary));
+        }
+        selectionSummary.getParent().layout();
+    }
+
+    private void updateDetails(PlanItem item) {
+        if (item == null) {
+            details.setText("No action selected.");
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append(item.getDescription()).append(System.lineSeparator());
+        sb.append("Type: ").append(formatType(item)).append(System.lineSeparator());
+        if (item.getLayer() != null) {
+            sb.append("Layer: ").append(item.getLayer()).append(System.lineSeparator());
+        }
+        if (item.getName() != null) {
+            sb.append("Name: ").append(item.getName()).append(System.lineSeparator());
+        }
+        if (item.getSourceName() != null || item.getTargetName() != null) {
+            sb.append("Source → Target: ").append(defaultString(item.getSourceName())).append(" → ")
+                    .append(defaultString(item.getTargetName())).append(System.lineSeparator());
+        }
+        if (item.getExistingName() != null) {
+            sb.append("Existing: ").append(item.getExistingName()).append(System.lineSeparator());
+        }
+        if (item.getNewName() != null) {
+            sb.append("New: ").append(item.getNewName()).append(System.lineSeparator());
+        }
+        if (item.getElementClass() != null) {
+            sb.append("Element class: ").append(item.getElementClass()).append(System.lineSeparator());
+        }
+        if (item.getDiagramType() != null) {
+            sb.append("Diagram: ").append(item.getDiagramType()).append(System.lineSeparator());
+        }
+        details.setText(sb.toString());
+    }
+
+    private static String defaultString(String value) {
+        return value == null ? "" : value;
+    }
+
+    @Override
+    protected void okPressed() {
+        Object[] checked = viewer.getCheckedElements();
+        if (checked.length == 0) {
+            MessageDialog.openInformation(getShell(), "No actions selected", "Select at least one action before applying the plan.");
+            return;
+        }
+        List<Integer> indices = new ArrayList<>(checked.length);
+        for (Object obj : checked) {
+            indices.add(((PlanItem) obj).getIndex());
+        }
+        filteredPlan = plan.filterByIndex(indices);
+        super.okPressed();
+    }
+
+    @Override
+    protected void createButtonsForButtonBar(Composite parent) {
+        createButton(parent, IDialogConstants.CANCEL_ID, IDialogConstants.CANCEL_LABEL, false);
+        createButton(parent, IDialogConstants.OK_ID, "Apply selected", true);
+    }
+
+    @Override
+    protected boolean isResizable() {
+        return true;
+    }
+
+    public ToolPlan getFilteredPlan() {
+        return filteredPlan;
+    }
+
+    private interface PlanLabelFormatter {
+        String format(PlanItem item);
+    }
+
+    private static final class PlanLabelProvider extends org.eclipse.jface.viewers.ColumnLabelProvider {
+        private final PlanLabelFormatter formatter;
+
+        private PlanLabelProvider(PlanLabelFormatter formatter) {
+            this.formatter = formatter;
+        }
+
+        @Override
+        public String getText(Object element) {
+            return formatter.format((PlanItem) element);
+        }
+    }
+}
