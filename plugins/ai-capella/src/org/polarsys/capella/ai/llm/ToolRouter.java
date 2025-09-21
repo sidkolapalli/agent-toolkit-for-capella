@@ -15,6 +15,7 @@ import org.polarsys.capella.ai.model.Finders;
 import org.polarsys.capella.ai.model.ModelOps;
 import org.polarsys.capella.ai.actions.FunctionalChainActions;
 import org.polarsys.capella.ai.actions.OperationalActions;
+import org.polarsys.capella.ai.actions.RequirementActions;
 import org.polarsys.capella.ai.actions.SystemActions;
 import org.polarsys.capella.ai.actions.TransformationActions;
 import org.polarsys.capella.ai.model.ModelSummary;
@@ -200,6 +201,30 @@ public final class ToolRouter {
             return action.scenarioName;
         }
 
+        public String getContainerClass() {
+            return action.containerClass;
+        }
+
+        public String getContainerName() {
+            return action.containerName;
+        }
+
+        public String getRequirementType() {
+            return action.requirementType;
+        }
+
+        public String getRequirementTargetClass() {
+            return action.requirementTargetClass;
+        }
+
+        public String getRequirementStatus() {
+            return action.requirementStatus;
+        }
+
+        public String getRequirementNotes() {
+            return action.requirementNotes;
+        }
+
         public boolean requiresConfirmation() {
             return action.type == ActionType.SYNC_PHYSICAL_FROM_LOGICAL;
         }
@@ -334,6 +359,12 @@ public final class ToolRouter {
                 return FunctionalChainActions.addExchange(session, action.chainName, action.exchangeName);
             case ATTACH_SCENARIO:
                 return FunctionalChainActions.attachScenario(session, action.chainName, action.scenarioName);
+            case CREATE_REQUIREMENT:
+                return RequirementActions.createRequirement(session, action.containerClass, action.containerName, action.requirementType, action.name, action.description);
+            case LINK_REQUIREMENT:
+                return RequirementActions.linkRequirement(session, action.name, action.requirementTargetClass, action.targetName);
+            case RECORD_REQUIREMENT_COVERAGE:
+                return RequirementActions.recordCoverage(session, action.requirementTargetClass, action.targetName, action.requirementStatus, action.requirementNotes);
             case OPEN_DIAGRAM:
                 return openDiagram(session, action.layer, action.diagramType, action.name);
             case RENAME:
@@ -349,7 +380,7 @@ public final class ToolRouter {
         StringBuilder sb = new StringBuilder();
         sb.append("You are an AI agent inside Capella.\n");
         sb.append("When the user asks for changes, output a line starting with 'TOOL_PLAN:' followed by compact JSON.\n");
-        sb.append("Schema: {\"actions\":[{\"type\":one of \"create_component\",\"create_function\",\"create_component_exchange\",\"create_functional_exchange\",\"create_lab\",\"rename\",\"delete\",\"open_diagram\",\"create_mission\",\"create_operational_activity\",\"create_operational_exchange\",\"link_operational_to_capability\",\"create_system_component\",\"create_system_function\",\"create_interface\",\"allocate_capability\",\"propagate_logical_to_physical\",\"sync_physical_from_logical\",\"trace_component_mapping\",\"create_functional_chain\",\"extend_chain\",\"sequence_exchange\",\"attach_scenario\"},...]}\n");
+        sb.append("Schema: {\"actions\":[{\"type\":one of \"create_component\",\"create_function\",\"create_component_exchange\",\"create_functional_exchange\",\"create_lab\",\"rename\",\"delete\",\"open_diagram\",\"create_mission\",\"create_operational_activity\",\"create_operational_exchange\",\"link_operational_to_capability\",\"create_system_component\",\"create_system_function\",\"create_interface\",\"allocate_capability\",\"propagate_logical_to_physical\",\"sync_physical_from_logical\",\"trace_component_mapping\",\"create_functional_chain\",\"extend_chain\",\"sequence_exchange\",\"attach_scenario\",\"create_requirement\",\"link_requirement\",\"record_requirement_coverage\"},...]}\n");
         sb.append("Action fields:\n");
         sb.append("- create_component: {layer, name}\n");
         sb.append("- create_function: {layer, name}\n");
@@ -371,6 +402,9 @@ public final class ToolRouter {
         sb.append("- extend_chain: {chain, function, layer?, function_class?}\n");
         sb.append("- sequence_exchange: {chain, exchange, layer?}\n");
         sb.append("- attach_scenario: {chain, scenario, layer?}\n");
+        sb.append("- create_requirement: {name, container_class?, container_name?, requirement_type?, description?, layer?}\n");
+        sb.append("- link_requirement: {requirement, target_class, target_name, layer?}\n");
+        sb.append("- record_requirement_coverage: {target_class, target_name, status?, notes?, layer?}\n");
         sb.append("- rename: {class, name, new_name}\n");
         sb.append("- delete: {class, name}\n");
         sb.append("- open_diagram: {layer, type}\n");
@@ -583,7 +617,10 @@ public final class ToolRouter {
         CREATE_FUNCTIONAL_CHAIN,
         EXTEND_CHAIN,
         SEQUENCE_EXCHANGE,
-        ATTACH_SCENARIO;
+        ATTACH_SCENARIO,
+        CREATE_REQUIREMENT,
+        LINK_REQUIREMENT,
+        RECORD_REQUIREMENT_COVERAGE;
 
         static ActionType from(String value) {
             if (value == null) {
@@ -636,6 +673,12 @@ public final class ToolRouter {
                     return SEQUENCE_EXCHANGE;
                 case "attach_scenario":
                     return ATTACH_SCENARIO;
+                case "create_requirement":
+                    return CREATE_REQUIREMENT;
+                case "link_requirement":
+                    return LINK_REQUIREMENT;
+                case "record_requirement_coverage":
+                    return RECORD_REQUIREMENT_COVERAGE;
                 default:
                     throw new PlanValidationException("Unknown action type: " + value);
             }
@@ -665,6 +708,12 @@ public final class ToolRouter {
         final String functionClass;
         final String exchangeName;
         final String scenarioName;
+        String containerClass;
+        String containerName;
+        String requirementType;
+        String requirementTargetClass;
+        String requirementStatus;
+        String requirementNotes;
 
         Action(ActionType type, String layer, String name, String sourceName, String targetName,
                String elementClass, String existingName, String newName, String diagramType,
@@ -789,6 +838,28 @@ public final class ToolRouter {
                     return new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null, null, null, null, null, null, null, null,
                             null, null, null, false, false,
                             require(map, "chain", index), null, null, null, require(map, "scenario", index));
+                case CREATE_REQUIREMENT:
+                    Action createReq = new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null, null, stringOrDefault(map.get("description"), ""), null,
+                            null, null, null, false, false,
+                            null, null, null, null, null);
+                    createReq.containerClass = string(map.get("container_class"));
+                    createReq.containerName = string(map.get("container_name"));
+                    createReq.requirementType = string(map.get("requirement_type"));
+                    return createReq;
+                case LINK_REQUIREMENT:
+                    Action linkReq = new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "requirement", index), null, stringOrDefault(map.get("target_name"), ""), null, null, null, null, null, null, null,
+                            null, null, null, false, false,
+                            null, null, null, null, null);
+                    linkReq.requirementTargetClass = require(map, "target_class", index);
+                    return linkReq;
+                case RECORD_REQUIREMENT_COVERAGE:
+                    Action coverage = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, stringOrDefault(map.get("target_name"), ""), null, null, null, null, null, null, null,
+                            null, null, null, false, false,
+                            null, null, null, null, null);
+                    coverage.requirementTargetClass = require(map, "target_class", index);
+                    coverage.requirementStatus = stringOrDefault(map.get("status"), "");
+                    coverage.requirementNotes = stringOrDefault(map.get("notes"), "");
+                    return coverage;
                 default:
                     throw new PlanValidationException("Unsupported action type");
             }
@@ -853,6 +924,17 @@ public final class ToolRouter {
                     return String.format("Add exchange '%s' to chain '%s'", defaultString(exchangeName, "?"), defaultString(chainName, "?"));
                 case ATTACH_SCENARIO:
                     return String.format("Attach scenario '%s' to chain '%s'", defaultString(scenarioName, "?"), defaultString(chainName, "?"));
+                case CREATE_REQUIREMENT:
+                    String containerLabel = (containerName != null && !containerName.isBlank()) ? containerName
+                            : defaultString(containerClass, "requirements container");
+                    return String.format("Create requirement '%s' in %s", defaultString(name, "?"), containerLabel);
+                case LINK_REQUIREMENT:
+                    return String.format("Link requirement '%s' to %s '%s'", defaultString(name, "?"),
+                            defaultString(requirementTargetClass, "element"), defaultString(targetName, "?"));
+                case RECORD_REQUIREMENT_COVERAGE:
+                    return String.format("Record coverage for %s '%s' (%s)",
+                            defaultString(requirementTargetClass, "element"), defaultString(targetName, "?"),
+                            defaultString(requirementStatus, "status"));
                 default:
                     return typeLabel();
             }
@@ -871,6 +953,9 @@ public final class ToolRouter {
                 case CREATE_SYSTEM_COMPONENT:
                 case CREATE_SYSTEM_FUNCTION:
                 case CREATE_INTERFACE:
+                case PROPAGATE_LOGICAL_TO_PHYSICAL:
+                case CREATE_FUNCTIONAL_CHAIN:
+                case CREATE_REQUIREMENT:
                     return ChangeCategory.CREATE;
                 case RENAME:
                 case LINK_OPERATIONAL_TO_CAPABILITY:
@@ -880,12 +965,11 @@ public final class ToolRouter {
                 case EXTEND_CHAIN:
                 case SEQUENCE_EXCHANGE:
                 case ATTACH_SCENARIO:
+                case LINK_REQUIREMENT:
+                case RECORD_REQUIREMENT_COVERAGE:
                     return ChangeCategory.UPDATE;
                 case DELETE:
                     return ChangeCategory.DELETE;
-                case PROPAGATE_LOGICAL_TO_PHYSICAL:
-                case CREATE_FUNCTIONAL_CHAIN:
-                    return ChangeCategory.CREATE;
                 case OPEN_DIAGRAM:
                 default:
                     return ChangeCategory.OPEN;
@@ -952,6 +1036,17 @@ public final class ToolRouter {
                     return String.format("Add exchange '%s' to chain '%s'", defaultString(exchangeName, "?"), defaultString(chainName, "?"));
                 case ATTACH_SCENARIO:
                     return String.format("Attach scenario '%s' to chain '%s'", defaultString(scenarioName, "?"), defaultString(chainName, "?"));
+                case CREATE_REQUIREMENT:
+                    String containerLabel = (containerName != null && !containerName.isBlank()) ? containerName
+                            : defaultString(containerClass, "requirements container");
+                    return String.format("Create requirement '%s' in %s", defaultString(name, "(auto)"), containerLabel);
+                case LINK_REQUIREMENT:
+                    return String.format("Link requirement '%s' to %s '%s'", defaultString(name, "?"),
+                            defaultString(requirementTargetClass, "element"), defaultString(targetName, "?"));
+                case RECORD_REQUIREMENT_COVERAGE:
+                    return String.format("Record coverage for %s '%s' (%s)",
+                            defaultString(requirementTargetClass, "element"), defaultString(targetName, "?"),
+                            defaultString(requirementStatus, "status"));
                 default:
                     return describe();
             }

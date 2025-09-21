@@ -43,10 +43,12 @@ Status: Completed – logical to physical propagation, sync, and trace helpers a
 Status: Completed – functional chain actions now ensure chains exist, functions/exchanges resolve, and scenario attachments are previewed in dry-run summaries.
 
 ## 5. Requirement Handling
-- Actions: `create_requirement`, `link_requirement`, `check_requirement_coverage`, `generate_verification`.
-- Requirement utilities leveraging Capella requirements model, ensuring trace links and coverage metrics.
-- UI: add quick command or prompt templates for requirement coverage reports.
-- Telemetry: log coverage check results and error situations.
+- [x] Actions: `create_requirement`, `link_requirement`, `record_requirement_coverage`.
+- [x] Requirement utilities leveraging Capella requirements model, ensuring trace links and coverage metrics.
+- [x] UI: add quick buttons for requirement creation, linking, and coverage capture.
+- [x] Telemetry/plan logging: new action types recorded through existing plan metrics.
+
+Status: Completed – requirement templates now handle creation, linking, and coverage logging with dry-run validation before execution.
 
 ## 6. Mass Edit & Allocation Commands
 - Actions: `batch_rename`, `batch_allocate`, `batch_map`, `batch_delete` with filter criteria.

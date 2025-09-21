@@ -370,6 +370,32 @@ public final class PlanEditorDialog extends TitleAreaDialog {
         if (item.getScenarioName() != null) {
             sb.append("Scenario: ").append(item.getScenarioName()).append(System.lineSeparator());
         }
+        String containerName = item.getContainerName();
+        String containerClass = item.getContainerClass();
+        if ((containerName != null && !containerName.isBlank()) || (containerClass != null && !containerClass.isBlank())) {
+            sb.append("Container: ");
+            if (containerName != null && !containerName.isBlank()) {
+                sb.append(containerName);
+                if (containerClass != null && !containerClass.isBlank()) {
+                    sb.append(" (").append(containerClass).append(')');
+                }
+            } else {
+                sb.append(containerClass);
+            }
+            sb.append(System.lineSeparator());
+        }
+        if (item.getRequirementType() != null) {
+            sb.append("Requirement type: ").append(item.getRequirementType()).append(System.lineSeparator());
+        }
+        if (item.getRequirementTargetClass() != null) {
+            sb.append("Target class: ").append(item.getRequirementTargetClass()).append(System.lineSeparator());
+        }
+        if (item.getRequirementStatus() != null && !item.getRequirementStatus().isBlank()) {
+            sb.append("Status: ").append(item.getRequirementStatus()).append(System.lineSeparator());
+        }
+        if (item.getRequirementNotes() != null && !item.getRequirementNotes().isBlank()) {
+            sb.append("Notes: ").append(item.getRequirementNotes()).append(System.lineSeparator());
+        }
         if (item.getExistingName() != null) {
             sb.append("Existing: ").append(item.getExistingName()).append(System.lineSeparator());
         }

@@ -35,7 +35,8 @@
   - Plans can now propagate logical components into PA with optional hierarchy cloning, sync existing physical components from logical definitions, and forge trace links, all with dry-run previews and confirmation gates.
 - [x] **Functional Chain Authoring** – allow creation, extension, and validation of functional chains, including exchange sequencing and scenario ties.
   - Chain templates now create chains, extend them with functions/exchanges, and attach scenarios with sandbox validation before execution.
-- [ ] **Requirement Handling** – enable creation, linking, and coverage checks for requirements and verification elements.
+- [x] **Requirement Handling** – enable creation, linking, and coverage checks for requirements and verification elements.
+  - Requirement templates support creation, trace linking, and coverage logging with dry-run validation and prompt wiring.
 - [ ] **Mass Edit & Allocation Commands** – provide batch rename, re-parent, allocate, and mapping operations guided by the LLM.
 
 ## 4. Conversational Experience

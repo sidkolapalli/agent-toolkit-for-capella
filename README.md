@@ -35,6 +35,7 @@ This repository contains only the Capella plugin and p2 update site used to inst
 - The **Operational templates** panel offers quick buttons for creating missions, activities, operational exchanges, and linking activities to capabilities without crafting prompts. Each action validates prerequisites (layers, actors, capabilities) through the dry-run sandbox before execution and reports via telemetry when opt-in is enabled.
 - The **System templates** panel mirrors this for System Analysis: create components/functions, wire component exchanges, and allocate capabilities via guided dialogs that enforce parent/component existence before plans run.
 - The **Functional chain templates** let you spin up chains, add functions/exchanges, and hook chains to scenarios. Dry-runs verify every chain/function/exchange/situation exists before generating plan diffs.
+- The **Requirement templates** cover the remaining Arcadia traceability loop: create requirements in the right package, link them to architecture elements, and record coverage status/notes with sandbox checks before execution.
 - The **Model & Diagram Tools** group exposes quick actions (list diagrams, create LAB, import draw.io, rename/delete/reveal elements). These operations run in EMF transactions and persist across sessions.
 
 ## Known requirements

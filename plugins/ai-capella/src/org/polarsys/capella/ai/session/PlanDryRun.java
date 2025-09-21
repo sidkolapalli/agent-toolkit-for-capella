@@ -90,6 +90,12 @@ public final class PlanDryRun {
                 return simulateSequenceExchange(sandbox, item);
             case "ATTACH_SCENARIO":
                 return simulateAttachScenario(sandbox, item);
+            case "CREATE_REQUIREMENT":
+                return simulateCreateRequirement(sandbox, item);
+            case "LINK_REQUIREMENT":
+                return simulateLinkRequirement(sandbox, item);
+            case "RECORD_REQUIREMENT_COVERAGE":
+                return simulateRequirementCoverage(sandbox, item);
             case "OPEN_DIAGRAM":
                 return Outcome.success("Would open " + defaultString(item.getDiagramType(), "LAB") + " diagram");
             case "RENAME":
@@ -287,6 +293,61 @@ public final class PlanDryRun {
             return Outcome.failure("Scenario '" + scenarioName + "' not found");
         }
         return Outcome.success(String.format("Attach scenario '%s' to chain '%s'", scenarioName, chainName));
+    }
+
+    private static Outcome simulateCreateRequirement(ResourceSet sandbox, PlanItem item) {
+        String reqName = defaultString(item.getName(), "");
+        if (reqName.isBlank()) {
+            return Outcome.failure("Requirement name missing");
+        }
+        EObject container = findRequirementContainer(sandbox, item.getContainerClass(), item.getContainerName());
+        if (container == null) {
+            return Outcome.failure("Requirement container not found");
+        }
+        String type = defaultString(item.getRequirementType(), "Requirement");
+        EClass eClass = ElementFactory.findEClass(type);
+        if (eClass == null) {
+            return Outcome.failure("Requirement type '" + type + "' not recognised");
+        }
+        String label = (item.getContainerName() != null && !item.getContainerName().isBlank())
+                ? item.getContainerName()
+                : defaultString(item.getContainerClass(), "requirements");
+        return Outcome.success(String.format("Create requirement '%s' in %s", reqName, label));
+    }
+
+    private static Outcome simulateLinkRequirement(ResourceSet sandbox, PlanItem item) {
+        String reqName = defaultString(item.getName(), "");
+        if (reqName.isBlank()) {
+            return Outcome.failure("Requirement name missing");
+        }
+        EObject requirement = findRequirement(sandbox, reqName);
+        if (requirement == null) {
+            return Outcome.failure("Requirement '" + reqName + "' not found");
+        }
+        String targetClass = defaultString(item.getRequirementTargetClass(), "");
+        String targetName = defaultString(item.getTargetName(), "");
+        if (targetClass.isBlank() || targetName.isBlank()) {
+            return Outcome.failure("Target class and name required");
+        }
+        EObject target = Finders.findByName(sandbox, targetClass, targetName);
+        if (target == null) {
+            return Outcome.failure("Target " + targetClass + " '" + targetName + "' not found");
+        }
+        return Outcome.success(String.format("Link requirement '%s' to %s '%s'", reqName, targetClass, targetName));
+    }
+
+    private static Outcome simulateRequirementCoverage(ResourceSet sandbox, PlanItem item) {
+        String targetClass = defaultString(item.getRequirementTargetClass(), "");
+        String targetName = defaultString(item.getTargetName(), "");
+        if (targetClass.isBlank() || targetName.isBlank()) {
+            return Outcome.failure("Target class and name required");
+        }
+        EObject target = Finders.findByName(sandbox, targetClass, targetName);
+        if (target == null) {
+            return Outcome.failure("Target " + targetClass + " '" + targetName + "' not found");
+        }
+        return Outcome.success(String.format("Record coverage for %s '%s' (%s)",
+                targetClass, targetName, defaultString(item.getRequirementStatus(), "status")));
     }
 
     private static Outcome simulatePropagate(ResourceSet sandbox, PlanItem item) {
@@ -703,6 +764,39 @@ public final class PlanDryRun {
             }
         }
         return null;
+    }
+
+    private static EObject findRequirement(ResourceSet sandbox, String name) {
+        String[] requirementClasses = {"Requirement", "SystemRequirement", "LogicalRequirement", "PhysicalRequirement"};
+        for (String cls : requirementClasses) {
+            EObject requirement = Finders.findByName(sandbox, cls, name);
+            if (requirement != null) {
+                return requirement;
+            }
+        }
+        return null;
+    }
+
+    private static EObject findRequirementContainer(ResourceSet sandbox, String containerClass, String containerName) {
+        if (containerClass != null && !containerClass.isBlank()) {
+            if (containerName != null && !containerName.isBlank()) {
+                EObject container = Finders.findByName(sandbox, containerClass, containerName);
+                if (container != null) {
+                    return container;
+                }
+            }
+            EObject fallback = Finders.findByName(sandbox, containerClass, "");
+            if (fallback != null) {
+                return fallback;
+            }
+        }
+        if (containerName != null && !containerName.isBlank()) {
+            EObject named = Finders.findByName(sandbox, "RequirementsPkg", containerName);
+            if (named != null) {
+                return named;
+            }
+        }
+        return Finders.findByName(sandbox, "RequirementsPkg", "Requirements");
     }
 
     // --- Result types ---------------------------------------------------------------------------------------------

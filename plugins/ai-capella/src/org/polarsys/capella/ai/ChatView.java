@@ -34,6 +34,7 @@ import org.eclipse.ui.part.ViewPart;
 import org.osgi.service.prefs.BackingStoreException;
 import org.polarsys.capella.ai.actions.FunctionalChainActions;
 import org.polarsys.capella.ai.actions.OperationalActions;
+import org.polarsys.capella.ai.actions.RequirementActions;
 import org.polarsys.capella.ai.actions.SystemActions;
 import org.polarsys.capella.ai.llm.LLMService;
 import org.polarsys.capella.ai.llm.ToolRouter;
@@ -383,6 +384,42 @@ public class ChatView extends ViewPart {
             @Override
             public void widgetSelected(SelectionEvent e) {
                 onAttachScenario();
+            }
+        });
+
+        Group requirements = new Group(tools, SWT.NONE);
+        requirements.setText("Requirement templates");
+        requirements.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        requirements.setLayout(new GridLayout(3, false));
+
+        Button createRequirement = new Button(requirements, SWT.PUSH);
+        createRequirement.setText("Create requirement");
+        createRequirement.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        createRequirement.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onCreateRequirement();
+            }
+        });
+
+        Button linkRequirement = new Button(requirements, SWT.PUSH);
+        linkRequirement.setText("Link requirement");
+        linkRequirement.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        linkRequirement.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onLinkRequirement();
+            }
+        });
+
+        Button coverageRequirement = new Button(requirements, SWT.PUSH);
+        coverageRequirement.setText("Record coverage");
+        GridData coverageData = new GridData(SWT.FILL, SWT.CENTER, false, false, 3, 1);
+        coverageRequirement.setLayoutData(coverageData);
+        coverageRequirement.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onRecordRequirementCoverage();
             }
         });
 
@@ -1251,6 +1288,182 @@ public class ChatView extends ViewPart {
         append(ok ? String.format("Attached scenario '%s' to chain '%s'.", scenario, chain) : "Failed to attach scenario to chain.");
     }
 
+    private void onCreateRequirement() {
+        InputDialog nameDialog = new InputDialog(
+            getSite().getShell(),
+            "Create requirement",
+            "Requirement name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Name required" : null
+        );
+        if (nameDialog.open() != Window.OK) {
+            return;
+        }
+        String name = nameDialog.getValue().trim();
+
+        InputDialog containerClassDialog = new InputDialog(
+            getSite().getShell(),
+            "Container class",
+            "Optional container class (e.g., RequirementsPkg):",
+            "",
+            null
+        );
+        String containerClass = null;
+        if (containerClassDialog.open() == Window.OK && containerClassDialog.getValue() != null) {
+            containerClass = blankToNull(containerClassDialog.getValue());
+        }
+
+        InputDialog containerNameDialog = new InputDialog(
+            getSite().getShell(),
+            "Container name",
+            "Optional container element name:",
+            "",
+            null
+        );
+        String containerName = null;
+        if (containerNameDialog.open() == Window.OK && containerNameDialog.getValue() != null) {
+            containerName = blankToNull(containerNameDialog.getValue());
+        }
+
+        InputDialog typeDialog = new InputDialog(
+            getSite().getShell(),
+            "Requirement type",
+            "Optional requirement type (Requirement/SystemRequirement/...):",
+            "",
+            null
+        );
+        String reqType = null;
+        if (typeDialog.open() == Window.OK && typeDialog.getValue() != null) {
+            reqType = blankToNull(typeDialog.getValue());
+        }
+
+        InputDialog descriptionDialog = new InputDialog(
+            getSite().getShell(),
+            "Requirement description",
+            "Optional description:",
+            "",
+            null
+        );
+        String description = "";
+        if (descriptionDialog.open() == Window.OK && descriptionDialog.getValue() != null) {
+            description = descriptionDialog.getValue().trim();
+        }
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = RequirementActions.createRequirement(session, containerClass, containerName, reqType, name, description);
+        append(ok ? String.format("Created requirement '%s'.", name) : "Requirement creation failed.");
+    }
+
+    private void onLinkRequirement() {
+        InputDialog requirementDialog = new InputDialog(
+            getSite().getShell(),
+            "Link requirement",
+            "Requirement name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Requirement required" : null
+        );
+        if (requirementDialog.open() != Window.OK) {
+            return;
+        }
+        String requirement = requirementDialog.getValue().trim();
+
+        InputDialog targetClassDialog = new InputDialog(
+            getSite().getShell(),
+            "Link requirement",
+            "Target element class (e.g., SystemComponent):",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Target class required" : null
+        );
+        if (targetClassDialog.open() != Window.OK) {
+            return;
+        }
+        String targetClass = targetClassDialog.getValue().trim();
+
+        InputDialog targetNameDialog = new InputDialog(
+            getSite().getShell(),
+            "Link requirement",
+            "Target element name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Target name required" : null
+        );
+        if (targetNameDialog.open() != Window.OK) {
+            return;
+        }
+        String targetName = targetNameDialog.getValue().trim();
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = RequirementActions.linkRequirement(session, requirement, targetClass, targetName);
+        append(ok ? String.format("Linked requirement '%s' to %s '%s'.", requirement, targetClass, targetName)
+                : "Failed to link requirement.");
+    }
+
+    private void onRecordRequirementCoverage() {
+        InputDialog targetClassDialog = new InputDialog(
+            getSite().getShell(),
+            "Record coverage",
+            "Target element class:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Target class required" : null
+        );
+        if (targetClassDialog.open() != Window.OK) {
+            return;
+        }
+        String targetClass = targetClassDialog.getValue().trim();
+
+        InputDialog targetNameDialog = new InputDialog(
+            getSite().getShell(),
+            "Record coverage",
+            "Target element name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Target name required" : null
+        );
+        if (targetNameDialog.open() != Window.OK) {
+            return;
+        }
+        String targetName = targetNameDialog.getValue().trim();
+
+        InputDialog statusDialog = new InputDialog(
+            getSite().getShell(),
+            "Record coverage",
+            "Optional status (e.g., Satisfied, Verified):",
+            "",
+            null
+        );
+        String status = null;
+        if (statusDialog.open() == Window.OK && statusDialog.getValue() != null) {
+            status = blankToNull(statusDialog.getValue());
+        }
+
+        InputDialog notesDialog = new InputDialog(
+            getSite().getShell(),
+            "Record coverage",
+            "Optional notes:",
+            "",
+            null
+        );
+        String notes = null;
+        if (notesDialog.open() == Window.OK && notesDialog.getValue() != null) {
+            notes = blankToNull(notesDialog.getValue());
+        }
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = RequirementActions.recordCoverage(session, targetClass, targetName, status, notes);
+        append(ok ? String.format("Recorded coverage for %s '%s'.", targetClass, targetName)
+                : "Failed to record requirement coverage.");
+    }
+
     private void onSearchModel() {
         InputDialog dialog = new InputDialog(
             getSite().getShell(),
@@ -1541,6 +1754,14 @@ public class ChatView extends ViewPart {
         } catch (NumberFormatException ex) {
             throw new IllegalArgumentException("Invalid " + label + ": " + trimmed);
         }
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     @Override
