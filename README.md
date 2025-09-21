@@ -31,6 +31,7 @@ This repository contains only the Capella plugin and p2 update site used to inst
 
 - Type in the **Conversation** section; pressing Enter or clicking **Send** dispatches the request on a background job. The assistant replies in the log pane.
 - If the LLM provides a `TOOL_PLAN`, the view displays a summary. When *Enable tool actions* is on, a **Plan Editor** dialog opens so you can inspect every action, toggle unwanted steps, and confirm execution before anything touches the model. The preview runs a sandbox dry-run that groups upcoming creates/updates/deletes, surfaces warnings inline, highlights Undo availability, and cancelling still leaves the plan unapplied.
+- Logical ↔ Physical transformations are now first-class plan actions: propagate logical components into the Physical architecture (optionally cloning hierarchies) with automatic trace links, sync existing physical components from their logical counterparts or run in "link only" mode, and add trace mappings independently. Dry-runs flag name clashes or missing endpoints so you can fix conflicts before the plan applies, and destructive sync steps default to unchecked with explicit confirmation hints.
 - The **Model & Diagram Tools** group exposes quick actions (list diagrams, create LAB, import draw.io, rename/delete/reveal elements). These operations run in EMF transactions and persist across sessions.
 
 ## Known requirements

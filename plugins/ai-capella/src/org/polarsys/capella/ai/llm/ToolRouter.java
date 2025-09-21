@@ -15,6 +15,7 @@ import org.polarsys.capella.ai.model.Finders;
 import org.polarsys.capella.ai.model.ModelOps;
 import org.polarsys.capella.ai.actions.OperationalActions;
 import org.polarsys.capella.ai.actions.SystemActions;
+import org.polarsys.capella.ai.actions.TransformationActions;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.tools.DiagramCommands;
 import org.polarsys.capella.ai.tools.DiagramMappings;
@@ -158,6 +159,30 @@ public final class ToolRouter {
             return action.capabilityName;
         }
 
+        public String getLogicalName() {
+            return action.logicalName;
+        }
+
+        public String getPhysicalName() {
+            return action.physicalName;
+        }
+
+        public String getTargetLayer() {
+            return action.targetLayer;
+        }
+
+        public boolean includeChildren() {
+            return action.includeChildren;
+        }
+
+        public boolean updateAttributes() {
+            return action.updateAttributes;
+        }
+
+        public boolean requiresConfirmation() {
+            return action.type == ActionType.SYNC_PHYSICAL_FROM_LOGICAL;
+        }
+
         public ChangeCategory getCategory() {
             return action.category();
         }
@@ -273,6 +298,13 @@ public final class ToolRouter {
                 return SystemActions.createInterface(session, action.layer, action.name, action.sourceName, action.targetName);
             case ALLOCATE_CAPABILITY:
                 return SystemActions.allocateCapability(session, action.existingName, action.capabilityName);
+            case PROPAGATE_LOGICAL_TO_PHYSICAL:
+                String targetLayer = (action.targetLayer != null && !action.targetLayer.isBlank()) ? action.targetLayer : action.layer;
+                return TransformationActions.propagateLogicalComponent(session, action.logicalName, targetLayer, action.includeChildren);
+            case SYNC_PHYSICAL_FROM_LOGICAL:
+                return TransformationActions.syncPhysicalFromLogical(session, action.logicalName, action.physicalName, action.updateAttributes);
+            case TRACE_COMPONENT_MAPPING:
+                return TransformationActions.traceComponentMapping(session, action.logicalName, action.physicalName);
             case OPEN_DIAGRAM:
                 return openDiagram(session, action.layer, action.diagramType, action.name);
             case RENAME:
@@ -288,7 +320,7 @@ public final class ToolRouter {
         StringBuilder sb = new StringBuilder();
         sb.append("You are an AI agent inside Capella.\n");
         sb.append("When the user asks for changes, output a line starting with 'TOOL_PLAN:' followed by compact JSON.\n");
-        sb.append("Schema: {\"actions\":[{\"type\":one of \"create_component\",\"create_function\",\"create_component_exchange\",\"create_functional_exchange\",\"create_lab\",\"rename\",\"delete\",\"open_diagram\",\"create_mission\",\"create_operational_activity\",\"create_operational_exchange\",\"link_operational_to_capability\"},...]}\n");
+        sb.append("Schema: {\"actions\":[{\"type\":one of \"create_component\",\"create_function\",\"create_component_exchange\",\"create_functional_exchange\",\"create_lab\",\"rename\",\"delete\",\"open_diagram\",\"create_mission\",\"create_operational_activity\",\"create_operational_exchange\",\"link_operational_to_capability\",\"create_system_component\",\"create_system_function\",\"create_interface\",\"allocate_capability\",\"propagate_logical_to_physical\",\"sync_physical_from_logical\",\"trace_component_mapping\"},...]}\n");
         sb.append("Action fields:\n");
         sb.append("- create_component: {layer, name}\n");
         sb.append("- create_function: {layer, name}\n");
@@ -303,6 +335,9 @@ public final class ToolRouter {
         sb.append("- create_system_function: {name, layer?, parent_name?}\n");
         sb.append("- create_interface: {source_component, target_component, layer?, name?}\n");
         sb.append("- allocate_capability: {component, capability, layer?}\n");
+        sb.append("- propagate_logical_to_physical: {logical_component, target_layer?, include_children?}\n");
+        sb.append("- sync_physical_from_logical: {logical_component, physical_component, layer?, update_attributes?, include_children?}\n");
+        sb.append("- trace_component_mapping: {logical_component, physical_component, layer?}\n");
         sb.append("- rename: {class, name, new_name}\n");
         sb.append("- delete: {class, name}\n");
         sb.append("- open_diagram: {layer, type}\n");
@@ -508,7 +543,10 @@ public final class ToolRouter {
         CREATE_SYSTEM_COMPONENT,
         CREATE_SYSTEM_FUNCTION,
         CREATE_INTERFACE,
-        ALLOCATE_CAPABILITY;
+        ALLOCATE_CAPABILITY,
+        PROPAGATE_LOGICAL_TO_PHYSICAL,
+        SYNC_PHYSICAL_FROM_LOGICAL,
+        TRACE_COMPONENT_MAPPING;
 
         static ActionType from(String value) {
             if (value == null) {
@@ -547,6 +585,12 @@ public final class ToolRouter {
                     return CREATE_INTERFACE;
                 case "allocate_capability":
                     return ALLOCATE_CAPABILITY;
+                case "propagate_logical_to_physical":
+                    return PROPAGATE_LOGICAL_TO_PHYSICAL;
+                case "sync_physical_from_logical":
+                    return SYNC_PHYSICAL_FROM_LOGICAL;
+                case "trace_component_mapping":
+                    return TRACE_COMPONENT_MAPPING;
                 default:
                     throw new PlanValidationException("Unknown action type: " + value);
             }
@@ -566,10 +610,17 @@ public final class ToolRouter {
         final String parentName;
         final String description;
         final String capabilityName;
+        final String logicalName;
+        final String physicalName;
+        final String targetLayer;
+        final boolean includeChildren;
+        final boolean updateAttributes;
 
         Action(ActionType type, String layer, String name, String sourceName, String targetName,
                String elementClass, String existingName, String newName, String diagramType,
-               String parentName, String description, String capabilityName) {
+               String parentName, String description, String capabilityName,
+               String logicalName, String physicalName, String targetLayer,
+               boolean includeChildren, boolean updateAttributes) {
             this.type = type;
             this.layer = layer;
             this.name = name;
@@ -582,6 +633,11 @@ public final class ToolRouter {
             this.parentName = parentName;
             this.description = description;
             this.capabilityName = capabilityName;
+            this.logicalName = logicalName;
+            this.physicalName = physicalName;
+            this.targetLayer = targetLayer;
+            this.includeChildren = includeChildren;
+            this.updateAttributes = updateAttributes;
         }
 
         static Action fromMap(int index, Map<String, Object> map) {
@@ -589,47 +645,78 @@ public final class ToolRouter {
             ActionType type = ActionType.from(typeValue);
             switch (type) {
                 case CREATE_COMPONENT:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null, null, null, null);
+                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null, null, null, null,
+                            null, null, null, false, false);
                 case CREATE_FUNCTION:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null, null, null, null);
+                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null, null, null, null,
+                            null, null, null, false, false);
                 case CREATE_COMPONENT_EXCHANGE:
                     return new Action(type,
                             stringOrDefault(map.get("layer"), "LA"),
                             stringOrDefault(map.get("name"), "ComponentExchange"),
                             require(map, "source_name", index),
                             require(map, "target_name", index),
-                            null, null, null, null, null, null, null);
+                            null, null, null, null, null, null, null,
+                            null, null, null, false, false);
                 case CREATE_FUNCTIONAL_EXCHANGE:
                     return new Action(type,
                             stringOrDefault(map.get("layer"), "LA"),
                             stringOrDefault(map.get("name"), "FunctionalExchange"),
                             require(map, "source_function", index),
                             require(map, "target_function", index),
-                            null, null, null, null, null, null, null);
+                            null, null, null, null, null, null, null,
+                            null, null, null, false, false);
                 case CREATE_LAB:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null, null, null, null, null, null, null, null);
+                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null, null, null, null, null, null, null, null,
+                            null, null, null, false, false);
                 case OPEN_DIAGRAM:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), stringOrDefault(map.get("name"), ""), null, null, null, null, null, stringOrDefault(map.get("type"), "LAB"), null, null, null);
+                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), stringOrDefault(map.get("name"), ""), null, null, null, null, null, stringOrDefault(map.get("type"), "LAB"), null, null, null,
+                            null, null, null, false, false);
                 case RENAME:
-                    return new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), require(map, "new_name", index), null, null, null, null);
+                    return new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), require(map, "new_name", index), null, null, null, null,
+                            null, null, null, false, false);
                 case CREATE_MISSION:
-                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), require(map, "name", index), null, null, null, null, null, null, null, stringOrDefault(map.get("description"), ""), null);
+                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), require(map, "name", index), null, null, null, null, null, null, null, stringOrDefault(map.get("description"), ""), null,
+                            null, null, null, false, false);
                 case CREATE_OPERATIONAL_ACTIVITY:
-                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null);
+                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null,
+                            null, null, null, false, false);
                 case CREATE_OPERATIONAL_EXCHANGE:
-                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), stringOrDefault(map.get("name"), "OperationalExchange"), require(map, "source_actor", index), require(map, "target_actor", index), null, null, null, null, null, null, null);
+                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), stringOrDefault(map.get("name"), "OperationalExchange"), require(map, "source_actor", index), require(map, "target_actor", index), null, null, null, null, null, null, null,
+                            null, null, null, false, false);
                 case LINK_OPERATIONAL_TO_CAPABILITY:
-                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), null, null, null, null, require(map, "operational_activity", index), null, null, null, null, require(map, "capability", index));
+                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), null, null, null, null, require(map, "operational_activity", index), null, null, null, null, require(map, "capability", index),
+                            null, null, null, false, false);
                 case CREATE_SYSTEM_COMPONENT:
-                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null);
+                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null,
+                            null, null, null, false, false);
                 case CREATE_SYSTEM_FUNCTION:
-                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null);
+                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null,
+                            null, null, null, false, false);
                 case CREATE_INTERFACE:
-                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), stringOrDefault(map.get("name"), "ComponentExchange"), require(map, "source_component", index), require(map, "target_component", index), null, null, null, null, null, null, null);
+                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), stringOrDefault(map.get("name"), "ComponentExchange"), require(map, "source_component", index), require(map, "target_component", index), null, null, null, null, null, null, null,
+                            null, null, null, false, false);
                 case ALLOCATE_CAPABILITY:
-                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), null, null, null, null, require(map, "component", index), null, null, null, null, require(map, "capability", index));
+                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), null, null, null, null, require(map, "component", index), null, null, null, null, require(map, "capability", index),
+                            null, null, null, false, false);
                 case DELETE:
-                    return new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), null, null, null, null, null);
+                    return new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), null, null, null, null, null,
+                            null, null, null, false, false);
+                case PROPAGATE_LOGICAL_TO_PHYSICAL:
+                    String targetLayer = stringOrDefault(map.get("target_layer"), stringOrDefault(map.get("layer"), "PA"));
+                    return new Action(type, targetLayer, null, null, null, null, null, null, null, null, null, null,
+                            require(map, "logical_component", index), null, targetLayer,
+                            bool(map.get("include_children"), true), false);
+                case SYNC_PHYSICAL_FROM_LOGICAL:
+                    String syncLayer = stringOrDefault(map.get("layer"), "PA");
+                    return new Action(type, syncLayer, null, null, null, null, null, null, null, null, null, null,
+                            require(map, "logical_component", index), require(map, "physical_component", index), syncLayer,
+                            bool(map.get("include_children"), false), bool(map.get("update_attributes"), true));
+                case TRACE_COMPONENT_MAPPING:
+                    String traceLayer = stringOrDefault(map.get("layer"), "");
+                    return new Action(type, traceLayer, null, null, null, null, null, null, null, null, null, null,
+                            require(map, "logical_component", index), require(map, "physical_component", index), traceLayer,
+                            false, false);
                 default:
                     throw new PlanValidationException("Unsupported action type");
             }
@@ -668,6 +755,18 @@ public final class ToolRouter {
                     return String.format("Create interface '%s' between %s → %s", name, sourceName, targetName);
                 case ALLOCATE_CAPABILITY:
                     return String.format("Allocate capability '%s' to system component '%s'", capabilityName, existingName);
+                case PROPAGATE_LOGICAL_TO_PHYSICAL:
+                    return String.format("Propagate logical component '%s' to %s%s",
+                            defaultString(logicalName, "?"),
+                            safeLayer(defaultString(targetLayer, defaultString(layer, "PA"))),
+                            includeChildren ? " (with hierarchy)" : "");
+                case SYNC_PHYSICAL_FROM_LOGICAL:
+                    return String.format("Sync physical component '%s' from logical '%s'%s",
+                            defaultString(physicalName, "?"),
+                            defaultString(logicalName, "?"),
+                            updateAttributes ? "" : " (link only)");
+                case TRACE_COMPONENT_MAPPING:
+                    return String.format("Trace logical '%s' <-> physical '%s'", defaultString(logicalName, "?"), defaultString(physicalName, "?"));
                 case OPEN_DIAGRAM:
                     return String.format("Open %s diagram (%s)", diagramType, name == null || name.isBlank() ? "auto-named" : name);
                 case RENAME:
@@ -696,9 +795,13 @@ public final class ToolRouter {
                 case RENAME:
                 case LINK_OPERATIONAL_TO_CAPABILITY:
                 case ALLOCATE_CAPABILITY:
+                case SYNC_PHYSICAL_FROM_LOGICAL:
+                case TRACE_COMPONENT_MAPPING:
                     return ChangeCategory.UPDATE;
                 case DELETE:
                     return ChangeCategory.DELETE;
+                case PROPAGATE_LOGICAL_TO_PHYSICAL:
+                    return ChangeCategory.CREATE;
                 case OPEN_DIAGRAM:
                 default:
                     return ChangeCategory.OPEN;
@@ -739,6 +842,18 @@ public final class ToolRouter {
                     return summarizeExchange("System interface", name, sourceName, targetName, layer);
                 case ALLOCATE_CAPABILITY:
                     return String.format("Allocate capability '%s' to system component '%s'", defaultString(capabilityName, "?"), defaultString(existingName, "?"));
+                case PROPAGATE_LOGICAL_TO_PHYSICAL:
+                    return String.format("Propagate logical component '%s' into %s%s",
+                            defaultString(logicalName, "?"),
+                            safeLayer(defaultString(targetLayer, defaultString(layer, "PA"))),
+                            includeChildren ? " (with hierarchy)" : "");
+                case SYNC_PHYSICAL_FROM_LOGICAL:
+                    return String.format("Sync physical component '%s' from logical '%s'%s",
+                            defaultString(physicalName, "?"),
+                            defaultString(logicalName, "?"),
+                            updateAttributes ? "" : " (link only)");
+                case TRACE_COMPONENT_MAPPING:
+                    return String.format("Trace logical '%s' to physical '%s'", defaultString(logicalName, "?"), defaultString(physicalName, "?"));
                 case OPEN_DIAGRAM:
                     return String.format("Open %s diagram (%s)", defaultString(diagramType, "LAB"), defaultString(name, "auto"));
                 case RENAME:
@@ -787,6 +902,20 @@ public final class ToolRouter {
 
     private static String string(Object value) {
         return value == null ? null : String.valueOf(value).trim();
+    }
+
+    private static boolean bool(Object value, boolean defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        }
+        String str = String.valueOf(value).trim().toLowerCase(Locale.ROOT);
+        if (str.isEmpty()) {
+            return defaultValue;
+        }
+        return "true".equals(str) || "1".equals(str) || "yes".equals(str) || "y".equals(str);
     }
 
     private static final class PlanValidationException extends RuntimeException {

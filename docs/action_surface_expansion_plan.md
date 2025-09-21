@@ -22,11 +22,13 @@ This plan breaks down Section 3 of the roadmap into deliverable-sized work items
 - Update telemetry categories and Plan Editor messaging.
 
 ## 3. Logical ↔ Physical Transformations
-- Actions: `propagate_logical_to_physical`, `sync_physical_from_logical`, `trace_component_mapping`.
-- Transformation service handling EMF copy, trace links, undo/redo safety via `SessionSafeguards`.
-- Plan dry-run: simulate transformations and flag conflicts (existing artefacts, missing mappings).
-- UI: add toggle/confirmation for destructive sync operations, summarise affected components.
-- Documentation: provide guidance on transformation assumptions and conflict resolution.
+- [x] Actions: `propagate_logical_to_physical`, `sync_physical_from_logical`, `trace_component_mapping`.
+- [x] Transformation service handling EMF copy, trace links, undo/redo safety via `SessionSafeguards`.
+- [x] Plan dry-run: simulate transformations and flag conflicts (existing artefacts, missing mappings).
+- [x] UI: add toggle/confirmation for destructive sync operations, summarise affected components.
+- [x] Documentation: provide guidance on transformation assumptions and conflict resolution.
+
+Status: Completed – logical to physical propagation, sync, and trace helpers are live with dry-run previews and UI safeguards.
 
 ## 4. Functional Chain Authoring
 - Actions: `create_functional_chain`, `extend_chain`, `sequence_exchange`, `attach_scenario`.

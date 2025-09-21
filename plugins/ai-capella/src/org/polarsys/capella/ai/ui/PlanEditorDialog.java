@@ -202,6 +202,11 @@ public final class PlanEditorDialog extends TitleAreaDialog {
         List<PlanItem> items = plan.items();
         viewer.setInput(items);
         viewer.setAllChecked(true);
+        for (PlanItem item : items) {
+            if (item.requiresConfirmation()) {
+                viewer.setChecked(item, false);
+            }
+        }
     }
 
     private void selectFirstRow() {
@@ -288,6 +293,9 @@ public final class PlanEditorDialog extends TitleAreaDialog {
             for (PlanItem item : items) {
                 PlanDryRun.Outcome outcome = dryRun.outcomeFor(item.getIndex());
                 sb.append(" • ").append(item.getDiffSummary());
+                if (item.requiresConfirmation()) {
+                    sb.append(" [requires confirmation]");
+                }
                 if (outcome != null) {
                     if (outcome.isSuccess()) {
                         sb.append(" ✓");
@@ -330,12 +338,21 @@ public final class PlanEditorDialog extends TitleAreaDialog {
         if (item.getLayer() != null) {
             sb.append("Layer: ").append(item.getLayer()).append(System.lineSeparator());
         }
+        if (item.getTargetLayer() != null && !item.getTargetLayer().isBlank() && (item.getLayer() == null || !item.getLayer().equals(item.getTargetLayer()))) {
+            sb.append("Target layer: ").append(item.getTargetLayer()).append(System.lineSeparator());
+        }
         if (item.getName() != null) {
             sb.append("Name: ").append(item.getName()).append(System.lineSeparator());
         }
         if (item.getSourceName() != null || item.getTargetName() != null) {
             sb.append("Source → Target: ").append(defaultString(item.getSourceName())).append(" → ")
                     .append(defaultString(item.getTargetName())).append(System.lineSeparator());
+        }
+        if (item.getLogicalName() != null) {
+            sb.append("Logical: ").append(item.getLogicalName()).append(System.lineSeparator());
+        }
+        if (item.getPhysicalName() != null) {
+            sb.append("Physical: ").append(item.getPhysicalName()).append(System.lineSeparator());
         }
         if (item.getExistingName() != null) {
             sb.append("Existing: ").append(item.getExistingName()).append(System.lineSeparator());
@@ -348,6 +365,15 @@ public final class PlanEditorDialog extends TitleAreaDialog {
         }
         if (item.getDiagramType() != null) {
             sb.append("Diagram: ").append(item.getDiagramType()).append(System.lineSeparator());
+        }
+        if (item.includeChildren()) {
+            sb.append("Includes hierarchy: yes").append(System.lineSeparator());
+        }
+        if (!item.updateAttributes()) {
+            sb.append("Sync mode: trace only").append(System.lineSeparator());
+        }
+        if (item.requiresConfirmation()) {
+            sb.append("Confirmation required: enable this action explicitly before applying.").append(System.lineSeparator());
         }
         details.setText(sb.toString());
     }

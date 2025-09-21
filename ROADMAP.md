@@ -29,7 +29,8 @@
 
 - [ ] **Operational Analysis Actions** – create capabilities to generate missions, activities, interactions, and link them to System Analysis elements.
 - [ ] **System Analysis Actions** – support architectural breakdowns, behaviour modelling, interfaces, and capability allocations.
-- [ ] **Logical ↔ Physical Transformations** – automate derivations and synchronisations between layers (e.g., propagate logical components to physical architecture with traceability).
+- [x] **Logical ↔ Physical Transformations** – automate derivations and synchronisations between layers (e.g., propagate logical components to physical architecture with traceability).
+  - Plans can now propagate logical components into PA with optional hierarchy cloning, sync existing physical components from logical definitions, and forge trace links, all with dry-run previews and confirmation gates.
 - [ ] **Functional Chain Authoring** – allow creation, extension, and validation of functional chains, including exchange sequencing and scenario ties.
 - [ ] **Requirement Handling** – enable creation, linking, and coverage checks for requirements and verification elements.
 - [ ] **Mass Edit & Allocation Commands** – provide batch rename, re-parent, allocate, and mapping operations guided by the LLM.
@@ -69,4 +70,3 @@
 ### Tracking Progress
 
 Update this roadmap during each iteration review. Only tick a checkbox when the capability is demonstrably usable in Capella and has accompanying tests/docs.
-

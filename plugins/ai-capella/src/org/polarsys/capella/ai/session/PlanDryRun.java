@@ -1,11 +1,13 @@
 package org.polarsys.capella.ai.session;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
@@ -80,6 +82,12 @@ public final class PlanDryRun {
                 return Outcome.success("Would create system interface '" + item.getName() + "' between " + defaultString(item.getSourceName(), "?") + " → " + defaultString(item.getTargetName(), "?") + "");
             case "ALLOCATE_CAPABILITY":
                 return Outcome.success("Would allocate capability '" + item.getCapabilityName() + "' to system component '" + defaultString(item.getExistingName(), "?") + "'");
+            case "PROPAGATE_LOGICAL_TO_PHYSICAL":
+                return simulatePropagate(sandbox, item);
+            case "SYNC_PHYSICAL_FROM_LOGICAL":
+                return simulateSync(sandbox, item);
+            case "TRACE_COMPONENT_MAPPING":
+                return simulateTrace(sandbox, item);
             case "OPEN_DIAGRAM":
                 return Outcome.success("Would open " + defaultString(item.getDiagramType(), "LAB") + " diagram");
             case "RENAME":
@@ -152,6 +160,85 @@ public final class PlanDryRun {
         List<EObject> list = (List<EObject>) container.eGet(containment);
         list.add(exchange);
         return Outcome.success(String.format("Create %s '%s' (%s → %s)", exchangeClass, defaultString(item.getName(), exchangeClass), defaultString(sourceName, "?"), defaultString(targetName, "?")));
+    }
+
+    private static Outcome simulatePropagate(ResourceSet sandbox, PlanItem item) {
+        String logicalName = defaultString(item.getLogicalName(), item.getExistingName());
+        if (logicalName == null || logicalName.isBlank()) {
+            return Outcome.failure("Logical component name missing");
+        }
+        EObject logical = Finders.findByName(sandbox, "LogicalComponent", logicalName);
+        if (logical == null) {
+            return Outcome.failure("Logical component '" + logicalName + "' not found");
+        }
+        String targetLayer = defaultString(item.getTargetLayer(), defaultString(item.getLayer(), "PA"));
+        EObject physicalRoot = ArchitectureLocator.findTargetElement(sandbox, safeLayer(targetLayer));
+        if (physicalRoot == null) {
+            return Outcome.failure("Layer " + safeLayer(targetLayer) + " not found");
+        }
+        EClass physicalClass = ElementFactory.findEClass("PhysicalComponent");
+        if (physicalClass == null) {
+            return Outcome.failure("PhysicalComponent EClass not registered");
+        }
+        EObject container = findBestContainer(physicalRoot, physicalClass);
+        if (container == null) {
+            container = physicalRoot;
+        }
+        EReference containment = findContainmentFor(container, physicalClass);
+        if (containment == null) {
+            return Outcome.failure("No containment for PhysicalComponent in target layer");
+        }
+        String finalName = defaultString(readName(logical), logicalName);
+        if (containsByName(container, containment, finalName)) {
+            return Outcome.failure("Physical component '" + finalName + "' already exists");
+        }
+        EObject copy = createComponentCopy(logical, physicalClass, item.includeChildren());
+        addChild(container, containment, copy);
+        addTraceLink(logical, copy);
+        String suffix = item.includeChildren() ? " (with hierarchy)" : "";
+        return Outcome.success(String.format("Propagate logical component '%s' into %s%s", finalName, safeLayer(targetLayer), suffix));
+    }
+
+    private static Outcome simulateSync(ResourceSet sandbox, PlanItem item) {
+        String logicalName = defaultString(item.getLogicalName(), "");
+        if (logicalName.isBlank()) {
+            return Outcome.failure("Logical component name missing");
+        }
+        EObject logical = Finders.findByName(sandbox, "LogicalComponent", logicalName);
+        if (logical == null) {
+            return Outcome.failure("Logical component '" + logicalName + "' not found");
+        }
+        String physicalName = defaultString(item.getPhysicalName(), "");
+        if (physicalName.isBlank()) {
+            return Outcome.failure("Physical component name missing");
+        }
+        EObject physical = Finders.findByName(sandbox, "PhysicalComponent", physicalName);
+        if (physical == null) {
+            return Outcome.failure("Physical component '" + physicalName + "' not found");
+        }
+        if (item.updateAttributes()) {
+            copyScalarAttributes(logical, physical);
+        }
+        addTraceLink(logical, physical);
+        return Outcome.success(String.format("Sync physical component '%s' from logical '%s'%s",
+                physicalName,
+                logicalName,
+                item.updateAttributes() ? "" : " (link only)"));
+    }
+
+    private static Outcome simulateTrace(ResourceSet sandbox, PlanItem item) {
+        String logicalName = defaultString(item.getLogicalName(), "");
+        String physicalName = defaultString(item.getPhysicalName(), "");
+        if (logicalName.isBlank() || physicalName.isBlank()) {
+            return Outcome.failure("Logical or physical component missing");
+        }
+        EObject logical = Finders.findByName(sandbox, "LogicalComponent", logicalName);
+        EObject physical = Finders.findByName(sandbox, "PhysicalComponent", physicalName);
+        if (logical == null || physical == null) {
+            return Outcome.failure("Components not found for trace");
+        }
+        addTraceLink(logical, physical);
+        return Outcome.success(String.format("Trace logical '%s' to physical '%s'", logicalName, physicalName));
     }
 
     private static Outcome simulateRename(ResourceSet sandbox, PlanItem item) {
@@ -256,6 +343,130 @@ public final class PlanDryRun {
             return "LogicalFunction";
         }
         return source ? "Component" : "Component";
+    }
+
+    private static boolean containsByName(EObject container, EReference containment, String name) {
+        if (name == null || name.isBlank()) {
+            return false;
+        }
+        Object current = container.eGet(containment);
+        if (!(current instanceof List<?> list)) {
+            return false;
+        }
+        for (Object obj : list) {
+            if (obj instanceof EObject child) {
+                if (name.equals(readName(child))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static EObject createComponentCopy(EObject logical, EClass targetClass, boolean includeChildren) {
+        EObject copy = targetClass.getEPackage().getEFactoryInstance().create(targetClass);
+        copyScalarAttributes(logical, copy);
+        cleanIdentifiers(copy);
+        if (!includeChildren) {
+            return copy;
+        }
+        EReference nested = findContainmentFor(copy, targetClass);
+        if (nested == null) {
+            return copy;
+        }
+        for (EObject child : logical.eContents()) {
+            if (!"LogicalComponent".equals(child.eClass().getName())) {
+                continue;
+            }
+            EObject nestedCopy = createComponentCopy(child, targetClass, true);
+            addChild(copy, nested, nestedCopy);
+        }
+        return copy;
+    }
+
+    private static void addChild(EObject container, EReference containment, EObject child) {
+        Object current = container.eGet(containment);
+        if (current instanceof List<?> list) {
+            @SuppressWarnings("unchecked")
+            List<EObject> typed = (List<EObject>) list;
+            typed.add(child);
+        }
+    }
+
+    private static void copyScalarAttributes(EObject source, EObject target) {
+        for (EStructuralFeature feature : source.eClass().getEAllStructuralFeatures()) {
+            if (!(feature instanceof EAttribute attr)) {
+                continue;
+            }
+            if (!attr.isChangeable() || attr.isDerived()) {
+                continue;
+            }
+            String fname = attr.getName().toLowerCase();
+            if (fname.contains("uuid") || fname.endsWith("id")) {
+                continue;
+            }
+            EStructuralFeature targetFeature = target.eClass().getEStructuralFeature(attr.getName());
+            if (targetFeature instanceof EAttribute targetAttr && targetAttr.isChangeable()) {
+                target.eSet(targetAttr, source.eGet(attr));
+            }
+        }
+    }
+
+    private static void cleanIdentifiers(EObject element) {
+        for (EStructuralFeature feature : element.eClass().getEAllStructuralFeatures()) {
+            if (!feature.isChangeable()) {
+                continue;
+            }
+            String fname = feature.getName().toLowerCase();
+            if (fname.contains("uuid") || fname.endsWith("id")) {
+                element.eSet(feature, null);
+            }
+        }
+        for (EObject child : element.eContents()) {
+            cleanIdentifiers(child);
+        }
+    }
+
+    private static String readName(EObject element) {
+        if (element == null) {
+            return null;
+        }
+        EStructuralFeature feature = element.eClass().getEStructuralFeature("name");
+        if (feature != null) {
+            Object value = element.eGet(feature);
+            if (value != null) {
+                return value.toString();
+            }
+        }
+        return null;
+    }
+
+    private static void addTraceLink(EObject logical, EObject physical) {
+        addReference(logical, physical);
+        addReference(physical, logical);
+    }
+
+    private static void addReference(EObject source, EObject target) {
+        for (EStructuralFeature feature : source.eClass().getEAllStructuralFeatures()) {
+            if (!(feature instanceof EReference ref) || ref.isContainment()) {
+                continue;
+            }
+            String name = feature.getName().toLowerCase();
+            if (!(name.contains("trace") || name.contains("alloc") || name.contains("component"))) {
+                continue;
+            }
+            Object current = source.eGet(ref);
+            if (ref.isMany()) {
+                @SuppressWarnings("unchecked")
+                Collection<Object> list = (Collection<Object>) current;
+                if (!list.contains(target)) {
+                    list.add(target);
+                }
+                return;
+            }
+            source.eSet(ref, target);
+            return;
+        }
     }
 
     private static String defaultString(String value, String fallback) {
