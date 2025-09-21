@@ -13,6 +13,9 @@
 
 ## 2. Rich Model Comprehension
 
+- [x] **Model Indexing** – searchable index of model elements exposed in the assistant UI.
+  - ModelIndex powers the new Search Model button and LLM prompts can reuse the cached descriptors.
+
 - [x] **Layer-Aware Summaries** – extend `ModelSummary` to produce per-layer dashboards (Operational, System, Logical, Physical) with allocations, gaps, and coverage metrics.
   - Explain Model now emits per-layer dashboards showing coverage, allocation gaps, and component/function health.
 - [x] **Dependency Graph Cache** – maintain quick lookups for component/function relationships, exchanges, and requirement links to answer “impact of change” queries.

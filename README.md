@@ -24,6 +24,7 @@ This repository contains only the Capella plugin and p2 update site used to inst
 - The legacy preference page still works: `Capella (menu) → Preferences… → Capella AI → LLM`.
 - Environment fallbacks remain available (`CAPELLA_AI_PROVIDER`, `OPENAI_API_KEY`, etc.) if you prefer system-level configuration.
 - The `Explain model` button now produces layer dashboards with coverage metrics, validation warnings, and dependency highlights so you can gauge model health at a glance.
+- Use the new **Search model** button to query the indexed Capella model (name/type keywords) directly from the assistant view.
 - Telemetry is opt-in via the "Telemetry (opt-in)" checkbox; when enabled it logs anonymous plan metrics locally to help prioritise features.
 
 ## Using the assistant

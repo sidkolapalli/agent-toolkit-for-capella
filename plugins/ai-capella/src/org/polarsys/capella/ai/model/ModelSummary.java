@@ -13,6 +13,8 @@ import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.polarsys.capella.ai.browse.DiagramBrowser;
 import org.polarsys.capella.ai.browse.DiagramBrowser.DiagramInfo;
 import org.polarsys.capella.ai.model.ModelAnalytics.Analysis;
+import org.polarsys.capella.ai.model.index.ModelIndex;
+
 import org.polarsys.capella.ai.model.ModelAnalytics.DependencyGraph;
 import org.polarsys.capella.ai.model.ModelAnalytics.FunctionalSnapshot;
 import org.polarsys.capella.ai.model.ModelAnalytics.LayerStats;
@@ -74,6 +76,7 @@ public final class ModelSummary {
     public static void invalidate(Session session) {
         if (session != null) {
             CACHE.remove(session);
+            ModelIndex.invalidate(session);
         }
     }
 

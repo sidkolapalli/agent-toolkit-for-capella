@@ -38,6 +38,8 @@ import org.polarsys.capella.ai.llm.ToolRouter.PlanExecutionResult;
 import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.session.SessionBridge;
+import org.polarsys.capella.ai.model.index.ModelIndex;
+import org.polarsys.capella.ai.model.index.ModelIndex.IndexedElement;
 import org.polarsys.capella.ai.tools.DiagramCommands;
 import org.polarsys.capella.ai.session.PlanDryRun;
 import org.polarsys.capella.ai.session.PlanDryRun.DryRunResult;
@@ -262,6 +264,16 @@ public class ChatView extends ViewPart {
             @Override
             public void widgetSelected(SelectionEvent e) {
                 onCreateElement("LogicalFunction");
+            }
+        });
+
+        Button searchModel = new Button(advanced, SWT.PUSH);
+        searchModel.setText("Search model");
+        searchModel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        searchModel.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onSearchModel();
             }
         });
     }
@@ -641,6 +653,53 @@ public class ChatView extends ViewPart {
         } catch (Exception ex) {
             append("Create element failed: " + ex.getMessage());
         }
+    }
+
+    private void onSearchModel() {
+        InputDialog dialog = new InputDialog(
+            getSite().getShell(),
+            "Search model",
+            "Enter element name, type, or keyword:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Query must not be empty" : null
+        );
+        if (dialog.open() != Window.OK) {
+            return;
+        }
+        final String query = dialog.getValue().trim();
+        append("Searching model: " + query);
+        Job job = new Job("Capella model search") {
+            @Override
+            protected IStatus run(IProgressMonitor monitor) {
+                Session session = SessionBridge.getActiveSession();
+                List<IndexedElement> results = ModelIndex.search(session, query, 20);
+                Display.getDefault().asyncExec(() -> appendSearchResults(query, results));
+                return Status.OK_STATUS;
+            }
+        };
+        job.setUser(false);
+        job.schedule();
+    }
+
+    private void appendSearchResults(String query, List<IndexedElement> results) {
+        if (results == null || results.isEmpty()) {
+            append("No matches for '" + query + "'.");
+            return;
+        }
+        append(String.format("Top %d match(es):", results.size()));
+        results.forEach(element -> append(formatIndexedElement(element)));
+    }
+
+    private String formatIndexedElement(IndexedElement element) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(" - ").append(element.name);
+        if (element.layer != null && !element.layer.isBlank()) {
+            sb.append(" [").append(element.layer).append("]");
+        }
+        sb.append(" · ").append(element.type);
+        sb.append(" · ").append(element.path);
+        sb.append(" · uuid=").append(element.uuid);
+        return sb.toString();
     }
 
     private void loadPreferencesIntoUi() {
