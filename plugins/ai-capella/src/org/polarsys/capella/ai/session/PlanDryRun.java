@@ -68,6 +68,18 @@ public final class PlanDryRun {
                 return Outcome.success("Would create operational exchange '" + item.getName() + "' between " + defaultString(item.getSourceName(), "?") + " → " + defaultString(item.getTargetName(), "?") + "");
             case "LINK_OPERATIONAL_TO_CAPABILITY":
                 return Outcome.success("Would link operational activity '" + item.getExistingName() + "' to capability '" + item.getCapabilityName() + "'");
+            case "CREATE_SYSTEM_COMPONENT":
+                return Outcome.success(item.getParentName() != null && !item.getParentName().isBlank() ?
+                        "Would create system component '" + item.getName() + "' under " + item.getParentName()
+                        : "Would create system component '" + item.getName() + "' in " + safeLayer(item.getLayer()));
+            case "CREATE_SYSTEM_FUNCTION":
+                return Outcome.success(item.getParentName() != null && !item.getParentName().isBlank() ?
+                        "Would create system function '" + item.getName() + "' under " + item.getParentName()
+                        : "Would create system function '" + item.getName() + "' in " + safeLayer(item.getLayer()));
+            case "CREATE_INTERFACE":
+                return Outcome.success("Would create system interface '" + item.getName() + "' between " + defaultString(item.getSourceName(), "?") + " → " + defaultString(item.getTargetName(), "?") + "");
+            case "ALLOCATE_CAPABILITY":
+                return Outcome.success("Would allocate capability '" + item.getCapabilityName() + "' to system component '" + defaultString(item.getExistingName(), "?") + "'");
             case "OPEN_DIAGRAM":
                 return Outcome.success("Would open " + defaultString(item.getDiagramType(), "LAB") + " diagram");
             case "RENAME":

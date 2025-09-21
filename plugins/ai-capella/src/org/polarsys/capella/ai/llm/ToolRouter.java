@@ -14,6 +14,7 @@ import org.polarsys.capella.ai.model.ElementFactory;
 import org.polarsys.capella.ai.model.Finders;
 import org.polarsys.capella.ai.model.ModelOps;
 import org.polarsys.capella.ai.actions.OperationalActions;
+import org.polarsys.capella.ai.actions.SystemActions;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.tools.DiagramCommands;
 import org.polarsys.capella.ai.tools.DiagramMappings;
@@ -264,6 +265,14 @@ public final class ToolRouter {
                 return OperationalActions.createOperationalExchange(session, action.layer, action.name, action.sourceName, action.targetName);
             case LINK_OPERATIONAL_TO_CAPABILITY:
                 return OperationalActions.linkActivityToCapability(session, action.existingName, action.capabilityName);
+            case CREATE_SYSTEM_COMPONENT:
+                return SystemActions.createComponent(session, action.layer, action.name, action.parentName);
+            case CREATE_SYSTEM_FUNCTION:
+                return SystemActions.createFunction(session, action.layer, action.name, action.parentName);
+            case CREATE_INTERFACE:
+                return SystemActions.createInterface(session, action.layer, action.name, action.sourceName, action.targetName);
+            case ALLOCATE_CAPABILITY:
+                return SystemActions.allocateCapability(session, action.existingName, action.capabilityName);
             case OPEN_DIAGRAM:
                 return openDiagram(session, action.layer, action.diagramType, action.name);
             case RENAME:
@@ -290,6 +299,10 @@ public final class ToolRouter {
         sb.append("- create_operational_activity: {name, layer?, parent_name?}\n");
         sb.append("- create_operational_exchange: {source_actor, target_actor, layer?, name?}\n");
         sb.append("- link_operational_to_capability: {operational_activity, capability, layer?}\n");
+        sb.append("- create_system_component: {name, layer?, parent_name?}\n");
+        sb.append("- create_system_function: {name, layer?, parent_name?}\n");
+        sb.append("- create_interface: {source_component, target_component, layer?, name?}\n");
+        sb.append("- allocate_capability: {component, capability, layer?}\n");
         sb.append("- rename: {class, name, new_name}\n");
         sb.append("- delete: {class, name}\n");
         sb.append("- open_diagram: {layer, type}\n");
@@ -491,7 +504,11 @@ public final class ToolRouter {
         CREATE_MISSION,
         CREATE_OPERATIONAL_ACTIVITY,
         CREATE_OPERATIONAL_EXCHANGE,
-        LINK_OPERATIONAL_TO_CAPABILITY;
+        LINK_OPERATIONAL_TO_CAPABILITY,
+        CREATE_SYSTEM_COMPONENT,
+        CREATE_SYSTEM_FUNCTION,
+        CREATE_INTERFACE,
+        ALLOCATE_CAPABILITY;
 
         static ActionType from(String value) {
             if (value == null) {
@@ -522,6 +539,14 @@ public final class ToolRouter {
                     return CREATE_OPERATIONAL_EXCHANGE;
                 case "link_operational_to_capability":
                     return LINK_OPERATIONAL_TO_CAPABILITY;
+                case "create_system_component":
+                    return CREATE_SYSTEM_COMPONENT;
+                case "create_system_function":
+                    return CREATE_SYSTEM_FUNCTION;
+                case "create_interface":
+                    return CREATE_INTERFACE;
+                case "allocate_capability":
+                    return ALLOCATE_CAPABILITY;
                 default:
                     throw new PlanValidationException("Unknown action type: " + value);
             }
@@ -595,6 +620,14 @@ public final class ToolRouter {
                     return new Action(type, stringOrDefault(map.get("layer"), "OA"), stringOrDefault(map.get("name"), "OperationalExchange"), require(map, "source_actor", index), require(map, "target_actor", index), null, null, null, null, null, null, null);
                 case LINK_OPERATIONAL_TO_CAPABILITY:
                     return new Action(type, stringOrDefault(map.get("layer"), "OA"), null, null, null, null, require(map, "operational_activity", index), null, null, null, null, require(map, "capability", index));
+                case CREATE_SYSTEM_COMPONENT:
+                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null);
+                case CREATE_SYSTEM_FUNCTION:
+                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null);
+                case CREATE_INTERFACE:
+                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), stringOrDefault(map.get("name"), "ComponentExchange"), require(map, "source_component", index), require(map, "target_component", index), null, null, null, null, null, null, null);
+                case ALLOCATE_CAPABILITY:
+                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), null, null, null, null, require(map, "component", index), null, null, null, null, require(map, "capability", index));
                 case DELETE:
                     return new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), null, null, null, null, null);
                 default:
@@ -623,6 +656,18 @@ public final class ToolRouter {
                     return String.format("Create operational exchange '%s' between %s → %s", name, sourceName, targetName);
                 case LINK_OPERATIONAL_TO_CAPABILITY:
                     return String.format("Link operational activity '%s' to capability '%s'", existingName, capabilityName);
+                case CREATE_SYSTEM_COMPONENT:
+                    return parentName != null && !parentName.isBlank() ?
+                        String.format("Create system component '%s' under %s", name, parentName) :
+                        String.format("Create system component '%s' in %s", name, layer);
+                case CREATE_SYSTEM_FUNCTION:
+                    return parentName != null && !parentName.isBlank() ?
+                        String.format("Create system function '%s' under %s", name, parentName) :
+                        String.format("Create system function '%s' in %s", name, layer);
+                case CREATE_INTERFACE:
+                    return String.format("Create interface '%s' between %s → %s", name, sourceName, targetName);
+                case ALLOCATE_CAPABILITY:
+                    return String.format("Allocate capability '%s' to system component '%s'", capabilityName, existingName);
                 case OPEN_DIAGRAM:
                     return String.format("Open %s diagram (%s)", diagramType, name == null || name.isBlank() ? "auto-named" : name);
                 case RENAME:
@@ -644,9 +689,13 @@ public final class ToolRouter {
                 case CREATE_MISSION:
                 case CREATE_OPERATIONAL_ACTIVITY:
                 case CREATE_OPERATIONAL_EXCHANGE:
+                case CREATE_SYSTEM_COMPONENT:
+                case CREATE_SYSTEM_FUNCTION:
+                case CREATE_INTERFACE:
                     return ChangeCategory.CREATE;
                 case RENAME:
                 case LINK_OPERATIONAL_TO_CAPABILITY:
+                case ALLOCATE_CAPABILITY:
                     return ChangeCategory.UPDATE;
                 case DELETE:
                     return ChangeCategory.DELETE;
@@ -678,6 +727,18 @@ public final class ToolRouter {
                     return summarizeExchange("Operational exchange", name, sourceName, targetName, layer);
                 case LINK_OPERATIONAL_TO_CAPABILITY:
                     return String.format("Link operational activity '%s' to capability '%s'", defaultString(existingName, "?"), defaultString(capabilityName, "?"));
+                case CREATE_SYSTEM_COMPONENT:
+                    return parentName != null && !parentName.isBlank() ?
+                        String.format("Create system component '%s' under %s", name, parentName) :
+                        summarizeCreate("System component", name, layer);
+                case CREATE_SYSTEM_FUNCTION:
+                    return parentName != null && !parentName.isBlank() ?
+                        String.format("Create system function '%s' under %s", name, parentName) :
+                        summarizeCreate("System function", name, layer);
+                case CREATE_INTERFACE:
+                    return summarizeExchange("System interface", name, sourceName, targetName, layer);
+                case ALLOCATE_CAPABILITY:
+                    return String.format("Allocate capability '%s' to system component '%s'", defaultString(capabilityName, "?"), defaultString(existingName, "?"));
                 case OPEN_DIAGRAM:
                     return String.format("Open %s diagram (%s)", defaultString(diagramType, "LAB"), defaultString(name, "auto"));
                 case RENAME:
