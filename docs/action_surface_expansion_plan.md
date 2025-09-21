@@ -35,10 +35,12 @@ Status: Completed – System templates now expose guided component/function/inte
 Status: Completed – logical to physical propagation, sync, and trace helpers are live with dry-run previews and UI safeguards.
 
 ## 4. Functional Chain Authoring
-- Actions: `create_functional_chain`, `extend_chain`, `sequence_exchange`, `attach_scenario`.
-- Helper class manipulating FunctionalChain elements, ordering exchanges, linking scenarios/state machines.
-- Dry-run enhancements to validate chain coherence (cycle detection, missing exchanges).
-- Plan Editor diff: show chain names and affected exchanges.
+- [x] Actions: `create_functional_chain`, `extend_chain`, `sequence_exchange`, `attach_scenario`.
+- [x] Helper class manipulating FunctionalChain elements, ordering exchanges, linking scenarios/state machines.
+- [x] Dry-run enhancements to validate chain coherence (missing chain/function/exchange references).
+- [x] Plan Editor diff: show chain names and affected exchanges.
+
+Status: Completed – functional chain actions now ensure chains exist, functions/exchanges resolve, and scenario attachments are previewed in dry-run summaries.
 
 ## 5. Requirement Handling
 - Actions: `create_requirement`, `link_requirement`, `check_requirement_coverage`, `generate_verification`.

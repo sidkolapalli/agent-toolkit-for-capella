@@ -82,6 +82,14 @@ public final class PlanDryRun {
                 return simulateSync(sandbox, item);
             case "TRACE_COMPONENT_MAPPING":
                 return simulateTrace(sandbox, item);
+            case "CREATE_FUNCTIONAL_CHAIN":
+                return simulateCreateFunctionalChain(sandbox, item);
+            case "EXTEND_CHAIN":
+                return simulateExtendChain(sandbox, item);
+            case "SEQUENCE_EXCHANGE":
+                return simulateSequenceExchange(sandbox, item);
+            case "ATTACH_SCENARIO":
+                return simulateAttachScenario(sandbox, item);
             case "OPEN_DIAGRAM":
                 return Outcome.success("Would open " + defaultString(item.getDiagramType(), "LAB") + " diagram");
             case "RENAME":
@@ -215,6 +223,70 @@ public final class PlanDryRun {
             return Outcome.failure("Operational activity or capability not found");
         }
         return Outcome.success(String.format("Link operational activity '%s' to capability '%s'", activity, capability));
+    }
+
+    private static Outcome simulateCreateFunctionalChain(ResourceSet sandbox, PlanItem item) {
+        String name = defaultString(item.getName(), "");
+        if (name.isBlank()) {
+            return Outcome.failure("Functional chain name missing");
+        }
+        String layer = safeLayer(item.getLayer(), "LA");
+        EObject root = ArchitectureLocator.findTargetElement(sandbox, layer);
+        if (root == null) {
+            return Outcome.failure("Layer " + layer + " not found");
+        }
+        return Outcome.success(String.format("Create functional chain '%s' in %s", name, layer));
+    }
+
+    private static Outcome simulateExtendChain(ResourceSet sandbox, PlanItem item) {
+        String chainName = defaultString(item.getChainName(), "");
+        String functionName = defaultString(item.getFunctionName(), "");
+        if (chainName.isBlank() || functionName.isBlank()) {
+            return Outcome.failure("Chain and function required");
+        }
+        EObject chain = Finders.findByName(sandbox, "FunctionalChain", chainName);
+        if (chain == null) {
+            return Outcome.failure("Functional chain '" + chainName + "' not found");
+        }
+        EObject function = findFunction(sandbox, functionName, item.getFunctionClass());
+        if (function == null) {
+            return Outcome.failure("Function '" + functionName + "' not found");
+        }
+        return Outcome.success(String.format("Extend chain '%s' with function '%s'", chainName, functionName));
+    }
+
+    private static Outcome simulateSequenceExchange(ResourceSet sandbox, PlanItem item) {
+        String chainName = defaultString(item.getChainName(), "");
+        String exchangeName = defaultString(item.getExchangeName(), "");
+        if (chainName.isBlank() || exchangeName.isBlank()) {
+            return Outcome.failure("Chain and exchange required");
+        }
+        EObject chain = Finders.findByName(sandbox, "FunctionalChain", chainName);
+        if (chain == null) {
+            return Outcome.failure("Functional chain '" + chainName + "' not found");
+        }
+        EObject exchange = Finders.findByName(sandbox, "FunctionalExchange", exchangeName);
+        if (exchange == null) {
+            return Outcome.failure("Functional exchange '" + exchangeName + "' not found");
+        }
+        return Outcome.success(String.format("Add exchange '%s' to chain '%s'", exchangeName, chainName));
+    }
+
+    private static Outcome simulateAttachScenario(ResourceSet sandbox, PlanItem item) {
+        String chainName = defaultString(item.getChainName(), "");
+        String scenarioName = defaultString(item.getScenarioName(), "");
+        if (chainName.isBlank() || scenarioName.isBlank()) {
+            return Outcome.failure("Chain and scenario required");
+        }
+        EObject chain = Finders.findByName(sandbox, "FunctionalChain", chainName);
+        if (chain == null) {
+            return Outcome.failure("Functional chain '" + chainName + "' not found");
+        }
+        EObject scenario = findScenario(sandbox, scenarioName);
+        if (scenario == null) {
+            return Outcome.failure("Scenario '" + scenarioName + "' not found");
+        }
+        return Outcome.success(String.format("Attach scenario '%s' to chain '%s'", scenarioName, chainName));
     }
 
     private static Outcome simulatePropagate(ResourceSet sandbox, PlanItem item) {
@@ -603,6 +675,34 @@ public final class PlanDryRun {
 
     private static String safeLayer(String layer, String fallback) {
         return defaultString(layer, fallback);
+    }
+
+    private static EObject findFunction(ResourceSet sandbox, String name, String preferredClass) {
+        if (preferredClass != null && !preferredClass.isBlank()) {
+            EObject fn = Finders.findByName(sandbox, preferredClass, name);
+            if (fn != null) {
+                return fn;
+            }
+        }
+        String[] classes = {"LogicalFunction", "SystemFunction", "PhysicalFunction"};
+        for (String cls : classes) {
+            EObject fn = Finders.findByName(sandbox, cls, name);
+            if (fn != null) {
+                return fn;
+            }
+        }
+        return null;
+    }
+
+    private static EObject findScenario(ResourceSet sandbox, String name) {
+        String[] classes = {"Scenario", "FunctionalScenario", "OperationalScenario", "SystemScenario"};
+        for (String cls : classes) {
+            EObject scenario = Finders.findByName(sandbox, cls, name);
+            if (scenario != null) {
+                return scenario;
+            }
+        }
+        return null;
     }
 
     // --- Result types ---------------------------------------------------------------------------------------------

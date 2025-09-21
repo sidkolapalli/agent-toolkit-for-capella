@@ -32,6 +32,9 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.part.ViewPart;
 import org.osgi.service.prefs.BackingStoreException;
+import org.polarsys.capella.ai.actions.FunctionalChainActions;
+import org.polarsys.capella.ai.actions.OperationalActions;
+import org.polarsys.capella.ai.actions.SystemActions;
 import org.polarsys.capella.ai.llm.LLMService;
 import org.polarsys.capella.ai.llm.ToolRouter;
 import org.polarsys.capella.ai.llm.ToolRouter.PlanExecutionResult;
@@ -334,6 +337,52 @@ public class ChatView extends ViewPart {
             @Override
             public void widgetSelected(SelectionEvent e) {
                 onAllocateCapability();
+            }
+        });
+
+        Group functional = new Group(tools, SWT.NONE);
+        functional.setText("Functional chain templates");
+        functional.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        functional.setLayout(new GridLayout(3, false));
+
+        Button createChain = new Button(functional, SWT.PUSH);
+        createChain.setText("Create chain");
+        createChain.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        createChain.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onCreateFunctionalChain();
+            }
+        });
+
+        Button addFunction = new Button(functional, SWT.PUSH);
+        addFunction.setText("Add function");
+        addFunction.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        addFunction.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onExtendFunctionalChain();
+            }
+        });
+
+        Button addExchange = new Button(functional, SWT.PUSH);
+        addExchange.setText("Add exchange");
+        addExchange.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        addExchange.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onSequenceFunctionalExchange();
+            }
+        });
+
+        Button attachScenario = new Button(functional, SWT.PUSH);
+        attachScenario.setText("Attach scenario");
+        GridData attachData = new GridData(SWT.FILL, SWT.CENTER, false, false, 3, 1);
+        attachScenario.setLayoutData(attachData);
+        attachScenario.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onAttachScenario();
             }
         });
 
@@ -1052,6 +1101,154 @@ public class ChatView extends ViewPart {
         boolean ok = SystemActions.allocateCapability(session, component, capability);
         append(ok ? String.format("Allocated capability '%s' to system component '%s'.", capability, component)
                 : "Capability allocation failed.");
+    }
+
+    private void onCreateFunctionalChain() {
+        InputDialog nameDialog = new InputDialog(
+            getSite().getShell(),
+            "Create functional chain",
+            "Chain name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Name required" : null
+        );
+        if (nameDialog.open() != Window.OK) {
+            return;
+        }
+        String name = nameDialog.getValue().trim();
+
+        InputDialog descriptionDialog = new InputDialog(
+            getSite().getShell(),
+            "Chain description",
+            "Optional description:",
+            "",
+            null
+        );
+        String description = "";
+        if (descriptionDialog.open() == Window.OK && descriptionDialog.getValue() != null) {
+            description = descriptionDialog.getValue().trim();
+        }
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = FunctionalChainActions.createChain(session, "LA", name, description);
+        append(ok ? String.format("Created functional chain '%s'.", name) : "Functional chain creation failed.");
+    }
+
+    private void onExtendFunctionalChain() {
+        InputDialog chainDialog = new InputDialog(
+            getSite().getShell(),
+            "Extend functional chain",
+            "Chain name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Chain name required" : null
+        );
+        if (chainDialog.open() != Window.OK) {
+            return;
+        }
+        String chain = chainDialog.getValue().trim();
+
+        InputDialog functionDialog = new InputDialog(
+            getSite().getShell(),
+            "Extend functional chain",
+            "Function name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Function name required" : null
+        );
+        if (functionDialog.open() != Window.OK) {
+            return;
+        }
+        String function = functionDialog.getValue().trim();
+
+        InputDialog classDialog = new InputDialog(
+            getSite().getShell(),
+            "Function class",
+            "Optional function class (LogicalFunction/SystemFunction/PhysicalFunction):",
+            "",
+            null
+        );
+        String functionClass = "";
+        if (classDialog.open() == Window.OK && classDialog.getValue() != null) {
+            functionClass = classDialog.getValue().trim();
+        }
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = FunctionalChainActions.addFunction(session, chain, function, functionClass.isBlank() ? null : functionClass);
+        append(ok ? String.format("Extended chain '%s' with function '%s'.", chain, function) : "Failed to extend functional chain.");
+    }
+
+    private void onSequenceFunctionalExchange() {
+        InputDialog chainDialog = new InputDialog(
+            getSite().getShell(),
+            "Add exchange to chain",
+            "Chain name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Chain name required" : null
+        );
+        if (chainDialog.open() != Window.OK) {
+            return;
+        }
+        String chain = chainDialog.getValue().trim();
+
+        InputDialog exchangeDialog = new InputDialog(
+            getSite().getShell(),
+            "Add exchange to chain",
+            "Functional exchange name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Exchange name required" : null
+        );
+        if (exchangeDialog.open() != Window.OK) {
+            return;
+        }
+        String exchange = exchangeDialog.getValue().trim();
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = FunctionalChainActions.addExchange(session, chain, exchange);
+        append(ok ? String.format("Added exchange '%s' to chain '%s'.", exchange, chain) : "Failed to add exchange to chain.");
+    }
+
+    private void onAttachScenario() {
+        InputDialog chainDialog = new InputDialog(
+            getSite().getShell(),
+            "Attach scenario",
+            "Chain name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Chain name required" : null
+        );
+        if (chainDialog.open() != Window.OK) {
+            return;
+        }
+        String chain = chainDialog.getValue().trim();
+
+        InputDialog scenarioDialog = new InputDialog(
+            getSite().getShell(),
+            "Attach scenario",
+            "Scenario name:",
+            "",
+            value -> (value == null || value.trim().isEmpty()) ? "Scenario name required" : null
+        );
+        if (scenarioDialog.open() != Window.OK) {
+            return;
+        }
+        String scenario = scenarioDialog.getValue().trim();
+
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = FunctionalChainActions.attachScenario(session, chain, scenario);
+        append(ok ? String.format("Attached scenario '%s' to chain '%s'.", scenario, chain) : "Failed to attach scenario to chain.");
     }
 
     private void onSearchModel() {

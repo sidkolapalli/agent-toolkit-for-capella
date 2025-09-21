@@ -354,6 +354,22 @@ public final class PlanEditorDialog extends TitleAreaDialog {
         if (item.getPhysicalName() != null) {
             sb.append("Physical: ").append(item.getPhysicalName()).append(System.lineSeparator());
         }
+        if (item.getChainName() != null) {
+            sb.append("Chain: ").append(item.getChainName()).append(System.lineSeparator());
+        }
+        if (item.getFunctionName() != null) {
+            sb.append("Function: ").append(item.getFunctionName());
+            if (item.getFunctionClass() != null && !item.getFunctionClass().isBlank()) {
+                sb.append(" (class: ").append(item.getFunctionClass()).append(')');
+            }
+            sb.append(System.lineSeparator());
+        }
+        if (item.getExchangeName() != null) {
+            sb.append("Exchange: ").append(item.getExchangeName()).append(System.lineSeparator());
+        }
+        if (item.getScenarioName() != null) {
+            sb.append("Scenario: ").append(item.getScenarioName()).append(System.lineSeparator());
+        }
         if (item.getExistingName() != null) {
             sb.append("Existing: ").append(item.getExistingName()).append(System.lineSeparator());
         }
