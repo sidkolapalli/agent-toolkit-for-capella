@@ -9,9 +9,14 @@ public final class Finders {
     private Finders() {}
 
     public static EObject findByName(String simpleClass, String name) {
-        Session s = SessionBridge.getActiveSession();
-        if (s == null) return null;
-        var rs = s.getTransactionalEditingDomain() != null ? s.getTransactionalEditingDomain().getResourceSet() : null;
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) return null;
+        return findByName(session, simpleClass, name);
+    }
+
+    public static EObject findByName(Session session, String simpleClass, String name) {
+        if (session == null) return null;
+        var rs = session.getTransactionalEditingDomain() != null ? session.getTransactionalEditingDomain().getResourceSet() : null;
         if (rs == null) return null;
         try {
             for (Resource res : rs.getResources()) {
@@ -33,4 +38,3 @@ public final class Finders {
         return null;
     }
 }
-

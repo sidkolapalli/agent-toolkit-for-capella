@@ -1,163 +1,414 @@
 package org.polarsys.capella.ai;
 
+import java.io.File;
+import java.util.Arrays;
+import java.util.List;
+
+import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.jface.dialogs.InputDialog;
+import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.jface.window.Window;
+import org.eclipse.sirius.business.api.session.Session;
+import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.KeyAdapter;
+import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.swt.widgets.Group;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.part.ViewPart;
+import org.osgi.service.prefs.BackingStoreException;
+import org.polarsys.capella.ai.Activator;
+import org.polarsys.capella.ai.llm.LLMService;
+import org.polarsys.capella.ai.preferences.LLMPreferences;
+import org.polarsys.capella.ai.session.SessionBridge;
+import org.polarsys.capella.ai.tools.DiagramCommands;
 
+/**
+ * Chat-centric view that also exposes diagram tools and inline LLM settings.
+ */
 public class ChatView extends ViewPart {
+
+    private static final String[] PROVIDER_DISPLAY_NAMES = {"OpenAI", "Anthropic", "Azure", "Custom"};
+    private static final String[] OPENAI_MODELS = {"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"};
+    private static final String[] ANTHROPIC_MODELS = {"claude-3-haiku", "claude-3-sonnet", "claude-3-opus"};
+
     private Text chatLog;
     private Text prompt;
-    private Button send;
-    private Button listDiagrams;
-    private Button createLab;
-    private Button importDrawio;
-    private Button useLlm;
+    private Button sendButton;
     private Button enableActions;
-    private Button explainModel;
+    private Button useLlmMapping;
+
     private Text elementUuid;
-    private Button addElement;
     private Text newName;
-    private Button renameElement;
-    private Button deleteElement;
     private Text newElementName;
-    private Button createLogicalComponent;
-    private Button createLogicalFunction;
+
+    private Combo providerCombo;
+    private Combo modelCombo;
+    private Text baseUrlText;
+    private Text temperatureText;
+    private Text maxTokensText;
+    private Text timeoutText;
+    private Label apiKeyStatus;
+    private Label settingsStatus;
+    private Label connectionSummary;
+
+    private boolean sending;
 
     @Override
     public void createPartControl(Composite parent) {
-        parent.setLayout(new GridLayout(2, false));
+        parent.setLayout(new GridLayout(1, false));
 
-        chatLog = new Text(parent, SWT.BORDER | SWT.MULTI | SWT.V_SCROLL | SWT.READ_ONLY | SWT.WRAP);
-        chatLog.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 2, 1));
+        createConversationSection(parent);
+        createModelToolsSection(parent);
+        createSettingsSection(parent);
 
-        prompt = new Text(parent, SWT.BORDER);
+        loadPreferencesIntoUi();
+        updateConnectionSummary();
+        updateSendButtonState();
+    }
+
+    private void createConversationSection(Composite parent) {
+        Group conversation = new Group(parent, SWT.NONE);
+        conversation.setText("Conversation");
+        conversation.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        conversation.setLayout(new GridLayout(1, false));
+
+        connectionSummary = new Label(conversation, SWT.WRAP);
+        connectionSummary.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        chatLog = new Text(conversation, SWT.BORDER | SWT.MULTI | SWT.V_SCROLL | SWT.READ_ONLY | SWT.WRAP);
+        GridData logData = new GridData(SWT.FILL, SWT.FILL, true, true);
+        logData.heightHint = 280;
+        chatLog.setLayoutData(logData);
+
+        Composite promptRow = new Composite(conversation, SWT.NONE);
+        promptRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        promptRow.setLayout(new GridLayout(2, false));
+
+        prompt = new Text(promptRow, SWT.BORDER);
         prompt.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        prompt.addModifyListener(event -> updateSendButtonState());
+        prompt.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.character == SWT.CR || e.character == SWT.LF) {
+                    if (!sending && sendButton.isEnabled()) {
+                        onSend();
+                    }
+                }
+            }
+        });
 
-        send = new Button(parent, SWT.PUSH);
-        send.setText("Send");
-        send.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+        sendButton = new Button(promptRow, SWT.PUSH);
+        sendButton.setText("Send");
+        sendButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+        sendButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onSend();
+            }
+        });
 
-        send.addListener(SWT.Selection, e -> onSend());
+        Composite toggles = new Composite(conversation, SWT.NONE);
+        toggles.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        toggles.setLayout(new GridLayout(3, false));
 
-        // Controls row 2: actions
-        listDiagrams = new Button(parent, SWT.PUSH);
-        listDiagrams.setText("List Diagrams");
-        listDiagrams.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-        listDiagrams.addListener(SWT.Selection, e -> onListDiagrams());
+        enableActions = new Button(toggles, SWT.CHECK);
+        enableActions.setText("Enable tool actions");
+        enableActions.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                boolean value = enableActions.getSelection();
+                persistPreference(() -> LLMPreferences.setToolActionsEnabled(value));
+                updateConnectionSummary();
+            }
+        });
 
-        createLab = new Button(parent, SWT.PUSH);
-        createLab.setText("Create LAB (LA)");
-        createLab.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-        createLab.addListener(SWT.Selection, e -> onCreateLab());
+        useLlmMapping = new Button(toggles, SWT.CHECK);
+        useLlmMapping.setText("Use LLM mapping for imports");
+        useLlmMapping.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                boolean value = useLlmMapping.getSelection();
+                persistPreference(() -> LLMPreferences.setUseLlmMapping(value));
+                updateConnectionSummary();
+            }
+        });
 
-        importDrawio = new Button(parent, SWT.PUSH);
-        importDrawio.setText("Import draw.io → Capella");
-        importDrawio.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-        importDrawio.addListener(SWT.Selection, e -> onImportDrawio());
+        Button explainModel = new Button(toggles, SWT.PUSH);
+        explainModel.setText("Explain model");
+        explainModel.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onExplainModel();
+            }
+        });
+    }
 
-        useLlm = new Button(parent, SWT.CHECK);
-        useLlm.setText("Use LLM Mapping");
-        GridData gdu = new GridData(SWT.LEFT, SWT.CENTER, false, false);
-        gdu.horizontalSpan = 2;
-        useLlm.setLayoutData(gdu);
+    private void createModelToolsSection(Composite parent) {
+        Group tools = new Group(parent, SWT.NONE);
+        tools.setText("Model & Diagram Tools");
+        tools.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        tools.setLayout(new GridLayout(3, false));
 
-        // Tool actions toggle and Explain Model button
-        enableActions = new Button(parent, SWT.CHECK);
-        enableActions.setText("Enable Tool Actions (apply plans)");
-        GridData gda = new GridData(SWT.LEFT, SWT.CENTER, false, false);
-        gda.horizontalSpan = 2; enableActions.setLayoutData(gda);
+        Button listDiagrams = new Button(tools, SWT.PUSH);
+        listDiagrams.setText("List diagrams");
+        listDiagrams.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        listDiagrams.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onListDiagrams();
+            }
+        });
 
-        explainModel = new Button(parent, SWT.PUSH);
-        explainModel.setText("Explain Model");
-        explainModel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-        explainModel.addListener(SWT.Selection, e -> onExplainModel());
+        Button createLab = new Button(tools, SWT.PUSH);
+        createLab.setText("Create LAB diagram");
+        createLab.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        createLab.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onCreateLab();
+            }
+        });
 
-        // Row 3: add element by UUID
-        Label lbl = new Label(parent, SWT.NONE);
-        lbl.setText("Element UUID:");
-        lbl.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+        Button importDrawio = new Button(tools, SWT.PUSH);
+        importDrawio.setText("Import draw.io");
+        importDrawio.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        importDrawio.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onImportDrawio();
+            }
+        });
 
-        elementUuid = new Text(parent, SWT.BORDER);
-        elementUuid.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        Group advanced = new Group(tools, SWT.NONE);
+        advanced.setText("Element operations");
+        advanced.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        advanced.setLayout(new GridLayout(3, false));
 
-        addElement = new Button(parent, SWT.PUSH);
-        addElement.setText("Add Element to Current Diagram");
-        GridData gd = new GridData(SWT.RIGHT, SWT.CENTER, false, false);
-        gd.horizontalSpan = 2;
-        addElement.setLayoutData(gd);
-        addElement.addListener(SWT.Selection, e -> onAddElement());
+        Label uuidLabel = new Label(advanced, SWT.NONE);
+        uuidLabel.setText("Element UUID");
+        elementUuid = new Text(advanced, SWT.BORDER);
+        elementUuid.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
 
-        // Row 4: rename/delete by UUID
-        Label lbl2 = new Label(parent, SWT.NONE);
-        lbl2.setText("New Name:");
-        lbl2.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+        Button addToDiagram = new Button(advanced, SWT.PUSH);
+        addToDiagram.setText("Reveal on current diagram");
+        addToDiagram.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false, 3, 1));
+        addToDiagram.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onAddElement();
+            }
+        });
 
-        newName = new Text(parent, SWT.BORDER);
+        Label newNameLabel = new Label(advanced, SWT.NONE);
+        newNameLabel.setText("New name");
+        newName = new Text(advanced, SWT.BORDER);
         newName.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        Composite row = new Composite(parent, SWT.NONE);
-        row.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-        GridLayout rl = new GridLayout(2, true);
-        rl.marginWidth = 0; rl.marginHeight = 0; row.setLayout(rl);
+        Button rename = new Button(advanced, SWT.PUSH);
+        rename.setText("Rename");
+        rename.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+        rename.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onRenameElement();
+            }
+        });
 
-        renameElement = new Button(row, SWT.PUSH);
-        renameElement.setText("Rename by UUID");
-        renameElement.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        renameElement.addListener(SWT.Selection, e -> onRenameElement());
+        Button delete = new Button(advanced, SWT.PUSH);
+        delete.setText("Delete");
+        delete.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+        delete.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onDeleteElement();
+            }
+        });
 
-        deleteElement = new Button(row, SWT.PUSH);
-        deleteElement.setText("Delete by UUID");
-        deleteElement.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        deleteElement.addListener(SWT.Selection, e -> onDeleteElement());
-
-        // Row 5: Create elements by name (LA)
-        Label lbl3 = new Label(parent, SWT.NONE);
-        lbl3.setText("New Element Name:");
-        lbl3.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-
-        newElementName = new Text(parent, SWT.BORDER);
+        Label newElementLabel = new Label(advanced, SWT.NONE);
+        newElementLabel.setText("New element name");
+        newElementName = new Text(advanced, SWT.BORDER);
         newElementName.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        Composite row2 = new Composite(parent, SWT.NONE);
-        row2.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-        GridLayout rl2 = new GridLayout(2, true);
-        rl2.marginWidth = 0; rl2.marginHeight = 0; row2.setLayout(rl2);
+        Button createComponent = new Button(advanced, SWT.PUSH);
+        createComponent.setText("Create Logical Component");
+        createComponent.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        createComponent.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onCreateElement("LogicalComponent");
+            }
+        });
 
-        createLogicalComponent = new Button(row2, SWT.PUSH);
-        createLogicalComponent.setText("Create Logical Component");
-        createLogicalComponent.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        createLogicalComponent.addListener(SWT.Selection, e -> onCreateElement("LogicalComponent"));
+        Button createFunction = new Button(advanced, SWT.PUSH);
+        createFunction.setText("Create Logical Function");
+        createFunction.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+        createFunction.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onCreateElement("LogicalFunction");
+            }
+        });
+    }
 
-        createLogicalFunction = new Button(row2, SWT.PUSH);
-        createLogicalFunction.setText("Create Logical Function");
-        createLogicalFunction.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        createLogicalFunction.addListener(SWT.Selection, e -> onCreateElement("LogicalFunction"));
+    private void createSettingsSection(Composite parent) {
+        Group settings = new Group(parent, SWT.NONE);
+        settings.setText("LLM Connection");
+        settings.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        settings.setLayout(new GridLayout(6, false));
+
+        new Label(settings, SWT.NONE).setText("Provider");
+        providerCombo = new Combo(settings, SWT.DROP_DOWN | SWT.READ_ONLY);
+        providerCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        providerCombo.setItems(PROVIDER_DISPLAY_NAMES);
+        providerCombo.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onProviderChanged();
+            }
+        });
+
+        new Label(settings, SWT.NONE).setText("Model");
+        modelCombo = new Combo(settings, SWT.DROP_DOWN);
+        modelCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        // Fill remaining two columns to keep grid consistent
+        new Label(settings, SWT.NONE);
+        new Label(settings, SWT.NONE);
+
+        new Label(settings, SWT.NONE).setText("Base URL");
+        baseUrlText = new Text(settings, SWT.BORDER);
+        baseUrlText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 5, 1));
+
+        new Label(settings, SWT.NONE).setText("Temperature");
+        temperatureText = new Text(settings, SWT.BORDER);
+        temperatureText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        new Label(settings, SWT.NONE).setText("Max tokens");
+        maxTokensText = new Text(settings, SWT.BORDER);
+        maxTokensText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        new Label(settings, SWT.NONE).setText("Timeout (s)");
+        timeoutText = new Text(settings, SWT.BORDER);
+        timeoutText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        // pad columns so layout keeps 6 columns total
+        new Label(settings, SWT.NONE);
+        new Label(settings, SWT.NONE);
+        new Label(settings, SWT.NONE);
+
+        Composite buttonRow = new Composite(settings, SWT.NONE);
+        buttonRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 6, 1));
+        buttonRow.setLayout(new GridLayout(4, false));
+
+        Button saveButton = new Button(buttonRow, SWT.PUSH);
+        saveButton.setText("Save");
+        saveButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                saveSettings();
+            }
+        });
+
+        Button testButton = new Button(buttonRow, SWT.PUSH);
+        testButton.setText("Test connection");
+        testButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                testConnection();
+            }
+        });
+
+        Button refreshButton = new Button(buttonRow, SWT.PUSH);
+        refreshButton.setText("Reload from preferences");
+        refreshButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                loadPreferencesIntoUi();
+                setSettingsStatus("Reloaded from preferences", true);
+            }
+        });
+
+        Button apiKeyButton = new Button(buttonRow, SWT.PUSH);
+        apiKeyButton.setText("Store API key…");
+        apiKeyButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                promptForApiKey();
+            }
+        });
+
+        Composite apiRow = new Composite(settings, SWT.NONE);
+        apiRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 6, 1));
+        apiRow.setLayout(new GridLayout(2, false));
+
+        apiKeyStatus = new Label(apiRow, SWT.NONE);
+        apiKeyStatus.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        settingsStatus = new Label(settings, SWT.WRAP);
+        GridData statusData = new GridData(SWT.FILL, SWT.CENTER, true, false, 6, 1);
+        statusData.widthHint = 380;
+        settingsStatus.setLayoutData(statusData);
     }
 
     private void onSend() {
-        String text = prompt.getText().trim();
-        if (text.isEmpty()) return;
+        if (sending) {
+            return;
+        }
+        final String text = prompt.getText().trim();
+        if (text.isEmpty()) {
+            return;
+        }
+        final Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active Capella session.");
+            sending = false;
+            updateSendButtonState();
+            return;
+        }
+        final DRepresentation currentDiagram = DiagramCommands.getLastOpened();
+        final boolean actionsEnabled = enableActions.getSelection();
+
         append("You: " + text);
         prompt.setText("");
-        // Run LLM call off the UI thread
-        org.eclipse.core.runtime.jobs.Job job = new org.eclipse.core.runtime.jobs.Job("LLM Request") {
+        sending = true;
+        updateSendButtonState();
+
+        Job job = new Job("Capella AI request") {
             @Override
-            protected org.eclipse.core.runtime.IStatus run(org.eclipse.core.runtime.IProgressMonitor monitor) {
+            protected IStatus run(IProgressMonitor monitor) {
                 try {
-                    var res = org.polarsys.capella.ai.llm.ToolRouter.handleChat(text, enableActions.getSelection());
-                    String reply = (res.reply != null ? res.reply : "");
-                    String suffix = res.actionsApplied > 0 ? ("\n[Applied " + res.actionsApplied + " action(s)]") : "";
-                    String finalReply = reply + suffix;
-                    org.eclipse.swt.widgets.Display.getDefault().asyncExec(() -> append("Assistant: " + finalReply));
+                    var res = org.polarsys.capella.ai.llm.ToolRouter.handleChat(session, currentDiagram, text, actionsEnabled);
+                    String reply = res.reply != null ? res.reply : "";
+                    String suffix = res.actionsApplied > 0 ? "\n[Applied " + res.actionsApplied + " action(s)]" : "";
+                    append("Assistant: " + reply + suffix);
+                    if (res.planSummary != null && !res.planSummary.isBlank()) {
+                        append(res.planSummary);
+                    }
                 } catch (Exception ex) {
-                    org.eclipse.swt.widgets.Display.getDefault().asyncExec(() -> append("Assistant ERROR: " + ex.getMessage()));
+                    append("Assistant ERROR: " + ex.getMessage());
+                } finally {
+                    Display.getDefault().asyncExec(() -> {
+                        sending = false;
+                        updateSendButtonState();
+                    });
                 }
-                return org.eclipse.core.runtime.Status.OK_STATUS;
+                return Status.OK_STATUS;
             }
         };
         job.setUser(false);
@@ -166,26 +417,21 @@ public class ChatView extends ViewPart {
 
     private void onExplainModel() {
         try {
-            String summary = org.polarsys.capella.ai.model.ModelSummary.summarize();
-            append(summary);
+            append(org.polarsys.capella.ai.model.ModelSummary.summarize());
         } catch (Exception ex) {
             append("Explain failed: " + ex.getMessage());
         }
     }
 
-    private void append(String line) {
-        chatLog.append(line + System.lineSeparator());
-    }
-
     private void onListDiagrams() {
         try {
-            var list = org.polarsys.capella.ai.browse.DiagramBrowser.listActive();
-            if (list.isEmpty()) {
+            List<?> diagrams = org.polarsys.capella.ai.browse.DiagramBrowser.listActive();
+            if (diagrams.isEmpty()) {
                 append("No diagrams found in active session.");
-                return;
+            } else {
+                append("Active diagrams:");
+                diagrams.forEach(d -> append(" - " + d));
             }
-            append("Active diagrams:");
-            for (var d : list) append(" - " + d.toString());
         } catch (Exception ex) {
             append("Error listing diagrams: " + ex.getMessage());
         }
@@ -194,120 +440,395 @@ public class ChatView extends ViewPart {
     private void onCreateLab() {
         try {
             var session = org.polarsys.capella.ai.session.SessionBridge.getActiveSession();
-            if (session == null) { append("No active session."); return; }
+            if (session == null) {
+                append("No active session.");
+                return;
+            }
             var target = org.polarsys.capella.ai.model.ArchitectureLocator.findTargetElement(session, "LA");
-            if (target == null) { append("LA architecture not found."); return; }
+            if (target == null) {
+                append("LA architecture not found.");
+                return;
+            }
             String desc = org.polarsys.capella.ai.tools.DiagramMappings.descriptionFor("LA", "LAB");
-            var rep = org.polarsys.capella.ai.tools.DiagramCommands.createAndOpenDiagram(target, desc, "[LAB] New Logical Diagram");
-            if (rep != null) append("Created and opened diagram: " + rep.getName());
-            else append("Failed to create diagram.");
+            var rep = org.polarsys.capella.ai.tools.DiagramCommands.createAndOpenDiagram(target, desc, "New Logical Architecture");
+            append(rep != null ? "Created and opened: " + rep.getName() : "Failed to create diagram.");
         } catch (Exception ex) {
             append("Create LAB failed: " + ex.getMessage());
         }
     }
 
     private void onImportDrawio() {
-        try {
-            org.eclipse.swt.widgets.FileDialog fd = new org.eclipse.swt.widgets.FileDialog(getSite().getShell(), SWT.OPEN);
-            fd.setFilterExtensions(new String[] {"*.drawio", "*.*"});
-            String path = fd.open();
-            if (path == null) return;
-            append("Importing draw.io: " + path);
-            boolean use = useLlm.getSelection();
-            org.eclipse.core.runtime.jobs.Job job = new org.eclipse.core.runtime.jobs.Job("Import draw.io") {
-                @Override
-                protected org.eclipse.core.runtime.IStatus run(org.eclipse.core.runtime.IProgressMonitor monitor) {
-                    try {
-                        var res = org.polarsys.capella.ai.importer.DrawioImporter.importLogical(new java.io.File(path), use);
-                        org.eclipse.swt.widgets.Display.getDefault().asyncExec(() -> {
-                            append("Imported nodes=" + res.nodesCreated + ", edges=" + res.edgesProcessed + ". Diagram=" + res.diagramName);
-                        });
-                    } catch (Exception ex) {
-                        org.eclipse.swt.widgets.Display.getDefault().asyncExec(() -> append("Import ERROR: " + ex.getMessage()));
-                    }
-                    return org.eclipse.core.runtime.Status.OK_STATUS;
-                }
-            };
-            job.schedule();
-        } catch (Exception ex) {
-            append("Import failed: " + ex.getMessage());
+        FileDialog fd = new FileDialog(getSite().getShell(), SWT.OPEN);
+        fd.setFilterExtensions(new String[] {"*.drawio", "*.*"});
+        String path = fd.open();
+        if (path == null) {
+            return;
         }
+        append("Importing draw.io: " + path);
+        boolean useMapping = useLlmMapping.getSelection();
+        Job job = new Job("Draw.io import") {
+            @Override
+            protected IStatus run(IProgressMonitor monitor) {
+                try {
+                    var res = org.polarsys.capella.ai.importer.DrawioImporter.importLogical(new File(path), useMapping);
+                    append(String.format("Import complete: nodes=%d, links=%d, diagram=%s", res.nodesCreated, res.edgesProcessed, res.diagramName));
+                } catch (Exception ex) {
+                    append("Import ERROR: " + ex.getMessage());
+                }
+                return Status.OK_STATUS;
+            }
+        };
+        job.schedule();
     }
 
     private void onAddElement() {
         String id = elementUuid.getText().trim();
-        if (id.isEmpty()) { append("Enter an element UUID."); return; }
+        if (id.isEmpty()) {
+            append("Enter an element UUID.");
+            return;
+        }
         try {
             var session = org.polarsys.capella.ai.session.SessionBridge.getActiveSession();
-            if (session == null) { append("No active session."); return; }
-            var rep = org.polarsys.capella.ai.tools.DiagramCommands.lastOpened;
-            if (rep == null) { append("No current diagram (use Create LAB or open a diagram first)."); return; }
-            int resolved = org.polarsys.capella.ai.tools.DiagramCommands.addElementsByUuid(session, rep, java.util.List.of(id));
+            if (session == null) {
+                append("No active session.");
+                return;
+            }
+            var rep = DiagramCommands.getLastOpened();
+            if (rep == null) {
+                append("Open or create a diagram first.");
+                return;
+            }
+            int resolved = org.polarsys.capella.ai.tools.DiagramCommands.addElementsByUuid(session, rep, List.of(id));
             org.polarsys.capella.ai.tools.DiagramCommands.arrange(rep);
-            append("Add element requested (resolved=" + resolved + ") and diagram refreshed.");
+            append("Reveal requested; resolved " + resolved + " item(s).");
         } catch (Exception ex) {
-            append("Add element failed: " + ex.getMessage());
+            append("Reveal failed: " + ex.getMessage());
         }
     }
 
     private void onRenameElement() {
         String id = elementUuid.getText().trim();
         String nn = newName.getText().trim();
-        if (id.isEmpty() || nn.isEmpty()) { append("Enter element UUID and New Name."); return; }
-        boolean ok = org.polarsys.capella.ai.model.ModelOps.renameByUuid(id, nn);
+        if (id.isEmpty() || nn.isEmpty()) {
+            append("Provide UUID and new name.");
+            return;
+        }
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = org.polarsys.capella.ai.model.ModelOps.renameByUuid(session, id, nn);
         append(ok ? "Renamed element." : "Rename failed.");
     }
 
     private void onDeleteElement() {
         String id = elementUuid.getText().trim();
-        if (id.isEmpty()) { append("Enter element UUID."); return; }
-        boolean ok = org.polarsys.capella.ai.model.ModelOps.deleteByUuid(id);
+        if (id.isEmpty()) {
+            append("Provide UUID.");
+            return;
+        }
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) {
+            append("No active session.");
+            return;
+        }
+        boolean ok = org.polarsys.capella.ai.model.ModelOps.deleteByUuid(session, id);
         append(ok ? "Deleted element." : "Delete failed.");
     }
 
     private void onCreateElement(String simpleEClass) {
         String nm = newElementName.getText().trim();
-        if (nm.isEmpty()) { append("Enter New Element Name."); return; }
+        if (nm.isEmpty()) {
+            append("Enter a name before creating.");
+            return;
+        }
         try {
             var session = org.polarsys.capella.ai.session.SessionBridge.getActiveSession();
-            if (session == null) { append("No active session."); return; }
+            if (session == null) {
+                append("No active session.");
+                return;
+            }
             var la = org.polarsys.capella.ai.model.ArchitectureLocator.findTargetElement(session, "LA");
-            if (la == null) { append("LA architecture not found."); return; }
-            var created = org.polarsys.capella.ai.model.ElementFactory.createUnder(la, simpleEClass, nm);
-            if (created != null) {
-                append("Created " + simpleEClass + ": " + nm);
-                var rep = org.polarsys.capella.ai.tools.DiagramCommands.lastOpened;
-                if (rep != null) {
-                    org.polarsys.capella.ai.tools.DiagramCommands.addElementsByUuid(
-                        session, rep, java.util.List.of(getUuid(created))
-                    );
-                    org.polarsys.capella.ai.tools.DiagramCommands.arrange(rep);
-                    append("Revealed new element on current diagram and arranged.");
-                }
-            } else {
+            if (la == null) {
+                append("LA architecture not found.");
+                return;
+            }
+            var created = org.polarsys.capella.ai.model.ElementFactory.createUnder(session, la, simpleEClass, nm);
+            if (created == null) {
                 append("Creation failed for " + simpleEClass);
+                return;
+            }
+            append("Created " + simpleEClass + ": " + nm);
+            var rep = org.polarsys.capella.ai.tools.DiagramCommands.lastOpened;
+            if (rep != null) {
+                org.polarsys.capella.ai.tools.DiagramCommands.addElementsByUuid(session, rep, List.of(getUuid(created)));
+                org.polarsys.capella.ai.tools.DiagramCommands.arrange(rep);
+                append("Diagram refreshed with new element.");
             }
         } catch (Exception ex) {
             append("Create element failed: " + ex.getMessage());
         }
     }
 
-    private String getUuid(Object eo) {
+    private void loadPreferencesIntoUi() {
+        String provider = LLMPreferences.getProvider();
+        providerCombo.setText(displayNameForProvider(provider));
+        modelCombo.setItems(modelSuggestionsFor(provider));
+        modelCombo.setText(LLMPreferences.getModel());
+        baseUrlText.setText(LLMPreferences.getBaseUrl());
+        temperatureText.setText(String.valueOf(LLMPreferences.getTemperature()));
+        maxTokensText.setText(String.valueOf(LLMPreferences.getMaxTokens()));
+        timeoutText.setText(String.valueOf(LLMPreferences.getTimeoutSec()));
+        if (enableActions != null && !enableActions.isDisposed()) {
+            enableActions.setSelection(LLMPreferences.isToolActionsEnabled());
+        }
+        if (useLlmMapping != null && !useLlmMapping.isDisposed()) {
+            useLlmMapping.setSelection(LLMPreferences.isUseLlmMapping());
+        }
+
+        String key = LLMPreferences.getApiKey();
+        boolean hasKey = key != null && !key.isBlank();
+        apiKeyStatus.setText(hasKey ? "API key stored" : "API key not set (using env?)");
+        updateConnectionSummary();
+    }
+
+    private void onProviderChanged() {
+        String provider = providerPreference(providerCombo.getText());
+        modelCombo.setItems(modelSuggestionsFor(provider));
+        if (modelCombo.getItemCount() > 0) {
+            modelCombo.select(0);
+        }
+        if (!"custom".equals(provider)) {
+            baseUrlText.setText(defaultBaseUrl(provider));
+        }
+        updateConnectionSummary();
+    }
+
+    private void saveSettings() {
+        try {
+            String provider = providerPreference(providerCombo.getText());
+            String base = baseUrlText.getText().trim();
+            String model = modelCombo.getText().trim();
+            double temperature = parseDouble(temperatureText.getText(), 0.2, "temperature");
+            int tokens = parseInt(maxTokensText.getText(), 2000, "max tokens");
+            int timeout = parseInt(timeoutText.getText(), 60, "timeout");
+
+            LLMPreferences.setProvider(provider);
+            if (!base.isBlank()) {
+                LLMPreferences.setBaseUrl(base);
+            }
+            if (!model.isBlank()) {
+                LLMPreferences.setModel(model);
+            }
+            LLMPreferences.setTemperature(temperature);
+            LLMPreferences.setMaxTokens(tokens);
+            LLMPreferences.setTimeoutSec(timeout);
+            LLMPreferences.flush();
+
+            setSettingsStatus("Preferences saved", true);
+            updateConnectionSummary();
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            setSettingsStatus(ex.getMessage(), false);
+        }
+    }
+
+    private void promptForApiKey() {
+        InputDialog dialog = new InputDialog(
+            getSite().getShell(),
+            "Store API key",
+            "Enter the API key for " + providerCombo.getText() + ":",
+            "",
+            value -> (value == null || value.isBlank()) ? "API key must not be empty" : null
+        );
+        if (dialog.open() == Window.OK) {
+            try {
+                LLMPreferences.setApiKey(dialog.getValue().trim());
+                setSettingsStatus("API key stored", true);
+                loadPreferencesIntoUi();
+            } catch (Exception e) {
+                MessageDialog.openError(getSite().getShell(), "API key error", e.getMessage());
+                setSettingsStatus("Failed to store API key", false);
+            }
+        }
+    }
+
+    private void testConnection() {
+        setSettingsStatus("Testing…", true);
+        Job job = new Job("Test LLM connection") {
+            @Override
+            protected IStatus run(IProgressMonitor monitor) {
+                try {
+                    String result = LLMService.get().testConnection();
+                    setSettingsStatus(result, true);
+                } catch (Exception ex) {
+                    setSettingsStatus(ex.getMessage(), false);
+                }
+                return Status.OK_STATUS;
+            }
+        };
+        job.schedule();
+    }
+
+    private void append(String text) {
+        Display display = Display.getDefault();
+        if (display.isDisposed()) {
+            return;
+        }
+        display.asyncExec(() -> {
+            if (chatLog != null && !chatLog.isDisposed()) {
+                chatLog.append(text + System.lineSeparator());
+                chatLog.setTopIndex(chatLog.getLineCount() - 1);
+            }
+        });
+    }
+
+    private void setSettingsStatus(String message, boolean ok) {
+        Display display = Display.getDefault();
+        if (display.isDisposed()) {
+            return;
+        }
+        display.asyncExec(() -> {
+            if (settingsStatus != null && !settingsStatus.isDisposed()) {
+                settingsStatus.setText(message);
+                Color color = display.getSystemColor(ok ? SWT.COLOR_DARK_GREEN : SWT.COLOR_DARK_RED);
+                settingsStatus.setForeground(color);
+            }
+        });
+    }
+
+    private void updateConnectionSummary() {
+        String provider = providerPreference(providerCombo.getText());
+        String message = String.format(
+            "Provider: %s • Model: %s • Tool actions: %s • LLM mapping: %s",
+            providerCombo.getText(),
+            modelCombo != null ? modelCombo.getText() : LLMPreferences.getModel(),
+            enableActions != null && enableActions.getSelection() ? "ON" : "OFF",
+            useLlmMapping != null && useLlmMapping.getSelection() ? "ON" : "OFF"
+        );
+        if (connectionSummary != null && !connectionSummary.isDisposed()) {
+            connectionSummary.setText(message);
+        }
+    }
+
+    private void updateSendButtonState() {
+        boolean hasText = prompt != null && !prompt.isDisposed() && !prompt.getText().trim().isEmpty();
+        boolean enabled = hasText && !sending;
+        if (sendButton != null && !sendButton.isDisposed()) {
+            sendButton.setEnabled(enabled);
+        }
+    }
+
+    private void persistPreference(Runnable write) {
+        try {
+            write.run();
+            LLMPreferences.flush();
+        } catch (IllegalStateException ex) {
+            Activator.getDefault().getLog().log(new Status(IStatus.ERROR, Activator.PLUGIN_ID, ex.getMessage(), ex));
+        }
+    }
+
+    private static String getUuid(Object eo) {
         try {
             if (eo instanceof org.eclipse.emf.ecore.EObject) {
-                org.eclipse.emf.ecore.EObject o = (org.eclipse.emf.ecore.EObject) eo;
-                var f = o.eClass().getEStructuralFeature("uuid");
-                if (f != null) {
-                    Object v = o.eGet(f);
-                    return v != null ? String.valueOf(v) : String.valueOf(o.hashCode());
+                var obj = (org.eclipse.emf.ecore.EObject) eo;
+                var feature = obj.eClass().getEStructuralFeature("uuid");
+                if (feature != null) {
+                    Object value = obj.eGet(feature);
+                    if (value != null) {
+                        return String.valueOf(value);
+                    }
                 }
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ignore) {
+        }
         return String.valueOf(eo.hashCode());
+    }
+
+    private static String providerPreference(String displayName) {
+        if (displayName == null) {
+            return "openai";
+        }
+        switch (displayName.toLowerCase()) {
+            case "openai":
+                return "openai";
+            case "anthropic":
+                return "anthropic";
+            case "azure":
+                return "azure";
+            default:
+                return "custom";
+        }
+    }
+
+    private static String displayNameForProvider(String provider) {
+        if (provider == null) {
+            return "OpenAI";
+        }
+        switch (provider.toLowerCase()) {
+            case "openai":
+                return "OpenAI";
+            case "anthropic":
+                return "Anthropic";
+            case "azure":
+                return "Azure";
+            default:
+                return "Custom";
+        }
+    }
+
+    private static String[] modelSuggestionsFor(String provider) {
+        switch (provider) {
+            case "anthropic":
+                return ANTHROPIC_MODELS;
+            case "openai":
+            case "azure":
+                return OPENAI_MODELS;
+            default:
+                return new String[0];
+        }
+    }
+
+    private static String defaultBaseUrl(String provider) {
+        switch (provider) {
+            case "anthropic":
+                return "https://api.anthropic.com";
+            case "azure":
+                return ""; // Azure base URL varies by deployment
+            case "openai":
+            default:
+                return "https://api.openai.com";
+        }
+    }
+
+    private static int parseInt(String text, int fallback, String label) {
+        String trimmed = text == null ? "" : text.trim();
+        if (trimmed.isEmpty()) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(trimmed);
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Invalid " + label + ": " + trimmed);
+        }
+    }
+
+    private static double parseDouble(String text, double fallback, String label) {
+        String trimmed = text == null ? "" : text.trim();
+        if (trimmed.isEmpty()) {
+            return fallback;
+        }
+        try {
+            return Double.parseDouble(trimmed);
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Invalid " + label + ": " + trimmed);
+        }
     }
 
     @Override
     public void setFocus() {
-        prompt.setFocus();
+        if (prompt != null && !prompt.isDisposed()) {
+            prompt.setFocus();
+        }
     }
 }

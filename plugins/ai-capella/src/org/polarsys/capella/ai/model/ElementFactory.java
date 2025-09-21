@@ -21,9 +21,14 @@ public final class ElementFactory {
      * discovered from the given architecture root (e.g., LA root).
      */
     public static EObject createUnder(EObject architectureRoot, String simpleEClassName, String name) {
-        Session s = SessionBridge.getActiveSession();
-        if (s == null) return null;
-        TransactionalEditingDomain domain = s.getTransactionalEditingDomain();
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) return null;
+        return createUnder(session, architectureRoot, simpleEClassName, name);
+    }
+
+    public static EObject createUnder(Session session, EObject architectureRoot, String simpleEClassName, String name) {
+        if (session == null) return null;
+        TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
         if (domain == null) return null;
 
         EClass targetClass = findEClass(simpleEClassName);
@@ -51,7 +56,8 @@ public final class ElementFactory {
                 created[0] = obj;
             }
         });
-        try { s.save(new NullProgressMonitor()); } catch (Exception e) { LOG.warning("Save failed: " + e.getMessage()); }
+        ModelSummary.invalidate(session);
+        try { session.save(new NullProgressMonitor()); } catch (Exception e) { LOG.warning("Save failed: " + e.getMessage()); }
         return created[0];
     }
 
@@ -103,4 +109,3 @@ public final class ElementFactory {
         return null;
     }
 }
-

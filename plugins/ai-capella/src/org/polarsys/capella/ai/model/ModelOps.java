@@ -18,9 +18,14 @@ public final class ModelOps {
 
     /** Rename an element by uuid/id if it has a 'name' feature. */
     public static boolean renameByUuid(String uuid, String newName) {
-        Session s = SessionBridge.getActiveSession();
-        if (s == null) return false;
-        TransactionalEditingDomain domain = s.getTransactionalEditingDomain();
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) return false;
+        return renameByUuid(session, uuid, newName);
+    }
+
+    public static boolean renameByUuid(Session session, String uuid, String newName) {
+        if (session == null) return false;
+        TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
         if (domain == null) return false;
         EObject target = findById(domain.getResourceSet(), uuid);
         if (target == null) return false;
@@ -32,15 +37,21 @@ public final class ModelOps {
                 target.eSet(nameFeat, newName);
             }
         });
-        trySave(s);
+        ModelSummary.invalidate(session);
+        trySave(session);
         return true;
     }
 
     /** Delete an element by uuid/id from its container. */
     public static boolean deleteByUuid(String uuid) {
-        Session s = SessionBridge.getActiveSession();
-        if (s == null) return false;
-        TransactionalEditingDomain domain = s.getTransactionalEditingDomain();
+        Session session = SessionBridge.getActiveSession();
+        if (session == null) return false;
+        return deleteByUuid(session, uuid);
+    }
+
+    public static boolean deleteByUuid(Session session, String uuid) {
+        if (session == null) return false;
+        TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
         if (domain == null) return false;
         EObject target = findById(domain.getResourceSet(), uuid);
         if (target == null) return false;
@@ -62,7 +73,8 @@ public final class ModelOps {
                 }
             }
         });
-        trySave(s);
+        ModelSummary.invalidate(session);
+        trySave(session);
         return true;
     }
 
@@ -93,4 +105,3 @@ public final class ModelOps {
         return null;
     }
 }
-

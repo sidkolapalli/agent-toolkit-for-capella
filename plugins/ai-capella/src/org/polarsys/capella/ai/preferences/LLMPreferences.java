@@ -5,6 +5,7 @@ import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.equinox.security.storage.ISecurePreferences;
 import org.eclipse.equinox.security.storage.SecurePreferencesFactory;
 import org.eclipse.equinox.security.storage.StorageException;
+import org.osgi.service.prefs.BackingStoreException;
 import org.polarsys.capella.ai.Activator;
 
 public final class LLMPreferences {
@@ -15,6 +16,8 @@ public final class LLMPreferences {
     private static final String KEY_TEMP = "temperature";
     private static final String KEY_MAXTOK = "maxTokens";
     private static final String KEY_TIMEOUT = "timeoutSec";
+    private static final String KEY_ENABLE_ACTIONS = "enableActions";
+    private static final String KEY_USE_LLM_MAPPING = "useLlmMapping";
     private static final String SEC_NODE = Activator.PLUGIN_ID + "/secure/llm";
     private static final String SEC_APIKEY = "apiKey";
 
@@ -26,6 +29,8 @@ public final class LLMPreferences {
     public static double getTemperature() { return getPrefs().getDouble(KEY_TEMP, envDouble("CAPELLA_AI_TEMPERATURE", 0.2)); }
     public static int getMaxTokens() { return getPrefs().getInt(KEY_MAXTOK, envInt("CAPELLA_AI_MAX_TOKENS", 2000)); }
     public static int getTimeoutSec() { return getPrefs().getInt(KEY_TIMEOUT, envInt("CAPELLA_AI_TIMEOUT", 60)); }
+    public static boolean isToolActionsEnabled() { return getPrefs().getBoolean(KEY_ENABLE_ACTIONS, true); }
+    public static boolean isUseLlmMapping() { return getPrefs().getBoolean(KEY_USE_LLM_MAPPING, false); }
 
     public static void setProvider(String v) { getPrefs().put(KEY_PROVIDER, v); }
     public static void setBaseUrl(String v) { getPrefs().put(KEY_BASE, v); }
@@ -33,6 +38,8 @@ public final class LLMPreferences {
     public static void setTemperature(double v) { getPrefs().putDouble(KEY_TEMP, v); }
     public static void setMaxTokens(int v) { getPrefs().putInt(KEY_MAXTOK, v); }
     public static void setTimeoutSec(int v) { getPrefs().putInt(KEY_TIMEOUT, v); }
+    public static void setToolActionsEnabled(boolean value) { getPrefs().putBoolean(KEY_ENABLE_ACTIONS, value); }
+    public static void setUseLlmMapping(boolean value) { getPrefs().putBoolean(KEY_USE_LLM_MAPPING, value); }
 
     public static String getApiKey() {
         try {
@@ -48,8 +55,12 @@ public final class LLMPreferences {
         sec.node(SEC_NODE).put(SEC_APIKEY, key, true);
     }
 
-    public static void flush() throws java.util.prefs.BackingStoreException {
-        getPrefs().flush();
+    public static void flush() {
+        try {
+            getPrefs().flush();
+        } catch (BackingStoreException e) {
+            throw new IllegalStateException("Failed to persist LLM preferences", e);
+        }
     }
 
     private static IEclipsePreferences getPrefs() {
@@ -75,4 +86,3 @@ public final class LLMPreferences {
         return "";
     }
 }
-

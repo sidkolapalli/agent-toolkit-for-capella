@@ -25,6 +25,10 @@ public final class DiagramCommands {
 
     public static volatile DRepresentation lastOpened;
 
+    public static DRepresentation getLastOpened() {
+        return lastOpened;
+    }
+
     /** Create and open a diagram for the given target using a description name. */
     public static DRepresentation createAndOpenDiagram(EObject target, String descriptionName, String diagramName) {
         Session session = SessionBridge.getActiveSession();
@@ -59,7 +63,7 @@ public final class DiagramCommands {
         try {
             Session session = SessionBridge.getActiveSession();
             if (session == null || rep == null) return;
-            DialectUIManager.INSTANCE.refreshEditor(session, rep, new NullProgressMonitor());
+            DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
         } catch (Exception e) {
             LOG.warning("Arrange failed: " + e.getMessage());
         }
@@ -80,7 +84,7 @@ public final class DiagramCommands {
             }
             // Try to reveal via reflection if available, otherwise refresh
             tryReveal(session, rep, ids, rs);
-            DialectUIManager.INSTANCE.refreshEditor(session, rep, new NullProgressMonitor());
+            DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
         } catch (Exception e) {
             LOG.warning("addElementsByUuid failed: " + e.getMessage());
         }
@@ -106,7 +110,7 @@ public final class DiagramCommands {
             } catch (NoSuchMethodException ignore) {}
             if (cmd != null) {
                 domain.getCommandStack().execute((org.eclipse.emf.common.command.Command) cmd);
-                DialectUIManager.INSTANCE.refreshEditor(session, rep, new NullProgressMonitor());
+                DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
                 return true;
             }
         } catch (ClassNotFoundException notFound) {
@@ -139,7 +143,7 @@ public final class DiagramCommands {
             } catch (NoSuchMethodException ignore) {}
             if (cmd != null) {
                 domain.getCommandStack().execute((org.eclipse.emf.common.command.Command) cmd);
-                DialectUIManager.INSTANCE.refreshEditor(session, rep, new NullProgressMonitor());
+                DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
                 return true;
             }
         } catch (ClassNotFoundException notFound) {
@@ -148,7 +152,7 @@ public final class DiagramCommands {
             LOG.warning("createEdge failed: " + e.getMessage());
         }
         try {
-            DialectUIManager.INSTANCE.refreshEditor(session, rep, new NullProgressMonitor());
+            DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
             return true;
         } catch (Exception ignore) {}
         return false;

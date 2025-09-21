@@ -6,5 +6,5 @@ Bundle-Version: 0.1.0.qualifier
 Bundle-Activator: org.polarsys.capella.ai.Activator
 Bundle-Vendor: Capella MCP Team
 Bundle-RequiredExecutionEnvironment: JavaSE-17
-Require-Bundle: org.eclipse.ui, org.eclipse.core.runtime, org.eclipse.jface, org.eclipse.ui.workbench, org.eclipse.emf.transaction, org.eclipse.emf.edit.ui, org.eclipse.sirius, org.eclipse.sirius.ui, org.eclipse.gmf.runtime.diagram.ui, org.polarsys.capella.core.ui, org.eclipse.equinox.security
+Require-Bundle: org.eclipse.ui, org.eclipse.core.runtime, org.eclipse.jface, org.eclipse.ui.workbench, org.eclipse.ui.ide, org.eclipse.emf.transaction, org.eclipse.emf.edit.ui, org.eclipse.sirius, org.eclipse.sirius.ui, org.eclipse.sirius.diagram, org.eclipse.sirius.diagram.ui, org.eclipse.gmf.runtime.diagram.ui, org.polarsys.capella.core.data.gen, org.eclipse.equinox.security
 Bundle-ActivationPolicy: lazy
