@@ -396,6 +396,21 @@ public final class PlanEditorDialog extends TitleAreaDialog {
         if (item.getRequirementNotes() != null && !item.getRequirementNotes().isBlank()) {
             sb.append("Notes: ").append(item.getRequirementNotes()).append(System.lineSeparator());
         }
+        if (item.getRenameItems() != null && !item.getRenameItems().isEmpty()) {
+            sb.append("Renames:").append(System.lineSeparator());
+            for (var rename : item.getRenameItems()) {
+                sb.append("  - ").append(rename.from).append(" → ").append(rename.to).append(System.lineSeparator());
+            }
+        }
+        if (item.getItemNames() != null && !item.getItemNames().isEmpty() && item.getRenameItems().isEmpty()) {
+            sb.append("Items: ").append(String.join(", ", item.getItemNames())).append(System.lineSeparator());
+        }
+        if (item.getMappingItems() != null && !item.getMappingItems().isEmpty()) {
+            sb.append("Mappings:").append(System.lineSeparator());
+            for (var map : item.getMappingItems()) {
+                sb.append("  - ").append(map.source).append(" → ").append(map.target).append(System.lineSeparator());
+            }
+        }
         if (item.getExistingName() != null) {
             sb.append("Existing: ").append(item.getExistingName()).append(System.lineSeparator());
         }

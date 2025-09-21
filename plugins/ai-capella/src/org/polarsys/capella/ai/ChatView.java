@@ -2,18 +2,23 @@ package org.polarsys.capella.ai;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
+import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.emf.ecore.EObject;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.InputDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.window.Window;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.viewpoint.DRepresentation;
+import org.eclipse.sirius.viewpoint.DSemanticDecorator;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.KeyAdapter;
 import org.eclipse.swt.events.KeyEvent;
@@ -31,6 +36,8 @@ import org.eclipse.swt.widgets.Group;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
+import org.eclipse.ui.ISelectionListener;
+import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.part.ViewPart;
 import org.osgi.service.prefs.BackingStoreException;
 import org.polarsys.capella.ai.actions.FunctionalChainActions;
@@ -41,12 +48,11 @@ import org.polarsys.capella.ai.llm.LLMService;
 import org.polarsys.capella.ai.llm.ToolRouter;
 import org.polarsys.capella.ai.llm.ToolRouter.PlanExecutionResult;
 import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
-import org.polarsys.capella.ai.preferences.LLMPreferences;
-import org.polarsys.capella.ai.session.SessionBridge;
-import org.polarsys.capella.ai.actions.OperationalActions;
-import org.polarsys.capella.ai.actions.SystemActions;
+import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.model.index.ModelIndex;
 import org.polarsys.capella.ai.model.index.ModelIndex.IndexedElement;
+import org.polarsys.capella.ai.preferences.LLMPreferences;
+import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.tools.DiagramCommands;
 import org.polarsys.capella.ai.session.PlanDryRun;
 import org.polarsys.capella.ai.session.PlanDryRun.DryRunResult;
@@ -86,6 +92,9 @@ public class ChatView extends ViewPart {
 
     private boolean sending;
     private final List<LLMService.Message> conversationHistory = new ArrayList<>();
+    private final List<String> lastPlanSummary = new ArrayList<>();
+    private Text contextSummary;
+    private ISelectionListener selectionListener;
 
     @Override
     public void createPartControl(Composite parent) {
@@ -98,6 +107,8 @@ public class ChatView extends ViewPart {
         loadPreferencesIntoUi();
         updateConnectionSummary();
         updateSendButtonState();
+        registerSelectionListener();
+        updateContextSummary(SessionBridge.getActiveSession());
     }
 
     private void createConversationSection(Composite parent) {
@@ -171,6 +182,16 @@ public class ChatView extends ViewPart {
                 onExplainModel();
             }
         });
+
+        Group contextGroup = new Group(conversation, SWT.NONE);
+        contextGroup.setText("Context cards");
+        contextGroup.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
+        contextGroup.setLayout(new GridLayout(1, false));
+
+        contextSummary = new Text(contextGroup, SWT.BORDER | SWT.MULTI | SWT.V_SCROLL | SWT.WRAP | SWT.READ_ONLY);
+        GridData contextData = new GridData(SWT.FILL, SWT.FILL, true, true);
+        contextData.heightHint = 200;
+        contextSummary.setLayoutData(contextData);
     }
 
     private void createModelToolsSection(Composite parent) {
@@ -637,6 +658,7 @@ public class ChatView extends ViewPart {
                     }
                 }
             }
+            updateContextSummary(session, null);
         } finally {
             sending = false;
             updateSendButtonState();
@@ -685,6 +707,8 @@ public class ChatView extends ViewPart {
     }
 
     private void appendPlanSummary(List<String> lines, boolean actionsEnabled) {
+        lastPlanSummary.clear();
+        lastPlanSummary.addAll(lines);
         append("Plan contains " + lines.size() + " action(s):");
         for (String line : lines) {
             append(" - " + line);
@@ -692,12 +716,148 @@ public class ChatView extends ViewPart {
         if (!actionsEnabled) {
             append("Tool actions are disabled; plan will not be applied.");
         }
+        updateContextSummary(SessionBridge.getActiveSession());
+    }
+
+    private void registerSelectionListener() {
+        if (selectionListener != null) {
+            return;
+        }
+        selectionListener = new ISelectionListener() {
+            @Override
+            public void selectionChanged(IWorkbenchPart part, org.eclipse.jface.viewers.ISelection selection) {
+                updateContextSummary(SessionBridge.getActiveSession(), selection);
+            }
+        };
+        getSite().getWorkbenchWindow().getSelectionService().addPostSelectionListener(selectionListener);
+    }
+
+    private void updateContextSummary(Session session) {
+        if (contextSummary == null || contextSummary.isDisposed() || getSite() == null || getSite().getWorkbenchWindow() == null) {
+            return;
+        }
+        org.eclipse.jface.viewers.ISelection selection = getSite().getWorkbenchWindow().getSelectionService().getSelection();
+        updateContextSummary(session, selection);
+    }
+
+    private void updateContextSummary(Session session, org.eclipse.jface.viewers.ISelection selection) {
+        if (contextSummary == null || contextSummary.isDisposed()) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append(buildSelectionCard(session, selection)).append(System.lineSeparator()).append(System.lineSeparator());
+        sb.append(buildModelCard(session)).append(System.lineSeparator()).append(System.lineSeparator());
+        sb.append(buildPlanCard());
+        contextSummary.setText(sb.toString().stripTrailing());
+    }
+
+    private String buildSelectionCard(Session session, org.eclipse.jface.viewers.ISelection selection) {
+        StringBuilder sb = new StringBuilder("Selection:\n");
+        if (!(selection instanceof org.eclipse.jface.viewers.IStructuredSelection)) {
+            sb.append(" • No semantic element selected.");
+            return sb.toString();
+        }
+        org.eclipse.jface.viewers.IStructuredSelection structured = (org.eclipse.jface.viewers.IStructuredSelection) selection;
+        if (structured.isEmpty()) {
+            sb.append(" • No semantic element selected.");
+            return sb.toString();
+        }
+        Object first = structured.getFirstElement();
+        EObject eo = adaptToEObject(first);
+        if (eo != null) {
+            ModelIndex.IndexedElement descriptor = ModelIndex.describe(session, eo);
+            if (descriptor != null) {
+                sb.append(String.format(" • %s (%s)", descriptor.name, descriptor.type));
+                if (descriptor.layer != null && !descriptor.layer.isBlank()) {
+                    sb.append(String.format(" — Layer %s", descriptor.layer));
+                }
+                if (descriptor.path != null && !descriptor.path.isBlank()) {
+                    sb.append(System.lineSeparator()).append("   Path: ").append(descriptor.path);
+                }
+            } else {
+                sb.append(String.format(" • %s (%s)", safeName(eo), eo.eClass().getName()));
+            }
+        } else {
+            sb.append(String.format(" • %s", first.getClass().getSimpleName()));
+        }
+        if (structured.size() > 1) {
+            sb.append(System.lineSeparator()).append(String.format(" • + %d more item(s)", structured.size() - 1));
+        }
+        return sb.toString();
+    }
+
+    private String buildModelCard(Session session) {
+        String summary = ModelSummary.summarize(session);
+        StringBuilder sb = new StringBuilder("Model snapshot:\n");
+        Arrays.stream(summary.split("\\R"))
+                .filter(line -> !line.isBlank())
+                .limit(6)
+                .forEach(line -> sb.append(" • ").append(line).append(System.lineSeparator()));
+        if (sb.charAt(sb.length() - 1) == '\n') {
+            sb.deleteCharAt(sb.length() - 1);
+        }
+        return sb.toString();
+    }
+
+    private String buildPlanCard() {
+        StringBuilder sb = new StringBuilder("Last plan:\n");
+        if (lastPlanSummary.isEmpty()) {
+            sb.append(" • No plan executed yet.");
+        } else {
+            lastPlanSummary.stream()
+                    .limit(6)
+                    .forEach(line -> sb.append(" • ").append(line).append(System.lineSeparator()));
+            if (sb.charAt(sb.length() - 1) == '\n') {
+                sb.deleteCharAt(sb.length() - 1);
+            }
+        }
+        return sb.toString();
+    }
+
+    private EObject adaptToEObject(Object candidate) {
+        if (candidate instanceof EObject) {
+            return (EObject) candidate;
+        }
+        if (candidate instanceof DSemanticDecorator) {
+            return ((DSemanticDecorator) candidate).getTarget();
+        }
+        if (candidate instanceof IAdaptable) {
+            Object adapted = ((IAdaptable) candidate).getAdapter(EObject.class);
+            if (adapted instanceof EObject) {
+                return (EObject) adapted;
+            }
+        }
+        Object adapted = Platform.getAdapterManager().getAdapter(candidate, EObject.class);
+        if (adapted instanceof EObject) {
+            return (EObject) adapted;
+        }
+        return null;
+    }
+
+    private String safeName(EObject eo) {
+        org.eclipse.emf.ecore.EStructuralFeature feature = eo.eClass().getEStructuralFeature("name");
+        if (feature != null) {
+            Object value = eo.eGet(feature);
+            if (value != null && !String.valueOf(value).isBlank()) {
+                return String.valueOf(value);
+            }
+        }
+        return eo.eClass().getName();
+    }
+
+    @Override
+    public void dispose() {
+        if (selectionListener != null) {
+            getSite().getWorkbenchWindow().getSelectionService().removePostSelectionListener(selectionListener);
+            selectionListener = null;
+        }
+        super.dispose();
     }
 
     private void onExplainModel() {
         try {
             Session session = SessionBridge.getActiveSession();
-            append(org.polarsys.capella.ai.model.ModelSummary.summarize(session));
+            append(ModelSummary.summarize(session));
         } catch (Exception ex) {
             append("Explain failed: " + ex.getMessage());
         }

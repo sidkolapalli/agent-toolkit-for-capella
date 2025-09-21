@@ -33,10 +33,14 @@ public final class ModelIndex {
     private static final class CacheEntry {
         final long timestamp;
         final List<IndexedElement> elements;
+        final Map<String, IndexedElement> byUuid;
 
         CacheEntry(List<IndexedElement> elements) {
             this.timestamp = System.currentTimeMillis();
             this.elements = elements;
+            this.byUuid = elements.stream()
+                    .filter(element -> element.uuid != null)
+                    .collect(Collectors.toConcurrentMap(element -> element.uuid, element -> element, (left, right) -> left));
         }
     }
 
@@ -87,15 +91,20 @@ public final class ModelIndex {
         }
     }
 
-    private static List<IndexedElement> ensureIndex(Session session) {
+    private static CacheEntry ensureEntry(Session session) {
         CacheEntry entry = CACHE.get(session);
         long now = System.currentTimeMillis();
         if (entry != null && now - entry.timestamp < CACHE_TTL_MS) {
-            return entry.elements;
+            return entry;
         }
         List<IndexedElement> rebuilt = rebuild(session);
-        CACHE.put(session, new CacheEntry(rebuilt));
-        return rebuilt;
+        CacheEntry refreshed = new CacheEntry(rebuilt);
+        CACHE.put(session, refreshed);
+        return refreshed;
+    }
+
+    private static List<IndexedElement> ensureIndex(Session session) {
+        return ensureEntry(session).elements;
     }
 
     private static List<IndexedElement> rebuild(Session session) {
@@ -121,6 +130,39 @@ public final class ModelIndex {
             }
         }
         return elements;
+    }
+
+    public static IndexedElement describe(EObject eo) {
+        return describe(SessionBridge.getActiveSession(), eo);
+    }
+
+    public static synchronized IndexedElement describe(Session session, EObject eo) {
+        if (session == null || eo == null) {
+            return null;
+        }
+        CacheEntry entry = ensureEntry(session);
+        String uuid = readFeature(eo, "uuid");
+        if (uuid == null || uuid.isBlank()) {
+            uuid = EcoreUtil.getURI(eo).fragment();
+        }
+        if (uuid != null) {
+            IndexedElement cached = entry.byUuid.get(uuid);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        ResourceSet resourceSet = session.getTransactionalEditingDomain() != null
+                ? session.getTransactionalEditingDomain().getResourceSet()
+                : null;
+        if (resourceSet == null) {
+            return null;
+        }
+        Map<EObject, String> layerCache = new ConcurrentHashMap<>();
+        IndexedElement generated = indexElement(eo, layerCache, resourceSet);
+        if (generated != null && uuid != null) {
+            entry.byUuid.put(uuid, generated);
+        }
+        return generated;
     }
 
     private static void visit(EObject root, Consumer<EObject> consumer) {

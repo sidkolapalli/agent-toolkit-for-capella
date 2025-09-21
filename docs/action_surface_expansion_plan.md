@@ -51,9 +51,11 @@ Status: Completed – functional chain actions now ensure chains exist, function
 Status: Completed – requirement templates now handle creation, linking, and coverage logging with dry-run validation before execution.
 
 ## 6. Mass Edit & Allocation Commands
-- Actions: `batch_rename`, `batch_allocate`, `batch_map`, `batch_delete` with filter criteria.
-- Implement batch executor with preview (apply to subset). Extend Plan Editor to show per-item toggles inside one plan row.
-- Safety: ensure dry-run highlights harmful operations, require explicit user confirmation.
+- [x] Actions: `batch_rename`, `batch_reparent`, `batch_allocate`, `batch_map`, `batch_delete`.
+- [x] Implemented batch helpers with Plan Editor summaries and dry-run validation for missing elements.
+- [x] Safety: sandbox highlights missing or conflicting entries before execution; UI templates prompt for confirmation.
+
+Status: Completed – mass edit templates and TOOL_PLAN actions now support renames, reparenting, allocations, mappings, and deletes with dry-run feedback.
 
 ## 7. Cross-Cutting Tasks
 - Prompt schema & documentation updates after each action block.

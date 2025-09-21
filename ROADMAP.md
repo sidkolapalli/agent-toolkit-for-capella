@@ -42,10 +42,12 @@
 
 ## 4. Conversational Experience
 
-- [x] **Plan Editor UI** – rich Plan Editor dialog with checkbox table, per-action details, and bulk toggles now replaces the old confirmation popup.
-- [x] **Conversational Memory** – preserve recent user/assistant turns so the LLM can reference prior questions and answers.
-  - ChatView now keeps a bounded conversation transcript and ToolRouter feeds it to the prompt builder alongside live model snapshots.
-- [ ] **Diff Visualisation** – show Capella element diffs (added/changed/removed) before executing a plan, and provide a one-click “Undo AI plan”.
+ - [x] **Plan Editor UI** – rich Plan Editor dialog with checkbox table, per-action details, and bulk toggles now replaces the old confirmation popup.
+ - [x] **Conversational Memory** – preserve recent user/assistant turns so the LLM can reference prior questions and answers.
+   - ChatView now keeps a bounded conversation transcript and ToolRouter feeds it to the prompt builder alongside live model snapshots.
+ - [x] **Context Cards** – display contextual panels (selected element summary, impacted requirements, diagram thumbnails) alongside chat responses.
+   - The assistant view shows inline cards with the current selection, last AI plan recap, and a live model snapshot to ground each reply.
+ - [ ] **Diff Visualisation** – show Capella element diffs (added/changed/removed) before executing a plan, and provide a one-click “Undo AI plan”.
   - Plan Editor now previews creates/updates/deletes and surfaces undo guidance; richer visual diffs and one-click rollback still pending.
 - [ ] **Context Cards** – display contextual panels (selected element summary, impacted requirements, diagram thumbnails) alongside chat responses.
 - [ ] **Inline Suggestions & Autocomplete** – add quick command palette (`/command`) and auto-complete prompts for common modelling tasks.
