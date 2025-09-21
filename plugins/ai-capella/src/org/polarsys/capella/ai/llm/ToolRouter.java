@@ -286,13 +286,17 @@ public final class ToolRouter {
     }
 
     public static Result handleChat(Session session, String userMessage) {
+        return handleChat(session, userMessage, List.of());
+    }
+
+    public static Result handleChat(Session session, String userMessage, List<LLMService.Message> history) {
         Result result = new Result();
         try {
             if (session == null) {
                 throw new IllegalStateException("No active Capella session");
             }
-            String prompt = buildPrompt(session, userMessage);
-            String reply = LLMService.get().send(prompt);
+            List<LLMService.Message> messages = buildMessages(session, userMessage, history);
+            String reply = LLMService.get().send(messages);
             result.reply = reply;
 
             String planJson = extractPlan(reply);
@@ -405,41 +409,67 @@ public final class ToolRouter {
         }
     }
 
-    private static String buildPrompt(Session session, String user) {
+    private static List<LLMService.Message> buildMessages(Session session, String user, List<LLMService.Message> history) {
+        List<LLMService.Message> messages = new ArrayList<>();
+        messages.add(LLMService.Message.system(buildSystemPrompt(session)));
+        List<LLMService.Message> trimmed = trimHistory(history);
+        messages.addAll(trimmed);
+        messages.add(LLMService.Message.user(user));
+        return messages;
+    }
+
+    private static List<LLMService.Message> trimHistory(List<LLMService.Message> history) {
+        if (history == null || history.isEmpty()) {
+            return List.of();
+        }
+        int limit = 12;
+        if (history.size() <= limit) {
+            return new ArrayList<>(history);
+        }
+        return new ArrayList<>(history.subList(history.size() - limit, history.size()));
+    }
+
+    private static String buildSystemPrompt(Session session) {
         StringBuilder sb = new StringBuilder();
-        sb.append("You are an AI agent inside Capella.\n");
-        sb.append("When the user asks for changes, output a line starting with 'TOOL_PLAN:' followed by compact JSON.\n");
-        sb.append("Schema: {\"actions\":[{\"type\":one of \"create_component\",\"create_function\",\"create_component_exchange\",\"create_functional_exchange\",\"create_lab\",\"rename\",\"delete\",\"open_diagram\",\"create_mission\",\"create_operational_activity\",\"create_operational_exchange\",\"link_operational_to_capability\",\"create_system_component\",\"create_system_function\",\"create_interface\",\"allocate_capability\",\"propagate_logical_to_physical\",\"sync_physical_from_logical\",\"trace_component_mapping\",\"create_functional_chain\",\"extend_chain\",\"sequence_exchange\",\"attach_scenario\",\"create_requirement\",\"link_requirement\",\"record_requirement_coverage\"},...]}\n");
-        sb.append("Action fields:\n");
-        sb.append("- create_component: {layer, name}\n");
-        sb.append("- create_function: {layer, name}\n");
-        sb.append("- create_component_exchange: {source_name, target_name, layer, name}\n");
-        sb.append("- create_functional_exchange: {source_function, target_function, layer, name}\n");
-        sb.append("- create_lab: {layer}\n");
-        sb.append("- create_mission: {name, layer?, description?}\n");
-        sb.append("- create_operational_activity: {name, layer?, parent_name?}\n");
-        sb.append("- create_operational_exchange: {source_actor, target_actor, layer?, name?}\n");
-        sb.append("- link_operational_to_capability: {operational_activity, capability, layer?}\n");
-        sb.append("- create_system_component: {name, layer?, parent_name?}\n");
-        sb.append("- create_system_function: {name, layer?, parent_name?}\n");
-        sb.append("- create_interface: {source_component, target_component, layer?, name?}\n");
-        sb.append("- allocate_capability: {component, capability, layer?}\n");
-        sb.append("- propagate_logical_to_physical: {logical_component, target_layer?, include_children?}\n");
-        sb.append("- sync_physical_from_logical: {logical_component, physical_component, layer?, update_attributes?, include_children?}\n");
-        sb.append("- trace_component_mapping: {logical_component, physical_component, layer?}\n");
-        sb.append("- create_functional_chain: {name, layer?, description?}\n");
-        sb.append("- extend_chain: {chain, function, layer?, function_class?}\n");
-        sb.append("- sequence_exchange: {chain, exchange, layer?}\n");
-        sb.append("- attach_scenario: {chain, scenario, layer?}\n");
-        sb.append("- create_requirement: {name, container_class?, container_name?, requirement_type?, description?, layer?}\n");
-        sb.append("- link_requirement: {requirement, target_class, target_name, layer?}\n");
-        sb.append("- record_requirement_coverage: {target_class, target_name, status?, notes?, layer?}\n");
-        sb.append("- rename: {class, name, new_name}\n");
-        sb.append("- delete: {class, name}\n");
-        sb.append("- open_diagram: {layer, type}\n");
-        sb.append("Provide a short natural-language answer too.\n\n");
-        sb.append("Model summary:\n").append(ModelSummary.summarize(session)).append("\n\n");
-        sb.append("User: ").append(user);
+        sb.append("You are the Capella AI copilot embedded inside the modelling tool.\n");
+        sb.append("Answer clearly. When structural changes are needed emit exactly one line beginning with 'TOOL_PLAN:' followed by compact JSON.\n");
+        sb.append("If no model change is required, reply naturally without a TOOL_PLAN line.\n");
+        sb.append("Schema: {\"actions\":[{...}]} with snake_case field names. Supported action types include:\n");
+        sb.append("- create_component {layer, name}\n");
+        sb.append("- create_function {layer, name}\n");
+        sb.append("- create_component_exchange {layer, name?, source_name, target_name}\n");
+        sb.append("- create_functional_exchange {layer, name?, source_function, target_function}\n");
+        sb.append("- create_lab {layer}\n");
+        sb.append("- open_diagram {layer, type, name?}\n");
+        sb.append("- rename {class, name, new_name}\n");
+        sb.append("- delete {class, name}\n");
+        sb.append("- create_mission {layer?, name, description?}\n");
+        sb.append("- create_operational_activity {layer?, name, parent_name?}\n");
+        sb.append("- create_operational_exchange {layer?, name?, source_actor, target_actor}\n");
+        sb.append("- link_operational_to_capability {operational_activity, capability}\n");
+        sb.append("- create_system_component {layer?, name, parent_name?}\n");
+        sb.append("- create_system_function {layer?, name, parent_name?}\n");
+        sb.append("- create_interface {layer?, name?, source_component, target_component}\n");
+        sb.append("- allocate_capability {component, capability}\n");
+        sb.append("- propagate_logical_to_physical {logical_component, target_layer?, include_children?}\n");
+        sb.append("- sync_physical_from_logical {logical_component, physical_component, update_attributes?, include_children?}\n");
+        sb.append("- trace_component_mapping {logical_component, physical_component}\n");
+        sb.append("- create_functional_chain {layer?, name, description?}\n");
+        sb.append("- extend_chain {chain, function, function_class?}\n");
+        sb.append("- sequence_exchange {chain, exchange}\n");
+        sb.append("- attach_scenario {chain, scenario}\n");
+        sb.append("- batch_rename {class, renames:[{from,to}]}\n");
+        sb.append("- batch_reparent {class, parent_name, items:[]}\n");
+        sb.append("- batch_allocate {capability, components:[]}\n");
+        sb.append("- batch_map {source_class, target_class, pairs:[{source,target}]}\n");
+        sb.append("- batch_delete {class, items:[]}\n");
+        sb.append("- create_requirement {name, container_class?, container_name?, requirement_type?, description?}\n");
+        sb.append("- link_requirement {requirement, target_class, target_name}\n");
+        sb.append("- record_requirement_coverage {target_class, target_name, status?, notes?}\n");
+        sb.append("Cross-check references against the live model and reuse existing artefacts when possible.\n");
+        sb.append("Acknowledge validation warnings from dry-run simulations.\n");
+        sb.append("Current model snapshot:\n");
+        sb.append(ModelSummary.summarize(session));
         return sb.toString();
     }
 

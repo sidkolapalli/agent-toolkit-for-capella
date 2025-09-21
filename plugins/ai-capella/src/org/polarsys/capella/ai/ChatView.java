@@ -1,6 +1,7 @@
 package org.polarsys.capella.ai;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -60,6 +61,7 @@ public class ChatView extends ViewPart {
     private static final String[] PROVIDER_DISPLAY_NAMES = {"OpenAI", "Anthropic", "Azure", "Custom"};
     private static final String[] OPENAI_MODELS = {"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"};
     private static final String[] ANTHROPIC_MODELS = {"claude-3-haiku", "claude-3-sonnet", "claude-3-opus"};
+    private static final int MAX_HISTORY_MESSAGES = 12;
 
     private Text chatLog;
     private Text prompt;
@@ -83,6 +85,7 @@ public class ChatView extends ViewPart {
     private Label connectionSummary;
 
     private boolean sending;
+    private final List<LLMService.Message> conversationHistory = new ArrayList<>();
 
     @Override
     public void createPartControl(Composite parent) {
@@ -583,6 +586,7 @@ public class ChatView extends ViewPart {
         }
         final DRepresentation currentDiagram = DiagramCommands.getLastOpened();
         final boolean actionsEnabled = enableActions.getSelection();
+        final List<LLMService.Message> history = snapshotHistory();
 
         append("You: " + text);
         prompt.setText("");
@@ -592,13 +596,14 @@ public class ChatView extends ViewPart {
         Job job = new Job("Capella AI request") {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
-                ToolRouter.Result res = ToolRouter.handleChat(session, text);
+                ToolRouter.Result res = ToolRouter.handleChat(session, text, history);
                 Display.getDefault().asyncExec(() -> handleChatResult(session, currentDiagram, actionsEnabled, res));
                 return Status.OK_STATUS;
             }
         };
         job.setUser(false);
         job.schedule();
+        appendHistory(LLMService.Message.user(text));
     }
 
     private void handleChatResult(Session session, DRepresentation diagram, boolean actionsEnabled, ToolRouter.Result result) {
@@ -606,9 +611,11 @@ public class ChatView extends ViewPart {
             if (result.error != null) {
                 append("Assistant ERROR: " + result.error);
                 Telemetry.recordPlanError("plan-generation", result.error);
+                appendHistory(LLMService.Message.assistant("ERROR: " + result.error));
             }
             if (result.reply != null && !result.reply.isBlank()) {
                 append("Assistant: " + result.reply);
+                appendHistory(LLMService.Message.assistant(result.reply));
             }
 
             ToolPlan plan = result.plan;
@@ -653,6 +660,28 @@ public class ChatView extends ViewPart {
             }
         };
         job.schedule();
+    }
+
+    private List<LLMService.Message> snapshotHistory() {
+        return new ArrayList<>(conversationHistory);
+    }
+
+    private void appendHistory(LLMService.Message message) {
+        if (message == null) {
+            return;
+        }
+        String content = message.getContent();
+        if (content == null || content.isBlank()) {
+            return;
+        }
+        conversationHistory.add(message);
+        trimHistory();
+    }
+
+    private void trimHistory() {
+        while (conversationHistory.size() > MAX_HISTORY_MESSAGES) {
+            conversationHistory.remove(0);
+        }
     }
 
     private void appendPlanSummary(List<String> lines, boolean actionsEnabled) {

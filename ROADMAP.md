@@ -37,11 +37,14 @@
   - Chain templates now create chains, extend them with functions/exchanges, and attach scenarios with sandbox validation before execution.
 - [x] **Requirement Handling** – enable creation, linking, and coverage checks for requirements and verification elements.
   - Requirement templates support creation, trace linking, and coverage logging with dry-run validation and prompt wiring.
-- [ ] **Mass Edit & Allocation Commands** – provide batch rename, re-parent, allocate, and mapping operations guided by the LLM.
+- [x] **Mass Edit & Allocation Commands** – provide batch rename, re-parent, allocate, and mapping operations guided by the LLM.
+  - Mass edit actions now cover rename/reparent/allocate/map/delete with sandbox previews and UI templates.
 
 ## 4. Conversational Experience
 
 - [x] **Plan Editor UI** – rich Plan Editor dialog with checkbox table, per-action details, and bulk toggles now replaces the old confirmation popup.
+- [x] **Conversational Memory** – preserve recent user/assistant turns so the LLM can reference prior questions and answers.
+  - ChatView now keeps a bounded conversation transcript and ToolRouter feeds it to the prompt builder alongside live model snapshots.
 - [ ] **Diff Visualisation** – show Capella element diffs (added/changed/removed) before executing a plan, and provide a one-click “Undo AI plan”.
   - Plan Editor now previews creates/updates/deletes and surfaces undo guidance; richer visual diffs and one-click rollback still pending.
 - [ ] **Context Cards** – display contextual panels (selected element summary, impacted requirements, diagram thumbnails) alongside chat responses.

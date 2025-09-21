@@ -7,7 +7,7 @@ This repository contains only the Capella plugin and p2 update site used to inst
 - Java 17+ required (Tycho will download the Capella target automatically).
 - Eclipse 2023‑03 repositories require relaxed XML entity limits. Export once per shell session:
   ```bash
-  export JAVA_TOOL_OPTIONS="-Djdk.xml.maxGeneralEntitySizeLimit=0 -Djdk.xml.totalEntitySizeLimit=0"
+  export JAVA_TOOL_OPTIONS="-Djdk.xml.maxGeneralEntitySizeLimit=0 -Djdk.xml.totalEntitySizeLimit=0 -Djdk.xml.entityExpansionLimit=0"
   ```
 - Run the Tycho build: `mvn -f plugins clean verify`
 - Install from the generated update site: `plugins/ai-capella-repository/target/repository`
@@ -30,12 +30,14 @@ This repository contains only the Capella plugin and p2 update site used to inst
 ## Using the assistant
 
 - Type in the **Conversation** section; pressing Enter or clicking **Send** dispatches the request on a background job. The assistant replies in the log pane.
+- Multi-turn context is preserved: the assistant keeps the most recent exchanges so follow-up prompts can reference earlier analysis or decisions without repeating details.
 - If the LLM provides a `TOOL_PLAN`, the view displays a summary. When *Enable tool actions* is on, a **Plan Editor** dialog opens so you can inspect every action, toggle unwanted steps, and confirm execution before anything touches the model. The preview runs a sandbox dry-run that groups upcoming creates/updates/deletes, surfaces warnings inline, highlights Undo availability, and cancelling still leaves the plan unapplied.
 - Logical ↔ Physical transformations are now first-class plan actions: propagate logical components into the Physical architecture (optionally cloning hierarchies) with automatic trace links, sync existing physical components from their logical counterparts or run in "link only" mode, and add trace mappings independently. Dry-runs flag name clashes or missing endpoints so you can fix conflicts before the plan applies, and destructive sync steps default to unchecked with explicit confirmation hints.
 - The **Operational templates** panel offers quick buttons for creating missions, activities, operational exchanges, and linking activities to capabilities without crafting prompts. Each action validates prerequisites (layers, actors, capabilities) through the dry-run sandbox before execution and reports via telemetry when opt-in is enabled.
 - The **System templates** panel mirrors this for System Analysis: create components/functions, wire component exchanges, and allocate capabilities via guided dialogs that enforce parent/component existence before plans run.
 - The **Functional chain templates** let you spin up chains, add functions/exchanges, and hook chains to scenarios. Dry-runs verify every chain/function/exchange/situation exists before generating plan diffs.
 - The **Requirement templates** cover the remaining Arcadia traceability loop: create requirements in the right package, link them to architecture elements, and record coverage status/notes with sandbox checks before execution.
+- The **Mass edit templates** accelerate renames, reparenting, capability allocation, mapping, and deletions for large selections; each action validates element presence via dry-run before applying.
 - The **Model & Diagram Tools** group exposes quick actions (list diagrams, create LAB, import draw.io, rename/delete/reveal elements). These operations run in EMF transactions and persist across sessions.
 
 ## Known requirements

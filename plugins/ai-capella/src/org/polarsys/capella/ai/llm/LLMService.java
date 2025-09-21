@@ -6,6 +6,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 
@@ -21,10 +22,18 @@ public final class LLMService {
     public static LLMService get() { return INSTANCE; }
 
     public String send(String prompt) throws Exception {
+        return send(List.of(Message.user(prompt)));
+    }
+
+    public String send(List<Message> messages) throws Exception {
+        if (messages == null || messages.isEmpty()) {
+            throw new IllegalArgumentException("At least one message is required");
+        }
         String provider = LLMPreferences.getProvider();
-        if (provider.equalsIgnoreCase("anthropic")) return sendAnthropic(prompt);
-        // default: openai-compatible
-        return sendOpenAI(prompt);
+        if (provider.equalsIgnoreCase("anthropic")) {
+            return sendAnthropic(messages);
+        }
+        return sendOpenAI(messages);
     }
 
     public String testConnection() throws Exception {
@@ -36,16 +45,26 @@ public final class LLMService {
         return "OpenAI-compatible configured: " + LLMPreferences.getModel();
     }
 
-    private String sendOpenAI(String prompt) throws Exception {
+    private String sendOpenAI(List<Message> messages) throws Exception {
         String api = normalizeBase(LLMPreferences.getBaseUrl()) + "/v1/chat/completions";
         String model = LLMPreferences.getModel();
         int maxT = LLMPreferences.getMaxTokens();
         double temp = LLMPreferences.getTemperature();
         String key = LLMPreferences.getApiKey();
+        StringBuilder payloadMessages = new StringBuilder("[");
+        for (int i = 0; i < messages.size(); i++) {
+            Message msg = messages.get(i);
+            if (i > 0) {
+                payloadMessages.append(',');
+            }
+            payloadMessages.append('{')
+                .append("\"role\":\"").append(msg.role.apiRole()).append("\",")
+                .append("\"content\":\"").append(esc(msg.content)).append("\"}");
+        }
+        payloadMessages.append(']');
         String body = "{" +
             "\"model\":\"" + esc(model) + "\"," +
-            "\"messages\":[{" +
-                "\"role\":\"user\",\"content\":\"" + esc(prompt) + "\"}]," +
+            "\"messages\":" + payloadMessages + ',' +
             "\"temperature\":" + temp + "," +
             "\"max_tokens\":" + maxT +
         "}";
@@ -69,18 +88,43 @@ public final class LLMService {
         return s;
     }
 
-    private String sendAnthropic(String prompt) throws Exception {
+    private String sendAnthropic(List<Message> messages) throws Exception {
         String api = normalizeBase(LLMPreferences.getBaseUrl()) + "/v1/messages";
         String model = LLMPreferences.getModel();
         int maxT = LLMPreferences.getMaxTokens();
         double temp = LLMPreferences.getTemperature();
         String key = LLMPreferences.getApiKey();
+        StringBuilder system = new StringBuilder();
+        StringBuilder payloadMessages = new StringBuilder("[");
+        boolean first = true;
+        for (Message msg : messages) {
+            if (msg.role == Message.Role.SYSTEM) {
+                if (system.length() > 0) {
+                    system.append("\n\n");
+                }
+                system.append(msg.content);
+                continue;
+            }
+            if (!first) {
+                payloadMessages.append(',');
+            }
+            first = false;
+            payloadMessages.append('{')
+                .append("\"role\":\"").append(msg.role.anthropicRole()).append("\",\"content\":[{\"type\":\"text\",\"text\":\"")
+                .append(esc(msg.content))
+                .append("\"}]}");
+        }
+        if (first) {
+            throw new IllegalArgumentException("Anthropic payload requires at least one user or assistant message");
+        }
+        payloadMessages.append(']');
+        String systemField = system.length() > 0 ? "\"system\":\"" + esc(system.toString()) + "\"," : "";
         String body = "{" +
             "\"model\":\"" + esc(model) + "\"," +
             "\"max_tokens\":" + maxT + "," +
             "\"temperature\":" + temp + "," +
-            "\"messages\":[{" +
-                "\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"" + esc(prompt) + "\"}]}]" +
+            systemField +
+            "\"messages\":" + payloadMessages.toString() +
         "}";
         HttpRequest req = HttpRequest.newBuilder()
             .uri(URI.create(api))
@@ -104,6 +148,60 @@ public final class LLMService {
     }
 
     private static String normalizeBase(String b) { return b.endsWith("/") ? b.substring(0, b.length()-1) : b; }
-    private static String esc(String s) { return s.replace("\\", "\\\\").replace("\"", "\\\""); }
-}
+    private static String esc(String s) {
+        if (s == null) {
+            return "";
+        }
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
 
+    public static final class Message {
+        public enum Role {
+            SYSTEM("system"),
+            USER("user"),
+            ASSISTANT("assistant");
+
+            private final String apiRole;
+
+            Role(String apiRole) {
+                this.apiRole = apiRole;
+            }
+
+            String apiRole() {
+                return apiRole;
+            }
+
+            String anthropicRole() {
+                return this == ASSISTANT ? "assistant" : "user";
+            }
+        }
+
+        private final Role role;
+        private final String content;
+
+        private Message(Role role, String content) {
+            this.role = role;
+            this.content = content == null ? "" : content;
+        }
+
+        public static Message system(String content) {
+            return new Message(Role.SYSTEM, content);
+        }
+
+        public static Message user(String content) {
+            return new Message(Role.USER, content);
+        }
+
+        public static Message assistant(String content) {
+            return new Message(Role.ASSISTANT, content);
+        }
+
+        public Role getRole() {
+            return role;
+        }
+
+        public String getContent() {
+            return content;
+        }
+    }
+}
