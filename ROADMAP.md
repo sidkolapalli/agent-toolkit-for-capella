@@ -59,7 +59,8 @@
 
 ## 5. Arcadia Guidance & Best Practices
 
-- [ ] **Methodology Coach** – embed Arcadia step guidance (“You’ve defined missions; next define capabilities…”) and checklists.
+- [x] **Methodology Coach** – embed Arcadia step guidance (“You’ve defined missions; next define capabilities…”) and checklists.
+  - ChatView now shows a methodology coach card with per-step status, actionable gaps, and quick command suggestions from OA through verification.
 - [ ] **Design Reviews** – generate architecture review reports (coverage, alignment, inconsistencies) and allow the user to request targeted audits.
 - [ ] **Transformation Playbooks** – codify reusable plan templates (e.g., “Break down this system function into logical functions”) that users can trigger via chat or command palette.
 - [ ] **Impact Simulations** – estimate downstream effects of changes (interface updates, component migrations) using the dependency cache.

@@ -61,6 +61,9 @@ import org.polarsys.capella.ai.llm.ToolRouter;
 import org.polarsys.capella.ai.llm.ToolRouter.PlanExecutionResult;
 import org.polarsys.capella.ai.llm.ToolRouter.PlanItem;
 import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
+import org.polarsys.capella.ai.model.MethodologyCoach;
+import org.polarsys.capella.ai.model.MethodologyCoach.Guidance;
+import org.polarsys.capella.ai.model.MethodologyCoach.Step;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.model.index.ModelIndex;
 import org.polarsys.capella.ai.model.index.ModelIndex.IndexedElement;
@@ -83,6 +86,11 @@ public class ChatView extends ViewPart {
     private static final int MAX_HISTORY_MESSAGES = 12;
     private static final char[] COMMAND_AUTO_ACTIVATION = {'/'};
     private static final List<QuickCommand> QUICK_COMMANDS = List.of(
+            new QuickCommand(
+                    MethodologyCoach.COMMAND_ARCADIA_NEXT,
+                    "Arcadia next steps",
+                    "Analyse the current model state and recommend the next Arcadia methodology steps. Provide concrete TOOL_PLAN ideas to progress the outstanding work items.",
+                    "Ask the assistant for guided Arcadia next steps based on the current model."),
             new QuickCommand(
                     "/explain-selection",
                     "Explain selection",
@@ -1316,6 +1324,7 @@ public class ChatView extends ViewPart {
         StringBuilder sb = new StringBuilder();
         sb.append(buildSelectionCard(session, selection)).append(System.lineSeparator()).append(System.lineSeparator());
         sb.append(buildModelCard(session)).append(System.lineSeparator()).append(System.lineSeparator());
+        sb.append(buildMethodologyCard(session)).append(System.lineSeparator()).append(System.lineSeparator());
         sb.append(buildPlanCard());
         contextSummary.setText(sb.toString().stripTrailing());
     }
@@ -1362,6 +1371,52 @@ public class ChatView extends ViewPart {
                 .filter(line -> !line.isBlank())
                 .limit(6)
                 .forEach(line -> sb.append(" • ").append(line).append(System.lineSeparator()));
+        if (sb.charAt(sb.length() - 1) == '\n') {
+            sb.deleteCharAt(sb.length() - 1);
+        }
+        return sb.toString();
+    }
+
+    private String buildMethodologyCard(Session session) {
+        StringBuilder sb = new StringBuilder("Methodology coach:\n");
+        Guidance guidance = MethodologyCoach.guidance(session);
+        if (!guidance.isAvailable()) {
+            String reason = guidance.reason() != null ? guidance.reason() : "Guidance unavailable.";
+            sb.append(" • ").append(reason);
+            return sb.toString();
+        }
+        List<Step> steps = guidance.steps();
+        if (steps.isEmpty()) {
+            sb.append(" • No methodology insights available.");
+            return sb.toString();
+        }
+        for (Step step : steps) {
+            sb.append(" • ")
+                    .append(step.status().symbol())
+                    .append(' ')
+                    .append(step.title());
+            if (step.headline() != null && !step.headline().isBlank()) {
+                sb.append(" — ").append(step.headline());
+            }
+            sb.append(System.lineSeparator());
+            for (String detail : step.details()) {
+                if (detail == null || detail.isBlank()) {
+                    continue;
+                }
+                sb.append("   · ").append(detail).append(System.lineSeparator());
+            }
+            if (!step.suggestions().isEmpty()) {
+                sb.append("   → ").append(String.join(", ", step.suggestions())).append(System.lineSeparator());
+            }
+        }
+        if (!guidance.alerts().isEmpty()) {
+            for (String alert : guidance.alerts()) {
+                if (alert == null || alert.isBlank()) {
+                    continue;
+                }
+                sb.append(" ⚠ ").append(alert).append(System.lineSeparator());
+            }
+        }
         if (sb.charAt(sb.length() - 1) == '\n') {
             sb.deleteCharAt(sb.length() - 1);
         }

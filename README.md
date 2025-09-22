@@ -32,6 +32,7 @@ This repository contains only the Capella plugin and p2 update site used to inst
 - Type in the **Conversation** section; pressing Enter or clicking **Send** dispatches the request on a background job. The assistant replies in the log pane.
 - Multi-turn context is preserved: the assistant keeps the most recent exchanges so follow-up prompts can reference earlier analysis or decisions without repeating details.
 - Inline context cards summarize the current model selection, the most recent AI plan preview, and a quick health snapshot of the model so you can react faster.
+- A Methodology coach card tracks Arcadia progress with step checklists and recommended commands so you always know what to tackle next.
 - Use `/` to open the quick command palette or press Ctrl/Cmd + Space for inline suggestions; the assistant seeds prompts for common Arcadia tasks (scaffolding components, extending chains, syncing layers, linking requirements).
 - Replies can stream live with a **Stop** button so you can interrupt or redirect the conversation mid-generation.
 - Before running a plan, the editor now shows a colour-coded diff of creates/updates/deletes with inline warnings and sample attribute changes; a dedicated "Undo last plan" button invokes Capella's undo command when available.
