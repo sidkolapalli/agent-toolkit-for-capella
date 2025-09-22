@@ -75,6 +75,7 @@ public class ChatView extends ViewPart {
     private Button enableActions;
     private Button useLlmMapping;
     private Button telemetryToggle;
+    private Button stopButton;
 
     private Text elementUuid;
     private Text newName;
@@ -95,6 +96,11 @@ public class ChatView extends ViewPart {
     private final List<String> lastPlanSummary = new ArrayList<>();
     private Text contextSummary;
     private ISelectionListener selectionListener;
+    private ToolRouter.ToolStream activeStream;
+    private volatile boolean streamingCancelled;
+    private boolean streamingReplyStarted;
+    private boolean lastReplyStreamed;
+    private StringBuilder streamingBuffer;
 
     @Override
     public void createPartControl(Composite parent) {
@@ -127,7 +133,7 @@ public class ChatView extends ViewPart {
 
         Composite promptRow = new Composite(conversation, SWT.NONE);
         promptRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        promptRow.setLayout(new GridLayout(2, false));
+        promptRow.setLayout(new GridLayout(3, false));
 
         prompt = new Text(promptRow, SWT.BORDER);
         prompt.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
@@ -147,6 +153,17 @@ public class ChatView extends ViewPart {
             @Override
             public void widgetSelected(SelectionEvent e) {
                 onSend();
+            }
+        });
+
+        stopButton = new Button(promptRow, SWT.PUSH);
+        stopButton.setText("Stop");
+        stopButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+        stopButton.setEnabled(false);
+        stopButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                cancelStreaming();
             }
         });
 
@@ -612,18 +629,48 @@ public class ChatView extends ViewPart {
         append("You: " + text);
         prompt.setText("");
         sending = true;
+        streamingCancelled = false;
+        streamingReplyStarted = false;
+        lastReplyStreamed = false;
+        streamingBuffer = new StringBuilder();
         updateSendButtonState();
+        if (stopButton != null && !stopButton.isDisposed()) {
+            stopButton.setEnabled(true);
+        }
 
-        Job job = new Job("Capella AI request") {
-            @Override
-            protected IStatus run(IProgressMonitor monitor) {
-                ToolRouter.Result res = ToolRouter.handleChat(session, text, history);
-                Display.getDefault().asyncExec(() -> handleChatResult(session, currentDiagram, actionsEnabled, res));
-                return Status.OK_STATUS;
-            }
-        };
-        job.setUser(false);
-        job.schedule();
+        try {
+            activeStream = ToolRouter.handleChatStreaming(session, text, history, new ToolRouter.StreamingConsumer() {
+                @Override
+                public void onPartial(String delta) {
+                    handleStreamPartial(delta);
+                }
+
+                @Override
+                public void onComplete(ToolRouter.Result result) {
+                    Display.getDefault().asyncExec(() -> handleStreamCompleted(session, currentDiagram, actionsEnabled, result));
+                }
+
+                @Override
+                public void onError(String message) {
+                    Display.getDefault().asyncExec(() -> handleStreamError(message));
+                }
+
+                @Override
+                public void onCancelled() {
+                    Display.getDefault().asyncExec(() -> handleStreamCancelled());
+                }
+
+                @Override
+                public boolean isCancelled() {
+                    return streamingCancelled;
+                }
+            });
+        } catch (Exception ex) {
+            append("Streaming unavailable: " + ex.getMessage());
+            finishStreaming();
+            runSynchronousRequest(session, text, currentDiagram, actionsEnabled, history);
+            return;
+        }
         appendHistory(LLMService.Message.user(text));
     }
 
@@ -635,9 +682,13 @@ public class ChatView extends ViewPart {
                 appendHistory(LLMService.Message.assistant("ERROR: " + result.error));
             }
             if (result.reply != null && !result.reply.isBlank()) {
-                append("Assistant: " + result.reply);
+                if (!lastReplyStreamed) {
+                    append("Assistant: " + result.reply);
+                }
                 appendHistory(LLMService.Message.assistant(result.reply));
             }
+
+            lastReplyStreamed = false;
 
             ToolPlan plan = result.plan;
             if (plan != null && !plan.isEmpty()) {
@@ -704,6 +755,86 @@ public class ChatView extends ViewPart {
         while (conversationHistory.size() > MAX_HISTORY_MESSAGES) {
             conversationHistory.remove(0);
         }
+    }
+
+    private void handleStreamPartial(String delta) {
+        if (delta == null || delta.isEmpty()) {
+            return;
+        }
+        if (streamingBuffer != null) {
+            streamingBuffer.append(delta);
+        }
+        Display display = Display.getDefault();
+        display.asyncExec(() -> {
+            if (chatLog == null || chatLog.isDisposed()) {
+                return;
+            }
+            if (!streamingReplyStarted) {
+                chatLog.append("Assistant: ");
+                streamingReplyStarted = true;
+                lastReplyStreamed = true;
+            }
+            chatLog.append(delta);
+            chatLog.setTopIndex(chatLog.getLineCount() - 1);
+        });
+    }
+
+    private void handleStreamCompleted(Session session, DRepresentation diagram, boolean actionsEnabled, ToolRouter.Result result) {
+        if (chatLog != null && !chatLog.isDisposed() && streamingReplyStarted) {
+            chatLog.append(System.lineSeparator());
+        }
+        lastReplyStreamed = streamingReplyStarted;
+        handleChatResult(session, diagram, actionsEnabled, result);
+        finishStreaming();
+    }
+
+    private void handleStreamError(String message) {
+        if (!streamingCancelled && message != null && !message.isBlank()) {
+            append("Assistant ERROR: " + message);
+            Telemetry.recordPlanError("plan-stream", message);
+        }
+        finishStreaming();
+    }
+
+    private void handleStreamCancelled() {
+        if (chatLog != null && !chatLog.isDisposed()) {
+            chatLog.append("[generation cancelled]\n");
+        }
+        finishStreaming();
+    }
+
+    private void cancelStreaming() {
+        streamingCancelled = true;
+        if (activeStream != null) {
+            activeStream.cancel();
+        }
+        updateSendButtonState();
+    }
+
+    private void finishStreaming() {
+        sending = false;
+        streamingReplyStarted = false;
+        streamingCancelled = false;
+        activeStream = null;
+        updateSendButtonState();
+        if (stopButton != null && !stopButton.isDisposed()) {
+            stopButton.setEnabled(false);
+        }
+    }
+
+    private void runSynchronousRequest(Session session, String text, DRepresentation diagram, boolean actionsEnabled, List<LLMService.Message> history) {
+        sending = true;
+        updateSendButtonState();
+        Job job = new Job("Capella AI request") {
+            @Override
+            protected IStatus run(IProgressMonitor monitor) {
+                ToolRouter.Result res = ToolRouter.handleChat(session, text, history);
+                Display.getDefault().asyncExec(() -> handleChatResult(session, diagram, actionsEnabled, res));
+                return Status.OK_STATUS;
+            }
+        };
+        job.setUser(false);
+        job.schedule();
     }
 
     private void appendPlanSummary(List<String> lines, boolean actionsEnabled) {
@@ -1837,6 +1968,9 @@ public class ChatView extends ViewPart {
         boolean enabled = hasText && !sending;
         if (sendButton != null && !sendButton.isDisposed()) {
             sendButton.setEnabled(enabled);
+        }
+        if (stopButton != null && !stopButton.isDisposed()) {
+            stopButton.setEnabled(sending && !streamingCancelled);
         }
     }
 

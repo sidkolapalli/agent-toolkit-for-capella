@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.sirius.business.api.session.Session;
@@ -285,6 +287,34 @@ public final class ToolRouter {
         }
     }
 
+    public interface StreamingConsumer {
+        void onPartial(String text);
+        void onComplete(Result result);
+        void onError(String message);
+        void onCancelled();
+        boolean isCancelled();
+    }
+
+    public static final class ToolStream {
+        private final LLMService.StreamHandle handle;
+        private final CompletableFuture<Result> completion;
+
+        ToolStream(LLMService.StreamHandle handle, CompletableFuture<Result> completion) {
+            this.handle = handle;
+            this.completion = completion;
+        }
+
+        public void cancel() {
+            if (handle != null) {
+                handle.cancel();
+            }
+        }
+
+        public CompletableFuture<Result> completion() {
+            return completion;
+        }
+    }
+
     public static Result handleChat(Session session, String userMessage) {
         return handleChat(session, userMessage, List.of());
     }
@@ -297,19 +327,75 @@ public final class ToolRouter {
             }
             List<LLMService.Message> messages = buildMessages(session, userMessage, history);
             String reply = LLMService.get().send(messages);
-            result.reply = reply;
-
-            String planJson = extractPlan(reply);
-            if (planJson != null && !planJson.isBlank()) {
-                List<Action> actions = parseActions(planJson);
-                result.plan = actions.isEmpty() ? null : new ToolPlan(actions);
-            }
+            result = parseReply(session, reply);
         } catch (PlanValidationException ex) {
             result.error = ex.getMessage();
         } catch (Exception ex) {
             result.error = ex.getMessage();
         }
         return result;
+    }
+
+    public static ToolStream handleChatStreaming(Session session, String userMessage, List<LLMService.Message> history, StreamingConsumer consumer) {
+        if (consumer == null) {
+            throw new IllegalArgumentException("Streaming consumer required");
+        }
+        if (session == null) {
+            consumer.onError("No active Capella session");
+            CompletableFuture<Result> failed = new CompletableFuture<>();
+            failed.completeExceptionally(new IllegalStateException("No active Capella session"));
+            return new ToolStream(null, failed);
+        }
+        List<LLMService.Message> messages = buildMessages(session, userMessage, history);
+        final StringBuilder aggregate = new StringBuilder();
+        LLMService.StreamHandle handle;
+        try {
+            handle = LLMService.get().stream(messages, new LLMService.StreamListener() {
+                @Override
+                public boolean isCancelled() {
+                    return consumer.isCancelled();
+                }
+
+                @Override
+                public void onChunk(String text) {
+                    if (text == null || text.isEmpty()) {
+                        return;
+                    }
+                    aggregate.append(text);
+                    consumer.onPartial(text);
+                }
+            });
+        } catch (Exception ex) {
+            consumer.onError(ex.getMessage());
+            CompletableFuture<Result> failed = new CompletableFuture<>();
+            failed.completeExceptionally(ex);
+            return new ToolStream(null, failed);
+        }
+
+        CompletableFuture<Result> completion = new CompletableFuture<>();
+        handle.completion().whenComplete((reply, throwable) -> {
+            if (throwable != null) {
+                Throwable cause = throwable instanceof CancellationException ? throwable : throwable.getCause();
+                if (cause instanceof CancellationException) {
+                    consumer.onCancelled();
+                } else {
+                    String message = throwable.getMessage() != null ? throwable.getMessage() : throwable.toString();
+                    consumer.onError(message);
+                }
+                completion.completeExceptionally(throwable);
+                return;
+            }
+            String finalReply = reply != null ? reply : aggregate.toString();
+            try {
+                Result parsed = parseReply(session, finalReply);
+                consumer.onComplete(parsed);
+                completion.complete(parsed);
+            } catch (PlanValidationException ex) {
+                consumer.onError(ex.getMessage());
+                completion.completeExceptionally(ex);
+            }
+        });
+        return new ToolStream(handle, completion);
     }
 
     public static PlanExecutionResult applyPlan(Session session, DRepresentation diagram, ToolPlan plan) {
@@ -471,6 +557,17 @@ public final class ToolRouter {
         sb.append("Current model snapshot:\n");
         sb.append(ModelSummary.summarize(session));
         return sb.toString();
+    }
+
+    private static Result parseReply(Session session, String reply) throws PlanValidationException {
+        Result result = new Result();
+        result.reply = reply;
+        String planJson = extractPlan(reply);
+        if (planJson != null && !planJson.isBlank()) {
+            List<Action> actions = parseActions(planJson);
+            result.plan = actions.isEmpty() ? null : new ToolPlan(actions);
+        }
+        return result;
     }
 
     private static String extractPlan(String reply) {

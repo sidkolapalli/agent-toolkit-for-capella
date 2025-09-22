@@ -52,7 +52,8 @@
   - Plan Editor now previews creates/updates/deletes and surfaces undo guidance; richer visual diffs and one-click rollback still pending.
 - [ ] **Context Cards** – display contextual panels (selected element summary, impacted requirements, diagram thumbnails) alongside chat responses.
 - [ ] **Inline Suggestions & Autocomplete** – add quick command palette (`/command`) and auto-complete prompts for common modelling tasks.
-- [ ] **Streaming Replies** – stream LLM responses live to reduce perceived latency and let users interrupt or refine mid-response.
+- [x] **Streaming Replies** – stream LLM responses live to reduce perceived latency and let users interrupt or refine mid-response.
+  - Chat view now streams tokens as they arrive, offers a Stop button, and falls back to full responses if streaming is unavailable.
 - [ ] **Clarification Loop** – implement follow-up prompts when plan validation fails (“Component X not found – did you mean Y?”) instead of silently skipping actions.
 
 ## 5. Arcadia Guidance & Best Practices
