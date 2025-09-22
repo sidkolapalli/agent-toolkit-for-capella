@@ -3,7 +3,10 @@ package org.polarsys.capella.ai;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -16,6 +19,14 @@ import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.InputDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.window.Window;
+import org.eclipse.jface.bindings.keys.KeyStroke;
+import org.eclipse.jface.bindings.keys.ParseException;
+import org.eclipse.jface.fieldassist.ContentProposalAdapter;
+import org.eclipse.jface.fieldassist.IContentProposal;
+import org.eclipse.jface.fieldassist.IContentProposalListener;
+import org.eclipse.jface.fieldassist.IContentProposalProvider;
+import org.eclipse.jface.fieldassist.TextContentAdapter;
+import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.eclipse.sirius.viewpoint.DSemanticDecorator;
@@ -38,6 +49,7 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.IWorkbenchPart;
+import org.eclipse.ui.dialogs.ElementListSelectionDialog;
 import org.eclipse.ui.part.ViewPart;
 import org.osgi.service.prefs.BackingStoreException;
 import org.polarsys.capella.ai.actions.FunctionalChainActions;
@@ -47,6 +59,7 @@ import org.polarsys.capella.ai.actions.SystemActions;
 import org.polarsys.capella.ai.llm.LLMService;
 import org.polarsys.capella.ai.llm.ToolRouter;
 import org.polarsys.capella.ai.llm.ToolRouter.PlanExecutionResult;
+import org.polarsys.capella.ai.llm.ToolRouter.PlanItem;
 import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.model.index.ModelIndex;
@@ -68,6 +81,39 @@ public class ChatView extends ViewPart {
     private static final String[] OPENAI_MODELS = {"gpt-5", "gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"};
     private static final String[] ANTHROPIC_MODELS = {"claude-3-haiku", "claude-3-sonnet", "claude-3-opus"};
     private static final int MAX_HISTORY_MESSAGES = 12;
+    private static final char[] COMMAND_AUTO_ACTIVATION = {'/'};
+    private static final List<QuickCommand> QUICK_COMMANDS = List.of(
+            new QuickCommand(
+                    "/explain-selection",
+                    "Explain selection",
+                    "Explain the currently selected element in Capella. Summarise its purpose, allocated functions, linked requirements, and open validation warnings. Recommend the next Arcadia modelling steps.",
+                    "Summarise the selected element with allocations, requirements, validation hints, and next steps."),
+            new QuickCommand(
+                    "/scaffold-component",
+                    "Scaffold logical component",
+                    "Draft a TOOL_PLAN that creates a logical component named <ComponentName>, adds two placeholder logical functions, and connects it to relevant capabilities or parent components if they exist. Include short descriptions for the new elements.",
+                    "Create a logical component scaffold with functions and capability links."),
+            new QuickCommand(
+                    "/extend-chain",
+                    "Extend functional chain",
+                    "Draft a TOOL_PLAN that extends the functional chain <ChainName> by sequencing functions [Function A, Function B] with functional exchanges and attaching relevant scenarios. Warn if referenced elements are missing.",
+                    "Extend an existing functional chain with new functions, exchanges, and scenarios."),
+            new QuickCommand(
+                    "/sync-physical",
+                    "Sync logical ↔ physical",
+                    "Draft a TOOL_PLAN that synchronises the logical component <LogicalComponent> into the physical architecture, creating missing physical components, cloning child hierarchy when useful, and adding trace links.",
+                    "Synchronise logical and physical components, ensuring traces and optional hierarchy copy."),
+            new QuickCommand(
+                    "/cover-requirements",
+                    "Cover requirements",
+                    "Draft a TOOL_PLAN that creates requirements for <Goal>, links them to the components/functions mentioned in recent context, and records coverage status notes.",
+                    "Author requirements and link them to model elements with coverage notes."),
+            new QuickCommand(
+                    "/diagram-walkthrough",
+                    "Open diagram walkthrough",
+                    "Draft a TOOL_PLAN that opens or creates a LAB diagram focused on the current selection and summarises the impacted elements. Include any follow-up recommendations in plain text after the plan.",
+                    "Open or create a LAB diagram centred on the current selection and recap the changes.")
+    );
 
     private Text chatLog;
     private Text prompt;
@@ -133,16 +179,34 @@ public class ChatView extends ViewPart {
 
         Composite promptRow = new Composite(conversation, SWT.NONE);
         promptRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        promptRow.setLayout(new GridLayout(3, false));
+        promptRow.setLayout(new GridLayout(4, false));
 
         prompt = new Text(promptRow, SWT.BORDER);
         prompt.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        prompt.setToolTipText("Type / for quick commands, Ctrl+Space for suggestions, or Cmd/Ctrl+P for the palette.");
         prompt.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
                 if ((e.character == SWT.CR || e.character == SWT.LF) && !sending && sendButton.isEnabled()) {
                     onSend();
+                    return;
                 }
+                if ((e.stateMask & SWT.MOD1) != 0 && (e.keyCode == 'p' || e.keyCode == 'P')) {
+                    openCommandPalette();
+                    e.doit = false;
+                }
+            }
+        });
+        installPromptAssist(prompt);
+
+        Button commandsButton = new Button(promptRow, SWT.PUSH);
+        commandsButton.setText("Commands");
+        commandsButton.setToolTipText("Open the quick command palette (Cmd/Ctrl+P)");
+        commandsButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+        commandsButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                openCommandPalette();
             }
         });
 
@@ -695,6 +759,11 @@ public class ChatView extends ViewPart {
                 Telemetry.recordPlanSuggested(plan);
                 DryRunResult dryRun = PlanDryRun.evaluate(session, plan);
                 appendPlanSummary(plan.describe(), actionsEnabled);
+                boolean proceed = offerClarificationLoop(session, plan, dryRun);
+                if (!proceed) {
+                    updateContextSummary(session, null);
+                    return;
+                }
                 if (actionsEnabled) {
                     PlanEditorDialog dialog = new PlanEditorDialog(getSite().getShell(), plan, dryRun);
                     if (dialog.open() == IDialogConstants.OK_ID) {
@@ -822,6 +891,218 @@ public class ChatView extends ViewPart {
         }
     }
 
+    private void installPromptAssist(Text target) {
+        if (target == null || target.isDisposed()) {
+            return;
+        }
+        KeyStroke keyStroke = null;
+        try {
+            keyStroke = KeyStroke.getInstance("CTRL+SPACE");
+        } catch (ParseException ex) {
+            // fall back to auto activation triggered by '/'
+        }
+        ContentProposalAdapter adapter = new ContentProposalAdapter(
+                target,
+                new TextContentAdapter(),
+                new CommandProposalProvider(),
+                keyStroke,
+                COMMAND_AUTO_ACTIVATION);
+        adapter.setAutoActivationDelay(120);
+        adapter.setProposalAcceptanceStyle(ContentProposalAdapter.PROPOSAL_IGNORE);
+        adapter.addContentProposalListener(new IContentProposalListener() {
+            @Override
+            public void proposalAccepted(IContentProposal proposal) {
+                if (proposal instanceof QuickCommandProposal) {
+                    applyQuickCommand(((QuickCommandProposal) proposal).command());
+                }
+            }
+        });
+    }
+
+    private void openCommandPalette() {
+        if (prompt == null || prompt.isDisposed()) {
+            return;
+        }
+        ElementListSelectionDialog dialog = new ElementListSelectionDialog(getSite().getShell(), new LabelProvider() {
+            @Override
+            public String getText(Object element) {
+                if (element instanceof QuickCommand) {
+                    QuickCommand command = (QuickCommand) element;
+                    return String.format("%s — %s", command.trigger, command.title);
+                }
+                return super.getText(element);
+            }
+        });
+        dialog.setMultipleSelection(false);
+        dialog.setElements(QUICK_COMMANDS.toArray());
+        dialog.setTitle("Quick command palette");
+        dialog.setMessage("Select a quick command or type to filter:");
+        dialog.setEmptyListMessage("No commands match the filter.");
+        dialog.setBlockOnOpen(true);
+        dialog.setHelpAvailable(false);
+        if (dialog.open() == Window.OK) {
+            Object[] result = dialog.getResult();
+            if (result != null && result.length > 0 && result[0] instanceof QuickCommand) {
+                applyQuickCommand((QuickCommand) result[0]);
+            }
+        }
+    }
+
+    private void applyQuickCommand(QuickCommand command) {
+        if (command == null || prompt == null || prompt.isDisposed()) {
+            return;
+        }
+        String text = prompt.getText();
+        int caret = prompt.getCaretPosition();
+        int start = commandStartIndex(text, caret);
+        int end = commandEndIndex(text, caret);
+        if (start >= 0 && end >= start) {
+            prompt.setSelection(start, end);
+            prompt.insert(command.prompt);
+            prompt.setSelection(start + command.prompt.length());
+        } else {
+            prompt.setText(command.prompt);
+            prompt.setSelection(command.prompt.length());
+        }
+        prompt.setFocus();
+    }
+
+    private static int commandStartIndex(String text, int caret) {
+        if (text == null || text.isEmpty()) {
+            return -1;
+        }
+        int idx = Math.max(0, Math.min(caret, text.length()));
+        int start = idx - 1;
+        while (start >= 0) {
+            char ch = text.charAt(start);
+            if (Character.isWhitespace(ch)) {
+                return -1;
+            }
+            if (ch == '/') {
+                return start;
+            }
+            start--;
+        }
+        return -1;
+    }
+
+    private static int commandEndIndex(String text, int caret) {
+        if (text == null) {
+            return -1;
+        }
+        int len = text.length();
+        int idx = Math.max(0, Math.min(caret, len));
+        while (idx < len) {
+            char ch = text.charAt(idx);
+            if (Character.isWhitespace(ch)) {
+                break;
+            }
+            idx++;
+        }
+        return idx;
+    }
+
+    private static String extractCommandToken(String text, int caret) {
+        if (text == null || text.isEmpty()) {
+            return null;
+        }
+        int len = text.length();
+        int pos = Math.max(0, Math.min(caret, len));
+        int start = pos - 1;
+        while (start >= 0) {
+            char ch = text.charAt(start);
+            if (ch == '/') {
+                return text.substring(start, pos);
+            }
+            if (Character.isWhitespace(ch)) {
+                return null;
+            }
+            start--;
+        }
+        return null;
+    }
+
+    private static boolean matchesCommand(QuickCommand command, String query) {
+        if (command == null) {
+            return false;
+        }
+        if (query == null || query.isBlank() || "/".equals(query)) {
+            return true;
+        }
+        String triggerLower = command.trigger.toLowerCase(Locale.ROOT);
+        String titleLower = command.title.toLowerCase(Locale.ROOT);
+        String descriptionLower = command.description.toLowerCase(Locale.ROOT);
+        String normalized = query.startsWith("/") ? query.substring(1) : query;
+        return triggerLower.contains(query)
+                || triggerLower.startsWith(query)
+                || titleLower.contains(normalized)
+                || descriptionLower.contains(normalized);
+    }
+
+    private static final class CommandProposalProvider implements IContentProposalProvider {
+        @Override
+        public IContentProposal[] getProposals(String contents, int position) {
+            String token = extractCommandToken(contents, position);
+            if (token == null) {
+                return new IContentProposal[0];
+            }
+            List<QuickCommandProposal> proposals = QUICK_COMMANDS.stream()
+                    .filter(command -> matchesCommand(command, token.toLowerCase(Locale.ROOT)))
+                    .map(QuickCommandProposal::new)
+                    .toList();
+            if (proposals.isEmpty()) {
+                proposals = QUICK_COMMANDS.stream().map(QuickCommandProposal::new).toList();
+            }
+            return proposals.toArray(IContentProposal[]::new);
+        }
+    }
+
+    private static final class QuickCommandProposal implements IContentProposal {
+        private final QuickCommand command;
+
+        QuickCommandProposal(QuickCommand command) {
+            this.command = command;
+        }
+
+        QuickCommand command() {
+            return command;
+        }
+
+        @Override
+        public String getContent() {
+            return command.prompt;
+        }
+
+        @Override
+        public int getCursorPosition() {
+            return command.prompt.length();
+        }
+
+        @Override
+        public String getDescription() {
+            return command.description;
+        }
+
+        @Override
+        public String getLabel() {
+            return String.format("%s — %s", command.trigger, command.title);
+        }
+    }
+
+    private static final class QuickCommand {
+        final String trigger;
+        final String title;
+        final String prompt;
+        final String description;
+
+        QuickCommand(String trigger, String title, String prompt, String description) {
+            this.trigger = trigger;
+            this.title = title;
+            this.prompt = prompt;
+            this.description = description;
+        }
+    }
+
     private void runSynchronousRequest(Session session, String text, DRepresentation diagram, boolean actionsEnabled, List<LLMService.Message> history) {
         sending = true;
         updateSendButtonState();
@@ -848,6 +1129,163 @@ public class ChatView extends ViewPart {
             append("Tool actions are disabled; plan will not be applied.");
         }
         updateContextSummary(SessionBridge.getActiveSession());
+    }
+
+    private boolean offerClarificationLoop(Session session, ToolPlan plan, DryRunResult dryRun) {
+        if (dryRun == null || dryRun.issues().isEmpty()) {
+            return true;
+        }
+        List<String> summary = buildClarificationSummary(session, plan, dryRun);
+        if (summary.isEmpty()) {
+            return true;
+        }
+        StringBuilder message = new StringBuilder("Dry run flagged issues:\n\n");
+        for (String line : summary) {
+            message.append("• ").append(line).append(System.lineSeparator());
+        }
+        message.append(System.lineSeparator()).append("Ask the assistant to resolve these before applying the plan?");
+
+        MessageDialog dialog = new MessageDialog(
+                getSite().getShell(),
+                "Plan needs clarification",
+                null,
+                message.toString(),
+                MessageDialog.QUESTION,
+                new String[] {"Ask Assistant", "Review Plan"},
+                0);
+        int choice = dialog.open();
+        if (choice == 0) {
+            sendClarificationRequest(summary);
+            return false;
+        }
+        return true;
+    }
+
+    private List<String> buildClarificationSummary(Session session, ToolPlan plan, DryRunResult dryRun) {
+        if (plan == null || dryRun == null || !dryRun.isAvailable()) {
+            return List.of();
+        }
+        List<String> summary = new ArrayList<>();
+        for (PlanItem item : plan.items()) {
+            PlanDryRun.Outcome outcome = dryRun.outcomeFor(item.getIndex());
+            if (outcome == null || outcome.isSuccess()) {
+                continue;
+            }
+            StringBuilder line = new StringBuilder();
+            line.append(String.format("Step %d (%s): %s",
+                    item.getIndex() + 1,
+                    item.getTypeLabel(),
+                    outcome.getMessage()));
+            List<String> hints = suggestAlternatives(session, item, outcome);
+            if (!hints.isEmpty()) {
+                line.append(" — Did you mean ").append(String.join(", ", hints)).append('?');
+            }
+            summary.add(line.toString());
+        }
+        if (summary.isEmpty()) {
+            summary.addAll(dryRun.issues());
+        }
+        return summary;
+    }
+
+    private List<String> suggestAlternatives(Session session, PlanItem item, PlanDryRun.Outcome outcome) {
+        if (session == null || item == null || outcome == null) {
+            return List.of();
+        }
+        String message = outcome.getMessage();
+        String lower = message != null ? message.toLowerCase(Locale.ROOT) : "";
+        if (!lower.contains("not found") && !lower.contains("missing")) {
+            return List.of();
+        }
+        Set<String> candidates = gatherCandidateNames(item);
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+        List<String> suggestions = new ArrayList<>();
+        for (String candidate : candidates) {
+            List<IndexedElement> matches = ModelIndex.search(session, candidate, 5);
+            for (IndexedElement match : matches) {
+                if (match == null || match.name == null || match.name.isBlank()) {
+                    continue;
+                }
+                if (candidate.equalsIgnoreCase(match.name)) {
+                    continue;
+                }
+                String label = match.name;
+                if (match.type != null && !match.type.isBlank()) {
+                    label = label + " (" + match.type + ")";
+                }
+                if (!suggestions.contains(label)) {
+                    suggestions.add(label);
+                }
+                if (suggestions.size() >= 3) {
+                    break;
+                }
+            }
+            if (suggestions.size() >= 3) {
+                break;
+            }
+        }
+        return suggestions;
+    }
+
+    private Set<String> gatherCandidateNames(PlanItem item) {
+        Set<String> names = new LinkedHashSet<>();
+        addCandidate(names, item.getExistingName());
+        addCandidate(names, item.getSourceName());
+        addCandidate(names, item.getTargetName());
+        addCandidate(names, item.getParentName());
+        addCandidate(names, item.getCapabilityName());
+        addCandidate(names, item.getLogicalName());
+        addCandidate(names, item.getPhysicalName());
+        addCandidate(names, item.getChainName());
+        addCandidate(names, item.getFunctionName());
+        addCandidate(names, item.getExchangeName());
+        addCandidate(names, item.getScenarioName());
+        if (item.getItemNames() != null) {
+            for (String name : item.getItemNames()) {
+                addCandidate(names, name);
+            }
+        }
+        if (item.getSecondaryNames() != null) {
+            for (String name : item.getSecondaryNames()) {
+                addCandidate(names, name);
+            }
+        }
+        return names;
+    }
+
+    private void addCandidate(Set<String> names, String raw) {
+        if (raw == null) {
+            return;
+        }
+        String value = raw.trim();
+        if (!value.isEmpty()) {
+            names.add(value);
+        }
+    }
+
+    private void sendClarificationRequest(List<String> summary) {
+        String followUp = composeClarificationPrompt(summary);
+        append("Plan validator: requesting clarification from the assistant.");
+        Display.getDefault().asyncExec(() -> {
+            if (prompt != null && !prompt.isDisposed()) {
+                prompt.setText(followUp);
+                prompt.setSelection(followUp.length());
+                prompt.setFocus();
+                onSend();
+            }
+        });
+    }
+
+    private String composeClarificationPrompt(List<String> summary) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Dry run validation failed with the following issues:\n");
+        for (String line : summary) {
+            sb.append(" - ").append(line).append('\n');
+        }
+        sb.append("Please respond with an updated TOOL_PLAN that resolves each issue, choosing the correct existing elements or creating missing ones as needed.");
+        return sb.toString();
     }
 
     private void registerSelectionListener() {
