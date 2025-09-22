@@ -65,7 +65,7 @@ import org.polarsys.capella.ai.ui.PlanEditorDialog;
 public class ChatView extends ViewPart {
 
     private static final String[] PROVIDER_DISPLAY_NAMES = {"OpenAI", "Anthropic", "Azure", "Custom"};
-    private static final String[] OPENAI_MODELS = {"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"};
+    private static final String[] OPENAI_MODELS = {"gpt-5", "gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"};
     private static final String[] ANTHROPIC_MODELS = {"claude-3-haiku", "claude-3-sonnet", "claude-3-opus"};
     private static final int MAX_HISTORY_MESSAGES = 12;
 

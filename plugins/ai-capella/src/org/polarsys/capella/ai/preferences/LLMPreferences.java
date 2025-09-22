@@ -26,7 +26,7 @@ public final class LLMPreferences {
 
     public static String getProvider() { return getPrefs().get(KEY_PROVIDER, env("CAPELLA_AI_PROVIDER", "openai")); }
     public static String getBaseUrl() { return getPrefs().get(KEY_BASE, env("CAPELLA_AI_BASE_URL", "https://api.openai.com")); }
-    public static String getModel() { return getPrefs().get(KEY_MODEL, env("CAPELLA_AI_MODEL", "gpt-4o-mini")); }
+    public static String getModel() { return getPrefs().get(KEY_MODEL, env("CAPELLA_AI_MODEL", "gpt-5")); }
     public static double getTemperature() { return getPrefs().getDouble(KEY_TEMP, envDouble("CAPELLA_AI_TEMPERATURE", 0.2)); }
     public static int getMaxTokens() { return getPrefs().getInt(KEY_MAXTOK, envInt("CAPELLA_AI_MAX_TOKENS", 2000)); }
     public static int getTimeoutSec() { return getPrefs().getInt(KEY_TIMEOUT, envInt("CAPELLA_AI_TIMEOUT", 60)); }
