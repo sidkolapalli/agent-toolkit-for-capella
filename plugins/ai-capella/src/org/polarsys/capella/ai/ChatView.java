@@ -15,6 +15,7 @@ import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.emf.ecore.EObject;
+import org.eclipse.swt.custom.ScrolledComposite;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.InputDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
@@ -155,14 +156,24 @@ public class ChatView extends ViewPart {
     private boolean streamingReplyStarted;
     private boolean lastReplyStreamed;
     private StringBuilder streamingBuffer;
+    private ScrolledComposite scroller;
+    private Composite rootComposite;
 
     @Override
     public void createPartControl(Composite parent) {
-        parent.setLayout(new GridLayout(1, false));
+        scroller = new ScrolledComposite(parent, SWT.V_SCROLL | SWT.H_SCROLL);
+        scroller.setExpandHorizontal(true);
+        scroller.setExpandVertical(true);
+        scroller.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 
-        createConversationSection(parent);
-        createModelToolsSection(parent);
-        createSettingsSection(parent);
+        rootComposite = new Composite(scroller, SWT.NONE);
+        rootComposite.setLayout(new GridLayout(1, false));
+        scroller.setContent(rootComposite);
+
+        createConversationSection(rootComposite);
+        createModelToolsSection(rootComposite);
+        createSettingsSection(rootComposite);
+        refreshScrollArea();
 
         loadPreferencesIntoUi();
         updateConnectionSummary();
@@ -1327,6 +1338,7 @@ public class ChatView extends ViewPart {
         sb.append(buildMethodologyCard(session)).append(System.lineSeparator()).append(System.lineSeparator());
         sb.append(buildPlanCard());
         contextSummary.setText(sb.toString().stripTrailing());
+        refreshScrollArea();
     }
 
     private String buildSelectionCard(Session session, org.eclipse.jface.viewers.ISelection selection) {
@@ -1436,6 +1448,12 @@ public class ChatView extends ViewPart {
             }
         }
         return sb.toString();
+    }
+
+    private void refreshScrollArea() {
+        if (scroller != null && !scroller.isDisposed() && rootComposite != null && !rootComposite.isDisposed()) {
+            scroller.setMinSize(rootComposite.computeSize(SWT.DEFAULT, SWT.DEFAULT));
+        }
     }
 
     private EObject adaptToEObject(Object candidate) {
