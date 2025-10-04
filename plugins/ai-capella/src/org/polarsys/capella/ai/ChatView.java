@@ -74,6 +74,8 @@ import org.polarsys.capella.ai.tools.DiagramCommands;
 import org.polarsys.capella.ai.session.PlanDryRun;
 import org.polarsys.capella.ai.session.PlanDryRun.DryRunResult;
 import org.polarsys.capella.ai.telemetry.Telemetry;
+import org.polarsys.capella.ai.ui.ConversationController;
+import org.polarsys.capella.ai.ui.ConversationPanel;
 import org.polarsys.capella.ai.ui.PlanEditorDialog;
 
 /**
@@ -124,7 +126,8 @@ public class ChatView extends ViewPart {
                     "Open or create a LAB diagram centred on the current selection and recap the changes.")
     );
 
-    private Text chatLog;
+    private ConversationPanel conversationPanel;
+    private ConversationController conversationController;
     private Text prompt;
     private Button sendButton;
     private Button enableActions;
@@ -147,7 +150,6 @@ public class ChatView extends ViewPart {
     private Label connectionSummary;
 
     private boolean sending;
-    private final List<LLMService.Message> conversationHistory = new ArrayList<>();
     private final List<String> lastPlanSummary = new ArrayList<>();
     private Text contextSummary;
     private ISelectionListener selectionListener;
@@ -191,10 +193,11 @@ public class ChatView extends ViewPart {
         connectionSummary = new Label(conversation, SWT.WRAP);
         connectionSummary.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        chatLog = new Text(conversation, SWT.BORDER | SWT.MULTI | SWT.V_SCROLL | SWT.READ_ONLY | SWT.WRAP);
-        GridData logData = new GridData(SWT.FILL, SWT.FILL, true, true);
-        logData.heightHint = 280;
-        chatLog.setLayoutData(logData);
+        conversationPanel = new ConversationPanel(conversation);
+        conversationController = new ConversationController(conversationPanel);
+        GridData panelData = new GridData(SWT.FILL, SWT.FILL, true, true);
+        panelData.heightHint = 400;
+        conversationPanel.scroller.setLayoutData(panelData);
 
         Composite promptRow = new Composite(conversation, SWT.NONE);
         promptRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
@@ -702,14 +705,14 @@ public class ChatView extends ViewPart {
         }
         final Session session = SessionBridge.getActiveSession();
         if (session == null) {
-            append("No active Capella session.");
+            conversationController.addSystemMessage("No active Capella session.");
             return;
         }
         final DRepresentation currentDiagram = DiagramCommands.getLastOpened();
         final boolean actionsEnabled = enableActions.getSelection();
-        final List<LLMService.Message> history = snapshotHistory();
+        final List<LLMService.Message> history = conversationController.getHistory();
 
-        append("You: " + text);
+        conversationController.addUserMessage(text);
         prompt.setText("");
         sending = true;
         streamingCancelled = false;
@@ -749,26 +752,23 @@ public class ChatView extends ViewPart {
                 }
             });
         } catch (Exception ex) {
-            append("Streaming unavailable: " + ex.getMessage());
+            conversationController.addSystemMessage("Streaming unavailable: " + ex.getMessage());
             finishStreaming();
             runSynchronousRequest(session, text, currentDiagram, actionsEnabled, history);
             return;
         }
-        appendHistory(LLMService.Message.user(text));
     }
 
     private void handleChatResult(Session session, DRepresentation diagram, boolean actionsEnabled, ToolRouter.Result result) {
         try {
             if (result.error != null) {
-                append("Assistant ERROR: " + result.error);
+                conversationController.addError(result.error);
                 Telemetry.recordPlanError("plan-generation", result.error);
-                appendHistory(LLMService.Message.assistant("ERROR: " + result.error));
             }
             if (result.reply != null && !result.reply.isBlank()) {
                 if (!lastReplyStreamed) {
-                    append("Assistant: " + result.reply);
+                    conversationController.addAssistantMessage(result.reply);
                 }
-                appendHistory(LLMService.Message.assistant(result.reply));
             }
 
             lastReplyStreamed = false;
@@ -777,7 +777,7 @@ public class ChatView extends ViewPart {
             if (plan != null && !plan.isEmpty()) {
                 Telemetry.recordPlanSuggested(plan);
                 DryRunResult dryRun = PlanDryRun.evaluate(session, plan);
-                appendPlanSummary(plan.describe(), actionsEnabled);
+                conversationController.showPlanPreview(plan, plan.describe());
                 boolean proceed = offerClarificationLoop(session, plan, dryRun);
                 if (!proceed) {
                     updateContextSummary(session, null);
@@ -790,10 +790,10 @@ public class ChatView extends ViewPart {
                         if (selection != null && !selection.isEmpty()) {
                             schedulePlanExecution(session, diagram, selection);
                         } else {
-                            append("Plan not applied (no actions selected).");
+                            conversationController.addSystemMessage("Plan not applied (no actions selected).");
                         }
                     } else {
-                        append("Plan not applied (cancelled by user).");
+                        conversationController.addSystemMessage("Plan not applied (cancelled by user).");
                     }
                 }
             }
@@ -810,9 +810,9 @@ public class ChatView extends ViewPart {
             protected IStatus run(IProgressMonitor monitor) {
                 PlanExecutionResult execution = ToolRouter.applyPlan(session, diagram, plan);
                 Display.getDefault().asyncExec(() -> {
-                    append("Plan actions applied: " + execution.applied);
+                    conversationController.addSystemMessage("✓ Plan actions applied: " + execution.applied);
                     for (String error : execution.errors) {
-                        append("Plan warning: " + error);
+                        conversationController.addSystemMessage("⚠ Plan warning: " + error);
                     }
                     Telemetry.recordPlanExecution(plan, execution);
                     updateConnectionSummary();
@@ -823,27 +823,6 @@ public class ChatView extends ViewPart {
         job.schedule();
     }
 
-    private List<LLMService.Message> snapshotHistory() {
-        return new ArrayList<>(conversationHistory);
-    }
-
-    private void appendHistory(LLMService.Message message) {
-        if (message == null) {
-            return;
-        }
-        String content = message.getContent();
-        if (content == null || content.isBlank()) {
-            return;
-        }
-        conversationHistory.add(message);
-        trimHistory();
-    }
-
-    private void trimHistory() {
-        while (conversationHistory.size() > MAX_HISTORY_MESSAGES) {
-            conversationHistory.remove(0);
-        }
-    }
 
     private void handleStreamPartial(String delta) {
         if (delta == null || delta.isEmpty()) {
@@ -854,22 +833,21 @@ public class ChatView extends ViewPart {
         }
         Display display = Display.getDefault();
         display.asyncExec(() -> {
-            if (chatLog == null || chatLog.isDisposed()) {
+            if (conversationController.isDisposed()) {
                 return;
             }
             if (!streamingReplyStarted) {
-                chatLog.append("Assistant: ");
+                conversationController.startStreaming();
                 streamingReplyStarted = true;
                 lastReplyStreamed = true;
             }
-            chatLog.append(delta);
-            chatLog.setTopIndex(chatLog.getLineCount() - 1);
+            conversationController.appendStreaming(delta);
         });
     }
 
     private void handleStreamCompleted(Session session, DRepresentation diagram, boolean actionsEnabled, ToolRouter.Result result) {
-        if (chatLog != null && !chatLog.isDisposed() && streamingReplyStarted) {
-            chatLog.append(System.lineSeparator());
+        if (!conversationController.isDisposed() && streamingReplyStarted) {
+            conversationController.finishStreaming(streamingBuffer != null ? streamingBuffer.toString() : "");
         }
         lastReplyStreamed = streamingReplyStarted;
         handleChatResult(session, diagram, actionsEnabled, result);
@@ -878,15 +856,15 @@ public class ChatView extends ViewPart {
 
     private void handleStreamError(String message) {
         if (!streamingCancelled && message != null && !message.isBlank()) {
-            append("Assistant ERROR: " + message);
+            conversationController.addError(message);
             Telemetry.recordPlanError("plan-stream", message);
         }
         finishStreaming();
     }
 
     private void handleStreamCancelled() {
-        if (chatLog != null && !chatLog.isDisposed()) {
-            chatLog.append("[generation cancelled]\n");
+        if (!conversationController.isDisposed()) {
+            conversationController.addSystemMessage("[generation cancelled]");
         }
         finishStreaming();
     }
@@ -1137,18 +1115,6 @@ public class ChatView extends ViewPart {
         job.schedule();
     }
 
-    private void appendPlanSummary(List<String> lines, boolean actionsEnabled) {
-        lastPlanSummary.clear();
-        lastPlanSummary.addAll(lines);
-        append("Plan contains " + lines.size() + " action(s):");
-        for (String line : lines) {
-            append(" - " + line);
-        }
-        if (!actionsEnabled) {
-            append("Tool actions are disabled; plan will not be applied.");
-        }
-        updateContextSummary(SessionBridge.getActiveSession());
-    }
 
     private boolean offerClarificationLoop(Session session, ToolPlan plan, DryRunResult dryRun) {
         if (dryRun == null || dryRun.issues().isEmpty()) {
@@ -1511,9 +1477,8 @@ public class ChatView extends ViewPart {
             return;
         }
         display.asyncExec(() -> {
-            if (chatLog != null && !chatLog.isDisposed()) {
-                chatLog.append(text + System.lineSeparator());
-                chatLog.setTopIndex(chatLog.getLineCount() - 1);
+            if (!conversationController.isDisposed()) {
+                conversationController.addSystemMessage(text);
             }
         });
     }

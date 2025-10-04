@@ -10,6 +10,7 @@
     <location includeMode="planner" includeAllPlatforms="false" includeSource="true" includeConfigurePhase="false" type="InstallableUnit">
       <unit id="org.eclipse.gmf.runtime.sdk.feature.group" version="0.0.0"/>
       <unit id="org.eclipse.gmf.runtime.thirdparty.feature.group" version="0.0.0"/>
+      <unit id="org.eclipse.gmf.runtime.diagram.ui" version="0.0.0"/>
       <repository id="GMF-Runtime-1.16" location="https://download.eclipse.org/modeling/gmp/gmf-runtime/updates/milestones/S202401081627"/>
     </location>
     <location includeMode="planner" includeAllPlatforms="false" includeSource="true" includeConfigurePhase="false" type="InstallableUnit">
@@ -127,13 +128,14 @@
       <unit id="org.eclipse.license.feature.group" version="0.0.0"/>
       <repository id="eclipse-shared-license" location="https://download.eclipse.org/cbi/updates/license"/>
     </location>
+    
     <location includeMode="planner" includeAllPlatforms="false" includeSource="true" includeConfigurePhase="false" type="InstallableUnit">
       <unit id="org.polarsys.capella.rcp.feature.group" version="7.0.1.202503211540"/>
       <unit id="org.polarsys.capella.core.feature.feature.group" version="7.0.1.202503211540"/>
       <unit id="org.polarsys.capella.core.ui.feature.feature.group" version="7.0.1.202503211540"/>
       <unit id="org.polarsys.capella.core.common.ui.feature.feature.group" version="7.0.1.202503211540"/>
       <unit id="org.polarsys.capella.common.ui.feature.feature.group" version="7.0.1.202503211540"/>
-      <unit id="org.polarsys.capella.core.data.gen" version="7.0.1"/>
+      <unit id="org.polarsys.capella.core.data.gen" version="7.0.1.202503211540"/>
       <repository id="capella-rcp" location="https://download.eclipse.org/capella/core/updates/releases/7.0.1/org.polarsys.capella.rcp.site/"/>
     </location>
   </locations>

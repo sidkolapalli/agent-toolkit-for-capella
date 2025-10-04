@@ -4,12 +4,12 @@
   <parent>
     <groupId>org.polarsys.capella.ai</groupId>
     <artifactId>plugins-aggregator</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.2.0-SNAPSHOT</version>
     <relativePath>../../plugins/pom.xml</relativePath>
   </parent>
   <groupId>org.polarsys.capella.ai</groupId>
   <artifactId>capella-target</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.2.0-SNAPSHOT</version>
   <packaging>eclipse-target-definition</packaging>
   <name>Capella Target Platform</name>
 
