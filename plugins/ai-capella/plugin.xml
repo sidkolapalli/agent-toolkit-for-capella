@@ -28,7 +28,7 @@
                 minimized="false"
                 moveable="true"
                 relationship="right"
-                relative="org.eclipse.ui.editorss"
+                relative="org.eclipse.ui.editors"
                 visible="true"/>
             <view
                 closeable="true"
@@ -46,6 +46,6 @@
             id="org.polarsys.capella.ai.preferences.llm"
             name="LLM"
             class="org.polarsys.capella.ai.preferences.LLMPreferencePage"
-            category="org.eclipse.ui.preferencePages.Workbench"/>
+            category="org.polarsys.capella.preferences"/>
     </extension>
 </plugin>

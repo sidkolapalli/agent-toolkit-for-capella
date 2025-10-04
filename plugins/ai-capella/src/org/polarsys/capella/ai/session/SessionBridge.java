@@ -4,6 +4,9 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.business.api.session.SessionManager;
 import org.eclipse.ui.IEditorInput;
@@ -16,6 +19,8 @@ import org.eclipse.ui.PlatformUI;
 
 /** Utility to access the current Capella Sirius Session in-process. */
 public final class SessionBridge {
+    private static final Logger LOG = Logger.getLogger(SessionBridge.class.getName());
+
     private SessionBridge() {}
 
     /** Get the active Sirius Session from the current editor or selection. */
@@ -49,9 +54,9 @@ public final class SessionBridge {
                     }
                 }
             }
-        } catch (Exception ignore) {
+        } catch (Exception ex) {
+            LOG.log(Level.WARNING, "Failed to resolve active Capella session", ex);
         }
         return null;
     }
 }
-

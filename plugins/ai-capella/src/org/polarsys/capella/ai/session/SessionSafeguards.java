@@ -129,4 +129,11 @@ public final class SessionSafeguards {
             display.syncExec(runnable);
         }
     }
+
+    /** Clear ThreadLocal state to avoid leaks when the plug-in stops. */
+    public static void cleanup() {
+        IN_WRITE.remove();
+        DEFER_SAVE_DEPTH.remove();
+        SAVE_DIRTY.remove();
+    }
 }

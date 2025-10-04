@@ -2,6 +2,7 @@ package org.polarsys.capella.ai;
 
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
+import org.polarsys.capella.ai.session.SessionSafeguards;
 
 public class Activator extends AbstractUIPlugin {
     public static final String PLUGIN_ID = "org.polarsys.capella.ai";
@@ -15,6 +16,7 @@ public class Activator extends AbstractUIPlugin {
 
     @Override
     public void stop(BundleContext context) throws Exception {
+        SessionSafeguards.cleanup();
         plugin = null;
         super.stop(context);
     }
@@ -23,4 +25,3 @@ public class Activator extends AbstractUIPlugin {
         return plugin;
     }
 }
-

@@ -110,10 +110,24 @@ public final class DiagramCommands {
                         int.class, int.class, int.class, int.class)
                         .newInstance(domain, dd, semantic, 100, 100, 0, 0);
             } catch (NoSuchMethodException ignore) {}
-            if (cmd != null) {
-                domain.getCommandStack().execute((org.eclipse.emf.common.command.Command) cmd);
-                DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
-                return true;
+            if (cmd instanceof org.eclipse.emf.common.command.Command command) {
+                Boolean executed = SessionSafeguards.runWrite(session, "Create diagram node", () -> {
+                    if (!command.canExecute()) {
+                        return Boolean.FALSE;
+                    }
+                    try {
+                        command.execute();
+                        DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
+                        return Boolean.TRUE;
+                    } finally {
+                        try {
+                            command.dispose();
+                        } catch (Exception ignore) {}
+                    }
+                });
+                if (Boolean.TRUE.equals(executed)) {
+                    return true;
+                }
             }
         } catch (ClassNotFoundException notFound) {
             // Fallback to reveal
@@ -143,10 +157,24 @@ public final class DiagramCommands {
                         org.eclipse.emf.ecore.EObject.class)
                         .newInstance(domain, dd, source, target);
             } catch (NoSuchMethodException ignore) {}
-            if (cmd != null) {
-                domain.getCommandStack().execute((org.eclipse.emf.common.command.Command) cmd);
-                DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
-                return true;
+            if (cmd instanceof org.eclipse.emf.common.command.Command command) {
+                Boolean executed = SessionSafeguards.runWrite(session, "Create diagram edge", () -> {
+                    if (!command.canExecute()) {
+                        return Boolean.FALSE;
+                    }
+                    try {
+                        command.execute();
+                        DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
+                        return Boolean.TRUE;
+                    } finally {
+                        try {
+                            command.dispose();
+                        } catch (Exception ignore) {}
+                    }
+                });
+                if (Boolean.TRUE.equals(executed)) {
+                    return true;
+                }
             }
         } catch (ClassNotFoundException notFound) {
             // Fallback
