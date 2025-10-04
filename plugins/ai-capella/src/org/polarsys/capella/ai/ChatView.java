@@ -175,9 +175,27 @@ public class ChatView extends ViewPart {
         rootComposite.setLayout(new GridLayout(1, false));
         scroller.setContent(rootComposite);
 
-        createConversationSection(rootComposite);
-        createModelToolsSection(rootComposite);
-        createSettingsSection(rootComposite);
+        // Tabs: Chat (minimal) and Advanced (everything else)
+        org.eclipse.swt.widgets.TabFolder tabs = new org.eclipse.swt.widgets.TabFolder(rootComposite, SWT.NONE);
+        tabs.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+
+        // Chat tab
+        org.eclipse.swt.widgets.TabItem chatTab = new org.eclipse.swt.widgets.TabItem(tabs, SWT.NONE);
+        chatTab.setText("Chat");
+        Composite chatComposite = new Composite(tabs, SWT.NONE);
+        chatComposite.setLayout(new GridLayout(1, false));
+        chatTab.setControl(chatComposite);
+        createChatOnlySection(chatComposite);
+
+        // Advanced tab (context, toggles, tools, settings)
+        org.eclipse.swt.widgets.TabItem advTab = new org.eclipse.swt.widgets.TabItem(tabs, SWT.NONE);
+        advTab.setText("Advanced");
+        Composite advComposite = new Composite(tabs, SWT.NONE);
+        advComposite.setLayout(new GridLayout(1, false));
+        advTab.setControl(advComposite);
+        createAdvancedBasicsSection(advComposite);
+        createModelToolsSection(advComposite);
+        createSettingsSection(advComposite);
         refreshScrollArea();
 
         loadPreferencesIntoUi();
@@ -186,6 +204,126 @@ public class ChatView extends ViewPart {
         registerSelectionListener();
         updateContextSummary(SessionBridge.getActiveSession());
         initializeFromActiveSession();
+    }
+
+    /**
+     * Minimal chat UI (no context cards, no toggles, no settings).
+     */
+    private void createChatOnlySection(Composite parent) {
+        Group conversation = new Group(parent, SWT.NONE);
+        conversation.setText("Conversation");
+        conversation.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        conversation.setLayout(new GridLayout(1, false));
+
+        conversationPanel = new ConversationPanel(conversation);
+        conversationController = new ConversationController(conversationPanel);
+        GridData panelData = new GridData(SWT.FILL, SWT.FILL, true, true);
+        panelData.heightHint = 400;
+        conversationPanel.scroller.setLayoutData(panelData);
+
+        Composite promptRow = new Composite(conversation, SWT.NONE);
+        promptRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        promptRow.setLayout(new GridLayout(4, false));
+
+        prompt = new Text(promptRow, SWT.BORDER);
+        prompt.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        prompt.setToolTipText("Type / for quick commands, Ctrl+Space for suggestions, or Cmd/Ctrl+P for the palette.");
+        prompt.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if ((e.character == SWT.CR || e.character == SWT.LF) && !sending && sendButton.isEnabled()) {
+                    onSend();
+                    return;
+                }
+                if ((e.stateMask & SWT.MOD1) != 0 && (e.keyCode == 'p' || e.keyCode == 'P')) {
+                    openCommandPalette();
+                    e.doit = false;
+                }
+            }
+        });
+        prompt.addModifyListener(e -> updateSendButtonState());
+        installPromptAssist(prompt);
+
+        Button commandsButton = new Button(promptRow, SWT.PUSH);
+        commandsButton.setText("Commands");
+        commandsButton.setToolTipText("Open the quick command palette (Cmd/Ctrl+P)");
+        commandsButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+        commandsButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                openCommandPalette();
+            }
+        });
+
+        sendButton = new Button(promptRow, SWT.PUSH);
+        sendButton.setText("Send");
+        sendButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+        sendButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onSend();
+            }
+        });
+
+        stopButton = new Button(promptRow, SWT.PUSH);
+        stopButton.setText("Stop");
+        stopButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+        stopButton.setEnabled(false);
+        stopButton.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                cancelStreaming();
+            }
+        });
+    }
+
+    /**
+     * Advanced basics: context summary and primary toggles.
+     */
+    private void createAdvancedBasicsSection(Composite parent) {
+        Group togglesGroup = new Group(parent, SWT.NONE);
+        togglesGroup.setText("Controls");
+        togglesGroup.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        togglesGroup.setLayout(new GridLayout(3, false));
+
+        enableActions = new Button(togglesGroup, SWT.CHECK);
+        enableActions.setText("Enable tool actions");
+        enableActions.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                persistPreference(() -> LLMPreferences.setToolActionsEnabled(enableActions.getSelection()));
+                updateConnectionSummary();
+            }
+        });
+
+        useLlmMapping = new Button(togglesGroup, SWT.CHECK);
+        useLlmMapping.setText("Use LLM mapping for imports");
+        useLlmMapping.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                persistPreference(() -> LLMPreferences.setUseLlmMapping(useLlmMapping.getSelection()));
+                updateConnectionSummary();
+            }
+        });
+
+        Button explainModel = new Button(togglesGroup, SWT.PUSH);
+        explainModel.setText("Explain model");
+        explainModel.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                onExplainModel();
+            }
+        });
+
+        Group contextGroup = new Group(parent, SWT.NONE);
+        contextGroup.setText("Context");
+        contextGroup.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
+        contextGroup.setLayout(new GridLayout(1, false));
+
+        contextSummary = new Text(contextGroup, SWT.BORDER | SWT.MULTI | SWT.V_SCROLL | SWT.WRAP | SWT.READ_ONLY);
+        GridData contextData = new GridData(SWT.FILL, SWT.FILL, true, true);
+        contextData.heightHint = 200;
+        contextSummary.setLayoutData(contextData);
     }
 
     private void initializeFromActiveSession() {
