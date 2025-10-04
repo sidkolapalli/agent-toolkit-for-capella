@@ -256,6 +256,8 @@ public class ChatView extends ViewPart {
                 }
             }
         });
+        // Enable/disable Send live as the user types
+        prompt.addModifyListener(e -> updateSendButtonState());
         installPromptAssist(prompt);
 
         Button commandsButton = new Button(promptRow, SWT.PUSH);
