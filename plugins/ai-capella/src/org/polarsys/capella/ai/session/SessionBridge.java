@@ -53,6 +53,20 @@ public final class SessionBridge {
                         if (s != null && s.isOpen()) return s;
                     }
                 }
+                // Fallback: if exactly one open session exists, use it
+                try {
+                    java.util.Collection<Session> sessions = SessionManager.INSTANCE.getSessions();
+                    if (sessions != null) {
+                        Session chosen = null;
+                        for (Session s : sessions) {
+                            if (s != null && s.isOpen()) {
+                                if (chosen == null) chosen = s; else { chosen = null; break; }
+                            }
+                        }
+                        if (chosen != null) return chosen;
+                    }
+                } catch (Exception ignore) {
+                }
             }
         } catch (Exception ex) {
             LOG.log(Level.WARNING, "Failed to resolve active Capella session", ex);

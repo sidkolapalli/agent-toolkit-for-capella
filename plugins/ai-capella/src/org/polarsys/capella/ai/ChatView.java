@@ -51,6 +51,8 @@ import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.dialogs.ElementListSelectionDialog;
+import org.eclipse.ui.IPartListener2;
+import org.eclipse.ui.IWorkbenchPartReference;
 import org.eclipse.ui.part.ViewPart;
 import org.osgi.service.prefs.BackingStoreException;
 import org.polarsys.capella.ai.actions.FunctionalChainActions;
@@ -160,6 +162,7 @@ public class ChatView extends ViewPart {
     private StringBuilder streamingBuffer;
     private ScrolledComposite scroller;
     private Composite rootComposite;
+    private IPartListener2 partListener;
 
     @Override
     public void createPartControl(Composite parent) {
@@ -182,6 +185,40 @@ public class ChatView extends ViewPart {
         updateSendButtonState();
         registerSelectionListener();
         updateContextSummary(SessionBridge.getActiveSession());
+        initializeFromActiveSession();
+    }
+
+    private void initializeFromActiveSession() {
+        try {
+            Session session = SessionBridge.getActiveSession();
+            if (session != null) {
+                // Proactively surface current model context into the conversation
+                String summary = ModelSummary.summarize(session);
+                if (summary != null && !summary.isBlank() && conversationController != null) {
+                    conversationController.addSystemMessage(summary);
+                }
+            } else if (conversationController != null) {
+                conversationController.addSystemMessage("No active Capella session detected. Open a model to begin.");
+            }
+        } catch (Exception ignore) {}
+
+        // Listen for part activation to refresh context when an editor becomes active
+        if (partListener == null && getSite() != null && getSite().getWorkbenchWindow() != null) {
+            var page = getSite().getWorkbenchWindow().getActivePage();
+            if (page != null) {
+                partListener = new IPartListener2() {
+                    @Override public void partActivated(IWorkbenchPartReference partRef) { updateContextSummary(SessionBridge.getActiveSession(), null); }
+                    @Override public void partBroughtToTop(IWorkbenchPartReference partRef) {}
+                    @Override public void partClosed(IWorkbenchPartReference partRef) {}
+                    @Override public void partDeactivated(IWorkbenchPartReference partRef) {}
+                    @Override public void partOpened(IWorkbenchPartReference partRef) {}
+                    @Override public void partHidden(IWorkbenchPartReference partRef) {}
+                    @Override public void partVisible(IWorkbenchPartReference partRef) {}
+                    @Override public void partInputChanged(IWorkbenchPartReference partRef) {}
+                };
+                page.addPartListener(partListener);
+            }
+        }
     }
 
     private void createConversationSection(Composite parent) {
@@ -1459,6 +1496,12 @@ public class ChatView extends ViewPart {
             getSite().getWorkbenchWindow().getSelectionService().removePostSelectionListener(selectionListener);
             selectionListener = null;
         }
+        try {
+            var page = getSite() != null && getSite().getWorkbenchWindow() != null ? getSite().getWorkbenchWindow().getActivePage() : null;
+            if (page != null && partListener != null) {
+                page.removePartListener(partListener);
+            }
+        } catch (Exception ignore) {}
         super.dispose();
     }
 
