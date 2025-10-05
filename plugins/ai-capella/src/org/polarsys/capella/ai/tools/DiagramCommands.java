@@ -171,7 +171,7 @@ public final class DiagramCommands {
             java.util.List<EObject> eos = new java.util.ArrayList<>();
             for (String id : ids) { EObject eo = findById(rs, id); if (eo != null) eos.add(eo); }
             if (eos.isEmpty()) return;
-            // Reflection: DialectUIManager.INSTANCE.reveal(session, rep, collection, monitor)
+            // Use reflection to support multiple Sirius versions
             java.lang.reflect.Method m = null;
             for (java.lang.reflect.Method mm : DialectUIManager.class.getMethods()) {
                 if (mm.getName().equals("reveal")) { m = mm; break; }

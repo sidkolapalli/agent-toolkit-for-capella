@@ -39,6 +39,7 @@ public final class ToolRouter {
         public String reply;
         public ToolPlan plan;
         public String error;
+        public List<String> validationIssues = List.of();
     }
 
     public static final class ToolPlan {
@@ -566,8 +567,100 @@ public final class ToolRouter {
         if (planJson != null && !planJson.isBlank()) {
             List<Action> actions = parseActions(planJson);
             result.plan = actions.isEmpty() ? null : new ToolPlan(actions);
+            if (result.plan != null) {
+                result.validationIssues = validatePlan(session, result.plan);
+            }
         }
         return result;
+    }
+
+    private static List<String> validatePlan(Session session, ToolPlan plan) {
+        List<String> issues = new ArrayList<>();
+        if (session == null || session.getTransactionalEditingDomain() == null) {
+            issues.add("No active session for validation");
+            return issues;
+        }
+        for (PlanItem item : plan.items()) {
+            ActionType t = ActionType.from(item.getTypeId().toLowerCase(Locale.ROOT));
+            switch (t) {
+                case RENAME:
+                case DELETE: {
+                    String cls = item.getElementClass();
+                    String name = item.getExistingName();
+                    if (find(session, cls, name) == null) {
+                        issues.add(label(item) + ": element not found: " + safe(name) + " (" + safe(cls) + ")");
+                    }
+                    break;
+                }
+                case CREATE_COMPONENT_EXCHANGE: {
+                    if (find(session, "LogicalComponent", item.getSourceName()) == null) {
+                        issues.add(label(item) + ": source component not found: " + safe(item.getSourceName()));
+                    }
+                    if (find(session, "LogicalComponent", item.getTargetName()) == null) {
+                        issues.add(label(item) + ": target component not found: " + safe(item.getTargetName()));
+                    }
+                    break;
+                }
+                case CREATE_FUNCTIONAL_EXCHANGE: {
+                    if (find(session, "LogicalFunction", item.getSourceName()) == null) {
+                        issues.add(label(item) + ": source function not found: " + safe(item.getSourceName()));
+                    }
+                    if (find(session, "LogicalFunction", item.getTargetName()) == null) {
+                        issues.add(label(item) + ": target function not found: " + safe(item.getTargetName()));
+                    }
+                    break;
+                }
+                case TRACE_COMPONENT_MAPPING: {
+                    if (find(session, "LogicalComponent", item.getLogicalName()) == null) {
+                        issues.add(label(item) + ": logical component not found: " + safe(item.getLogicalName()));
+                    }
+                    if (find(session, "PhysicalComponent", item.getPhysicalName()) == null) {
+                        issues.add(label(item) + ": physical component not found: " + safe(item.getPhysicalName()));
+                    }
+                    break;
+                }
+                case CREATE_SYSTEM_COMPONENT:
+                case CREATE_SYSTEM_FUNCTION: {
+                    if (item.getParentName() != null && !item.getParentName().isBlank()) {
+                        String cls = t == ActionType.CREATE_SYSTEM_COMPONENT ? "SystemComponent" : "SystemFunction";
+                        if (find(session, cls, item.getParentName()) == null) {
+                            issues.add(label(item) + ": parent not found: " + safe(item.getParentName()));
+                        }
+                    }
+                    break;
+                }
+                case CREATE_INTERFACE: {
+                    if (find(session, "SystemComponent", item.getSourceName()) == null) {
+                        issues.add(label(item) + ": source component not found: " + safe(item.getSourceName()));
+                    }
+                    if (find(session, "SystemComponent", item.getTargetName()) == null) {
+                        issues.add(label(item) + ": target component not found: " + safe(item.getTargetName()));
+                    }
+                    break;
+                }
+                case LINK_REQUIREMENT:
+                case RECORD_REQUIREMENT_COVERAGE: {
+                    String targetCls = item.getRequirementTargetClass();
+                    String targetName = item.getTargetName();
+                    if (find(session, targetCls, targetName) == null) {
+                        issues.add(label(item) + ": target not found: " + safe(targetName) + " (" + safe(targetCls) + ")");
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+        return issues;
+    }
+
+    private static EObject find(Session session, String simpleClass, String name) {
+        if (simpleClass == null || name == null || name.isBlank()) return null;
+        return Finders.findByName(session, simpleClass, name);
+    }
+
+    private static String label(PlanItem item) {
+        return String.format("Step %d", item.getIndex() + 1);
     }
 
     private static String extractPlan(String reply) {
@@ -1345,6 +1438,8 @@ public final class ToolRouter {
     private static String string(Object value) {
         return value == null ? null : String.valueOf(value).trim();
     }
+
+    private static String safe(String s) { return s == null ? "" : s; }
 
     private static List<RenameItem> parseRenameItems(Map<String, Object> map, int index) {
         Object raw = map.get("items");

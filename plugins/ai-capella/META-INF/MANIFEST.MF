@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: AI Capella Plugin
 Bundle-SymbolicName: org.polarsys.capella.ai;singleton:=true
-Bundle-Version: 0.2.0.qualifier
+Bundle-Version: 0.2.1.qualifier
 Bundle-Activator: org.polarsys.capella.ai.Activator
 Bundle-Vendor: Capella MCP Team
 Bundle-RequiredExecutionEnvironment: JavaSE-17
