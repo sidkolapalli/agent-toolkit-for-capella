@@ -974,10 +974,10 @@ public class ChatView extends ViewPart {
                 DryRunResult dryRun = PlanDryRun.evaluate(session, plan);
                 // Build preview summary with dry-run warnings inline
                 List<String> summary = new ArrayList<>(plan.describe());
-                if (dryRun != null && dryRun.isAvailable() && dryRun.issues != null && !dryRun.issues.isEmpty()) {
+                if (dryRun != null && dryRun.isAvailable() && dryRun.issues() != null && !dryRun.issues().isEmpty()) {
                     summary.add("");
                     summary.add("Warnings:");
-                    for (String issue : dryRun.issues) {
+                    for (String issue : dryRun.issues()) {
                         summary.add(" • " + issue);
                     }
                 }
