@@ -2,6 +2,7 @@ package org.polarsys.capella.ai.session;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.emf.common.util.URI;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import java.util.logging.Level;
@@ -9,6 +10,7 @@ import java.util.logging.Logger;
 
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.business.api.session.SessionManager;
+import org.eclipse.sirius.business.api.session.factory.SessionFactory;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
@@ -72,5 +74,46 @@ public final class SessionBridge {
             LOG.log(Level.WARNING, "Failed to resolve active Capella session", ex);
         }
         return null;
+    }
+
+    /** Open a Capella session for the given .aird URI (headless-friendly). */
+    public static Session openSession(URI airdUri) {
+        if (airdUri == null) return null;
+        try {
+            Session s = SessionManager.INSTANCE.getSession(airdUri, new NullProgressMonitor());
+            if (s == null) {
+                s = SessionFactory.INSTANCE.createSession(airdUri, new NullProgressMonitor());
+            }
+            if (s != null && !s.isOpen()) {
+                s.open(new NullProgressMonitor());
+            }
+            return s;
+        } catch (Exception ex) {
+            LOG.log(Level.WARNING, "Failed to open Capella session: " + airdUri, ex);
+            return null;
+        }
+    }
+
+    /** Close a Capella session if open. */
+    public static void closeSession(Session session) {
+        if (session == null) return;
+        try {
+            if (session.isOpen()) {
+                session.close(new NullProgressMonitor());
+            }
+        } catch (Exception ex) {
+            LOG.log(Level.WARNING, "Failed to close Capella session", ex);
+        }
+    }
+
+    /** List all open sessions. */
+    public static java.util.List<Session> listOpenSessions() {
+        java.util.List<Session> out = new java.util.ArrayList<>();
+        try {
+            for (Session s : SessionManager.INSTANCE.getSessions()) {
+                if (s != null && s.isOpen()) out.add(s);
+            }
+        } catch (Exception ignore) {}
+        return out;
     }
 }
