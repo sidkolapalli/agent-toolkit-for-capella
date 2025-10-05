@@ -24,12 +24,14 @@ public class PlanPreviewBox {
 
     private final Composite container;
     private final Text planSummaryText;
+    private Text detailsText;
     private final Color backgroundColor;
     private final Color headerColor;
     private ToolPlan plan;
     private Runnable onAccept;
     private Runnable onEdit;
     private Runnable onCancel;
+    private boolean detailsVisible = false;
 
     public PlanPreviewBox(Composite parent) {
         // Wrapper for centering
@@ -66,7 +68,7 @@ public class PlanPreviewBox {
 
         // Actions row
         Composite actions = new Composite(container, SWT.NONE);
-        actions.setLayout(new GridLayout(3, false));
+        actions.setLayout(new GridLayout(4, false));
         actions.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, true, false));
 
         Button applyBtn = new Button(actions, SWT.PUSH);
@@ -86,6 +88,24 @@ public class PlanPreviewBox {
         dismissBtn.addSelectionListener(new SelectionAdapter() {
             @Override public void widgetSelected(SelectionEvent e) { if (onCancel != null) onCancel.run(); }
         });
+
+        Button detailsBtn = new Button(actions, SWT.PUSH);
+        detailsBtn.setText("Show details");
+        detailsBtn.addSelectionListener(new SelectionAdapter() {
+            @Override public void widgetSelected(SelectionEvent e) {
+                toggleDetails();
+                detailsBtn.setText(detailsVisible ? "Hide details" : "Show details");
+            }
+        });
+
+        // Details area (hidden by default)
+        detailsText = new Text(container, SWT.MULTI | SWT.WRAP | SWT.READ_ONLY | SWT.V_SCROLL);
+        GridData dgd = new GridData(SWT.FILL, SWT.FILL, true, false);
+        dgd.heightHint = 120;
+        detailsText.setLayoutData(dgd);
+        detailsText.setVisible(false);
+        detailsText.setBackground(backgroundColor);
+        detailsText.setForeground(Display.getDefault().getSystemColor(SWT.COLOR_DARK_GRAY));
     }
 
     /**
@@ -101,6 +121,16 @@ public class PlanPreviewBox {
     public void setOnAccept(Runnable onAccept) { this.onAccept = onAccept; }
     public void setOnEdit(Runnable onEdit) { this.onEdit = onEdit; }
     public void setOnCancel(Runnable onCancel) { this.onCancel = onCancel; }
+
+    /**
+     * Optional detailed dry-run outcomes for preview.
+     */
+    public void setDetails(List<String> lines) {
+        if (detailsText != null && !detailsText.isDisposed()) {
+            String text = (lines == null || lines.isEmpty()) ? "" : lines.stream().collect(Collectors.joining(System.lineSeparator()));
+            detailsText.setText(text);
+        }
+    }
 
     /**
      * Get the associated plan.
@@ -161,6 +191,16 @@ public class PlanPreviewBox {
     private void disposeIfNeeded(Color color) {
         if (color != null && !color.isDisposed()) {
             color.dispose();
+        }
+    }
+
+    private void toggleDetails() {
+        if (detailsText == null || detailsText.isDisposed()) return;
+        detailsVisible = !detailsVisible;
+        detailsText.setVisible(detailsVisible);
+        Composite parent = detailsText.getParent();
+        if (parent != null && !parent.isDisposed()) {
+            parent.layout(true, true);
         }
     }
 }

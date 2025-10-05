@@ -260,7 +260,7 @@ public class ChatView extends ViewPart {
 
         Composite promptRow = new Composite(conversation, SWT.NONE);
         promptRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        promptRow.setLayout(new GridLayout(4, false));
+        promptRow.setLayout(new GridLayout(5, false));
 
         prompt = new Text(promptRow, SWT.BORDER);
         prompt.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
@@ -280,6 +280,15 @@ public class ChatView extends ViewPart {
         });
         prompt.addModifyListener(e -> updateSendButtonState());
         installPromptAssist(prompt);
+
+        // Quick settings (gear)
+        Button settingsButton = new Button(promptRow, SWT.PUSH);
+        settingsButton.setText("⚙");
+        settingsButton.setToolTipText("Quick settings (provider, model, API key)");
+        settingsButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+        settingsButton.addSelectionListener(new SelectionAdapter() {
+            @Override public void widgetSelected(SelectionEvent e) { openQuickSettingsDialog(); }
+        });
 
         Button commandsButton = new Button(promptRow, SWT.PUSH);
         commandsButton.setText("Commands");
@@ -934,7 +943,7 @@ public class ChatView extends ViewPart {
             return;
         }
         final DRepresentation currentDiagram = DiagramCommands.getLastOpened();
-        final boolean actionsEnabled = enableActions.getSelection();
+        final boolean actionsEnabled = isActionsEnabled();
         final List<LLMService.Message> history = conversationController.getHistory();
 
         conversationController.addUserMessage(text);
@@ -1012,9 +1021,28 @@ public class ChatView extends ViewPart {
                     }
                 }
                 var preview = conversationController.showPlanPreview(plan, summary);
+                // Attach dry-run details for inline diff-like preview
+                {
+                    java.util.List<String> details = new java.util.ArrayList<>();
+                    int step = 1;
+                    for (var item : plan.items()) {
+                        var oc = (dryRun != null) ? dryRun.outcomeFor(item.getIndex()) : null;
+                        String label = String.format("%02d. %s", step++, item.getTypeLabel());
+                        if (oc == null) {
+                            details.add(label + " — (no simulation)");
+                        } else if (oc.isSuccess()) {
+                            details.add(label + " ✓ " + oc.getMessage());
+                            for (String d : oc.getDetails()) details.add("    • " + d);
+                        } else {
+                            details.add(label + " ✕ " + oc.getMessage());
+                            for (String d : oc.getDetails()) details.add("    • " + d);
+                        }
+                    }
+                    preview.setDetails(details);
+                }
                 // Inline actions: Apply, Edit…, Dismiss
                 preview.setOnAccept(() -> {
-                    if (!enableActions.getSelection()) {
+                    if (!isActionsEnabled()) {
                         conversationController.addSystemMessage("Tool actions are disabled; enable them in Advanced > Controls.");
                         return;
                     }
@@ -2815,6 +2843,29 @@ public class ChatView extends ViewPart {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private boolean isActionsEnabled() {
+        if (enableActions != null && !enableActions.isDisposed()) {
+            return enableActions.getSelection();
+        }
+        try { return LLMPreferences.isToolActionsEnabled(); } catch (Exception ex) { return false; }
+    }
+
+    private void openQuickSettingsDialog() {
+        Shell parent = getSite().getShell();
+        Shell dialog = new Shell(parent, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
+        dialog.setText("Quick Settings");
+        dialog.setLayout(new GridLayout(1, false));
+        org.polarsys.capella.ai.ui.QuickSetupPanel quick = new org.polarsys.capella.ai.ui.QuickSetupPanel(dialog);
+        quick.setOnTest(this::testConnection);
+        quick.setOnSave(() -> {
+            updateConnectionSummary();
+            dialog.close();
+        });
+        dialog.pack();
+        dialog.setSize(420, 260);
+        dialog.open();
     }
 
     private void refreshSessionChoices() {
