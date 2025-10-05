@@ -25,6 +25,7 @@ public class PlanPreviewBox {
 
     private final Composite container;
     private final Text planSummaryText;
+    private Composite chipsRow;
     private Composite itemsContainer;
     private Text detailsText;
     private final Color backgroundColor;
@@ -61,6 +62,10 @@ public class PlanPreviewBox {
         headerLabel.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
 
         // Plan summary
+        chipsRow = new Composite(container, SWT.NONE);
+        chipsRow.setLayout(new GridLayout(8, false));
+        chipsRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
         planSummaryText = new Text(container, SWT.MULTI | SWT.WRAP | SWT.READ_ONLY);
         GridData summaryData = new GridData(SWT.FILL, SWT.FILL, true, false);
         summaryData.minimumHeight = 80;
@@ -129,6 +134,27 @@ public class PlanPreviewBox {
     public void setOnAccept(Runnable onAccept) { this.onAccept = onAccept; }
     public void setOnEdit(Runnable onEdit) { this.onEdit = onEdit; }
     public void setOnCancel(Runnable onCancel) { this.onCancel = onCancel; }
+
+    /** Set validation chips above the summary (e.g., warnings). */
+    public void setChips(List<String> chips) {
+        if (chipsRow == null || chipsRow.isDisposed()) return;
+        for (org.eclipse.swt.widgets.Control c : chipsRow.getChildren()) { c.dispose(); }
+        if (chips == null || chips.isEmpty()) {
+            chipsRow.layout(true, true);
+            return;
+        }
+        int shown = 0;
+        for (String chip : chips) {
+            if (chip == null || chip.isBlank()) continue;
+            Label lbl = new Label(chipsRow, SWT.BORDER);
+            lbl.setBackground(Display.getDefault().getSystemColor(SWT.COLOR_INFO_BACKGROUND));
+            lbl.setText("⚠ " + chip.trim());
+            lbl.setLayoutData(new GridData(SWT.BEGINNING, SWT.CENTER, false, false));
+            shown++;
+            if (shown >= 6) break;
+        }
+        chipsRow.layout(true, true);
+    }
 
     /**
      * Optional detailed dry-run outcomes for preview.

@@ -1019,6 +1019,9 @@ public class ChatView extends ViewPart {
                     }
                 }
                 var preview = conversationController.showPlanPreview(plan, summary);
+                if (dryRun != null && dryRun.issues() != null && !dryRun.issues().isEmpty()) {
+                    preview.setChips(dryRun.issues());
+                }
                 // Attach dry-run details for inline diff-like preview
                 {
                     java.util.List<String> details = new java.util.ArrayList<>();
