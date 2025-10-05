@@ -28,6 +28,7 @@ public class PlanPreviewBox {
     private Composite chipsRow;
     private Composite itemsContainer;
     private Text detailsText;
+    private java.util.List<String> lastDetails;
     private final Color backgroundColor;
     private final Color headerColor;
     private ToolPlan plan;
@@ -75,7 +76,7 @@ public class PlanPreviewBox {
 
         // Actions row
         Composite actions = new Composite(container, SWT.NONE);
-        actions.setLayout(new GridLayout(4, false));
+        actions.setLayout(new GridLayout(5, false));
         actions.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, true, false));
 
         Button applyBtn = new Button(actions, SWT.PUSH);
@@ -102,6 +103,14 @@ public class PlanPreviewBox {
             @Override public void widgetSelected(SelectionEvent e) {
                 toggleDetails();
                 detailsBtn.setText(detailsVisible ? "Hide details" : "Show details");
+            }
+        });
+
+        Button viewChangesBtn = new Button(actions, SWT.PUSH);
+        viewChangesBtn.setText("View changes…");
+        viewChangesBtn.addSelectionListener(new SelectionAdapter() {
+            @Override public void widgetSelected(SelectionEvent e) {
+                openChangesDialog();
             }
         });
 
@@ -160,6 +169,7 @@ public class PlanPreviewBox {
      * Optional detailed dry-run outcomes for preview.
      */
     public void setDetails(List<String> lines) {
+        this.lastDetails = (lines == null) ? java.util.List.of() : java.util.List.copyOf(lines);
         if (detailsText != null && !detailsText.isDisposed()) {
             String text = (lines == null || lines.isEmpty()) ? "" : lines.stream().collect(Collectors.joining(System.lineSeparator()));
             detailsText.setText(text);
@@ -257,6 +267,23 @@ public class PlanPreviewBox {
         if (parent != null && !parent.isDisposed()) {
             parent.layout(true, true);
         }
+    }
+
+    private void openChangesDialog() {
+        org.eclipse.swt.widgets.Shell shell = container.getShell();
+        org.eclipse.swt.widgets.Shell dialog = new org.eclipse.swt.widgets.Shell(shell, SWT.DIALOG_TRIM | SWT.RESIZE | SWT.APPLICATION_MODAL);
+        dialog.setText("Plan Changes");
+        dialog.setLayout(new GridLayout(1, false));
+        org.eclipse.swt.widgets.Text text = new org.eclipse.swt.widgets.Text(dialog, SWT.MULTI | SWT.WRAP | SWT.READ_ONLY | SWT.V_SCROLL);
+        text.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        String content = (lastDetails == null || lastDetails.isEmpty()) ? "(no changes computed)" : lastDetails.stream().collect(Collectors.joining(System.lineSeparator()));
+        text.setText(content);
+        org.eclipse.swt.widgets.Button close = new org.eclipse.swt.widgets.Button(dialog, SWT.PUSH);
+        close.setText("Close");
+        close.setLayoutData(new GridData(SWT.END, SWT.CENTER, false, false));
+        close.addSelectionListener(new SelectionAdapter() { @Override public void widgetSelected(SelectionEvent e) { dialog.close(); } });
+        dialog.setSize(640, 420);
+        dialog.open();
     }
 
     private void rebuildItems() {
