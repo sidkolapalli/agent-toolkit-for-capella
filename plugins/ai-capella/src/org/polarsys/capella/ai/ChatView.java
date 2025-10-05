@@ -972,7 +972,16 @@ public class ChatView extends ViewPart {
             if (plan != null && !plan.isEmpty()) {
                 Telemetry.recordPlanSuggested(plan);
                 DryRunResult dryRun = PlanDryRun.evaluate(session, plan);
-                var preview = conversationController.showPlanPreview(plan, plan.describe());
+                // Build preview summary with dry-run warnings inline
+                List<String> summary = new ArrayList<>(plan.describe());
+                if (dryRun != null && dryRun.isAvailable() && dryRun.issues != null && !dryRun.issues.isEmpty()) {
+                    summary.add("");
+                    summary.add("Warnings:");
+                    for (String issue : dryRun.issues) {
+                        summary.add(" • " + issue);
+                    }
+                }
+                var preview = conversationController.showPlanPreview(plan, summary);
                 // Inline actions: Apply, Edit…, Dismiss
                 preview.setOnAccept(() -> {
                     if (!enableActions.getSelection()) {
@@ -994,7 +1003,17 @@ public class ChatView extends ViewPart {
                         conversationController.addSystemMessage("Plan editor cancelled.");
                     }
                 });
-                preview.setOnCancel(() -> conversationController.addSystemMessage("Plan dismissed."));
+                preview.setOnCancel(() -> {
+                    // Remove the inline preview box to avoid lingering actions after dismiss
+                    try {
+                        if (preview != null && !preview.isDisposed()) {
+                            preview.dispose();
+                        }
+                    } catch (Exception ignore) {
+                        // Best-effort dispose; continue to inform the user
+                    }
+                    conversationController.addSystemMessage("Plan dismissed.");
+                });
             }
             updateContextSummary(session, null);
         } finally {
