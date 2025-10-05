@@ -164,6 +164,8 @@ public class ChatView extends ViewPart {
     private ScrolledComposite scroller;
     private Composite rootComposite;
     private IPartListener2 partListener;
+    private static final boolean SHOW_SESSION_PICKER = false;
+    private static final boolean SHOW_ADVANCED = false;
 
     // Session picker state
     private Combo sessionCombo;
@@ -193,15 +195,17 @@ public class ChatView extends ViewPart {
         chatTab.setControl(chatComposite);
         createChatOnlySection(chatComposite);
 
-        // Advanced tab (context, toggles, tools, settings)
-        org.eclipse.swt.widgets.TabItem advTab = new org.eclipse.swt.widgets.TabItem(tabs, SWT.NONE);
-        advTab.setText("Advanced");
-        Composite advComposite = new Composite(tabs, SWT.NONE);
-        advComposite.setLayout(new GridLayout(1, false));
-        advTab.setControl(advComposite);
-        createAdvancedBasicsSection(advComposite);
-        createModelToolsSection(advComposite);
-        createSettingsSection(advComposite);
+        // Optional Advanced tab (hidden for simple chat)
+        if (SHOW_ADVANCED) {
+            org.eclipse.swt.widgets.TabItem advTab = new org.eclipse.swt.widgets.TabItem(tabs, SWT.NONE);
+            advTab.setText("Advanced");
+            Composite advComposite = new Composite(tabs, SWT.NONE);
+            advComposite.setLayout(new GridLayout(1, false));
+            advTab.setControl(advComposite);
+            createAdvancedBasicsSection(advComposite);
+            createModelToolsSection(advComposite);
+            createSettingsSection(advComposite);
+        }
         refreshScrollArea();
 
         loadPreferencesIntoUi();
@@ -216,41 +220,35 @@ public class ChatView extends ViewPart {
      * Minimal chat UI (no context cards, no toggles, no settings).
      */
     private void createChatOnlySection(Composite parent) {
-        // Session picker (appears above conversation)
-        Composite sessionRow = new Composite(parent, SWT.NONE);
-        sessionRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        sessionRow.setLayout(new GridLayout(3, false));
-        new Label(sessionRow, SWT.NONE).setText("Session");
-        sessionCombo = new Combo(sessionRow, SWT.DROP_DOWN | SWT.READ_ONLY);
-        sessionCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        Button refreshSessions = new Button(sessionRow, SWT.PUSH);
-        refreshSessions.setText("Refresh");
-        refreshSessions.addSelectionListener(new SelectionAdapter() {
-            @Override public void widgetSelected(SelectionEvent e) { refreshSessionChoices(); }
-        });
-        sessionCombo.addSelectionListener(new SelectionAdapter() {
-            @Override public void widgetSelected(SelectionEvent e) {
-                int idx = sessionCombo.getSelectionIndex();
-                if (idx <= 0) {
-                    selectedSession = null; // Auto (Active)
-                } else if (idx - 1 < sessionChoices.size()) {
-                    selectedSession = sessionChoices.get(idx - 1);
+        if (SHOW_SESSION_PICKER) {
+            Composite sessionRow = new Composite(parent, SWT.NONE);
+            sessionRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+            sessionRow.setLayout(new GridLayout(3, false));
+            new Label(sessionRow, SWT.NONE).setText("Session");
+            sessionCombo = new Combo(sessionRow, SWT.DROP_DOWN | SWT.READ_ONLY);
+            sessionCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+            Button refreshSessions = new Button(sessionRow, SWT.PUSH);
+            refreshSessions.setText("Refresh");
+            refreshSessions.addSelectionListener(new SelectionAdapter() { @Override public void widgetSelected(SelectionEvent e) { refreshSessionChoices(); }});
+            sessionCombo.addSelectionListener(new SelectionAdapter() {
+                @Override public void widgetSelected(SelectionEvent e) {
+                    int idx = sessionCombo.getSelectionIndex();
+                    if (idx <= 0) { selectedSession = null; }
+                    else if (idx - 1 < sessionChoices.size()) { selectedSession = sessionChoices.get(idx - 1); }
+                    updateContextSummary(getSelectedOrActiveSession());
                 }
-                updateContextSummary(getSelectedOrActiveSession());
-            }
-        });
-        refreshSessionChoices();
+            });
+            refreshSessionChoices();
+        }
+
+        // Minimal connection bar
+        createConnectionBar(parent);
         Group conversation = new Group(parent, SWT.NONE);
         conversation.setText("Conversation");
         conversation.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         conversation.setLayout(new GridLayout(1, false));
 
-        // Quick setup if LLM not configured
-        if (needsQuickSetup()) {
-            org.polarsys.capella.ai.ui.QuickSetupPanel quick = new org.polarsys.capella.ai.ui.QuickSetupPanel(conversation);
-            quick.setOnTest(this::testConnection);
-            quick.setOnSave(this::updateConnectionSummary);
-        }
+        // No quick setup card; use the inline connection bar
 
         conversationPanel = new ConversationPanel(conversation);
         conversationController = new ConversationController(conversationPanel);
@@ -260,7 +258,7 @@ public class ChatView extends ViewPart {
 
         Composite promptRow = new Composite(conversation, SWT.NONE);
         promptRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        promptRow.setLayout(new GridLayout(5, false));
+        promptRow.setLayout(new GridLayout(2, false));
 
         prompt = new Text(promptRow, SWT.BORDER);
         prompt.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
@@ -281,25 +279,7 @@ public class ChatView extends ViewPart {
         prompt.addModifyListener(e -> updateSendButtonState());
         installPromptAssist(prompt);
 
-        // Quick settings (gear)
-        Button settingsButton = new Button(promptRow, SWT.PUSH);
-        settingsButton.setText("⚙");
-        settingsButton.setToolTipText("Quick settings (provider, model, API key)");
-        settingsButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
-        settingsButton.addSelectionListener(new SelectionAdapter() {
-            @Override public void widgetSelected(SelectionEvent e) { openQuickSettingsDialog(); }
-        });
-
-        Button commandsButton = new Button(promptRow, SWT.PUSH);
-        commandsButton.setText("Commands");
-        commandsButton.setToolTipText("Open the quick command palette (Cmd/Ctrl+P)");
-        commandsButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
-        commandsButton.addSelectionListener(new SelectionAdapter() {
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                openCommandPalette();
-            }
-        });
+        // No gear or commands button in minimal chat
 
         sendButton = new Button(promptRow, SWT.PUSH);
         sendButton.setText("Send");
@@ -311,16 +291,7 @@ public class ChatView extends ViewPart {
             }
         });
 
-        stopButton = new Button(promptRow, SWT.PUSH);
-        stopButton.setText("Stop");
-        stopButton.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
-        stopButton.setEnabled(false);
-        stopButton.addSelectionListener(new SelectionAdapter() {
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                cancelStreaming();
-            }
-        });
+        // No Stop button; let responses finish naturally
     }
 
     private boolean needsQuickSetup() {
@@ -332,6 +303,33 @@ public class ChatView extends ViewPart {
         } catch (Exception ex) {
             return true;
         }
+    }
+
+    private void createConnectionBar(Composite parent) {
+        Composite bar = new Composite(parent, SWT.NONE);
+        bar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        bar.setLayout(new GridLayout(5, false));
+        new Label(bar, SWT.NONE).setText("Model");
+        Combo model = new Combo(bar, SWT.DROP_DOWN);
+        model.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        String provider = LLMPreferences.getProvider();
+        if (provider == null || provider.isBlank()) provider = "openai";
+        model.setItems(modelSuggestionsFor(provider));
+        String currentModel = LLMPreferences.getModel();
+        if (currentModel != null) model.setText(currentModel);
+        model.addSelectionListener(new SelectionAdapter() { @Override public void widgetSelected(SelectionEvent e) {
+            String m = model.getText(); if (m != null && !m.isBlank()) { try { LLMPreferences.setModel(m); LLMPreferences.flush(); } catch (Exception ignore) {} updateConnectionSummary(); }
+        }});
+        model.addModifyListener(e -> { String m = model.getText(); if (m != null && !m.isBlank()) { try { LLMPreferences.setModel(m); LLMPreferences.flush(); } catch (Exception ignore) {} updateConnectionSummary(); }});
+
+        new Label(bar, SWT.NONE).setText("API Key");
+        Text key = new Text(bar, SWT.BORDER | SWT.PASSWORD);
+        key.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        key.addModifyListener(e -> { String v = key.getText(); if (v != null) { try { LLMPreferences.setApiKey(v.trim()); LLMPreferences.flush(); } catch (Exception ignore) {} }});
+
+        Button test = new Button(bar, SWT.PUSH);
+        test.setText("Test");
+        test.addSelectionListener(new SelectionAdapter() { @Override public void widgetSelected(SelectionEvent e) { testConnection(); }});
     }
 
     /**
