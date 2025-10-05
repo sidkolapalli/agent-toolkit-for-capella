@@ -40,7 +40,22 @@ public final class PlanDryRun {
         Map<Integer, Outcome> outcomes = new LinkedHashMap<>();
         List<String> issues = new ArrayList<>();
         for (PlanItem item : plan.items()) {
+            Snapshot before = Snapshot.take(sandbox);
             Outcome outcome = simulateAction(sandbox, item);
+            Snapshot after = Snapshot.take(sandbox);
+
+            List<String> changes = Snapshot.diff(before, after);
+            if (!changes.isEmpty()) {
+                List<String> combined = new ArrayList<>(outcome.getDetails());
+                combined.add("Changes:");
+                combined.addAll(changes);
+                if (outcome.isSuccess()) {
+                    outcome = Outcome.success(outcome.getMessage(), combined);
+                } else {
+                    outcome = Outcome.failure(outcome.getMessage(), combined);
+                }
+            }
+
             outcomes.put(item.getIndex(), outcome);
             if (!outcome.isSuccess()) {
                 issues.add(String.format("Step %d (%s): %s", item.getIndex() + 1, item.getTypeLabel(), outcome.getMessage()));
@@ -118,6 +133,108 @@ public final class PlanDryRun {
                 return Outcome.failure("Unsupported action type in sandbox");
         }
     }
+
+    // --- Lightweight structural snapshot/diff --------------------------------------------------
+
+    private static final class Snapshot {
+        final Map<String, Node> nodes;
+
+        private Snapshot(Map<String, Node> nodes) {
+            this.nodes = nodes;
+        }
+
+        static Snapshot take(ResourceSet rs) {
+            Map<String, Node> map = new LinkedHashMap<>();
+            for (org.eclipse.emf.ecore.resource.Resource res : rs.getResources()) {
+                if (res == null) continue;
+                var it = res.getAllContents();
+                while (it.hasNext()) {
+                    EObject eo = it.next();
+                    String id = elementId(eo);
+                    if (id == null || id.isBlank()) continue;
+                    map.put(id, Node.of(eo));
+                }
+            }
+            return new Snapshot(map);
+        }
+
+        static List<String> diff(Snapshot a, Snapshot b) {
+            List<String> lines = new ArrayList<>();
+            // Created
+            for (Map.Entry<String, Node> e : b.nodes.entrySet()) {
+                if (!a.nodes.containsKey(e.getKey())) {
+                    Node n = e.getValue();
+                    lines.add(String.format("+ Create %s '%s' (%s)", n.type, n.name, n.path));
+                }
+            }
+            // Deleted
+            for (Map.Entry<String, Node> e : a.nodes.entrySet()) {
+                if (!b.nodes.containsKey(e.getKey())) {
+                    Node n = e.getValue();
+                    lines.add(String.format("- Delete %s '%s' (%s)", n.type, n.name, n.path));
+                }
+            }
+            // Updated (name change)
+            for (Map.Entry<String, Node> e : b.nodes.entrySet()) {
+                Node nb = e.getValue();
+                Node na = a.nodes.get(e.getKey());
+                if (na != null && !safe(nb.name).equals(safe(na.name))) {
+                    lines.add(String.format("~ Rename %s '%s' → '%s'", nb.type, safe(na.name), safe(nb.name)));
+                }
+            }
+            return lines;
+        }
+    }
+
+    private static final class Node {
+        final String id;
+        final String type;
+        final String name;
+        final String path;
+
+        private Node(String id, String type, String name, String path) {
+            this.id = id; this.type = type; this.name = name; this.path = path;
+        }
+
+        static Node of(EObject eo) {
+            return new Node(elementId(eo), eo.eClass().getName(), readNameForSnapshot(eo), buildPath(eo));
+        }
+    }
+
+    private static String elementId(EObject eo) {
+        var f = eo.eClass().getEStructuralFeature("uuid");
+        if (f != null) {
+            Object v = eo.eGet(f);
+            if (v != null) return String.valueOf(v);
+        }
+        var uri = org.eclipse.emf.ecore.util.EcoreUtil.getURI(eo);
+        return uri != null ? uri.fragment() : null;
+    }
+
+    private static String readNameForSnapshot(EObject eo) {
+        var f = eo.eClass().getEStructuralFeature("name");
+        if (f != null) {
+            Object v = eo.eGet(f);
+            if (v != null && !String.valueOf(v).isBlank()) return String.valueOf(v);
+        }
+        return "";
+    }
+
+    private static String buildPath(EObject eo) {
+        java.util.List<String> segments = new java.util.ArrayList<>();
+        EObject cur = eo;
+        while (cur != null) {
+            var f = cur.eClass().getEStructuralFeature("name");
+            String nm = (f != null) ? String.valueOf(cur.eGet(f)) : null;
+            if (nm == null || nm.isBlank()) nm = cur.eClass().getName();
+            segments.add(nm);
+            cur = cur.eContainer();
+        }
+        java.util.Collections.reverse(segments);
+        return String.join(" / ", segments);
+    }
+
+    private static String safe(String s) { return (s == null) ? "" : s; }
 
     private static Outcome simulateCreate(ResourceSet sandbox, PlanItem item, String simpleEClass) {
         EObject layerRoot = ArchitectureLocator.findTargetElement(sandbox, safeLayer(item.getLayer()));
