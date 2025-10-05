@@ -133,12 +133,13 @@ public class ConversationPanel {
     /**
      * Add a plan preview box inline in the conversation.
      */
-    public void addPlanPreview(ToolPlan plan, List<String> summaryLines) {
+    public PlanPreviewBox addPlanPreview(ToolPlan plan, List<String> summaryLines) {
         hideEmptyState();
         PlanPreviewBox previewBox = new PlanPreviewBox(messagesContainer);
         previewBox.setPlan(plan, summaryLines);
         refreshLayout();
         scrollToBottom();
+        return previewBox;
     }
 
     /**

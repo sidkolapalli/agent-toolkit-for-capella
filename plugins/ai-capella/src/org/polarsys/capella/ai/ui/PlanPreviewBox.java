@@ -12,6 +12,9 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
 import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
 
 /**
  * Inline plan preview box showing AI-generated actions before execution.
@@ -24,6 +27,9 @@ public class PlanPreviewBox {
     private final Color backgroundColor;
     private final Color headerColor;
     private ToolPlan plan;
+    private Runnable onAccept;
+    private Runnable onEdit;
+    private Runnable onCancel;
 
     public PlanPreviewBox(Composite parent) {
         // Wrapper for centering
@@ -58,12 +64,28 @@ public class PlanPreviewBox {
         planSummaryText.setBackground(backgroundColor);
         planSummaryText.setForeground(Display.getDefault().getSystemColor(SWT.COLOR_BLACK));
 
-        // Action hint
-        Label hintLabel = new Label(container, SWT.WRAP);
-        hintLabel.setText("💡 Review this plan in the Plan Editor before execution");
-        hintLabel.setForeground(Display.getDefault().getSystemColor(SWT.COLOR_DARK_GRAY));
-        hintLabel.setBackground(backgroundColor);
-        hintLabel.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
+        // Actions row
+        Composite actions = new Composite(container, SWT.NONE);
+        actions.setLayout(new GridLayout(3, false));
+        actions.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, true, false));
+
+        Button applyBtn = new Button(actions, SWT.PUSH);
+        applyBtn.setText("Apply Plan");
+        applyBtn.addSelectionListener(new SelectionAdapter() {
+            @Override public void widgetSelected(SelectionEvent e) { if (onAccept != null) onAccept.run(); }
+        });
+
+        Button editBtn = new Button(actions, SWT.PUSH);
+        editBtn.setText("Edit…");
+        editBtn.addSelectionListener(new SelectionAdapter() {
+            @Override public void widgetSelected(SelectionEvent e) { if (onEdit != null) onEdit.run(); }
+        });
+
+        Button dismissBtn = new Button(actions, SWT.PUSH);
+        dismissBtn.setText("Dismiss");
+        dismissBtn.addSelectionListener(new SelectionAdapter() {
+            @Override public void widgetSelected(SelectionEvent e) { if (onCancel != null) onCancel.run(); }
+        });
     }
 
     /**
@@ -75,6 +97,10 @@ public class PlanPreviewBox {
             planSummaryText.setText(formatSummary(summaryLines));
         }
     }
+
+    public void setOnAccept(Runnable onAccept) { this.onAccept = onAccept; }
+    public void setOnEdit(Runnable onEdit) { this.onEdit = onEdit; }
+    public void setOnCancel(Runnable onCancel) { this.onCancel = onCancel; }
 
     /**
      * Get the associated plan.

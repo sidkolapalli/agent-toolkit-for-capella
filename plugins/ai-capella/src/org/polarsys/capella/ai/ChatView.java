@@ -215,6 +215,13 @@ public class ChatView extends ViewPart {
         conversation.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         conversation.setLayout(new GridLayout(1, false));
 
+        // Quick setup if LLM not configured
+        if (needsQuickSetup()) {
+            org.polarsys.capella.ai.ui.QuickSetupPanel quick = new org.polarsys.capella.ai.ui.QuickSetupPanel(conversation);
+            quick.setOnTest(this::testConnection);
+            quick.setOnSave(this::updateConnectionSummary);
+        }
+
         conversationPanel = new ConversationPanel(conversation);
         conversationController = new ConversationController(conversationPanel);
         GridData panelData = new GridData(SWT.FILL, SWT.FILL, true, true);
@@ -275,6 +282,17 @@ public class ChatView extends ViewPart {
                 cancelStreaming();
             }
         });
+    }
+
+    private boolean needsQuickSetup() {
+        try {
+            String provider = LLMPreferences.getProvider();
+            String model = LLMPreferences.getModel();
+            String key = LLMPreferences.getApiKey();
+            return provider == null || provider.isBlank() || model == null || model.isBlank() || key == null || key.isBlank();
+        } catch (Exception ex) {
+            return true;
+        }
     }
 
     /**
@@ -954,13 +972,16 @@ public class ChatView extends ViewPart {
             if (plan != null && !plan.isEmpty()) {
                 Telemetry.recordPlanSuggested(plan);
                 DryRunResult dryRun = PlanDryRun.evaluate(session, plan);
-                conversationController.showPlanPreview(plan, plan.describe());
-                boolean proceed = offerClarificationLoop(session, plan, dryRun);
-                if (!proceed) {
-                    updateContextSummary(session, null);
-                    return;
-                }
-                if (actionsEnabled) {
+                var preview = conversationController.showPlanPreview(plan, plan.describe());
+                // Inline actions: Apply, Edit…, Dismiss
+                preview.setOnAccept(() -> {
+                    if (!enableActions.getSelection()) {
+                        conversationController.addSystemMessage("Tool actions are disabled; enable them in Advanced > Controls.");
+                        return;
+                    }
+                    schedulePlanExecution(session, diagram, plan);
+                });
+                preview.setOnEdit(() -> {
                     PlanEditorDialog dialog = new PlanEditorDialog(getSite().getShell(), plan, dryRun);
                     if (dialog.open() == IDialogConstants.OK_ID) {
                         ToolPlan selection = dialog.getFilteredPlan();
@@ -970,9 +991,10 @@ public class ChatView extends ViewPart {
                             conversationController.addSystemMessage("Plan not applied (no actions selected).");
                         }
                     } else {
-                        conversationController.addSystemMessage("Plan not applied (cancelled by user).");
+                        conversationController.addSystemMessage("Plan editor cancelled.");
                     }
-                }
+                });
+                preview.setOnCancel(() -> conversationController.addSystemMessage("Plan dismissed."));
             }
             updateContextSummary(session, null);
         } finally {

@@ -67,8 +67,8 @@ public class ConversationController {
     /**
      * Show a plan preview inline in conversation.
      */
-    public void showPlanPreview(ToolPlan plan, List<String> summaryLines) {
-        panel.addPlanPreview(plan, summaryLines);
+    public PlanPreviewBox showPlanPreview(ToolPlan plan, List<String> summaryLines) {
+        return panel.addPlanPreview(plan, summaryLines);
     }
 
     /**
