@@ -164,7 +164,7 @@ public class ChatView extends ViewPart {
     private ScrolledComposite scroller;
     private Composite rootComposite;
     private IPartListener2 partListener;
-    private static final boolean SHOW_SESSION_PICKER = false;
+    private static final boolean SHOW_SESSION_PICKER = true;
     private static final boolean SHOW_ADVANCED = false;
 
     // Session picker state
@@ -308,7 +308,7 @@ public class ChatView extends ViewPart {
     private void createConnectionBar(Composite parent) {
         Composite bar = new Composite(parent, SWT.NONE);
         bar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        bar.setLayout(new GridLayout(5, false));
+        bar.setLayout(new GridLayout(6, false));
         new Label(bar, SWT.NONE).setText("Model");
         Combo model = new Combo(bar, SWT.DROP_DOWN);
         model.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
@@ -330,6 +330,37 @@ public class ChatView extends ViewPart {
         Button test = new Button(bar, SWT.PUSH);
         test.setText("Test");
         test.addSelectionListener(new SelectionAdapter() { @Override public void widgetSelected(SelectionEvent e) { testConnection(); }});
+
+        // Quick open when no session is active (always available for convenience)
+        Button openModel = new Button(bar, SWT.PUSH);
+        openModel.setText("Open model…");
+        openModel.setToolTipText("Open a Capella .aird file and activate the session");
+        openModel.addSelectionListener(new SelectionAdapter() {
+            @Override public void widgetSelected(SelectionEvent e) {
+                FileDialog dlg = new FileDialog(getSite().getShell(), SWT.OPEN);
+                dlg.setText("Open Capella model (.aird)");
+                dlg.setFilterExtensions(new String[] {"*.aird"});
+                String path = dlg.open();
+                if (path != null && !path.isBlank()) {
+                    try {
+                        org.eclipse.emf.common.util.URI uri = org.eclipse.emf.common.util.URI.createFileURI(path);
+                        org.eclipse.sirius.business.api.session.Session s = org.polarsys.capella.ai.session.SessionBridge.openSession(uri);
+                        if (s != null && s.isOpen()) {
+                            selectedSession = s;
+                            if (sessionCombo != null && !sessionCombo.isDisposed()) {
+                                refreshSessionChoices();
+                            }
+                            updateContextSummary(getSelectedOrActiveSession());
+                            conversationController.addSystemMessage("Opened model: " + new java.io.File(path).getName());
+                        } else {
+                            conversationController.addSystemMessage("Failed to open model.");
+                        }
+                    } catch (Exception ex) {
+                        conversationController.addSystemMessage("Open failed: " + ex.getMessage());
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -935,6 +966,21 @@ public class ChatView extends ViewPart {
         if (text.isEmpty()) {
             return;
         }
+        // Handle built-in commands (no LLM)
+        if ("/undo".equalsIgnoreCase(text) || "/undo-last".equalsIgnoreCase(text)) {
+            Session s = getSelectedOrActiveSession();
+            if (s == null) {
+                conversationController.addSystemMessage("No active Capella session.");
+            } else {
+                if (undoLastPlan(s)) {
+                    conversationController.addSystemMessage("Undid last change.");
+                } else {
+                    conversationController.addSystemMessage("Nothing to undo.");
+                }
+            }
+            prompt.setText("");
+            return;
+        }
         final Session session = getSelectedOrActiveSession();
         if (session == null) {
             conversationController.addSystemMessage("No active Capella session.");
@@ -991,6 +1037,17 @@ public class ChatView extends ViewPart {
         }
     }
 
+    private boolean undoLastPlan(Session session) {
+        try {
+            var domain = session.getTransactionalEditingDomain();
+            if (domain != null && domain.getCommandStack().canUndo()) {
+                domain.getCommandStack().undo();
+                return true;
+            }
+        } catch (Exception ignore) {}
+        return false;
+    }
+
     private void handleChatResult(Session session, DRepresentation diagram, boolean actionsEnabled, ToolRouter.Result result) {
         try {
             if (result.error != null) {
@@ -1019,8 +1076,12 @@ public class ChatView extends ViewPart {
                     }
                 }
                 var preview = conversationController.showPlanPreview(plan, summary);
-                if (dryRun != null && dryRun.issues() != null && !dryRun.issues().isEmpty()) {
-                    preview.setChips(dryRun.issues());
+                // Merge validator issues (from parse) and dry-run issues for chips
+                java.util.List<String> chips = new java.util.ArrayList<>();
+                if (result.validationIssues != null) chips.addAll(result.validationIssues);
+                if (dryRun != null && dryRun.issues() != null) chips.addAll(dryRun.issues());
+                if (!chips.isEmpty()) {
+                    preview.setChips(chips);
                 }
                 // Attach dry-run details for inline diff-like preview
                 {
