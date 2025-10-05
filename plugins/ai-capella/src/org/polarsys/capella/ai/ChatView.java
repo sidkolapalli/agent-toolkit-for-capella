@@ -29,6 +29,7 @@ import org.eclipse.jface.fieldassist.IContentProposalProvider;
 import org.eclipse.jface.fieldassist.TextContentAdapter;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.sirius.business.api.session.Session;
+import org.eclipse.sirius.business.api.session.SessionManager;
 import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.eclipse.sirius.viewpoint.DSemanticDecorator;
 import org.eclipse.swt.SWT;
@@ -164,6 +165,11 @@ public class ChatView extends ViewPart {
     private Composite rootComposite;
     private IPartListener2 partListener;
 
+    // Session picker state
+    private Combo sessionCombo;
+    private java.util.List<Session> sessionChoices = new ArrayList<>();
+    private Session selectedSession;
+
     @Override
     public void createPartControl(Composite parent) {
         scroller = new ScrolledComposite(parent, SWT.V_SCROLL | SWT.H_SCROLL);
@@ -202,7 +208,7 @@ public class ChatView extends ViewPart {
         updateConnectionSummary();
         updateSendButtonState();
         registerSelectionListener();
-        updateContextSummary(SessionBridge.getActiveSession());
+        updateContextSummary(getSelectedOrActiveSession());
         initializeFromActiveSession();
     }
 
@@ -210,6 +216,30 @@ public class ChatView extends ViewPart {
      * Minimal chat UI (no context cards, no toggles, no settings).
      */
     private void createChatOnlySection(Composite parent) {
+        // Session picker (appears above conversation)
+        Composite sessionRow = new Composite(parent, SWT.NONE);
+        sessionRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        sessionRow.setLayout(new GridLayout(3, false));
+        new Label(sessionRow, SWT.NONE).setText("Session");
+        sessionCombo = new Combo(sessionRow, SWT.DROP_DOWN | SWT.READ_ONLY);
+        sessionCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        Button refreshSessions = new Button(sessionRow, SWT.PUSH);
+        refreshSessions.setText("Refresh");
+        refreshSessions.addSelectionListener(new SelectionAdapter() {
+            @Override public void widgetSelected(SelectionEvent e) { refreshSessionChoices(); }
+        });
+        sessionCombo.addSelectionListener(new SelectionAdapter() {
+            @Override public void widgetSelected(SelectionEvent e) {
+                int idx = sessionCombo.getSelectionIndex();
+                if (idx <= 0) {
+                    selectedSession = null; // Auto (Active)
+                } else if (idx - 1 < sessionChoices.size()) {
+                    selectedSession = sessionChoices.get(idx - 1);
+                }
+                updateContextSummary(getSelectedOrActiveSession());
+            }
+        });
+        refreshSessionChoices();
         Group conversation = new Group(parent, SWT.NONE);
         conversation.setText("Conversation");
         conversation.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
@@ -898,7 +928,7 @@ public class ChatView extends ViewPart {
         if (text.isEmpty()) {
             return;
         }
-        final Session session = SessionBridge.getActiveSession();
+        final Session session = getSelectedOrActiveSession();
         if (session == null) {
             conversationController.addSystemMessage("No active Capella session.");
             return;
@@ -1498,7 +1528,7 @@ public class ChatView extends ViewPart {
         selectionListener = new ISelectionListener() {
             @Override
             public void selectionChanged(IWorkbenchPart part, org.eclipse.jface.viewers.ISelection selection) {
-                updateContextSummary(SessionBridge.getActiveSession(), selection);
+                updateContextSummary(getSelectedOrActiveSession(), selection);
             }
         };
         getSite().getWorkbenchWindow().getSelectionService().addPostSelectionListener(selectionListener);
@@ -2785,6 +2815,41 @@ public class ChatView extends ViewPart {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private void refreshSessionChoices() {
+        try {
+            java.util.List<Session> open = new ArrayList<>();
+            for (Session s : SessionManager.INSTANCE.getSessions()) {
+                if (s != null && s.isOpen()) open.add(s);
+            }
+            this.sessionChoices = open;
+            java.util.List<String> labels = new ArrayList<>();
+            labels.add("Auto (Active)");
+            for (Session s : open) labels.add(describeSession(s));
+            if (sessionCombo != null && !sessionCombo.isDisposed()) {
+                sessionCombo.setItems(labels.toArray(new String[0]));
+                sessionCombo.select(0);
+            }
+        } catch (Exception ignore) {
+        }
+    }
+
+    private String describeSession(Session s) {
+        try {
+            var res = s.getSessionResource();
+            if (res != null && res.getURI() != null) {
+                String uri = res.getURI().toString();
+                int idx = uri.lastIndexOf('/') + 1;
+                return idx > 0 && idx < uri.length() ? uri.substring(idx) : uri;
+            }
+        } catch (Exception ignore) {}
+        return "Session";
+    }
+
+    private Session getSelectedOrActiveSession() {
+        if (selectedSession != null && selectedSession.isOpen()) return selectedSession;
+        return SessionBridge.getActiveSession();
     }
 
     @Override

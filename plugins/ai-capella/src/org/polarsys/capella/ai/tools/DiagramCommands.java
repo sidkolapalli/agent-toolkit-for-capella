@@ -93,99 +93,30 @@ public final class DiagramCommands {
         return resolved;
     }
 
-    /** Attempt explicit Sirius node creation via internal UI command factories; fallback to reveal. */
+    /** Create a node view by refreshing and revealing an existing semantic element (no internal UI reflection). */
     public static boolean createNode(Session session, DRepresentation rep, EObject semantic) {
         if (session == null || rep == null || semantic == null) return false;
         try {
-            // Reflection path to avoid compile-time dependency on internal APIs
-            Class<?> cFactory = Class.forName("org.eclipse.sirius.diagram.ui.tools.api.command.CreateNodeCommand");
-            var domain = session.getTransactionalEditingDomain();
-            if (!(rep instanceof org.eclipse.sirius.diagram.DDiagram) || domain == null) return false;
-            org.eclipse.sirius.diagram.DDiagram dd = (org.eclipse.sirius.diagram.DDiagram) rep;
-            Object cmd = null;
-            // Try (TransactionalEditingDomain, DDiagram, EObject, int x, int y, int w, int h)
-            try {
-                cmd = cFactory.getConstructor(org.eclipse.emf.transaction.TransactionalEditingDomain.class,
-                        org.eclipse.sirius.diagram.DDiagram.class, org.eclipse.emf.ecore.EObject.class,
-                        int.class, int.class, int.class, int.class)
-                        .newInstance(domain, dd, semantic, 100, 100, 0, 0);
-            } catch (NoSuchMethodException ignore) {}
-            if (cmd instanceof org.eclipse.emf.common.command.Command command) {
-                Boolean executed = SessionSafeguards.runWrite(session, "Create diagram node", () -> {
-                    if (!command.canExecute()) {
-                        return Boolean.FALSE;
-                    }
-                    try {
-                        command.execute();
-                        DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
-                        return Boolean.TRUE;
-                    } finally {
-                        try {
-                            command.dispose();
-                        } catch (Exception ignore) {}
-                    }
-                });
-                if (Boolean.TRUE.equals(executed)) {
-                    return true;
-                }
-            }
-        } catch (ClassNotFoundException notFound) {
-            // Fallback to reveal
-        } catch (Exception e) {
-            LOG.warning("createNode failed: " + e.getMessage());
-        }
-        // Fallback: reveal
-        try {
             addElementsByUuid(session, rep, java.util.List.of(tryUuid(semantic)));
+            DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
             return true;
-        } catch (Exception ignore) {}
-        return false;
+        } catch (Exception e) {
+            LOG.warning("createNode (reveal) failed: " + e.getMessage());
+            return false;
+        }
     }
 
-    /** Attempt explicit Sirius edge creation; fallback to refresh after semantic link creation. */
+    /** Create an edge by relying on semantic link creation and revealing endpoints (no internal UI reflection). */
     public static boolean createEdge(Session session, DRepresentation rep, EObject source, EObject target) {
         if (session == null || rep == null || source == null || target == null) return false;
         try {
-            Class<?> cFactory = Class.forName("org.eclipse.sirius.diagram.ui.tools.api.command.CreateEdgeCommand");
-            var domain = session.getTransactionalEditingDomain();
-            if (!(rep instanceof org.eclipse.sirius.diagram.DDiagram) || domain == null) return false;
-            org.eclipse.sirius.diagram.DDiagram dd = (org.eclipse.sirius.diagram.DDiagram) rep;
-            Object cmd = null;
-            try {
-                cmd = cFactory.getConstructor(org.eclipse.emf.transaction.TransactionalEditingDomain.class,
-                        org.eclipse.sirius.diagram.DDiagram.class, org.eclipse.emf.ecore.EObject.class,
-                        org.eclipse.emf.ecore.EObject.class)
-                        .newInstance(domain, dd, source, target);
-            } catch (NoSuchMethodException ignore) {}
-            if (cmd instanceof org.eclipse.emf.common.command.Command command) {
-                Boolean executed = SessionSafeguards.runWrite(session, "Create diagram edge", () -> {
-                    if (!command.canExecute()) {
-                        return Boolean.FALSE;
-                    }
-                    try {
-                        command.execute();
-                        DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
-                        return Boolean.TRUE;
-                    } finally {
-                        try {
-                            command.dispose();
-                        } catch (Exception ignore) {}
-                    }
-                });
-                if (Boolean.TRUE.equals(executed)) {
-                    return true;
-                }
-            }
-        } catch (ClassNotFoundException notFound) {
-            // Fallback
-        } catch (Exception e) {
-            LOG.warning("createEdge failed: " + e.getMessage());
-        }
-        try {
+            addElementsByUuid(session, rep, java.util.List.of(tryUuid(source), tryUuid(target)));
             DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
             return true;
-        } catch (Exception ignore) {}
-        return false;
+        } catch (Exception e) {
+            LOG.warning("createEdge (refresh) failed: " + e.getMessage());
+            return false;
+        }
     }
 
     private static RepresentationDescription findDiagramDescription(Session session, String name) {

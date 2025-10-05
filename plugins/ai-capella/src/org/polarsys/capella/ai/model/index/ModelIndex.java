@@ -24,23 +24,27 @@ import org.polarsys.capella.ai.session.SessionBridge;
 
 /** Builds a lightweight search index over Capella model elements. */
 public final class ModelIndex {
-    private static final long CACHE_TTL_MS = 10_000L;
-
     private static final Map<Session, CacheEntry> CACHE = new WeakHashMap<>();
 
     private ModelIndex() {}
 
     private static final class CacheEntry {
-        final long timestamp;
         final List<IndexedElement> elements;
         final Map<String, IndexedElement> byUuid;
+        final org.eclipse.emf.transaction.ResourceSetListener listener;
 
-        CacheEntry(List<IndexedElement> elements) {
-            this.timestamp = System.currentTimeMillis();
+        CacheEntry(Session session, List<IndexedElement> elements) {
             this.elements = elements;
             this.byUuid = elements.stream()
                     .filter(element -> element.uuid != null)
                     .collect(Collectors.toConcurrentMap(element -> element.uuid, element -> element, (left, right) -> left));
+            // Invalidate the cache on any committed model change
+            this.listener = new org.eclipse.emf.transaction.ResourceSetListenerImpl() {
+                @Override
+                public void resourceSetChanged(org.eclipse.emf.transaction.ResourceSetChangeEvent event) {
+                    ModelIndex.invalidate(session);
+                }
+            };
         }
     }
 
@@ -87,24 +91,41 @@ public final class ModelIndex {
     /** Clears cached index for a session. */
     public static synchronized void invalidate(Session session) {
         if (session != null) {
-            CACHE.remove(session);
+            CacheEntry entry = CACHE.remove(session);
+            try {
+                if (entry != null) {
+                    var domain = session.getTransactionalEditingDomain();
+                    if (domain != null && entry.listener != null) {
+                        domain.removeResourceSetListener(entry.listener);
+                    }
+                }
+            } catch (Exception ignore) {}
         }
     }
 
     private static CacheEntry ensureEntry(Session session) {
         CacheEntry entry = CACHE.get(session);
-        long now = System.currentTimeMillis();
-        if (entry != null && now - entry.timestamp < CACHE_TTL_MS) {
+        if (entry != null) {
             return entry;
         }
         List<IndexedElement> rebuilt = rebuild(session);
-        CacheEntry refreshed = new CacheEntry(rebuilt);
+        CacheEntry refreshed = new CacheEntry(session, rebuilt);
         CACHE.put(session, refreshed);
+        attachListener(session, refreshed);
         return refreshed;
     }
 
     private static List<IndexedElement> ensureIndex(Session session) {
         return ensureEntry(session).elements;
+    }
+
+    private static void attachListener(Session session, CacheEntry entry) {
+        try {
+            var domain = session.getTransactionalEditingDomain();
+            if (domain != null) {
+                domain.addResourceSetListener(entry.listener);
+            }
+        } catch (Exception ignore) {}
     }
 
     private static List<IndexedElement> rebuild(Session session) {
