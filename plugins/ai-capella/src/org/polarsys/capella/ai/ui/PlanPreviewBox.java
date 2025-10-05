@@ -12,6 +12,7 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
 import org.polarsys.capella.ai.llm.ToolRouter.ToolPlan;
+import org.polarsys.capella.ai.llm.ToolRouter.PlanItem;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
@@ -24,6 +25,7 @@ public class PlanPreviewBox {
 
     private final Composite container;
     private final Text planSummaryText;
+    private Composite itemsContainer;
     private Text detailsText;
     private final Color backgroundColor;
     private final Color headerColor;
@@ -98,6 +100,11 @@ public class PlanPreviewBox {
             }
         });
 
+        // Action items (inline checkbox editor)
+        itemsContainer = new Composite(container, SWT.NONE);
+        itemsContainer.setLayout(new GridLayout(1, false));
+        itemsContainer.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
+
         // Details area (hidden by default)
         detailsText = new Text(container, SWT.MULTI | SWT.WRAP | SWT.READ_ONLY | SWT.V_SCROLL);
         GridData dgd = new GridData(SWT.FILL, SWT.FILL, true, false);
@@ -116,6 +123,7 @@ public class PlanPreviewBox {
         if (!planSummaryText.isDisposed()) {
             planSummaryText.setText(formatSummary(summaryLines));
         }
+        rebuildItems();
     }
 
     public void setOnAccept(Runnable onAccept) { this.onAccept = onAccept; }
@@ -137,6 +145,27 @@ public class PlanPreviewBox {
      */
     public ToolPlan getPlan() {
         return plan;
+    }
+
+    /**
+     * Return a filtered plan based on currently checked items.
+     */
+    public ToolPlan getSelectedPlan() {
+        if (plan == null || itemsContainer == null || itemsContainer.isDisposed()) {
+            return plan;
+        }
+        java.util.List<Integer> selected = new java.util.ArrayList<>();
+        org.eclipse.swt.widgets.Control[] children = itemsContainer.getChildren();
+        for (org.eclipse.swt.widgets.Control c : children) {
+            if (c instanceof Button) {
+                Button cb = (Button) c;
+                Object data = cb.getData("index");
+                if (data instanceof Integer && cb.getSelection()) {
+                    selected.add((Integer) data);
+                }
+            }
+        }
+        return plan.filterByIndex(selected);
     }
 
     /**
@@ -202,5 +231,24 @@ public class PlanPreviewBox {
         if (parent != null && !parent.isDisposed()) {
             parent.layout(true, true);
         }
+    }
+
+    private void rebuildItems() {
+        if (itemsContainer == null || itemsContainer.isDisposed()) return;
+        for (org.eclipse.swt.widgets.Control child : itemsContainer.getChildren()) {
+            child.dispose();
+        }
+        if (plan == null || plan.isEmpty()) {
+            itemsContainer.layout(true, true);
+            return;
+        }
+        for (PlanItem item : plan.items()) {
+            Button cb = new Button(itemsContainer, SWT.CHECK);
+            cb.setData("index", Integer.valueOf(item.getIndex()));
+            cb.setText(item.getTypeLabel());
+            cb.setSelection(true); // default: all selected
+            cb.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        }
+        itemsContainer.layout(true, true);
     }
 }

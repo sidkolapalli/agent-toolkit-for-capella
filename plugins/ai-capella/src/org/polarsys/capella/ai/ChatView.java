@@ -1038,13 +1038,18 @@ public class ChatView extends ViewPart {
                     }
                     preview.setDetails(details);
                 }
-                // Inline actions: Apply, Edit…, Dismiss
+                // Inline actions: Apply (with selected items), Edit…, Dismiss
                 preview.setOnAccept(() -> {
                     if (!isActionsEnabled()) {
                         conversationController.addSystemMessage("Tool actions are disabled; enable them in Advanced > Controls.");
                         return;
                     }
-                    schedulePlanExecution(session, diagram, plan);
+                    ToolPlan selected = preview.getSelectedPlan();
+                    if (selected == null || selected.isEmpty()) {
+                        conversationController.addSystemMessage("Plan not applied (no actions selected).");
+                        return;
+                    }
+                    schedulePlanExecution(session, diagram, selected);
                 });
                 preview.setOnEdit(() -> {
                     PlanEditorDialog dialog = new PlanEditorDialog(getSite().getShell(), plan, dryRun);
