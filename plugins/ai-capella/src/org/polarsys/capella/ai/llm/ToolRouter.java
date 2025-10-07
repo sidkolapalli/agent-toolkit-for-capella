@@ -556,7 +556,11 @@ public final class ToolRouter {
         sb.append("Cross-check references against the live model and reuse existing artefacts when possible.\n");
         sb.append("Acknowledge validation warnings from dry-run simulations.\n");
         sb.append("Current model snapshot:\n");
-        sb.append(ModelSummary.summarize(session));
+        try {
+            sb.append(ModelSummary.summarize(session));
+        } catch (Exception ex) {
+            sb.append("(summary unavailable)\n");
+        }
         return sb.toString();
     }
 

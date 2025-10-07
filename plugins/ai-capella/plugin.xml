@@ -9,7 +9,6 @@
             allowMultiple="false"
             category="org.polarsys.capella.ai"
             class="org.polarsys.capella.ai.ChatView"
-            icon="icons/chat.png"
             id="org.polarsys.capella.ai.chatview"
             name="Capella AI Assistant"/>
         <view

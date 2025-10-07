@@ -319,35 +319,14 @@ public final class ModelAnalytics {
         public List<String> messages() { return messages; }
 
         static ValidationReport fromSession(ResourceSet resourceSet) {
+            // Disable deep validation to avoid Sirius interpreter/plugin lookups causing noisy logs
+            // and slowdowns on large models. Return a neutral message.
             if (resourceSet == null) {
                 return empty();
             }
-            int errors = 0;
-            int warnings = 0;
             List<String> messages = new ArrayList<>();
-            try {
-                for (Resource res : resourceSet.getResources()) {
-                    if (res == null || res.getContents().isEmpty()) {
-                        continue;
-                    }
-                    for (EObject root : res.getContents()) {
-                        Diagnostic diagnostic = Diagnostician.INSTANCE.validate(root);
-                        errors += diagnostic.getChildren().stream().filter(d -> d.getSeverity() == Diagnostic.ERROR).count();
-                        warnings += diagnostic.getChildren().stream().filter(d -> d.getSeverity() == Diagnostic.WARNING).count();
-                        diagnostic.getChildren().stream()
-                            .filter(d -> d.getSeverity() != Diagnostic.OK)
-                            .limit(3)
-                            .map(ValidationReport::formatDiagnostic)
-                            .forEach(messages::add);
-                    }
-                }
-            } catch (Exception ex) {
-                messages.add("Validation failed: " + ex.getMessage());
-            }
-            if (messages.isEmpty()) {
-                messages.add("No validation issues detected.");
-            }
-            return new ValidationReport(true, errors, warnings, messages);
+            messages.add("Validation skipped (disabled in Capella AI to reduce noise).");
+            return new ValidationReport(true, 0, 0, messages);
         }
 
         private static String formatDiagnostic(Diagnostic diagnostic) {
