@@ -11,6 +11,15 @@ plugins/ai-capella-repository/target/
 plugins/ai-capella-feature/target/
 plugins/ai-capella/target/
 src/java/target/
+plugins/**/bin/
+releng/**/target/
+
+# Local logs and transient artifacts
+build.log
+build2.log
+build.out
+docs/log.txt
+.serena/
 
 # IDE files
 .vscode/
