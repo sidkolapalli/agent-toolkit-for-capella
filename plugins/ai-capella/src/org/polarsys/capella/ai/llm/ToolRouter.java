@@ -853,19 +853,29 @@ public final class ToolRouter {
         }
     }
 
-    private static String uuidOf(EObject eo) {
-        if (eo == null) {
-            return "";
-        }
-        var feature = eo.eClass().getEStructuralFeature("uuid");
+        private static String uuidOf(EObject eo) {
+            if (eo == null) {
+                return "";
+            }
+            var feature = eo.eClass().getEStructuralFeature("uuid");
         if (feature != null) {
             Object value = eo.eGet(feature);
             if (value != null) {
                 return String.valueOf(value);
             }
         }
-        return String.valueOf(eo.hashCode());
-    }
+            return String.valueOf(eo.hashCode());
+        }
+
+        private static String canonicalLayer(String v) {
+            if (v == null || v.isBlank()) return v;
+            String s = v.trim().toLowerCase(java.util.Locale.ROOT);
+            if (s.equals("oa") || s.equals("operational") || s.equals("oal")) return "OA";
+            if (s.equals("la") || s.equals("logical")) return "LA";
+            if (s.equals("sa") || s.equals("system") || s.equals("systemanalysis")) return "SA";
+            if (s.equals("pa") || s.equals("physical")) return "PA";
+            return v; // leave unchanged if already a recognized code or custom
+        }
 
     private enum ActionType {
         CREATE_COMPONENT,
@@ -1015,7 +1025,7 @@ public final class ToolRouter {
                String chainName, String functionName, String functionClass,
                String exchangeName, String scenarioName) {
             this.type = type;
-            this.layer = layer;
+            this.layer = canonicalLayer(layer);
             this.name = name;
             this.sourceName = sourceName;
             this.targetName = targetName;
@@ -1028,7 +1038,7 @@ public final class ToolRouter {
             this.capabilityName = capabilityName;
             this.logicalName = logicalName;
             this.physicalName = physicalName;
-            this.targetLayer = targetLayer;
+            this.targetLayer = canonicalLayer(targetLayer);
             this.includeChildren = includeChildren;
             this.updateAttributes = updateAttributes;
             this.chainName = chainName;
@@ -1039,7 +1049,24 @@ public final class ToolRouter {
         }
 
         static Action fromMap(int index, Map<String, Object> map) {
+            // Tolerate both shapes:
+            // 1) {"type":"create_operational_activity", ...}
+            // 2) {"create_operational_activity": { ... }}
             String typeValue = string(map.get("type"));
+            if (typeValue == null) {
+                if (map.size() == 1) {
+                    Map.Entry<String, Object> only = map.entrySet().iterator().next();
+                    String inferred = only.getKey();
+                    Object val = only.getValue();
+                    if (val instanceof Map) {
+                        @SuppressWarnings("unchecked") Map<String, Object> inner = (Map<String, Object>) val;
+                        // Merge inner into map and set explicit type
+                        map = new java.util.LinkedHashMap<>(inner);
+                        map.put("type", inferred);
+                        typeValue = inferred;
+                    }
+                }
+            }
             ActionType type = ActionType.from(typeValue);
             switch (type) {
                 case CREATE_COMPONENT:
