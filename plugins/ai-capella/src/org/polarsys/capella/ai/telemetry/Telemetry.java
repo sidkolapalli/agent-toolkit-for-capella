@@ -18,6 +18,7 @@ import org.polarsys.capella.ai.preferences.LLMPreferences;
 /** Lightweight opt-in telemetry for understanding assistant usage patterns. */
 public final class Telemetry {
     private static final Logger LOG = Logger.getLogger(Telemetry.class.getName());
+    private static final ThreadLocal<String> CORRELATION = new ThreadLocal<>();
 
     private Telemetry() {}
 
@@ -86,6 +87,25 @@ public final class Telemetry {
         logInfo("conversation", payload);
     }
 
+    /** Record a single tool call (planned action) execution step. */
+    public static void recordToolCall(int index,
+                                      String type,
+                                      String description,
+                                      String status,
+                                      String details) {
+        if (!isEnabled()) {
+            return;
+        }
+        String msg = String.format("step=%d type=%s status=%s desc=%s details=%s",
+                index, safe(type), safe(status), safe(description), safe(details));
+        logInfo("tool-call", msg);
+    }
+
+    /** Set/clear correlation id to group logs for a single interaction. */
+    public static void setCorrelationId(String id) { CORRELATION.set(id); }
+    public static void clearCorrelationId() { CORRELATION.remove(); }
+    public static String getCorrelationId() { return CORRELATION.get(); }
+
     private static String safe(String s) {
         return s == null ? "" : s;
     }
@@ -103,7 +123,9 @@ public final class Telemetry {
     }
 
     private static void log(int severity, String category, String message) {
-        String payload = String.format("[%s] %s", category, message);
+        String id = getCorrelationId();
+        String prefix = (id == null || id.isBlank()) ? category : ("id=" + id + "] [" + category);
+        String payload = String.format("[%s] %s", prefix, message);
         if (Activator.getDefault() != null) {
             Activator.getDefault().getLog().log(new Status(severity, Activator.PLUGIN_ID, payload));
         } else {

@@ -3,6 +3,7 @@ package org.polarsys.capella.ai.llm;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
@@ -27,6 +28,7 @@ import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.tools.DiagramCommands;
 import org.polarsys.capella.ai.tools.DiagramMappings;
 import org.polarsys.capella.ai.session.SessionSafeguards;
+import org.polarsys.capella.ai.telemetry.Telemetry;
 
 /**
  * Parses TOOL_PLAN responses and applies requested actions against the active Capella session.
@@ -321,6 +323,8 @@ public final class ToolRouter {
     }
 
     public static Result handleChat(Session session, String userMessage, List<LLMService.Message> history) {
+        String corr = UUID.randomUUID().toString();
+        Telemetry.setCorrelationId(corr);
         Result result = new Result();
         try {
             if (session == null) {
@@ -333,6 +337,8 @@ public final class ToolRouter {
             result.error = ex.getMessage();
         } catch (Exception ex) {
             result.error = ex.getMessage();
+        } finally {
+            Telemetry.clearCorrelationId();
         }
         return result;
     }
@@ -347,6 +353,8 @@ public final class ToolRouter {
             failed.completeExceptionally(new IllegalStateException("No active Capella session"));
             return new ToolStream(null, failed);
         }
+        String corr = UUID.randomUUID().toString();
+        Telemetry.setCorrelationId(corr);
         List<LLMService.Message> messages = buildMessages(session, userMessage, history);
         final StringBuilder aggregate = new StringBuilder();
         LLMService.StreamHandle handle;
@@ -370,6 +378,7 @@ public final class ToolRouter {
             consumer.onError(ex.getMessage());
             CompletableFuture<Result> failed = new CompletableFuture<>();
             failed.completeExceptionally(ex);
+            Telemetry.clearCorrelationId();
             return new ToolStream(null, failed);
         }
 
@@ -384,6 +393,7 @@ public final class ToolRouter {
                     consumer.onError(message);
                 }
                 completion.completeExceptionally(throwable);
+                Telemetry.clearCorrelationId();
                 return;
             }
             String finalReply = reply != null ? reply : aggregate.toString();
@@ -394,6 +404,8 @@ public final class ToolRouter {
             } catch (PlanValidationException ex) {
                 consumer.onError(ex.getMessage());
                 completion.completeExceptionally(ex);
+            } finally {
+                Telemetry.clearCorrelationId();
             }
         });
         return new ToolStream(handle, completion);
@@ -411,16 +423,24 @@ public final class ToolRouter {
     private static PlanExecutionResult applyPlanInternal(Session session, DRepresentation diagram, ToolPlan plan) {
         int applied = 0;
         List<String> errors = new ArrayList<>();
-        for (Action action : plan.actions()) {
+        List<Action> actions = plan.actions();
+        for (int i = 0; i < actions.size(); i++) {
+            Action action = actions.get(i);
             try {
+                Telemetry.recordToolCall(i, action.type.name(), action.describe(), "attempt", "");
                 boolean success = applyAction(session, action);
                 if (success) {
                     applied++;
+                    Telemetry.recordToolCall(i, action.type.name(), action.describe(), "success", "");
                 } else {
-                    errors.add("Failed: " + action.describe());
+                    String msg = "Failed: " + action.describe();
+                    errors.add(msg);
+                    Telemetry.recordToolCall(i, action.type.name(), action.describe(), "failure", msg);
                 }
             } catch (Exception ex) {
-                errors.add(action.describe() + " → " + ex.getMessage());
+                String msg = action.describe() + " → " + ex.getMessage();
+                errors.add(msg);
+                Telemetry.recordToolCall(i, action.type.name(), action.describe(), "error", msg);
             }
         }
         return new PlanExecutionResult(applied, errors);
