@@ -489,6 +489,21 @@ public final class ToolRouter {
                 return FunctionalChainActions.addExchange(session, action.chainName, action.exchangeName);
             case ATTACH_SCENARIO:
                 return FunctionalChainActions.attachScenario(session, action.chainName, action.scenarioName);
+            case ADD_VIEW_NODE: {
+                DRepresentation rep = DiagramCommands.getLastOpened();
+                if (rep == null) return false;
+                EObject sem = findAnyByName(session, action.existingName);
+                if (sem == null) return false;
+                return DiagramCommands.createNode(session, rep, sem);
+            }
+            case ADD_VIEW_EDGE: {
+                DRepresentation rep = DiagramCommands.getLastOpened();
+                if (rep == null) return false;
+                EObject src = findAnyByName(session, action.sourceName);
+                EObject tgt = findAnyByName(session, action.targetName);
+                if (src == null || tgt == null) return false;
+                return DiagramCommands.createEdge(session, rep, src, tgt);
+            }
             case BATCH_RENAME:
                 return MassEditActions.batchRename(session, action.elementClass, action.renameItems);
             case BATCH_REPARENT:
@@ -574,6 +589,8 @@ public final class ToolRouter {
         sb.append("- link_requirement {requirement, target_class, target_name}\n");
         sb.append("- record_requirement_coverage {target_class, target_name, status?, notes?}\n");
         sb.append("Cross-check references against the live model and reuse existing artefacts when possible.\n");
+        sb.append("- add_view_node {diagram?, semantic, x?, y?}\n");
+        sb.append("- add_view_edge {diagram?, source, target}\n");
         sb.append("Acknowledge validation warnings from dry-run simulations.\n");
         sb.append("Current model snapshot:\n");
         try {
@@ -853,7 +870,7 @@ public final class ToolRouter {
         }
     }
 
-        private static String uuidOf(EObject eo) {
+    private static String uuidOf(EObject eo) {
             if (eo == null) {
                 return "";
             }
@@ -864,8 +881,24 @@ public final class ToolRouter {
                 return String.valueOf(value);
             }
         }
-            return String.valueOf(eo.hashCode());
+        return String.valueOf(eo.hashCode());
+    }
+
+    private static EObject findAnyByName(Session session, String name) {
+        if (name == null || name.isBlank()) return null;
+        String[] classes = new String[] {
+                "OperationalActivity", "OperationalActor",
+                "SystemComponent", "LogicalComponent", "PhysicalComponent",
+                "SystemFunction", "LogicalFunction", "PhysicalFunction",
+                "Capability", "Interface",
+                "FunctionalExchange", "ComponentExchange"
+        };
+        for (String cls : classes) {
+            EObject found = Finders.findByName(session, cls, name);
+            if (found != null) return found;
         }
+        return null;
+    }
 
         private static String canonicalLayer(String v) {
             if (v == null || v.isBlank()) return v;
@@ -901,6 +934,8 @@ public final class ToolRouter {
         EXTEND_CHAIN,
         SEQUENCE_EXCHANGE,
         ATTACH_SCENARIO,
+        ADD_VIEW_NODE,
+        ADD_VIEW_EDGE,
         BATCH_RENAME,
         BATCH_REPARENT,
         BATCH_ALLOCATE,
@@ -961,6 +996,10 @@ public final class ToolRouter {
                     return SEQUENCE_EXCHANGE;
                 case "attach_scenario":
                     return ATTACH_SCENARIO;
+                case "add_view_node":
+                    return ADD_VIEW_NODE;
+                case "add_view_edge":
+                    return ADD_VIEW_EDGE;
                 case "batch_rename":
                     return BATCH_RENAME;
                 case "batch_reparent":
@@ -1157,6 +1196,16 @@ public final class ToolRouter {
                     return new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null, null, null, null, null, null, null, null,
                             null, null, null, false, false,
                             require(map, "chain", index), null, null, null, require(map, "scenario", index));
+                case ADD_VIEW_NODE:
+                    // view-only: diagram? optional; semantic required
+                    return new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), null, null,
+                            null, require(map, "semantic", index), null, null, null, null, null,
+                            null, null, null, false, false, null, null, null, null, null);
+                case ADD_VIEW_EDGE:
+                    // view-only: diagram? optional; source/target required
+                    return new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), require(map, "source", index), require(map, "target", index),
+                            null, null, null, null, null, null, null,
+                            null, null, null, false, false, null, null, null, null, null);
                 case BATCH_RENAME: {
                     Action renameAction = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null,
                             require(map, "class", index), null, null, null, null, null, null,
@@ -1284,6 +1333,12 @@ public final class ToolRouter {
                     return String.format("Add exchange '%s' to chain '%s'", defaultString(exchangeName, "?"), defaultString(chainName, "?"));
                 case ATTACH_SCENARIO:
                     return String.format("Attach scenario '%s' to chain '%s'", defaultString(scenarioName, "?"), defaultString(chainName, "?"));
+                case ADD_VIEW_NODE:
+                    return String.format("Add view node for '%s'%s", defaultString(existingName, "?"),
+                            (name != null && !name.isBlank()) ? (" in diagram '" + name + "'") : "");
+                case ADD_VIEW_EDGE:
+                    return String.format("Add view edge %s → %s%s", defaultString(sourceName, "?"), defaultString(targetName, "?"),
+                            (name != null && !name.isBlank()) ? (" in diagram '" + name + "'") : "");
                 case BATCH_RENAME:
                     return String.format("Batch rename %d %s", renameItems != null ? renameItems.size() : 0,
                             defaultString(elementClass, "elements"));
@@ -1418,6 +1473,10 @@ public final class ToolRouter {
                     return String.format("Add exchange '%s' to chain '%s'", defaultString(exchangeName, "?"), defaultString(chainName, "?"));
                 case ATTACH_SCENARIO:
                     return String.format("Attach scenario '%s' to chain '%s'", defaultString(scenarioName, "?"), defaultString(chainName, "?"));
+                case ADD_VIEW_NODE:
+                    return String.format("Reveal node '%s' in diagram", defaultString(existingName, "?"));
+                case ADD_VIEW_EDGE:
+                    return String.format("Reveal edge %s → %s in diagram", defaultString(sourceName, "?"), defaultString(targetName, "?"));
                 case BATCH_RENAME:
                     return String.format("Rename %d %s", renameItems != null ? renameItems.size() : 0,
                             defaultString(elementClass, "elements"));

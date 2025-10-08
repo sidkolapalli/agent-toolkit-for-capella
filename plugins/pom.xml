@@ -15,6 +15,7 @@
   <modules>
     <module>../releng/capella-target</module>
     <module>ai-capella</module>
+    <module>ai-capella.tests</module>
     <module>ai-capella-feature</module>
     <module>ai-capella-repository</module>
   </modules>
