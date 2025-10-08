@@ -57,6 +57,39 @@ public final class Telemetry {
         logWarning("plan-error", context + " → " + message);
     }
 
+    /**
+     * Record a full LLM conversation (inputs and output) for diagnostics.
+     * The caller is responsible for redacting any sensitive data.
+     */
+    public static void recordConversation(String provider,
+                                          String api,
+                                          String model,
+                                          String messages,
+                                          String reply,
+                                          boolean streaming,
+                                          String status,
+                                          long durationMs) {
+        if (!isEnabled()) {
+            return;
+        }
+        String meta = String.format("provider=%s api=%s model=%s streaming=%s duration_ms=%d status=%s",
+                safe(provider), safe(api), safe(model), streaming, durationMs, safe(status));
+        String payload = new StringBuilder()
+                .append(meta)
+                .append(System.lineSeparator())
+                .append("-- messages --").append(System.lineSeparator())
+                .append(messages == null ? "" : messages)
+                .append(System.lineSeparator())
+                .append("-- reply --").append(System.lineSeparator())
+                .append(reply == null ? "" : reply)
+                .toString();
+        logInfo("conversation", payload);
+    }
+
+    private static String safe(String s) {
+        return s == null ? "" : s;
+    }
+
     private static boolean isEnabled() {
         return LLMPreferences.isTelemetryEnabled();
     }

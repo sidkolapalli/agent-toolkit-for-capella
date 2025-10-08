@@ -91,6 +91,9 @@ public final class LLMService {
         int maxT = LLMPreferences.getMaxTokens();
         double temp = LLMPreferences.getTemperature();
         String key = LLMPreferences.getApiKey();
+        long start = System.currentTimeMillis();
+        String provider = LLMPreferences.getProvider();
+        String msgDump = dumpMessages(messages);
 
         String payloadMessages = buildChatMessagesJson(messages);
         // Chat Completions: valid token param is max_tokens
@@ -112,7 +115,10 @@ public final class LLMService {
             .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
             .build();
         HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
-        if (resp.statusCode() >= 400) throw new RuntimeException("OpenAI error: " + resp.statusCode() + ": " + resp.body());
+        if (resp.statusCode() >= 400) {
+            tryLogConversation(provider, "openai-chat", model, msgDump, "", false, "http=" + resp.statusCode(), start);
+            throw new RuntimeException("OpenAI error: " + resp.statusCode() + ": " + resp.body());
+        }
         String s = resp.body();
         try {
             Object parsed = SimpleJson.parse(s);
@@ -140,6 +146,7 @@ public final class LLMService {
                 }
             }
         } catch (Exception ignore) {}
+        tryLogConversation(provider, "openai-chat", model, msgDump, s, false, "ok", start);
         return s;
     }
 
@@ -149,6 +156,9 @@ public final class LLMService {
         int maxT = LLMPreferences.getMaxTokens();
         double temp = LLMPreferences.getTemperature();
         String key = LLMPreferences.getApiKey();
+        long start = System.currentTimeMillis();
+        String provider = LLMPreferences.getProvider();
+        String msgDump = dumpMessages(messages);
 
         // Build a simple textual transcript for input
         String input = buildResponsesInput(messages);
@@ -171,7 +181,10 @@ public final class LLMService {
             .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
             .build();
         HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
-        if (resp.statusCode() >= 400) throw new RuntimeException("OpenAI error: " + resp.statusCode() + ": " + resp.body());
+        if (resp.statusCode() >= 400) {
+            tryLogConversation(provider, "openai-responses", model, msgDump, "", false, "http=" + resp.statusCode(), start);
+            throw new RuntimeException("OpenAI error: " + resp.statusCode() + ": " + resp.body());
+        }
         String s = resp.body();
         try {
             Object parsed = SimpleJson.parse(s);
@@ -196,6 +209,7 @@ public final class LLMService {
                 }
             }
         } catch (Exception ignore) {}
+        tryLogConversation(provider, "openai-responses", model, msgDump, s, false, "ok", start);
         return s;
     }
 
@@ -236,6 +250,9 @@ public final class LLMService {
         int maxT = LLMPreferences.getMaxTokens();
         double temp = LLMPreferences.getTemperature();
         String key = LLMPreferences.getApiKey();
+        long start = System.currentTimeMillis();
+        String provider = LLMPreferences.getProvider();
+        String msgDump = dumpMessages(messages);
         StringBuilder system = new StringBuilder();
         StringBuilder payloadMessages = new StringBuilder("[");
         boolean first = true;
@@ -277,7 +294,10 @@ public final class LLMService {
             .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
             .build();
         HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
-        if (resp.statusCode() >= 400) throw new RuntimeException("Anthropic error: " + resp.statusCode() + ": " + resp.body());
+        if (resp.statusCode() >= 400) {
+            tryLogConversation(provider, "anthropic-messages", model, msgDump, "", false, "http=" + resp.statusCode(), start);
+            throw new RuntimeException("Anthropic error: " + resp.statusCode() + ": " + resp.body());
+        }
         // Light parse: find "text":"..." from content
         String s = resp.body();
         int i = s.indexOf("\"text\":");
@@ -286,6 +306,7 @@ public final class LLMService {
             int q2 = s.indexOf('"', q1 + 1);
             if (q1 >= 0 && q2 > q1) return s.substring(q1 + 1, q2);
         }
+        tryLogConversation(provider, "anthropic-messages", model, msgDump, s, false, "ok", start);
         return s;
     }
 
@@ -299,6 +320,10 @@ public final class LLMService {
         int maxT = LLMPreferences.getMaxTokens();
         double temp = LLMPreferences.getTemperature();
         String key = LLMPreferences.getApiKey();
+        long start = System.currentTimeMillis();
+        String provider = LLMPreferences.getProvider();
+        String modelName = LLMPreferences.getModel();
+        String msgDump = dumpMessages(messages);
         String payloadMessages = buildChatMessagesJson(messages);
         StringBuilder body = new StringBuilder();
         body.append('{')
@@ -317,7 +342,12 @@ public final class LLMService {
             .header("Authorization", "Bearer " + key)
             .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
             .build();
-        return streamSse(req, listener, this::extractOpenAIDelta);
+        StreamHandle sh = streamSse(req, listener, this::extractOpenAIDelta);
+        sh.completion().whenComplete((reply, err) -> {
+            String status = (err == null) ? "ok" : (err.getMessage() == null ? "error" : "error:" + err.getMessage());
+            tryLogConversation(provider, "openai-chat(stream)", modelName, msgDump, reply, true, status, start);
+        });
+        return sh;
     }
 
     private StreamHandle streamOpenAIResponses(List<Message> messages, StreamListener listener, ModelCapabilities caps) throws Exception {
@@ -355,6 +385,9 @@ public final class LLMService {
         int maxT = LLMPreferences.getMaxTokens();
         double temp = LLMPreferences.getTemperature();
         String key = LLMPreferences.getApiKey();
+        long start = System.currentTimeMillis();
+        String provider = LLMPreferences.getProvider();
+        String msgDump = dumpMessages(messages);
         StringBuilder system = new StringBuilder();
         StringBuilder payloadMessages = new StringBuilder("[");
         boolean first = true;
@@ -396,7 +429,12 @@ public final class LLMService {
             .header("anthropic-version", "2023-06-01")
             .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
             .build();
-        return streamSse(req, listener, this::extractAnthropicDelta);
+        StreamHandle sh = streamSse(req, listener, this::extractAnthropicDelta);
+        sh.completion().whenComplete((reply, err) -> {
+            String status = (err == null) ? "ok" : (err.getMessage() == null ? "error" : "error:" + err.getMessage());
+            tryLogConversation(provider, "anthropic-messages(stream)", model, msgDump, reply, true, status, start);
+        });
+        return sh;
     }
 
     private StreamHandle streamSse(HttpRequest request, StreamListener listener, DeltaExtractor extractor) {
@@ -589,6 +627,24 @@ public final class LLMService {
     }
 
     private static String normalizeBase(String b) { return b.endsWith("/") ? b.substring(0, b.length()-1) : b; }
+    private static String dumpMessages(List<Message> messages) {
+        if (messages == null || messages.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (Message m : messages) {
+            sb.append(m.getRole().name().toLowerCase()).append(": ")
+              .append(m.getContent() == null ? "" : m.getContent())
+              .append(System.lineSeparator());
+        }
+        return sb.toString().stripTrailing();
+    }
+    private static void tryLogConversation(String provider, String api, String model, String messages, String reply, boolean streaming, String status, long startMs) {
+        try {
+            long dur = Math.max(0, System.currentTimeMillis() - startMs);
+            org.polarsys.capella.ai.telemetry.Telemetry.recordConversation(provider, api, model, messages, reply, streaming, status, dur);
+        } catch (Throwable ignore) {
+            // Never let logging break the flow
+        }
+    }
     private static String capitalize(String s) {
         if (s == null || s.isEmpty()) return s;
         return Character.toUpperCase(s.charAt(0)) + (s.length() > 1 ? s.substring(1) : "");
