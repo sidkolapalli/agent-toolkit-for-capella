@@ -51,8 +51,23 @@ public class MessageBubble {
         bubbleColor = getBubbleColor(role);
         labelColor = getRoleLabelColor(role);
         bubble = new Composite(wrapper, SWT.BORDER);
-        GridData bubbleData = new GridData(SWT.FILL, SWT.TOP, role == Role.SYSTEM, false);
-        bubbleData.widthHint = role == Role.SYSTEM ? SWT.DEFAULT : 500;
+        final GridData bubbleData = new GridData(SWT.FILL, SWT.TOP, role == Role.SYSTEM, false);
+        // Dynamic width: shrink to fit on narrow views, cap at 500px on wide views
+        if (role != Role.SYSTEM) {
+            wrapper.addListener(SWT.Resize, e -> {
+                int availableWidth = wrapper.getSize().x;
+                if (availableWidth > 0) {
+                    // Leave margins for spacers and padding
+                    int maxWidth = Math.min(availableWidth - 40, 500);
+                    bubbleData.widthHint = maxWidth;
+                    wrapper.layout(true);
+                }
+            });
+            // Initial width hint
+            bubbleData.widthHint = 500;
+        } else {
+            bubbleData.widthHint = SWT.DEFAULT;
+        }
         bubble.setLayoutData(bubbleData);
         bubble.setLayout(new GridLayout(1, false));
         bubble.setBackground(bubbleColor);

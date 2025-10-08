@@ -48,7 +48,18 @@ public class PlanPreviewBox {
         backgroundColor = createBackgroundColor();
         headerColor = createHeaderColor();
         container = new Composite(wrapper, SWT.BORDER);
-        GridData containerData = new GridData(SWT.CENTER, SWT.TOP, true, false);
+        final GridData containerData = new GridData(SWT.CENTER, SWT.TOP, true, false);
+        // Dynamic width: shrink to fit on narrow views, cap at 600px on wide views
+        wrapper.addListener(SWT.Resize, e -> {
+            int availableWidth = wrapper.getSize().x;
+            if (availableWidth > 0) {
+                // Leave margins for padding
+                int maxWidth = Math.min(availableWidth - 40, 600);
+                containerData.widthHint = maxWidth;
+                wrapper.layout(true);
+            }
+        });
+        // Initial width hint
         containerData.widthHint = 600;
         container.setLayoutData(containerData);
         container.setLayout(new GridLayout(1, false));

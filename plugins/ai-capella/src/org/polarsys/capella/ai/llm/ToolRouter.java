@@ -504,6 +504,20 @@ public final class ToolRouter {
                 if (src == null || tgt == null) return false;
                 return DiagramCommands.createEdge(session, rep, src, tgt);
             }
+            case SET_VIEW_BOUNDS: {
+                DRepresentation rep = DiagramCommands.getLastOpened();
+                if (rep == null) return false;
+                EObject sem = findAnyByName(session, action.existingName);
+                if (sem == null) return false;
+                return DiagramCommands.setViewBounds(session, rep, sem, action.x, action.y, action.width, action.height);
+            }
+            case REMOVE_VIEW_ELEMENT: {
+                DRepresentation rep = DiagramCommands.getLastOpened();
+                if (rep == null) return false;
+                EObject sem = findAnyByName(session, action.existingName);
+                if (sem == null) return false;
+                return DiagramCommands.removeViewElement(session, rep, sem);
+            }
             case BATCH_RENAME:
                 return MassEditActions.batchRename(session, action.elementClass, action.renameItems);
             case BATCH_REPARENT:
@@ -936,6 +950,8 @@ public final class ToolRouter {
         ATTACH_SCENARIO,
         ADD_VIEW_NODE,
         ADD_VIEW_EDGE,
+        SET_VIEW_BOUNDS,
+        REMOVE_VIEW_ELEMENT,
         BATCH_RENAME,
         BATCH_REPARENT,
         BATCH_ALLOCATE,
@@ -1000,6 +1016,10 @@ public final class ToolRouter {
                     return ADD_VIEW_NODE;
                 case "add_view_edge":
                     return ADD_VIEW_EDGE;
+                case "set_view_bounds":
+                    return SET_VIEW_BOUNDS;
+                case "remove_view_element":
+                    return REMOVE_VIEW_ELEMENT;
                 case "batch_rename":
                     return BATCH_RENAME;
                 case "batch_reparent":
@@ -1086,6 +1106,9 @@ public final class ToolRouter {
             this.exchangeName = exchangeName;
             this.scenarioName = scenarioName;
         }
+
+        // View geometry fields
+        int x; int y; int width; int height;
 
         static Action fromMap(int index, Map<String, Object> map) {
             // Tolerate both shapes:
@@ -1206,6 +1229,20 @@ public final class ToolRouter {
                     return new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), require(map, "source", index), require(map, "target", index),
                             null, null, null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
+                case SET_VIEW_BOUNDS: {
+                    Action a = new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), null, null,
+                            null, require(map, "element", index), null, null, null, null, null,
+                            null, null, null, false, false, null, null, null, null, null);
+                    a.x = parseInt(map.get("x"));
+                    a.y = parseInt(map.get("y"));
+                    a.width = parseInt(map.get("width"));
+                    a.height = parseInt(map.get("height"));
+                    return a;
+                }
+                case REMOVE_VIEW_ELEMENT:
+                    return new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), null, null,
+                            null, require(map, "element", index), null, null, null, null, null,
+                            null, null, null, false, false, null, null, null, null, null);
                 case BATCH_RENAME: {
                     Action renameAction = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null,
                             require(map, "class", index), null, null, null, null, null, null,
@@ -1274,6 +1311,12 @@ public final class ToolRouter {
             }
         }
 
+        private static int parseInt(Object v) {
+            if (v == null) return 0;
+            if (v instanceof Number) return ((Number) v).intValue();
+            try { return Integer.parseInt(String.valueOf(v)); } catch (Exception e) { return 0; }
+        }
+
         String describe() {
             switch (type) {
                 case CREATE_COMPONENT:
@@ -1339,6 +1382,13 @@ public final class ToolRouter {
                 case ADD_VIEW_EDGE:
                     return String.format("Add view edge %s → %s%s", defaultString(sourceName, "?"), defaultString(targetName, "?"),
                             (name != null && !name.isBlank()) ? (" in diagram '" + name + "'") : "");
+                case SET_VIEW_BOUNDS:
+                    return String.format("Set bounds for '%s' to (%d,%d %dx%d)%s",
+                            defaultString(existingName, "?"), x, y, width, height,
+                            (name != null && !name.isBlank()) ? (" in diagram '" + name + "'") : "");
+                case REMOVE_VIEW_ELEMENT:
+                    return String.format("Remove view element '%s'%s", defaultString(existingName, "?"),
+                            (name != null && !name.isBlank()) ? (" from diagram '" + name + "'") : "");
                 case BATCH_RENAME:
                     return String.format("Batch rename %d %s", renameItems != null ? renameItems.size() : 0,
                             defaultString(elementClass, "elements"));
@@ -1477,6 +1527,10 @@ public final class ToolRouter {
                     return String.format("Reveal node '%s' in diagram", defaultString(existingName, "?"));
                 case ADD_VIEW_EDGE:
                     return String.format("Reveal edge %s → %s in diagram", defaultString(sourceName, "?"), defaultString(targetName, "?"));
+                case SET_VIEW_BOUNDS:
+                    return String.format("Resize/move view element '%s'", defaultString(existingName, "?"));
+                case REMOVE_VIEW_ELEMENT:
+                    return String.format("Remove view element '%s'", defaultString(existingName, "?"));
                 case BATCH_RENAME:
                     return String.format("Rename %d %s", renameItems != null ? renameItems.size() : 0,
                             defaultString(elementClass, "elements"));

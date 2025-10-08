@@ -119,6 +119,32 @@ public final class DiagramCommands {
         }
     }
 
+    /** Best-effort: remove a view element corresponding to a semantic EObject from the current diagram (no semantic delete). */
+    public static boolean removeViewElement(Session session, DRepresentation rep, EObject semantic) {
+        try {
+            // Without direct editor access, attempt a refresh and rely on reveal API to check presence.
+            // As a placeholder, we just refresh; proper implementation would locate the DDiagramElement and delete it.
+            if (session == null || rep == null || semantic == null) return false;
+            DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
+            return false; // not yet implemented
+        } catch (Exception e) {
+            LOG.warning("removeViewElement failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Best-effort: set bounds for a view element (requires active editor/GMF). Placeholder returns false for now. */
+    public static boolean setViewBounds(Session session, DRepresentation rep, EObject semantic, int x, int y, int w, int h) {
+        try {
+            if (session == null || rep == null || semantic == null) return false;
+            DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
+            return false; // to be implemented with GMF editpart commands
+        } catch (Exception e) {
+            LOG.warning("setViewBounds failed: " + e.getMessage());
+            return false;
+        }
+    }
+
     private static RepresentationDescription findDiagramDescription(Session session, String name) {
         for (Viewpoint vp : session.getSelectedViewpoints(false)) {
             for (RepresentationDescription rd : vp.getOwnedRepresentations()) {
