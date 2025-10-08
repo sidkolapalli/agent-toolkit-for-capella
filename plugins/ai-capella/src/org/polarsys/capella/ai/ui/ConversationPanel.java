@@ -39,6 +39,10 @@ public class ConversationPanel {
         messagesContainer.setBackground(Display.getDefault().getSystemColor(SWT.COLOR_WHITE));
         scroller.setContent(messagesContainer);
 
+        // Recompute min size when the scroller resizes so wrapped text
+        // computes height against the actual available width.
+        scroller.addListener(SWT.Resize, e -> refreshLayout());
+
         showEmptyState();
     }
 
@@ -200,7 +204,15 @@ public class ConversationPanel {
      */
     private void refreshLayout() {
         messagesContainer.layout(true, true);
-        scroller.setMinSize(messagesContainer.computeSize(SWT.DEFAULT, SWT.DEFAULT));
+        // Use the current client width so wrapped Text widgets compute their
+        // height correctly; this avoids extremely tall content and excessive
+        // scrolling to reach the end.
+        int clientWidth = scroller.getClientArea().width;
+        if (clientWidth <= 0) {
+            // Fallback for early calls before the control is laid out
+            clientWidth = 600;
+        }
+        scroller.setMinSize(messagesContainer.computeSize(clientWidth, SWT.DEFAULT));
         messagesContainer.layout();
     }
 

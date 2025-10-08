@@ -1,19 +1,22 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-The Capella AI Assistant plugin lives under `plugins/`. The `ai-capella` module hosts the Eclipse plug-in code (`src/org/polarsys/capella/ai/...`), `plugin.xml`, and `META-INF/MANIFEST.MF`. The `ai-capella-feature` module defines the installable feature, while `ai-capella-repository` publishes the p2 update site consumed by Capella. Tycho is configured in `plugins/pom.xml`; each module writes build artifacts under its own `target/` directory. Keep generated repositories and OSGi metadata out of commits.
+The Eclipse plug-in lives in `plugins/ai-capella`, with `src/org/polarsys/capella/ai/**`, `plugin.xml`, and `META-INF/MANIFEST.MF`. Bundle and feature build descriptors must stay in sync whenever you add views, commands, or services. The Tycho aggregator resides in `plugins/pom.xml`; feature packaging sits in `plugins/ai-capella-feature`, and the p2 site is emitted by `plugins/ai-capella-repository`. Target platform metadata is in `releng/capella-target`; refresh it before relying on newer Capella drops. Design notes and rollout plans live in `docs/` and `PLAN_NEXT.md`—skim them before large UX or tooling changes.
 
 ## Build, Test, and Development Commands
-- `mvn -f plugins clean verify` (Java 17) — compiles all plug-ins, packages the feature, and creates the update site at `plugins/ai-capella-repository/target/repository`.
-- `mvn -pl plugins/ai-capella -am clean verify` — rebuilds only the core plug-in when iterating on Java code but still resolves dependencies.
-- `mvn -f plugins clean -DskipTests` — quick rebuild when you only need refreshed binaries. Prefer the full verify goal before pushing.
-Run builds from a shell with a proper Eclipse Tycho-compatible Maven installation.
+- `export JAVA_TOOL_OPTIONS="-Djdk.xml.maxGeneralEntitySizeLimit=0 -Djdk.xml.totalEntitySizeLimit=0 -Djdk.xml.entityExpansionLimit=0"` — raise XML entity limits required by the Capella repositories (run once per shell).
+- `mvn -f plugins clean verify` — full Tycho build, producing the update site at `plugins/ai-capella-repository/target/repository`.
+- `mvn -pl plugins/ai-capella -am clean verify` — rebuilds the plug-in while pulling dependent modules.
+- `mvn -f plugins clean -DskipTests` — fast iteration when binaries are needed but tests already ran elsewhere.
 
 ## Coding Style & Naming Conventions
-Use the Eclipse formatter with 4-space indentation and UTF-8 encoding (see `pom.xml` `project.build.sourceEncoding`). Keep package names under `org.polarsys.capella.ai.*` and class names in UpperCamelCase (`ChatView`, `ModelOps`). Event handler methods should describe the action (`onListDiagrams`, `onCreateLab`). Update `plugin.xml` and `feature.xml` whenever new views, commands, or categories are introduced, and bump module versions in `MANIFEST.MF` and feature descriptors.
+Use the Eclipse formatter with 4-space indentation and UTF-8 sources. Keep packages under `org.polarsys.capella.ai.*`; classes stay in UpperCamelCase, fields and methods in lowerCamelCase with verbs (`loadData`, `sessionBridge`). Bundle and feature versions follow `0.x.y.qualifier`; bump them alongside extension additions. Update `plugin.xml`, `build.properties`, and `feature.xml` whenever you register new UI surfaces or commands.
 
 ## Testing Guidelines
-No automated suites ship yet; when adding behaviour, contribute Tycho-friendly tests. Place unit tests in a new test fragment or plug-in (e.g., `plugins/ai-capella.tests`) and wire it into the aggregator. UI flows should be covered with SWTBot or integration tests where feasible. Always run `mvn -f plugins clean verify` before opening a PR to exercise compile-time checks.
+Automated suites are not yet checked in. When adding behaviour, introduce plug-in or fragment tests (e.g., `plugins/ai-capella.tests`) and wire them into the Tycho reactor. Name test classes `*Test` and keep scenarios deterministic—stub Eclipse services via the platform harness. Always run `mvn -f plugins clean verify` locally before sending a change, even if individual modules were rebuilt earlier.
 
 ## Commit & Pull Request Guidelines
-Recent history uses short, imperative subjects (`Prune repository...`, `Add plugin-only README`). Follow that pattern, limit subjects to ~60 characters, and include context in the body when needed. Every PR should: 1) describe the change and affected modules, 2) link the Capella issue or discussion, 3) note build/test results, and 4) attach screenshots or GIFs for UI tweaks. Request reviews from maintainers responsible for the touched module and wait for a green Tycho build before merging.
+Follow the existing Conventional Commits style (`feat:`, `docs:`, `chore:`) with imperative subjects under ~65 characters and explanatory bodies when behaviour changes. Pull requests should outline affected modules, reference Capella tickets, list build/test evidence, and include screenshots or GIFs for UI updates. Tag reviewers responsible for the touched area and wait for a green Tycho build before merging.
+
+## Configuration & Security Tips
+Store API keys through the assistant’s LLM Connection panel; they persist in the secure preferences store. CLI automation can rely on environment fallbacks such as `CAPELLA_AI_PROVIDER` and `OPENAI_API_KEY`. Keep generated `target/` and `bin/` directories out of commits, and never check sensitive credentials into the repository.

@@ -8,7 +8,7 @@
   <name>Capella AI Plugins Aggregator</name>
 
   <properties>
-    <tycho.version>4.0.7</tycho.version>
+    <tycho.version>2.7.5</tycho.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 
@@ -21,6 +21,7 @@
 
   <build>
     <plugins>
+      <!-- No Java version enforcer: supports Java 11 toolchains -->
       <plugin>
         <groupId>org.eclipse.tycho</groupId>
         <artifactId>tycho-maven-plugin</artifactId>
