@@ -87,8 +87,8 @@ import org.polarsys.capella.ai.ui.PlanEditorDialog;
 public class ChatView extends ViewPart {
 
     private static final String[] PROVIDER_DISPLAY_NAMES = {"OpenAI", "Anthropic", "Azure", "Custom"};
-    private static final String[] OPENAI_MODELS = {"gpt-5", "gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"};
-    private static final String[] ANTHROPIC_MODELS = {"claude-3-haiku", "claude-3-sonnet", "claude-3-opus"};
+    private static final String[] OPENAI_MODELS = {"gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini", "o3-mini"};
+    private static final String[] ANTHROPIC_MODELS = {"claude-sonnet-4-5", "claude-opus-4-1-20250805", "claude-sonnet-4", "claude-opus-4", "claude-3-5-haiku-20241022", "claude-3-5-sonnet-20241022", "claude-3-opus-20240229"};
     private static final int MAX_HISTORY_MESSAGES = 12;
     private static final char[] COMMAND_AUTO_ACTIVATION = {'/'};
     private static final List<QuickCommand> QUICK_COMMANDS = List.of(
@@ -165,7 +165,7 @@ public class ChatView extends ViewPart {
     private Composite rootComposite;
     private IPartListener2 partListener;
     private static final boolean SHOW_SESSION_PICKER = true;
-    private static final boolean SHOW_ADVANCED = false;
+    private static final boolean SHOW_ADVANCED = true;
 
     // Session picker state
     private Combo sessionCombo;
@@ -199,12 +199,24 @@ public class ChatView extends ViewPart {
         if (SHOW_ADVANCED) {
             org.eclipse.swt.widgets.TabItem advTab = new org.eclipse.swt.widgets.TabItem(tabs, SWT.NONE);
             advTab.setText("Advanced");
-            Composite advComposite = new Composite(tabs, SWT.NONE);
+
+            // Wrap in ScrolledComposite for vertical scrolling
+            ScrolledComposite advScroller = new ScrolledComposite(tabs, SWT.V_SCROLL | SWT.H_SCROLL);
+            advScroller.setExpandHorizontal(true);
+            advScroller.setExpandVertical(true);
+            advTab.setControl(advScroller);
+
+            Composite advComposite = new Composite(advScroller, SWT.NONE);
             advComposite.setLayout(new GridLayout(1, false));
-            advTab.setControl(advComposite);
+            advScroller.setContent(advComposite);
+
             createAdvancedBasicsSection(advComposite);
             createModelToolsSection(advComposite);
             createSettingsSection(advComposite);
+
+            // Enable scrolling
+            advComposite.setSize(advComposite.computeSize(SWT.DEFAULT, SWT.DEFAULT));
+            advScroller.setMinSize(advComposite.computeSize(SWT.DEFAULT, SWT.DEFAULT));
         }
         refreshScrollArea();
 

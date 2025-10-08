@@ -4,13 +4,12 @@
   <parent>
     <groupId>org.polarsys.capella.ai</groupId>
     <artifactId>plugins-aggregator</artifactId>
-    <version>0.2.0-SNAPSHOT</version>
+    <version>0.2.1-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
   <groupId>org.polarsys.capella.ai</groupId>
   <artifactId>org.polarsys.capella.ai</artifactId>
-  <version>0.2.0-SNAPSHOT</version>
+  <version>0.2.1-SNAPSHOT</version>
   <packaging>eclipse-plugin</packaging>
   <name>Capella AI Assistant Plugin</name>
 </project>
-
