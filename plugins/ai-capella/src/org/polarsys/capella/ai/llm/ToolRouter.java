@@ -447,17 +447,18 @@ public final class ToolRouter {
         // Post-apply: run a quick validation scan and record summary in telemetry
         try {
             var analysis = org.polarsys.capella.ai.model.ModelAnalytics.analyze(session);
-            var report = analysis.validation();
-            if (report != null && report.isAvailable()) {
-                String summary = String.format("errors=%d, warnings=%d", report.errorCount(), report.warningCount());
-                Telemetry.recordToolCall(-1, "VALIDATION", "post-apply validation", "summary", summary);
-                // Surface top messages as errors if any real errors were found
-                if (report.errorCount() > 0) {
-                    for (String msg : report.messages()) {
-                        if (msg != null && !msg.isBlank()) {
-                            errors.add("validation: " + msg);
+            if (org.polarsys.capella.ai.preferences.AdvancedPreferences.isQuickValidationEnabled()) {
+                var report = analysis.validation();
+                if (report != null && report.isAvailable()) {
+                    String summary = String.format("errors=%d, warnings=%d", report.errorCount(), report.warningCount());
+                    Telemetry.recordToolCall(-1, "VALIDATION", "post-apply validation", "summary", summary);
+                    if (report.errorCount() > 0) {
+                        for (String msg : report.messages()) {
+                            if (msg != null && !msg.isBlank()) {
+                                errors.add("validation: " + msg);
+                            }
+                            if (errors.size() >= 5) break;
                         }
-                        if (errors.size() >= 5) break; // avoid flooding
                     }
                 }
             }
@@ -466,7 +467,8 @@ public final class ToolRouter {
                 java.util.Map<String, org.polarsys.capella.ai.model.ModelAnalytics.LayerStats> layers = analysis.layerStats();
                 double minComp = 60.0; // percent
                 double minAlloc = 60.0; // percent
-                for (java.util.Map.Entry<String, org.polarsys.capella.ai.model.ModelAnalytics.LayerStats> e : layers.entrySet()) {
+                if (org.polarsys.capella.ai.preferences.AdvancedPreferences.isCoverageGatesEnabled()) {
+                  for (java.util.Map.Entry<String, org.polarsys.capella.ai.model.ModelAnalytics.LayerStats> e : layers.entrySet()) {
                     String layer = e.getKey();
                     var ls = e.getValue();
                     double cs = ls.componentStructureCoverage();
@@ -480,24 +482,28 @@ public final class ToolRouter {
                         errors.add(String.format("coverage: %s function allocation %.1f%% below %.1f%%", layer, fa, minAlloc));
                     }
                     if (errors.size() > 10) break;
+                  }
                 }
             } catch (Exception ignore2) { }
             // Traceability gates (advisory): require a portion of requirements to be linked
             try {
                 var t = org.polarsys.capella.ai.model.ModelAnalytics.computeTraceability(session);
                 double minReqLinks = 40.0; // percent
-                if (t.requirementLinkCoverage() < minReqLinks && t.requirementCount() > 0) {
+                if (org.polarsys.capella.ai.preferences.AdvancedPreferences.isTraceabilityGatesEnabled() &&
+                    t.requirementLinkCoverage() < minReqLinks && t.requirementCount() > 0) {
                     errors.add(String.format("traceability: requirements linked %.1f%% below %.1f%%",
                             t.requirementLinkCoverage(), minReqLinks));
                 }
             } catch (Exception ignore3) { }
             // Auto-fix patterns: orphan exchanges with missing endpoints
             try {
-                var fixes = org.polarsys.capella.ai.model.AutoFixes.apply(session);
-                if (fixes.orphanComponentExchangesRemoved > 0 || fixes.orphanFunctionalExchangesRemoved > 0) {
-                    String msg = String.format("auto-fix: removed %d component exchanges, %d functional exchanges with missing endpoints",
-                            fixes.orphanComponentExchangesRemoved, fixes.orphanFunctionalExchangesRemoved);
-                    Telemetry.recordToolCall(-1, "AUTO_FIX", "cleanup orphan exchanges", "result", msg);
+                if (org.polarsys.capella.ai.preferences.AdvancedPreferences.isAutoFixesEnabled()) {
+                    var fixes = org.polarsys.capella.ai.model.AutoFixes.apply(session);
+                    if (fixes.orphanComponentExchangesRemoved > 0 || fixes.orphanFunctionalExchangesRemoved > 0) {
+                        String msg = String.format("auto-fix: removed %d component exchanges, %d functional exchanges with missing endpoints",
+                                fixes.orphanComponentExchangesRemoved, fixes.orphanFunctionalExchangesRemoved);
+                        Telemetry.recordToolCall(-1, "AUTO_FIX", "cleanup orphan exchanges", "result", msg);
+                    }
                 }
             } catch (Exception ignore4) { }
         } catch (Exception ignore) { }

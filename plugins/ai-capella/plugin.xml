@@ -46,5 +46,10 @@
             name="LLM"
             class="org.polarsys.capella.ai.preferences.LLMPreferencePage"
             category="org.polarsys.capella.preferences"/>
+        <page
+            id="org.polarsys.capella.ai.preferences.advanced"
+            name="AI Advanced Settings"
+            class="org.polarsys.capella.ai.preferences.AdvancedPreferencePage"
+            category="org.polarsys.capella.preferences"/>
     </extension>
 </plugin>
