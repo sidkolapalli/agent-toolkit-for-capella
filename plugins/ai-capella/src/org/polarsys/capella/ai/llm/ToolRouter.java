@@ -461,6 +461,27 @@ public final class ToolRouter {
                     }
                 }
             }
+            // Coverage gates (advisory): require minimal component structure and function allocation coverage
+            try {
+                java.util.Map<String, org.polarsys.capella.ai.model.ModelAnalytics.LayerStats> layers = analysis.layerStats();
+                double minComp = 60.0; // percent
+                double minAlloc = 60.0; // percent
+                for (java.util.Map.Entry<String, org.polarsys.capella.ai.model.ModelAnalytics.LayerStats> e : layers.entrySet()) {
+                    String layer = e.getKey();
+                    var ls = e.getValue();
+                    double cs = ls.componentStructureCoverage();
+                    double fa = ls.functionAllocationCoverage();
+                    String msg = String.format("coverage[%s]: components=%.1f%%, function_allocation=%.1f%%", layer, cs, fa);
+                    Telemetry.recordToolCall(-1, "COVERAGE", "post-apply coverage", "layer", msg);
+                    if (cs < minComp) {
+                        errors.add(String.format("coverage: %s component structure %.1f%% below %.1f%%", layer, cs, minComp));
+                    }
+                    if (fa < minAlloc) {
+                        errors.add(String.format("coverage: %s function allocation %.1f%% below %.1f%%", layer, fa, minAlloc));
+                    }
+                    if (errors.size() > 10) break;
+                }
+            } catch (Exception ignore2) { }
         } catch (Exception ignore) { }
         return new PlanExecutionResult(applied, errors);
     }
