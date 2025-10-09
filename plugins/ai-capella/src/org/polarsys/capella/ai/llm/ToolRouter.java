@@ -482,6 +482,15 @@ public final class ToolRouter {
                     if (errors.size() > 10) break;
                 }
             } catch (Exception ignore2) { }
+            // Traceability gates (advisory): require a portion of requirements to be linked
+            try {
+                var t = org.polarsys.capella.ai.model.ModelAnalytics.computeTraceability(session);
+                double minReqLinks = 40.0; // percent
+                if (t.requirementLinkCoverage() < minReqLinks && t.requirementCount() > 0) {
+                    errors.add(String.format("traceability: requirements linked %.1f%% below %.1f%%",
+                            t.requirementLinkCoverage(), minReqLinks));
+                }
+            } catch (Exception ignore3) { }
         } catch (Exception ignore) { }
         return new PlanExecutionResult(applied, errors);
     }
@@ -694,14 +703,14 @@ public final class ToolRouter {
         sb.append("You are the Capella AI copilot embedded inside the modelling tool.\n");
         sb.append("Answer clearly. When structural changes are needed emit exactly one line beginning with 'TOOL_PLAN:' followed by compact JSON.\n");
         sb.append("If no model change is required, reply naturally without a TOOL_PLAN line.\n");
-sb.append("Methodology (ARCADIA) — prefer this order and keep traceability intact:\n");
-sb.append("1) OA: Operational context (actors/activities/exchanges, capabilities)\n");
-sb.append("2) SA: System need (components/functions/interfaces, capabilities allocation)\n");
-sb.append("3) LA: Logical solution (decompose, exchanges, functional chains, scenarios)\n");
-sb.append("4) PA: Physical solution (components/links), map/sync from Logical with traces\n");
-sb.append("5) Requirements: create/link; keep coverage and bidirectional traces\n");
-sb.append("6) Diagrams: only view operations (reveal/place/style/arrange) — no semantics\n");
-sb.append("Autopilot: Plan → Dry‑run validate → Apply in one tx → Post‑validate → Refine if needed.\n");
+        sb.append("Methodology (ARCADIA) — prefer this order and keep traceability intact:\n");
+        sb.append("1) OA: Operational context (actors/activities/exchanges, capabilities)\n");
+        sb.append("2) SA: System need (components/functions/interfaces, capabilities allocation)\n");
+        sb.append("3) LA: Logical solution (decompose, exchanges, functional chains, scenarios)\n");
+        sb.append("4) PA: Physical solution (components/links), map/sync from Logical with traces\n");
+        sb.append("5) Requirements: create/link; keep coverage and bidirectional traces\n");
+        sb.append("6) Diagrams: only view operations (reveal/place/style/arrange) — no semantics\n");
+        sb.append("Autopilot: Plan → Dry‑run validate → Apply in one tx → Post‑validate → Refine if needed.\n");
 
         sb.append("Methodology (ARCADIA) — prefer this order and keep traceability intact:\n");
         sb.append("1) OA: Operational context (actors/activities/exchanges, capabilities)\n");
@@ -749,14 +758,14 @@ sb.append("Autopilot: Plan → Dry‑run validate → Apply in one tx → Post�
         sb.append("- style_view {diagram?, element, foreground?, background?, border?, label_text?, show_icon?}\n");
         sb.append("- arrange_selection {diagram?, strategy} where strategy ∈ {left|right|top|bottom|hcenter|vcenter|hspace|vspace|grid|flow|radial|auto}\n");
         sb.append("Referencing: Prefer UUID/id when known; otherwise exact name. Reuse existing artefacts.\n");
-sb.append("Safety: Destructive ops only when explicitly requested. Large changes → batch ops.\n");
-sb.append("Plan quality: keep actions minimal, ordered by ARCADIA layer; batch when possible; include parents for containment; ensure sources/targets exist.\n");
-sb.append("After apply the system will run a quick validation and coverage scan; if issues arise, propose a refined TOOL_PLAN.\n");
-sb.append("Examples:\n");
-sb.append("TOOL_PLAN:{\"actions\":[{\"create_operational_activity\":{\"layer\":\"OA\",\"name\":\"Board Passenger\",\"parent_name\":\"Passenger\"}}]}\n");
-sb.append("TOOL_PLAN:{\"actions\":[{\"create_system_component\":{\"layer\":\"SA\",\"name\":\"Flight Computer\"}},{\"create_interface\":{\"layer\":\"SA\",\"name\":\"FCU<->Sensors\",\"source_component\":\"Flight Computer\",\"target_component\":\"Sensor Suite\"}}]}\n");
-sb.append("TOOL_PLAN:{\"actions\":[{\"propagate_logical_to_physical\":{\"logical_component\":\"Autopilot\",\"include_children\":true}}]}\n");
-sb.append("Acknowledge validation warnings from dry-run simulations.\n");
+        sb.append("Safety: Destructive ops only when explicitly requested. Large changes → batch ops.\n");
+        sb.append("Plan quality: keep actions minimal, ordered by ARCADIA layer; batch when possible; include parents for containment; ensure sources/targets exist.\n");
+        sb.append("After apply the system will run a quick validation and coverage scan; if issues arise, propose a refined TOOL_PLAN.\n");
+        sb.append("Examples:\n");
+        sb.append("TOOL_PLAN:{\"actions\":[{\"create_operational_activity\":{\"layer\":\"OA\",\"name\":\"Board Passenger\",\"parent_name\":\"Passenger\"}}]}\n");
+        sb.append("TOOL_PLAN:{\"actions\":[{\"create_system_component\":{\"layer\":\"SA\",\"name\":\"Flight Computer\"}},{\"create_interface\":{\"layer\":\"SA\",\"name\":\"FCU<->Sensors\",\"source_component\":\"Flight Computer\",\"target_component\":\"Sensor Suite\"}}]}\n");
+        sb.append("TOOL_PLAN:{\"actions\":[{\"propagate_logical_to_physical\":{\"logical_component\":\"Autopilot\",\"include_children\":true}}]}\n");
+        sb.append("Acknowledge validation warnings from dry-run simulations.\n");
         sb.append("Current model snapshot:\n");
         try {
             sb.append(ModelSummary.summarize(session));

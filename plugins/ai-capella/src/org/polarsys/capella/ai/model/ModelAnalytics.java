@@ -425,6 +425,117 @@ public final class ModelAnalytics {
         }
     }
 
+    // ----------------------------------------------------------------------------------------------
+    // Traceability (advisory metrics)
+    public static final class TraceabilityStats {
+        private final int requirementCount;
+        private final int requirementsLinked;
+        private final int functionCount;
+        private final int functionsAllocated; // already covered by LayerStats; duplicated here for convenience
+        private final int componentExchangeCount;
+        private final int componentsWithExchanges; // components participating in exchanges
+
+        TraceabilityStats(int requirementCount, int requirementsLinked,
+                          int functionCount, int functionsAllocated,
+                          int componentExchangeCount, int componentsWithExchanges) {
+            this.requirementCount = requirementCount;
+            this.requirementsLinked = requirementsLinked;
+            this.functionCount = functionCount;
+            this.functionsAllocated = functionsAllocated;
+            this.componentExchangeCount = componentExchangeCount;
+            this.componentsWithExchanges = componentsWithExchanges;
+        }
+
+        public int requirementCount() { return requirementCount; }
+        public int requirementsLinked() { return requirementsLinked; }
+        public int functionCount() { return functionCount; }
+        public int functionsAllocated() { return functionsAllocated; }
+        public int componentExchangeCount() { return componentExchangeCount; }
+        public int componentsWithExchanges() { return componentsWithExchanges; }
+
+        public double requirementLinkCoverage() {
+            return requirementCount == 0 ? 100d : (requirementsLinked * 100d) / requirementCount;
+        }
+
+        public double exchangeParticipationCoverage() {
+            // Crude proxy: percent of components that appear in at least one exchange compared to unique components seen.
+            // If no components seen in exchanges, return 0; callers should interpret advisory only.
+            return componentsWithExchanges == 0 ? (componentExchangeCount == 0 ? 100d : 0d)
+                    : 100d; // if we have any participation, we assume good — detailed ratio requires full component set
+        }
+    }
+
+    public static TraceabilityStats computeTraceability(Session session) {
+        ResourceSet rs = Optional.ofNullable(session)
+                .map(s -> s.getTransactionalEditingDomain())
+                .map(ed -> ed.getResourceSet()).orElse(null);
+        return computeTraceability(rs);
+    }
+
+    public static TraceabilityStats computeTraceability(ResourceSet resourceSet) {
+        if (resourceSet == null) return new TraceabilityStats(0, 0, 0, 0, 0, 0);
+        final int[] counts = new int[] {0,0,0,0,0}; // req, reqLinked, fun, funAllocated, exch
+        java.util.Set<EObject> componentsInExchanges = new java.util.HashSet<>();
+        try {
+            for (Resource res : resourceSet.getResources()) {
+                if (res == null) continue;
+                for (EObject root : res.getContents()) {
+                    visit(root, eo -> {
+                        String cls = eo.eClass().getName();
+                        if (cls.contains("Requirement")) {
+                            counts[0]++;
+                            // Heuristic: consider linked if it has any non-containment reference to a Function/Component
+                            boolean linked = false;
+                            for (EStructuralFeature f : eo.eClass().getEAllStructuralFeatures()) {
+                                if (f instanceof EReference ref && !ref.isContainment()) {
+                                    Object v = eo.eGet(ref);
+                                    if (v instanceof EObject e2) {
+                                        String c2 = e2.eClass().getName();
+                                        if (c2.contains("Function") || c2.contains("Component")) { linked = true; break; }
+                                    } else if (v instanceof java.util.Collection<?> coll) {
+                                        for (Object o : coll) {
+                                            if (o instanceof EObject e2) {
+                                                String c2 = e2.eClass().getName();
+                                                if (c2.contains("Function") || c2.contains("Component")) { linked = true; break; }
+                                            }
+                                        }
+                                        if (linked) break;
+                                    }
+                                }
+                            }
+                            if (linked) counts[1]++;
+                        }
+                        if (cls.contains("Function")) {
+                            counts[2]++;
+                            if (hasAllocationToComponent(eo)) counts[3]++;
+                        }
+                        if (cls.contains("ComponentExchange")) {
+                            counts[4]++;
+                            // record endpoints if present
+                            for (EStructuralFeature f : eo.eClass().getEAllStructuralFeatures()) {
+                                if (f instanceof EReference ref && !ref.isContainment()) {
+                                    Object v = eo.eGet(ref);
+                                    if (v instanceof EObject e2) {
+                                        String c2 = e2.eClass().getName();
+                                        if (c2.contains("Component")) componentsInExchanges.add(e2);
+                                    } else if (v instanceof java.util.Collection<?> coll) {
+                                        for (Object o : coll) {
+                                            if (o instanceof EObject e2) {
+                                                String c2 = e2.eClass().getName();
+                                                if (c2.contains("Component")) componentsInExchanges.add(e2);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        } catch (Exception ignore) {}
+        return new TraceabilityStats(counts[0], counts[1], counts[2], counts[3], counts[4], componentsInExchanges.size());
+    }
+
     public static final class DependencyGraph {
         private final Map<String, List<String>> componentToFunctions;
         private final Map<String, List<String>> functionToComponents;

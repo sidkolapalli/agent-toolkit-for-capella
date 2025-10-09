@@ -62,6 +62,7 @@ public final class ModelSummary {
         sb.append(layerDashboards(analysis)).append("\n");
         sb.append(validationSection(analysis.validation())).append("\n");
         sb.append(functionalSection(analysis.snapshot())).append("\n");
+        sb.append(traceabilitySection(session)).append("\n");
         sb.append(dependencyHighlights(analysis.dependencyGraph())).append("\n");
         sb.append("- Diagrams: ").append(diagramCount);
         if (!diagramExamples.isBlank()) {
@@ -124,6 +125,24 @@ public final class ModelSummary {
             sb.append("; Scenarios e.g. ").append(String.join(", ", snapshot.representativeScenarios()));
         }
         return sb.toString();
+    }
+
+    private static String traceabilitySection(Session session) {
+        try {
+            var t = ModelAnalytics.computeTraceability(session);
+            String header = String.format("Traceability: requirements %.0f%% linked, functions %.0f%% allocated",
+                    t.requirementLinkCoverage(),
+                    // reuse layer metric approximation: functionsAllocated()/functionCount()
+                    (t.functionCount() == 0 ? 100d : (t.functionsAllocated() * 100d) / t.functionCount()));
+            if (t.componentExchangeCount() > 0) {
+                header += String.format(
+                        ", component exchanges %d",
+                        t.componentExchangeCount());
+            }
+            return header;
+        } catch (Exception ex) {
+            return "Traceability: unavailable";
+        }
     }
 
     private static String dependencyHighlights(DependencyGraph graph) {
