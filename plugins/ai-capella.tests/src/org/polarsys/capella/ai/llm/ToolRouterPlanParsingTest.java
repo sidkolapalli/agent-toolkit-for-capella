@@ -135,4 +135,37 @@ public class ToolRouterPlanParsingTest {
         assertEquals("MyLab", readField(action, "name"));
         assertEquals("auto", readField(action, "description")); // reuse description to hold strategy label
     }
+
+    @Test
+    public void parsesDiagramLifecycleActions() throws Exception {
+        String plan = "{\n" +
+                "  \"actions\": [\n" +
+                "    { \"type\": \"rename_diagram\", \"diagram\": \"OldName\", \"name\": \"NewName\" },\n" +
+                "    { \"delete_diagram\": { \"diagram\": \"ToDelete\" } },\n" +
+                "    { \"duplicate_diagram\": { \"diagram\": \"Source\", \"name\": \"Copy\" } },\n" +
+                "    { \"reveal_in_diagram\": { \"diagram\": \"MyLab\", \"element\": \"Passenger\" } }\n" +
+                "  ]\n" +
+                "}";
+        List<Object> actions = invokeParseActions(plan);
+        assertEquals(4, actions.size());
+        // rename_diagram
+        Object a0 = actions.get(0);
+        assertTrue(readField(a0, "type").contains("RENAME_DIAGRAM"));
+        assertEquals("OldName", readField(a0, "existingName"));
+        assertEquals("NewName", readField(a0, "newName"));
+        // delete_diagram
+        Object a1 = actions.get(1);
+        assertTrue(readField(a1, "type").contains("DELETE_DIAGRAM"));
+        assertEquals("ToDelete", readField(a1, "existingName"));
+        // duplicate_diagram
+        Object a2 = actions.get(2);
+        assertTrue(readField(a2, "type").contains("DUPLICATE_DIAGRAM"));
+        assertEquals("Source", readField(a2, "existingName"));
+        assertEquals("Copy", readField(a2, "newName"));
+        // reveal_in_diagram
+        Object a3 = actions.get(3);
+        assertTrue(readField(a3, "type").contains("REVEAL_IN_DIAGRAM"));
+        assertEquals("MyLab", readField(a3, "name"));
+        assertEquals("Passenger", readField(a3, "existingName"));
+    }
 }

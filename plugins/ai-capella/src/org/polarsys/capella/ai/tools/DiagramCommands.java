@@ -468,6 +468,137 @@ public final class DiagramCommands {
         return null;
     }
 
+    /** Find a representation by name or UID. */
+    public static DRepresentation findRepresentationByNameOrUid(Session session, String idOrName) {
+        if (session == null || idOrName == null || idOrName.isBlank()) return null;
+        try {
+            java.util.Collection<DRepresentation> reps = org.eclipse.sirius.business.api.dialect.DialectManager.INSTANCE.getAllRepresentations(session);
+            for (DRepresentation r : reps) {
+                if (idOrName.equals(r.getUid())) return r;
+            }
+            for (DRepresentation r : reps) {
+                try {
+                    java.lang.reflect.Method getName = r.getClass().getMethod("getName");
+                    Object n = getName.invoke(r);
+                    if (idOrName.equals(String.valueOf(n))) return r;
+                } catch (Throwable ignore) {}
+            }
+        } catch (Exception ignore) {}
+        return null;
+    }
+
+    /** Rename a diagram representation. */
+    public static boolean renameDiagram(Session session, DRepresentation rep, String newName) {
+        if (session == null || rep == null || newName == null || newName.isBlank()) return false;
+        try {
+            return SessionSafeguards.runWrite(session, "Rename diagram", () -> {
+                try {
+                    java.lang.reflect.Method setName = rep.getClass().getMethod("setName", String.class);
+                    setName.invoke(rep, newName);
+                    DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
+                    return true;
+                } catch (Throwable t) {
+                    LOG.warning("renameDiagram failed: " + t.getMessage());
+                    return false;
+                }
+            });
+        } catch (Exception e) {
+            LOG.warning("renameDiagram failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Delete a diagram representation. */
+    public static boolean deleteDiagram(Session session, DRepresentation rep) {
+        if (session == null || rep == null) return false;
+        try {
+            return SessionSafeguards.runWrite(session, "Delete diagram", () -> {
+                try {
+                    // Prefer descriptor-based deletion for compatibility
+                    Object desc = null;
+                    try {
+                        java.lang.reflect.Method m = DialectManager.class.getMethod("getRepresentationDescriptor", DRepresentation.class);
+                        desc = m.invoke(DialectManager.INSTANCE, rep);
+                    } catch (Throwable ignore) {}
+                    if (desc != null) {
+                        java.lang.reflect.Method del = DialectManager.class.getMethod("deleteRepresentation", desc.getClass(), Session.class);
+                        del.invoke(DialectManager.INSTANCE, desc, session);
+                        return true;
+                    }
+                    // Fallback no-op
+                    return false;
+                } catch (Throwable t) {
+                    LOG.warning("deleteDiagram failed: " + t.getMessage());
+                    return false;
+                }
+            });
+        } catch (Exception e) {
+            LOG.warning("deleteDiagram failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Duplicate a diagram representation (best-effort). */
+    public static boolean duplicateDiagram(Session session, DRepresentation rep, String newName) {
+        if (session == null || rep == null || newName == null || newName.isBlank()) return false;
+        try {
+            // Best-effort: try to create a new representation with same description/target, then refresh.
+            return SessionSafeguards.runWrite(session, "Duplicate diagram", () -> {
+                try {
+                    Object descriptor = null;
+                    try {
+                        java.lang.reflect.Method m = DialectManager.class.getMethod("getRepresentationDescriptor", DRepresentation.class);
+                        descriptor = m.invoke(DialectManager.INSTANCE, rep);
+                    } catch (Throwable ignore) {}
+                    if (descriptor == null) return false;
+                    EObject target = null;
+                    RepresentationDescription desc = null;
+                    try {
+                        java.lang.reflect.Method getTarget = descriptor.getClass().getMethod("getTarget");
+                        Object t = getTarget.invoke(descriptor);
+                        if (t instanceof EObject) target = (EObject) t;
+                    } catch (Throwable ignore) {}
+                    try {
+                        java.lang.reflect.Method getDesc = descriptor.getClass().getMethod("getDescription");
+                        Object d = getDesc.invoke(descriptor);
+                        if (d instanceof RepresentationDescription) desc = (RepresentationDescription) d;
+                    } catch (Throwable ignore) {}
+                    if (target == null || desc == null) return false;
+                    DRepresentation copy = DialectManager.INSTANCE.createRepresentation(newName, target, desc, session, new NullProgressMonitor());
+                    if (copy != null) {
+                        DialectManager.INSTANCE.refresh(copy, new NullProgressMonitor());
+                        return true;
+                    }
+                } catch (Throwable t) {
+                    LOG.warning("duplicateDiagram failed: " + t.getMessage());
+                }
+                return false;
+            });
+        } catch (Exception e) {
+            LOG.warning("duplicateDiagram failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Reveal semantic elements in a diagram editor (reflection-based if needed). */
+    public static boolean revealSemantics(Session session, DRepresentation rep, java.util.List<EObject> semantics) {
+        if (session == null || rep == null || semantics == null || semantics.isEmpty()) return false;
+        try {
+            java.lang.reflect.Method m = null;
+            for (java.lang.reflect.Method mm : DialectUIManager.class.getMethods()) {
+                if (mm.getName().equals("reveal")) { m = mm; break; }
+            }
+            if (m != null) {
+                m.invoke(DialectUIManager.INSTANCE, session, rep, semantics, new NullProgressMonitor());
+                DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
+                return true;
+            }
+        } catch (Exception e) {
+            LOG.warning("revealSemantics failed: " + e.getMessage());
+        }
+        return false;
+    }
+
     private static void tryReveal(Session session, DRepresentation rep, java.util.List<String> ids, org.eclipse.emf.ecore.resource.ResourceSet rs) {
         try {
             java.util.List<EObject> eos = new java.util.ArrayList<>();

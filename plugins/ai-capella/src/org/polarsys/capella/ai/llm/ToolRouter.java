@@ -28,6 +28,7 @@ import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.tools.DiagramCommands;
 import org.polarsys.capella.ai.tools.DiagramMappings;
 import org.polarsys.capella.ai.session.SessionSafeguards;
+import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.telemetry.Telemetry;
 
 /**
@@ -524,6 +525,40 @@ public final class ToolRouter {
                 DiagramCommands.arrange(rep);
                 return true;
             }
+            case RENAME_DIAGRAM: {
+                Session s = SessionBridge.getActiveSession();
+                if (s == null) return false;
+                DRepresentation rep = DiagramCommands.findRepresentationByNameOrUid(s, action.existingName);
+                if (rep == null || action.newName == null || action.newName.isBlank()) return false;
+                return DiagramCommands.renameDiagram(s, rep, action.newName);
+            }
+            case DELETE_DIAGRAM: {
+                Session s = SessionBridge.getActiveSession();
+                if (s == null) return false;
+                DRepresentation rep = DiagramCommands.findRepresentationByNameOrUid(s, action.existingName);
+                if (rep == null) return false;
+                return DiagramCommands.deleteDiagram(s, rep);
+            }
+            case DUPLICATE_DIAGRAM: {
+                Session s = SessionBridge.getActiveSession();
+                if (s == null) return false;
+                DRepresentation rep = DiagramCommands.findRepresentationByNameOrUid(s, action.existingName);
+                if (rep == null || action.newName == null || action.newName.isBlank()) return false;
+                return DiagramCommands.duplicateDiagram(s, rep, action.newName);
+            }
+            case REVEAL_IN_DIAGRAM: {
+                Session s = SessionBridge.getActiveSession();
+                if (s == null) return false;
+                DRepresentation rep = DiagramCommands.getLastOpened();
+                if (action.name != null && !action.name.isBlank()) {
+                    DRepresentation byName = DiagramCommands.findRepresentationByNameOrUid(s, action.name);
+                    if (byName != null) rep = byName;
+                }
+                if (rep == null) return false;
+                EObject sem = findAnyByName(s, action.existingName);
+                if (sem == null) return false;
+                return DiagramCommands.revealSemantics(s, rep, java.util.List.of(sem));
+            }
             case BATCH_RENAME:
                 return MassEditActions.batchRename(session, action.elementClass, action.renameItems);
             case BATCH_REPARENT:
@@ -959,6 +994,10 @@ public final class ToolRouter {
         SET_VIEW_BOUNDS,
         REMOVE_VIEW_ELEMENT,
         ARRANGE_SELECTION,
+        RENAME_DIAGRAM,
+        DELETE_DIAGRAM,
+        DUPLICATE_DIAGRAM,
+        REVEAL_IN_DIAGRAM,
         BATCH_RENAME,
         BATCH_REPARENT,
         BATCH_ALLOCATE,
@@ -1029,6 +1068,14 @@ public final class ToolRouter {
                     return REMOVE_VIEW_ELEMENT;
                 case "arrange_selection":
                     return ARRANGE_SELECTION;
+                case "rename_diagram":
+                    return RENAME_DIAGRAM;
+                case "delete_diagram":
+                    return DELETE_DIAGRAM;
+                case "duplicate_diagram":
+                    return DUPLICATE_DIAGRAM;
+                case "reveal_in_diagram":
+                    return REVEAL_IN_DIAGRAM;
                 case "batch_rename":
                     return BATCH_RENAME;
                 case "batch_reparent":
@@ -1256,6 +1303,20 @@ public final class ToolRouter {
                     // reuse description to carry a simple strategy label (e.g., auto, grid)
                     return new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), null, null,
                             null, null, null, null, null, stringOrDefault(map.get("strategy"), "auto"), null,
+                            null, null, null, false, false, null, null, null, null, null);
+                case RENAME_DIAGRAM:
+                    // existingName = diagram, newName = name
+                    return new Action(type, "", null, null, null, null, require(map, "diagram", index), require(map, "name", index), null, null, null, null,
+                            null, null, null, false, false, null, null, null, null, null);
+                case DELETE_DIAGRAM:
+                    return new Action(type, "", null, null, null, null, require(map, "diagram", index), null, null, null, null, null,
+                            null, null, null, false, false, null, null, null, null, null);
+                case DUPLICATE_DIAGRAM:
+                    return new Action(type, "", null, null, null, null, require(map, "diagram", index), require(map, "name", index), null, null, null, null,
+                            null, null, null, false, false, null, null, null, null, null);
+                case REVEAL_IN_DIAGRAM:
+                    // name = diagram, existingName = element
+                    return new Action(type, "", string(map.get("diagram")), null, null, null, require(map, "element", index), null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case BATCH_RENAME: {
                     Action renameAction = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null,
