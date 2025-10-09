@@ -81,6 +81,171 @@ public final class DiagramCommands {
         }
     }
 
+    /**
+     * Arrange/align the current selection (or all nodes if selection unavailable) using a simple strategy.
+     * Strategies: left, right, top, bottom, hcenter, vcenter, hspace, vspace, grid, auto.
+     */
+    public static boolean arrangeSelection(Session session, DRepresentation rep, String strategy) {
+        if (session == null || rep == null) return false;
+        String strat = (strategy == null || strategy.isBlank()) ? "auto" : strategy.toLowerCase();
+        try {
+            if (!(rep instanceof DDiagram)) {
+                arrange(rep);
+                return true;
+            }
+            // Collect candidate edit parts from selection if possible
+            IWorkbenchWindow win = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+            org.eclipse.gef.EditPartViewer viewer = null;
+            IEditorPart part = null;
+            try {
+                if (win != null && win.getActivePage() != null) {
+                    part = win.getActivePage().getActiveEditor();
+                    if (part != null) {
+                        Class<?> edClass = Class.forName("org.eclipse.sirius.diagram.ui.tools.api.editor.DDiagramEditor");
+                        if (edClass.isInstance(part)) {
+                            var m = edClass.getMethod("getDiagramGraphicalViewer");
+                            Object v = m.invoke(part);
+                            if (v instanceof org.eclipse.gef.EditPartViewer) viewer = (org.eclipse.gef.EditPartViewer) v;
+                        }
+                    }
+                }
+            } catch (Throwable ignore) {}
+
+            java.util.List<Node> nodes = new java.util.ArrayList<>();
+            // Prefer selection if available
+            if (viewer != null) {
+                var sel = viewer.getSelection();
+                if (sel instanceof org.eclipse.jface.viewers.IStructuredSelection) {
+                    for (Object o : ((org.eclipse.jface.viewers.IStructuredSelection) sel).toArray()) {
+                        if (o instanceof IGraphicalEditPart) {
+                            Object model = ((IGraphicalEditPart) o).getModel();
+                            if (model instanceof Node) nodes.add((Node) model);
+                        }
+                    }
+                }
+            }
+            // Fallback to all nodes in diagram
+            if (nodes.isEmpty()) {
+                DDiagram diagram = (DDiagram) rep;
+                var it = diagram.eAllContents();
+                while (it.hasNext()) {
+                    Object o = it.next();
+                    if (o instanceof org.eclipse.sirius.diagram.DNode) {
+                        // Try to reach notation Node via editpart registry if possible
+                        // Fallback: skip if we can't resolve notation
+                        if (viewer != null) {
+                            for (Object epObj : viewer.getEditPartRegistry().values()) {
+                                if (epObj instanceof IGraphicalEditPart) {
+                                    IGraphicalEditPart ep = (IGraphicalEditPart) epObj;
+                                    try {
+                                        if (o == ep.resolveSemanticElement() && ep.getModel() instanceof Node) {
+                                            nodes.add((Node) ep.getModel());
+                                            break;
+                                        }
+                                    } catch (Exception ignore) {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (nodes.isEmpty()) {
+                arrange(rep);
+                return true;
+            }
+            // Compute bounds and apply layout inside write tx
+            return SessionSafeguards.runWrite(session, "Arrange selection", () -> {
+                java.util.List<Bounds> bounds = new java.util.ArrayList<>(nodes.size());
+                for (Node n : nodes) {
+                    LayoutConstraint lc = n.getLayoutConstraint();
+                    if (!(lc instanceof Bounds)) {
+                        n.setLayoutConstraint(NotationFactory.eINSTANCE.createBounds());
+                        lc = n.getLayoutConstraint();
+                    }
+                    bounds.add((Bounds) lc);
+                }
+                if (bounds.size() < 2) return true; // nothing to do
+                int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
+                int maxR = Integer.MIN_VALUE, maxB = Integer.MIN_VALUE;
+                for (Bounds b : bounds) {
+                    minX = Math.min(minX, b.getX());
+                    minY = Math.min(minY, b.getY());
+                    maxR = Math.max(maxR, b.getX() + Math.max(0, b.getWidth()));
+                    maxB = Math.max(maxB, b.getY() + Math.max(0, b.getHeight()));
+                }
+                switch (strat) {
+                    case "left":
+                        for (Bounds b : bounds) b.setX(minX);
+                        break;
+                    case "right":
+                        for (Bounds b : bounds) b.setX(maxR - Math.max(0, b.getWidth()));
+                        break;
+                    case "top":
+                        for (Bounds b : bounds) b.setY(minY);
+                        break;
+                    case "bottom":
+                        for (Bounds b : bounds) b.setY(maxB - Math.max(0, b.getHeight()));
+                        break;
+                    case "hcenter": {
+                        int mid = (minX + maxR) / 2;
+                        for (Bounds b : bounds) b.setX(mid - Math.max(0, b.getWidth()) / 2);
+                        break;
+                    }
+                    case "vcenter": {
+                        int mid = (minY + maxB) / 2;
+                        for (Bounds b : bounds) b.setY(mid - Math.max(0, b.getHeight()) / 2);
+                        break;
+                    }
+                    case "hspace": {
+                        // Sort by x and distribute across minX..maxR using equal gaps
+                        bounds.sort(java.util.Comparator.comparingInt(Bounds::getX));
+                        int n = bounds.size();
+                        int totalWidth = bounds.stream().mapToInt(b -> Math.max(0, b.getWidth())).sum();
+                        int span = Math.max(0, maxR - minX - totalWidth);
+                        int gap = (n > 1) ? (span / (n - 1)) : 0;
+                        int cursor = minX;
+                        for (Bounds b : bounds) { b.setX(cursor); cursor += Math.max(0, b.getWidth()) + gap; }
+                        break;
+                    }
+                    case "vspace": {
+                        bounds.sort(java.util.Comparator.comparingInt(Bounds::getY));
+                        int n = bounds.size();
+                        int totalHeight = bounds.stream().mapToInt(b -> Math.max(0, b.getHeight())).sum();
+                        int span = Math.max(0, maxB - minY - totalHeight);
+                        int gap = (n > 1) ? (span / (n - 1)) : 0;
+                        int cursor = minY;
+                        for (Bounds b : bounds) { b.setY(cursor); cursor += Math.max(0, b.getHeight()) + gap; }
+                        break;
+                    }
+                    case "grid": {
+                        int n = bounds.size();
+                        int cols = (int) Math.ceil(Math.sqrt(n));
+                        int rows = (int) Math.ceil((double) n / cols);
+                        int cellW = Math.max(120, (maxR - minX) / Math.max(1, cols));
+                        int cellH = Math.max(80, (maxB - minY) / Math.max(1, rows));
+                        int i = 0;
+                        for (Bounds b : bounds) {
+                            int c = i % cols; int r = i / cols;
+                            b.setX(minX + c * cellW);
+                            b.setY(minY + r * cellH);
+                            i++;
+                        }
+                        break;
+                    }
+                    case "auto":
+                    default:
+                        arrange(rep);
+                        break;
+                }
+                try { DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor()); } catch (Exception ignore) {}
+                return true;
+            });
+        } catch (Exception e) {
+            LOG.warning("arrangeSelection failed: " + e.getMessage());
+            return false;
+        }
+    }
+
     /** Best-effort: resolve elements by id/uuid/fragment and refresh the diagram editor. */
     public static int addElementsByUuid(Session session, DRepresentation rep, java.util.List<String> ids) {
         if (session == null || rep == null || ids == null || ids.isEmpty()) return 0;
