@@ -119,4 +119,20 @@ public class ToolRouterPlanParsingTest {
         assertEquals("Passenger", readField(action, "existingName"));
         assertEquals("MyLab", readField(action, "name"));
     }
+
+    @Test
+    public void parsesArrangeSelection() throws Exception {
+        String plan = "{\n" +
+                "  \"actions\": [\n" +
+                "    { \"type\": \"arrange_selection\", \"diagram\": \"MyLab\", \"strategy\": \"auto\" }\n" +
+                "  ]\n" +
+                "}";
+        List<Object> actions = invokeParseActions(plan);
+        assertEquals(1, actions.size());
+        Object action = actions.get(0);
+        String typeName = readField(action, "type");
+        assertTrue(typeName.contains("ARRANGE_SELECTION"));
+        assertEquals("MyLab", readField(action, "name"));
+        assertEquals("auto", readField(action, "description")); // reuse description to hold strategy label
+    }
 }

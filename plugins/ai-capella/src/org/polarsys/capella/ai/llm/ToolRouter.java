@@ -518,6 +518,12 @@ public final class ToolRouter {
                 if (sem == null) return false;
                 return DiagramCommands.removeViewElement(session, rep, sem);
             }
+            case ARRANGE_SELECTION: {
+                DRepresentation rep = DiagramCommands.getLastOpened();
+                if (rep == null) return false;
+                DiagramCommands.arrange(rep);
+                return true;
+            }
             case BATCH_RENAME:
                 return MassEditActions.batchRename(session, action.elementClass, action.renameItems);
             case BATCH_REPARENT:
@@ -952,6 +958,7 @@ public final class ToolRouter {
         ADD_VIEW_EDGE,
         SET_VIEW_BOUNDS,
         REMOVE_VIEW_ELEMENT,
+        ARRANGE_SELECTION,
         BATCH_RENAME,
         BATCH_REPARENT,
         BATCH_ALLOCATE,
@@ -1020,6 +1027,8 @@ public final class ToolRouter {
                     return SET_VIEW_BOUNDS;
                 case "remove_view_element":
                     return REMOVE_VIEW_ELEMENT;
+                case "arrange_selection":
+                    return ARRANGE_SELECTION;
                 case "batch_rename":
                     return BATCH_RENAME;
                 case "batch_reparent":
@@ -1243,6 +1252,11 @@ public final class ToolRouter {
                     return new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), null, null,
                             null, require(map, "element", index), null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
+                case ARRANGE_SELECTION:
+                    // reuse description to carry a simple strategy label (e.g., auto, grid)
+                    return new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), null, null,
+                            null, null, null, null, null, stringOrDefault(map.get("strategy"), "auto"), null,
+                            null, null, null, false, false, null, null, null, null, null);
                 case BATCH_RENAME: {
                     Action renameAction = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null,
                             require(map, "class", index), null, null, null, null, null, null,
@@ -1389,6 +1403,9 @@ public final class ToolRouter {
                 case REMOVE_VIEW_ELEMENT:
                     return String.format("Remove view element '%s'%s", defaultString(existingName, "?"),
                             (name != null && !name.isBlank()) ? (" from diagram '" + name + "'") : "");
+                case ARRANGE_SELECTION:
+                    return String.format("Arrange selection (%s)%s", defaultString(description, "auto"),
+                            (name != null && !name.isBlank()) ? (" in '" + name + "'") : "");
                 case BATCH_RENAME:
                     return String.format("Batch rename %d %s", renameItems != null ? renameItems.size() : 0,
                             defaultString(elementClass, "elements"));
@@ -1531,6 +1548,8 @@ public final class ToolRouter {
                     return String.format("Resize/move view element '%s'", defaultString(existingName, "?"));
                 case REMOVE_VIEW_ELEMENT:
                     return String.format("Remove view element '%s'", defaultString(existingName, "?"));
+                case ARRANGE_SELECTION:
+                    return String.format("Arrange selection (%s)", defaultString(description, "auto"));
                 case BATCH_RENAME:
                     return String.format("Rename %d %s", renameItems != null ? renameItems.size() : 0,
                             defaultString(elementClass, "elements"));
