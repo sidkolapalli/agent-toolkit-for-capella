@@ -26,6 +26,7 @@ import org.eclipse.gmf.runtime.notation.LayoutConstraint;
 import org.eclipse.gmf.runtime.notation.Node;
 import org.eclipse.gmf.runtime.notation.NotationFactory;
 import org.eclipse.gmf.runtime.notation.View;
+import org.eclipse.sirius.viewpoint.RGBValues;
 
 /** In‑process diagram helpers using Sirius UI APIs (arrange/layout visible). */
 public final class DiagramCommands {
@@ -456,6 +457,19 @@ public final class DiagramCommands {
         return null;
     }
 
+    /** Expose semantic lookup by id/uuid/fragment using the active session's resource set. */
+    public static EObject findSemanticById(Session session, String id) {
+        if (session == null || id == null || id.isBlank()) return null;
+        try {
+            var domain = session.getTransactionalEditingDomain();
+            if (domain == null) return null;
+            var rs = domain.getResourceSet();
+            if (rs == null) return null;
+            return findById(rs, id);
+        } catch (Exception ignore) {}
+        return null;
+    }
+
     /** Find a representation by its UID in the active session. */
     public static DRepresentation findRepresentationByUid(Session session, String uid) {
         if (session == null || uid == null) return null;
@@ -597,6 +611,73 @@ public final class DiagramCommands {
             LOG.warning("revealSemantics failed: " + e.getMessage());
         }
         return false;
+    }
+
+    /** Style a view element (colors) if supported by the underlying style. */
+    public static boolean styleViewElement(Session session, DRepresentation rep, EObject semantic, Integer fg, Integer bg, Integer bd) {
+        if (session == null || rep == null || semantic == null) return false;
+        if (!(rep instanceof DDiagram)) return false;
+        try {
+            DDiagram diagram = (DDiagram) rep;
+            org.eclipse.sirius.diagram.DDiagramElement target = null;
+            var it = diagram.eAllContents();
+            while (it.hasNext()) {
+                Object o = it.next();
+                if (o instanceof org.eclipse.sirius.diagram.DDiagramElement) {
+                    var el = (org.eclipse.sirius.diagram.DDiagramElement) o;
+                    if (semantic.equals(el.getTarget())) { target = el; break; }
+                }
+            }
+            if (target == null) return false;
+            final org.eclipse.sirius.viewpoint.Style[] styleHolder = new org.eclipse.sirius.viewpoint.Style[1];
+            try {
+                java.lang.reflect.Method gs = target.getClass().getMethod("getStyle");
+                Object st = gs.invoke(target);
+                if (st instanceof org.eclipse.sirius.viewpoint.Style) styleHolder[0] = (org.eclipse.sirius.viewpoint.Style) st;
+            } catch (Throwable ignore) {}
+            if (styleHolder[0] == null) return false;
+            RGBValues fgV = (fg != null && fg >= 0) ? toRgb(fg) : null;
+            RGBValues bgV = (bg != null && bg >= 0) ? toRgb(bg) : null;
+            RGBValues bdV = (bd != null && bd >= 0) ? toRgb(bd) : null;
+            return SessionSafeguards.runWrite(session, "Style view element", () -> {
+                boolean changed = false;
+                try {
+                    if (fgV != null) {
+                        var m = styleHolder[0].getClass().getMethod("setLabelColor", RGBValues.class);
+                        m.invoke(styleHolder[0], fgV);
+                        changed = true;
+                    }
+                } catch (Throwable ignore) {}
+                try {
+                    if (bgV != null) {
+                        var m = styleHolder[0].getClass().getMethod("setColor", RGBValues.class);
+                        m.invoke(styleHolder[0], bgV);
+                        changed = true;
+                    }
+                } catch (Throwable ignore) {}
+                try {
+                    if (bdV != null) {
+                        var m = styleHolder[0].getClass().getMethod("setBorderColor", RGBValues.class);
+                        m.invoke(styleHolder[0], bdV);
+                        changed = true;
+                    }
+                } catch (Throwable ignore) {}
+                if (changed) {
+                    try { DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor()); } catch (Exception ignore) {}
+                }
+                return changed;
+            });
+        } catch (Exception e) {
+            LOG.warning("styleViewElement failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private static RGBValues toRgb(int rgb) {
+        int r = (rgb >> 16) & 0xFF;
+        int g = (rgb >> 8) & 0xFF;
+        int b = rgb & 0xFF;
+        return RGBValues.create(r, g, b);
     }
 
     private static void tryReveal(Session session, DRepresentation rep, java.util.List<String> ids, org.eclipse.emf.ecore.resource.ResourceSet rs) {

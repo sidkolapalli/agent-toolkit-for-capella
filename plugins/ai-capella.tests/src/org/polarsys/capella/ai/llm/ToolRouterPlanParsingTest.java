@@ -168,4 +168,18 @@ public class ToolRouterPlanParsingTest {
         assertEquals("MyLab", readField(a3, "name"));
         assertEquals("Passenger", readField(a3, "existingName"));
     }
+
+    @Test
+    public void parsesStyleView() throws Exception {
+        String plan = "{\n" +
+                "  \"actions\": [\n" +
+                "    { \"style_view\": { \"element\": \"Passenger\", \"foreground\": \"#112233\", \"background\": \"#445566\", \"border\": \"#AABBCC\" } }\n" +
+                "  ]\n" +
+                "}";
+        List<Object> actions = invokeParseActions(plan);
+        assertEquals(1, actions.size());
+        Object a0 = actions.get(0);
+        assertTrue(readField(a0, "type").contains("STYLE_VIEW"));
+        assertEquals("Passenger", readField(a0, "existingName"));
+    }
 }

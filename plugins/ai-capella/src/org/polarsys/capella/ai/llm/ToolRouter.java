@@ -493,37 +493,51 @@ public final class ToolRouter {
             case ADD_VIEW_NODE: {
                 DRepresentation rep = DiagramCommands.getLastOpened();
                 if (rep == null) return false;
-                EObject sem = findAnyByName(session, action.existingName);
+                EObject sem = findAnyByNameOrId(session, action.existingName);
                 if (sem == null) return false;
                 return DiagramCommands.createNode(session, rep, sem);
             }
             case ADD_VIEW_EDGE: {
                 DRepresentation rep = DiagramCommands.getLastOpened();
                 if (rep == null) return false;
-                EObject src = findAnyByName(session, action.sourceName);
-                EObject tgt = findAnyByName(session, action.targetName);
+                EObject src = findAnyByNameOrId(session, action.sourceName);
+                EObject tgt = findAnyByNameOrId(session, action.targetName);
                 if (src == null || tgt == null) return false;
                 return DiagramCommands.createEdge(session, rep, src, tgt);
             }
             case SET_VIEW_BOUNDS: {
                 DRepresentation rep = DiagramCommands.getLastOpened();
                 if (rep == null) return false;
-                EObject sem = findAnyByName(session, action.existingName);
+                EObject sem = findAnyByNameOrId(session, action.existingName);
                 if (sem == null) return false;
                 return DiagramCommands.setViewBounds(session, rep, sem, action.x, action.y, action.width, action.height);
             }
             case REMOVE_VIEW_ELEMENT: {
                 DRepresentation rep = DiagramCommands.getLastOpened();
                 if (rep == null) return false;
-                EObject sem = findAnyByName(session, action.existingName);
+                EObject sem = findAnyByNameOrId(session, action.existingName);
                 if (sem == null) return false;
                 return DiagramCommands.removeViewElement(session, rep, sem);
             }
             case ARRANGE_SELECTION: {
                 DRepresentation rep = DiagramCommands.getLastOpened();
                 if (rep == null) return false;
-                DiagramCommands.arrange(rep);
-                return true;
+                String strategy = (action.description == null || action.description.isBlank()) ? "auto" : action.description;
+                Session s = SessionBridge.getActiveSession();
+                if (s == null) return false;
+                return DiagramCommands.arrangeSelection(s, rep, strategy);
+            }
+            case STYLE_VIEW: {
+                Session s = SessionBridge.getActiveSession();
+                if (s == null) return false;
+                DRepresentation rep = DiagramCommands.getLastOpened();
+                if (rep == null) return false;
+                EObject sem = findAnyByNameOrId(s, action.existingName);
+                if (sem == null) return false;
+                Integer fg = action.fg >= 0 ? Integer.valueOf(action.fg) : null;
+                Integer bg = action.bg >= 0 ? Integer.valueOf(action.bg) : null;
+                Integer bd = action.bd >= 0 ? Integer.valueOf(action.bd) : null;
+                return DiagramCommands.styleViewElement(s, rep, sem, fg, bg, bd);
             }
             case RENAME_DIAGRAM: {
                 Session s = SessionBridge.getActiveSession();
@@ -555,7 +569,7 @@ public final class ToolRouter {
                     if (byName != null) rep = byName;
                 }
                 if (rep == null) return false;
-                EObject sem = findAnyByName(s, action.existingName);
+                EObject sem = findAnyByNameOrId(s, action.existingName);
                 if (sem == null) return false;
                 return DiagramCommands.revealSemantics(s, rep, java.util.List.of(sem));
             }
@@ -939,8 +953,12 @@ public final class ToolRouter {
         return String.valueOf(eo.hashCode());
     }
 
-    private static EObject findAnyByName(Session session, String name) {
+    private static EObject findAnyByNameOrId(Session session, String name) {
         if (name == null || name.isBlank()) return null;
+        try {
+            EObject byId = DiagramCommands.findSemanticById(session, name);
+            if (byId != null) return byId;
+        } catch (Exception ignore) {}
         String[] classes = new String[] {
                 "OperationalActivity", "OperationalActor",
                 "SystemComponent", "LogicalComponent", "PhysicalComponent",
@@ -994,6 +1012,7 @@ public final class ToolRouter {
         SET_VIEW_BOUNDS,
         REMOVE_VIEW_ELEMENT,
         ARRANGE_SELECTION,
+        STYLE_VIEW,
         RENAME_DIAGRAM,
         DELETE_DIAGRAM,
         DUPLICATE_DIAGRAM,
@@ -1068,6 +1087,8 @@ public final class ToolRouter {
                     return REMOVE_VIEW_ELEMENT;
                 case "arrange_selection":
                     return ARRANGE_SELECTION;
+                case "style_view":
+                    return STYLE_VIEW;
                 case "rename_diagram":
                     return RENAME_DIAGRAM;
                 case "delete_diagram":
@@ -1165,6 +1186,7 @@ public final class ToolRouter {
 
         // View geometry fields
         int x; int y; int width; int height;
+        int fg = -1; int bg = -1; int bd = -1; // colors (0xRRGGBB)
 
         static Action fromMap(int index, Map<String, Object> map) {
             // Tolerate both shapes:
@@ -1304,6 +1326,15 @@ public final class ToolRouter {
                     return new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), null, null,
                             null, null, null, null, null, stringOrDefault(map.get("strategy"), "auto"), null,
                             null, null, null, false, false, null, null, null, null, null);
+                case STYLE_VIEW: {
+                    Action a = new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), null, null,
+                            null, require(map, "element", index), null, null, null, null, null,
+                            null, null, null, false, false, null, null, null, null, null);
+                    a.fg = parseColor(map.get("foreground"));
+                    a.bg = parseColor(map.get("background"));
+                    a.bd = parseColor(map.get("border"));
+                    return a;
+                }
                 case RENAME_DIAGRAM:
                     // existingName = diagram, newName = name
                     return new Action(type, "", null, null, null, null, require(map, "diagram", index), require(map, "name", index), null, null, null, null,
@@ -1392,6 +1423,28 @@ public final class ToolRouter {
             try { return Integer.parseInt(String.valueOf(v)); } catch (Exception e) { return 0; }
         }
 
+        private static int parseColor(Object v) {
+            if (v == null) return -1;
+            String s = String.valueOf(v).trim();
+            try {
+                if (s.startsWith("#") && (s.length() == 7)) {
+                    return Integer.parseInt(s.substring(1), 16);
+                }
+                if (s.contains(",")) {
+                    String[] parts = s.split(",");
+                    int r = Integer.parseInt(parts[0].trim());
+                    int g = Integer.parseInt(parts[1].trim());
+                    int b = Integer.parseInt(parts[2].trim());
+                    return ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF);
+                }
+                // Try plain int
+                int n = Integer.decode(s);
+                return n;
+            } catch (Exception e) {
+                return -1;
+            }
+        }
+
         String describe() {
             switch (type) {
                 case CREATE_COMPONENT:
@@ -1466,6 +1519,9 @@ public final class ToolRouter {
                             (name != null && !name.isBlank()) ? (" from diagram '" + name + "'") : "");
                 case ARRANGE_SELECTION:
                     return String.format("Arrange selection (%s)%s", defaultString(description, "auto"),
+                            (name != null && !name.isBlank()) ? (" in '" + name + "'") : "");
+                case STYLE_VIEW:
+                    return String.format("Style view '%s'%s", defaultString(existingName, "?"),
                             (name != null && !name.isBlank()) ? (" in '" + name + "'") : "");
                 case BATCH_RENAME:
                     return String.format("Batch rename %d %s", renameItems != null ? renameItems.size() : 0,
@@ -1611,6 +1667,8 @@ public final class ToolRouter {
                     return String.format("Remove view element '%s'", defaultString(existingName, "?"));
                 case ARRANGE_SELECTION:
                     return String.format("Arrange selection (%s)", defaultString(description, "auto"));
+                case STYLE_VIEW:
+                    return String.format("Style view '%s'", defaultString(existingName, "?"));
                 case BATCH_RENAME:
                     return String.format("Rename %d %s", renameItems != null ? renameItems.size() : 0,
                             defaultString(elementClass, "elements"));
