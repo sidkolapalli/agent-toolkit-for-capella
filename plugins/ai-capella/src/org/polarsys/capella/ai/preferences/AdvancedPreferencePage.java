@@ -19,6 +19,10 @@ public class AdvancedPreferencePage extends PreferencePage implements IWorkbench
     private Button autoFixes;
     private Text maxPlanActions;
     private Text maxAutoFixRemovals;
+    private Button orchestrationEnabled;
+    private Text autoSaveInterval;
+    private Button selfHealingEnabled;
+    private Text selfHealingMaxIters;
 
     @Override
     public void init(IWorkbench workbench) {}
@@ -32,6 +36,20 @@ public class AdvancedPreferencePage extends PreferencePage implements IWorkbench
         coverageGates = checkbox(root, "Enable coverage gates (advisory)", AdvancedPreferences.isCoverageGatesEnabled());
         traceabilityGates = checkbox(root, "Enable traceability gates (advisory)", AdvancedPreferences.isTraceabilityGatesEnabled());
         autoFixes = checkbox(root, "Enable auto-fixes (safe cleanups)", AdvancedPreferences.isAutoFixesEnabled());
+
+        orchestrationEnabled = checkbox(root, "Enable orchestration (checkpoint/resume)", AdvancedPreferences.isOrchestrationEnabled());
+
+        mkLabel(root, "Auto-save interval (sec):");
+        autoSaveInterval = new Text(root, SWT.BORDER);
+        autoSaveInterval.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        autoSaveInterval.setText(String.valueOf(AdvancedPreferences.getAutoSaveIntervalSec()));
+
+        selfHealingEnabled = checkbox(root, "Enable self-healing (refine and reapply)", AdvancedPreferences.isSelfHealingEnabled());
+
+        mkLabel(root, "Self-healing iterations:");
+        selfHealingMaxIters = new Text(root, SWT.BORDER);
+        selfHealingMaxIters.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        selfHealingMaxIters.setText(String.valueOf(AdvancedPreferences.getSelfHealingMaxIters()));
 
         mkLabel(root, "Max plan actions:");
         maxPlanActions = new Text(root, SWT.BORDER);
@@ -67,6 +85,10 @@ public class AdvancedPreferencePage extends PreferencePage implements IWorkbench
             AdvancedPreferences.setAutoFixesEnabled(autoFixes.getSelection());
             AdvancedPreferences.setMaxPlanActions(parseInt(maxPlanActions.getText(), 200));
             AdvancedPreferences.setMaxAutoFixRemovals(parseInt(maxAutoFixRemovals.getText(), 25));
+            AdvancedPreferences.setOrchestrationEnabled(orchestrationEnabled.getSelection());
+            AdvancedPreferences.setAutoSaveIntervalSec(parseInt(autoSaveInterval.getText(), 30));
+            AdvancedPreferences.setSelfHealingEnabled(selfHealingEnabled.getSelection());
+            AdvancedPreferences.setSelfHealingMaxIters(parseInt(selfHealingMaxIters.getText(), 1));
             AdvancedPreferences.flush();
             return true;
         } catch (Exception e) {
@@ -79,4 +101,3 @@ public class AdvancedPreferencePage extends PreferencePage implements IWorkbench
         try { return Integer.parseInt(s.trim()); } catch (Exception e) { return def; }
     }
 }
-

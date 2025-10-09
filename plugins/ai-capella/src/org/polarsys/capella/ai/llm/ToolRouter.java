@@ -423,9 +423,60 @@ public final class ToolRouter {
             Telemetry.recordToolCall(-1, "BUDGET", "plan too large", "limit", msg);
             return new PlanExecutionResult(0, List.of(msg));
         }
-        return SessionSafeguards.deferSaves(session, () ->
+        PlanExecutionResult initial = SessionSafeguards.deferSaves(session, () ->
             SessionSafeguards.runWrite(session, "Apply AI plan", () -> applyPlanInternal(session, diagram, plan))
         );
+        // Self-healing loop (initial): if errors and enabled, request a refined plan from the LLM and re-apply once
+        int iters = Math.max(0, org.polarsys.capella.ai.preferences.AdvancedPreferences.getSelfHealingMaxIters());
+        if (initial != null && !initial.errors.isEmpty() && org.polarsys.capella.ai.preferences.AdvancedPreferences.isSelfHealingEnabled() && iters > 0) {
+            try {
+                PlanExecutionResult healed = attemptSelfHealing(session, diagram, plan, initial, iters);
+                if (healed != null) return healed;
+            } catch (Exception ignore) {}
+        }
+        return initial;
+    }
+
+    private static PlanExecutionResult attemptSelfHealing(Session session, DRepresentation diagram, ToolPlan priorPlan, PlanExecutionResult prior, int iters) {
+        StringBuilder user = new StringBuilder();
+        user.append("Refine the previous TOOL_PLAN to resolve the following diagnostics.\\n");
+        user.append("Constraints: keep the original intent, minimal changes, correct layer, reuse elements when possible, and respond with a single TOOL_PLAN JSON only.\\n");
+        user.append("Diagnostics:\n");
+        int c = 0; for (String e : prior.errors) { if (++c > 10) break; user.append("- ").append(e).append("\n"); }
+        user.append("Previous plan summary:\n");
+        List<String> lines = priorPlan.describe();
+        for (int i = 0; i < Math.min(20, lines.size()); i++) { user.append(i+1).append(") ").append(lines.get(i)).append("\n"); }
+        user.append("Current model snapshot:\n");
+        try { user.append(org.polarsys.capella.ai.model.ModelSummary.summarize(session)); } catch (Exception ex) { user.append("(unavailable)\n"); }
+
+        List<LLMService.Message> messages = new ArrayList<>();
+        messages.add(LLMService.Message.system(buildSystemPrompt(session)));
+        messages.add(LLMService.Message.user(user.toString()));
+        String reply;
+        try {
+            reply = LLMService.get().send(messages);
+        } catch (Exception ex) {
+            Telemetry.recordPlanError("self-heal", ex.getMessage());
+            return prior;
+        }
+        Result parsed = parseReply(session, reply);
+        if (parsed == null || parsed.plan == null || parsed.plan.isEmpty()) {
+            return null;
+        }
+        // re-validate and apply refined plan (single iteration)
+        PlanExecutionResult refined = SessionSafeguards.deferSaves(session, () ->
+            SessionSafeguards.runWrite(session, "Apply refined AI plan", () -> applyPlanInternal(session, diagram, parsed.plan))
+        );
+        if (refined == null) return prior;
+        return new PlanExecutionResult(prior.applied + refined.applied, mergeErrors(prior.errors, refined.errors));
+    }
+
+    private static List<String> mergeErrors(List<String> a, List<String> b) {
+        if ((a == null || a.isEmpty()) && (b == null || b.isEmpty())) return List.of();
+        List<String> out = new ArrayList<>();
+        if (a != null) out.addAll(a);
+        if (b != null) out.addAll(b);
+        return out;
     }
 
     private static PlanExecutionResult applyPlanInternal(Session session, DRepresentation diagram, ToolPlan plan) {
@@ -517,6 +568,27 @@ public final class ToolRouter {
         return new PlanExecutionResult(applied, errors);
     }
 
+    /** Apply a single step of a ToolPlan by index. Public for orchestration. */
+    public static boolean applyPlanStep(Session session, DRepresentation diagram, ToolPlan plan, int index) {
+        if (session == null || plan == null) return false;
+        List<Action> actions = plan.actions();
+        if (index < 0 || index >= actions.size()) return false;
+        Action action = actions.get(index);
+        try {
+            Telemetry.recordToolCall(index, action.type.name(), action.describe(), "attempt", "");
+            boolean ok = applyAction(session, action);
+            if (ok) {
+                Telemetry.recordToolCall(index, action.type.name(), action.describe(), "success", "");
+            } else {
+                Telemetry.recordToolCall(index, action.type.name(), action.describe(), "failure", "");
+            }
+            return ok;
+        } catch (Exception ex) {
+            Telemetry.recordToolCall(index, action.type.name(), action.describe(), "error", ex.getMessage());
+            return false;
+        }
+    }
+
     private static boolean applyAction(Session session, Action action) {
         switch (action.type) {
             case CREATE_COMPONENT:
@@ -593,7 +665,9 @@ public final class ToolRouter {
                     if (byName != null) rep = byName;
                 }
                 if (rep == null) return false;
-                EObject sem = findAnyByNameOrId(session, action.existingName);
+                EObject sem = (action.elementIndex != null)
+                        ? findAnyByNameOrIdWithIndex(session, action.existingName, action.elementIndex)
+                        : findAnyByNameOrId(session, action.existingName);
                 if (sem == null) return false;
                 return DiagramCommands.createNode(session, rep, sem);
             }
@@ -604,8 +678,12 @@ public final class ToolRouter {
                     if (byName != null) rep = byName;
                 }
                 if (rep == null) return false;
-                EObject src = findAnyByNameOrId(session, action.sourceName);
-                EObject tgt = findAnyByNameOrId(session, action.targetName);
+                EObject src = (action.sourceIndex != null)
+                        ? findAnyByNameOrIdWithIndex(session, action.sourceName, action.sourceIndex)
+                        : findAnyByNameOrId(session, action.sourceName);
+                EObject tgt = (action.targetIndex != null)
+                        ? findAnyByNameOrIdWithIndex(session, action.targetName, action.targetIndex)
+                        : findAnyByNameOrId(session, action.targetName);
                 if (src == null || tgt == null) return false;
                 return DiagramCommands.createEdge(session, rep, src, tgt);
             }
@@ -616,7 +694,9 @@ public final class ToolRouter {
                     if (byName != null) rep = byName;
                 }
                 if (rep == null) return false;
-                EObject sem = findAnyByNameOrId(session, action.existingName);
+                EObject sem = (action.elementIndex != null)
+                        ? findAnyByNameOrIdWithIndex(session, action.existingName, action.elementIndex)
+                        : findAnyByNameOrId(session, action.existingName);
                 if (sem == null) return false;
                 return DiagramCommands.setViewBounds(session, rep, sem, action.x, action.y, action.width, action.height);
             }
@@ -627,7 +707,9 @@ public final class ToolRouter {
                     if (byName != null) rep = byName;
                 }
                 if (rep == null) return false;
-                EObject sem = findAnyByNameOrId(session, action.existingName);
+                EObject sem = (action.elementIndex != null)
+                        ? findAnyByNameOrIdWithIndex(session, action.existingName, action.elementIndex)
+                        : findAnyByNameOrId(session, action.existingName);
                 if (sem == null) return false;
                 return DiagramCommands.removeViewElement(session, rep, sem);
             }
@@ -695,7 +777,9 @@ public final class ToolRouter {
                     if (byName != null) rep = byName;
                 }
                 if (rep == null) return false;
-                EObject sem = findAnyByNameOrId(s, action.existingName);
+                EObject sem = (action.elementIndex != null)
+                        ? findAnyByNameOrIdWithIndex(s, action.existingName, action.elementIndex)
+                        : findAnyByNameOrId(s, action.existingName);
                 if (sem == null) return false;
                 return DiagramCommands.revealSemantics(s, rep, java.util.List.of(sem));
             }
@@ -718,7 +802,7 @@ public final class ToolRouter {
             case OPEN_DIAGRAM:
                 return openDiagram(session, action.layer, action.diagramType, action.name);
             case RENAME:
-                return rename(session, action.elementClass, action.existingName, action.newName);
+                return rename(session, action.elementClass, action.existingName, action.existingIndex, action.newName);
             case DELETE:
                 return delete(session, action.elementClass, action.existingName);
             default:
@@ -1092,8 +1176,8 @@ public final class ToolRouter {
         return DiagramCommands.createAndOpenDiagram(root, desc, name) != null;
     }
 
-    private static boolean rename(Session session, String elementClass, String existingName, String newName) {
-        EObject target = findByNameWithIndex(session, elementClass, existingName, null);
+    private static boolean rename(Session session, String elementClass, String existingName, Integer index, String newName) {
+        EObject target = findByNameWithIndex(session, elementClass, existingName, index);
         if (target == null) {
             return false;
         }
@@ -1199,6 +1283,55 @@ public final class ToolRouter {
         for (String cls : classes) {
             EObject found = Finders.findByName(session, cls, name);
             if (found != null) return found;
+        }
+        return null;
+    }
+
+    private static EObject findAnyByNameOrIdWithIndex(Session session, String name, Integer index) {
+        if (name == null || name.isBlank()) return null;
+        try {
+            EObject byId = DiagramCommands.findSemanticById(session, name);
+            if (byId != null) return byId;
+        } catch (Exception ignore) {}
+        String[] classes = new String[] {
+                "OperationalActivity", "OperationalActor",
+                "SystemComponent", "LogicalComponent", "PhysicalComponent",
+                "SystemFunction", "LogicalFunction", "PhysicalFunction",
+                "Capability", "Interface",
+                "FunctionalExchange", "ComponentExchange"
+        };
+        if (index == null || index.intValue() <= 0) {
+            for (String cls : classes) {
+                EObject found = Finders.findByName(session, cls, name);
+                if (found != null) return found;
+            }
+            return null;
+        }
+        int want = index.intValue();
+        int seen = 0;
+        for (String cls : classes) {
+            // iterate all with this class name and count matches of the given name
+            try {
+                var domain = session.getTransactionalEditingDomain();
+                if (domain == null) continue;
+                var rs = domain.getResourceSet();
+                for (org.eclipse.emf.ecore.resource.Resource res : rs.getResources()) {
+                    if (res == null) continue;
+                    var it = res.getAllContents();
+                    while (it.hasNext()) {
+                        EObject eo = it.next();
+                        if (!cls.equals(eo.eClass().getName())) continue;
+                        var feat = eo.eClass().getEStructuralFeature("name");
+                        if (feat == null) continue;
+                        Object v = eo.eGet(feat);
+                        if (v != null && name.equals(String.valueOf(v))) {
+                            seen++;
+                            if (seen == want) return eo;
+                        }
+                    }
+                }
+            } catch (Exception ignore) {}
+            if (seen >= want) break;
         }
         return null;
     }
@@ -1512,9 +1645,13 @@ public final class ToolRouter {
                 case ALLOCATE_CAPABILITY:
                     return new Action(type, enforceLayer(map.get("layer"), "SA", false, index), null, null, null, null, require(map, "component", index), null, null, null, null, require(map, "capability", index),
                             null, null, null, false, false, null, null, null, null, null);
-                case DELETE:
-                    return new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), null, null, null, null, null,
+                case DELETE: {
+                    Action del = new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
+                    int idx = parseInt(map.get("index"));
+                    del.existingIndex = idx > 0 ? Integer.valueOf(idx) : null;
+                    return del;
+                }
                 case PROPAGATE_LOGICAL_TO_PHYSICAL:
                     String targetLayer = enforceLayer(map.get("target_layer") != null ? map.get("target_layer") : map.get("layer"), "PA", false, index);
                     return new Action(type, targetLayer, null, null, null, null, null, null, null, null, null, null,

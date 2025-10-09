@@ -15,6 +15,10 @@ public final class AdvancedPreferences {
     private static final String KEY_AUTO_FIXES = "autoFixes";
     private static final String KEY_MAX_PLAN_ACTIONS = "maxPlanActions";
     private static final String KEY_MAX_AUTOFIX_REMOVALS = "maxAutoFixRemovals";
+    private static final String KEY_ORCHESTRATION = "orchestrationEnabled";
+    private static final String KEY_AUTOSAVE_INTERVAL_SEC = "autoSaveIntervalSec";
+    private static final String KEY_SELF_HEAL = "selfHealingEnabled";
+    private static final String KEY_SELF_HEAL_MAX_ITERS = "selfHealingMaxIters";
 
     private AdvancedPreferences() {}
 
@@ -38,8 +42,19 @@ public final class AdvancedPreferences {
     public static int getMaxAutoFixRemovals() { return prefs().getInt(KEY_MAX_AUTOFIX_REMOVALS, 25); }
     public static void setMaxAutoFixRemovals(int v) { prefs().putInt(KEY_MAX_AUTOFIX_REMOVALS, v); }
 
+    public static boolean isOrchestrationEnabled() { return prefs().getBoolean(KEY_ORCHESTRATION, true); }
+    public static void setOrchestrationEnabled(boolean v) { prefs().putBoolean(KEY_ORCHESTRATION, v); }
+
+    public static int getAutoSaveIntervalSec() { return prefs().getInt(KEY_AUTOSAVE_INTERVAL_SEC, 30); }
+    public static void setAutoSaveIntervalSec(int v) { prefs().putInt(KEY_AUTOSAVE_INTERVAL_SEC, v); }
+
+    public static boolean isSelfHealingEnabled() { return prefs().getBoolean(KEY_SELF_HEAL, true); }
+    public static void setSelfHealingEnabled(boolean v) { prefs().putBoolean(KEY_SELF_HEAL, v); }
+
+    public static int getSelfHealingMaxIters() { return prefs().getInt(KEY_SELF_HEAL_MAX_ITERS, 1); }
+    public static void setSelfHealingMaxIters(int v) { prefs().putInt(KEY_SELF_HEAL_MAX_ITERS, v); }
+
     public static void flush() {
         try { prefs().flush(); } catch (BackingStoreException e) { /* ignore */ }
     }
 }
-

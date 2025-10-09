@@ -40,8 +40,8 @@ This document outlines how the AI assistant will autonomously build production�
 - [x] Plan preview + dry‑run validation + diffs + undo
 - [x] Streaming responses and progress updates
 - [x] Automatic fallback (Responses API for reasoning/o‑series)
-- [ ] Long‑run orchestration: checkpointing, resumable tasks, periodic auto‑save
-- [ ] Self‑healing loop: detect violations → refine plan → re‑validate → apply
+- [x] Long‑run orchestration: checkpointing, resumable tasks, periodic auto‑save (initial)
+- [x] Self‑healing loop: initial (one iteration refine+reapply on diagnostics)
 - [ ] Spec‑driven execution: import requirements/spec text and materialize OA→PA
 
 ### Prompting & Tool Schema
@@ -57,7 +57,7 @@ This document outlines how the AI assistant will autonomously build production�
   - [x] `rename_diagram|delete_diagram|duplicate_diagram|reveal_in_diagram`
 - [x] Tight JSON schema (required/optional fields, enums) + in‑prompt examples
 - [x] Stable referencing: names + UUID (id)
-- [ ] Stable referencing: indices
+- [x] Stable referencing: indices
 
 ### Validation & Quality Gates
 - [x] Preflight existence checks (sources/targets/layers)

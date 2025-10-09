@@ -17,6 +17,12 @@
             class="org.polarsys.capella.ai.views.DiagramsView"
             id="org.polarsys.capella.ai.diagrams"
             name="AI Diagrams"/>
+        <view
+            allowMultiple="false"
+            category="org.polarsys.capella.ai"
+            class="org.polarsys.capella.ai.views.LogInspectorView"
+            id="org.polarsys.capella.ai.logs"
+            name="AI Log Inspector"/>
     </extension>
 
     <extension point="org.eclipse.ui.perspectiveExtensions">
@@ -35,6 +41,14 @@
                 minimized="false"
                 moveable="true"
                 relationship="right"
+                relative="org.polarsys.capella.ai.chatview"
+                visible="true"/>
+            <view
+                closeable="true"
+                id="org.polarsys.capella.ai.logs"
+                minimized="false"
+                moveable="true"
+                relationship="bottom"
                 relative="org.polarsys.capella.ai.chatview"
                 visible="true"/>
         </perspectiveExtension>

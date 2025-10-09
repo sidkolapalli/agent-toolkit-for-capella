@@ -234,12 +234,16 @@ public final class DiagramCommands {
                         break;
                     }
                     case "flow": {
-                        // Simple left-to-right flow with even columns
+                        // Left-to-right flow with per-diagram spacing and a simple crossing-minimization heuristic
                         int n = bounds.size();
                         int rows = (int) Math.ceil(Math.sqrt(n));
                         int cols = (int) Math.ceil((double) n / Math.max(1, rows));
-                        int cellW = 180;
-                        int cellH = 120;
+                        int[] spacing = computeSpacing(rep);
+                        int cellW = spacing[0];
+                        int cellH = spacing[1];
+                        // Compute a simple connectivity score and reorder to reduce crossings
+                        java.util.Map<Bounds, Integer> score = computeConnectivityScores(rep, nodes);
+                        bounds.sort((a,b) -> Integer.compare(score.getOrDefault(b, 0), score.getOrDefault(a, 0)));
                         int startX = minX;
                         int startY = minY;
                         int i = 0;
@@ -248,6 +252,8 @@ public final class DiagramCommands {
                             int c = i % cols;
                             b.setX(startX + c * cellW);
                             b.setY(startY + r * cellH);
+                            if (b.getWidth() <= 0) b.setWidth(Math.max(120, cellW - 40));
+                            if (b.getHeight() <= 0) b.setHeight(Math.max(80, cellH - 40));
                             i++;
                         }
                         break;
@@ -289,6 +295,80 @@ public final class DiagramCommands {
             LOG.warning("arrangeSelection failed: " + e.getMessage());
             return false;
         }
+    }
+
+    private static int[] computeSpacing(DRepresentation rep) {
+        int cellW = 200, cellH = 140;
+        try {
+            if (rep instanceof DDiagram) {
+                org.eclipse.sirius.diagram.DDiagram d = (org.eclipse.sirius.diagram.DDiagram) rep;
+                String name = null;
+                try { name = d.getDescription() != null ? d.getDescription().getName() : null; } catch (Throwable ignore) {}
+                String n = name != null ? name.toLowerCase() : "";
+                if (n.contains("data flow")) { cellW = 240; cellH = 160; }
+                else if (n.contains("function breakdown")) { cellW = 220; cellH = 170; }
+                else if (n.contains("architecture blank") || n.contains("lab") || n.contains("pab") || n.contains("sab")) { cellW = 260; cellH = 180; }
+            }
+        } catch (Throwable ignore) {}
+        return new int[] {cellW, cellH};
+    }
+
+    private static java.util.Map<Bounds, Integer> computeConnectivityScores(DRepresentation rep, java.util.List<Node> nodes) {
+        java.util.Map<Bounds, Integer> scores = new java.util.HashMap<>();
+        java.util.List<Object[]> pairs = new java.util.ArrayList<>();
+        // Map each node to its semantic EObject (if available)
+        java.util.Map<Node, org.eclipse.emf.ecore.EObject> sem = new java.util.HashMap<>();
+        for (Node n : nodes) {
+            org.eclipse.emf.ecore.EObject target = toSemantic(n);
+            if (target != null) {
+                sem.put(n, target);
+            }
+        }
+        java.util.Set<org.eclipse.emf.ecore.EObject> all = new java.util.HashSet<>(sem.values());
+        // For each element, count references to elements within the same set
+        for (Node n : nodes) {
+            int sc = 0;
+            org.eclipse.emf.ecore.EObject t = sem.get(n);
+            if (t != null) {
+                try {
+                    for (org.eclipse.emf.ecore.EStructuralFeature f : t.eClass().getEAllStructuralFeatures()) {
+                        if (f instanceof org.eclipse.emf.ecore.EReference) {
+                            org.eclipse.emf.ecore.EReference r = (org.eclipse.emf.ecore.EReference) f;
+                            if (r.isContainment()) continue;
+                            Object v = t.eGet(r);
+                            if (v instanceof org.eclipse.emf.ecore.EObject e2) {
+                                if (all.contains(e2)) sc++;
+                            } else if (v instanceof java.util.Collection<?>) {
+                                for (Object o : (java.util.Collection<?>) v) {
+                                    if (o instanceof org.eclipse.emf.ecore.EObject e3) {
+                                        if (all.contains(e3)) sc++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (Throwable ignore) {}
+            }
+            // Save by Bounds (from node)
+            Bounds b = (Bounds) n.getLayoutConstraint();
+            if (b != null) scores.put(b, sc);
+        }
+        return scores;
+    }
+
+    private static org.eclipse.emf.ecore.EObject toSemantic(Node node) {
+        try {
+            View v = node;
+            org.eclipse.emf.ecore.EObject el = v.getElement();
+            if (el != null && el.getClass().getName().contains("DDiagramElement")) {
+                try {
+                    java.lang.reflect.Method m = el.getClass().getMethod("getTarget");
+                    Object t = m.invoke(el);
+                    if (t instanceof org.eclipse.emf.ecore.EObject) return (org.eclipse.emf.ecore.EObject) t;
+                } catch (Throwable ignore) {}
+            }
+        } catch (Throwable ignore) {}
+        return null;
     }
 
     /** Best-effort: resolve elements by id/uuid/fragment and refresh the diagram editor. */
