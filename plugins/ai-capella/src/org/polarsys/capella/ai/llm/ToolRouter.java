@@ -423,9 +423,13 @@ public final class ToolRouter {
             Telemetry.recordToolCall(-1, "BUDGET", "plan too large", "limit", msg);
             return new PlanExecutionResult(0, List.of(msg));
         }
+        org.polarsys.capella.ai.model.ModelChangeSet.Snapshot before = org.polarsys.capella.ai.model.ModelChangeSet.snapshot(session);
         PlanExecutionResult initial = SessionSafeguards.deferSaves(session, () ->
             SessionSafeguards.runWrite(session, "Apply AI plan", () -> applyPlanInternal(session, diagram, plan))
         );
+        org.polarsys.capella.ai.model.ModelChangeSet.Snapshot after = org.polarsys.capella.ai.model.ModelChangeSet.snapshot(session);
+        org.polarsys.capella.ai.model.ModelChangeSet.ChangeSet cs = org.polarsys.capella.ai.model.ModelChangeSet.diff(before, after);
+        Telemetry.recordToolCall(-1, "CHANGESET", cs.summary(), "summary", "");
         // Self-healing loop (initial): if errors and enabled, request a refined plan from the LLM and re-apply once
         int iters = Math.max(0, org.polarsys.capella.ai.preferences.AdvancedPreferences.getSelfHealingMaxIters());
         if (initial != null && !initial.errors.isEmpty() && org.polarsys.capella.ai.preferences.AdvancedPreferences.isSelfHealingEnabled() && iters > 0) {
@@ -829,6 +833,10 @@ public final class ToolRouter {
         }
         return new ArrayList<>(history.subList(history.size() - limit, history.size()));
     }
+
+    public static String buildSystemPromptForExternal(Session session) { return buildSystemPrompt(session); }
+
+    public static Result parseReplyForExternal(Session session, String reply) throws PlanValidationException { return parseReply(session, reply); }
 
     private static String buildSystemPrompt(Session session) {
         StringBuilder sb = new StringBuilder();

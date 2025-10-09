@@ -42,7 +42,7 @@ This document outlines how the AI assistant will autonomously build production�
 - [x] Automatic fallback (Responses API for reasoning/o‑series)
 - [x] Long‑run orchestration: checkpointing, resumable tasks, periodic auto‑save (initial)
 - [x] Self‑healing loop: initial (one iteration refine+reapply on diagnostics)
-- [ ] Spec‑driven execution: import requirements/spec text and materialize OA→PA
+- [x] Spec‑driven execution: initial importer (LLM-driven TOOL_PLAN from spec)
 
 ### Prompting & Tool Schema
 - [x] Robust parser (explicit `type` and single‑key action objects), canonical layer mapping (operational/logical/system/physical → OA/LA/SA/PA)
@@ -64,7 +64,7 @@ This document outlines how the AI assistant will autonomously build production�
 - [x] Post‑apply quick validation (bounded EMF Diagnostician) + telemetry summary
 - [x] Auto‑fix patterns: remove orphan exchanges with missing endpoints (capped)
 - [ ] Capella validation packs (full), deeper auto‑fixers
-- [ ] Rule packs per layer (OA/SA/LA/PA) with gating thresholds
+- [ ] Rule packs per layer (OA/SA/LA/PA) with gating thresholds (scaffold)
 - [x] Coverage targets (advisory): component structure + function allocation
 - [x] Traceability targets (advisory: requirements→functions; exchanges visibility)
 
