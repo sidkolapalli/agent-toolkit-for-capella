@@ -233,6 +233,50 @@ public final class DiagramCommands {
                         }
                         break;
                     }
+                    case "flow": {
+                        // Simple left-to-right flow with even columns
+                        int n = bounds.size();
+                        int rows = (int) Math.ceil(Math.sqrt(n));
+                        int cols = (int) Math.ceil((double) n / Math.max(1, rows));
+                        int cellW = 180;
+                        int cellH = 120;
+                        int startX = minX;
+                        int startY = minY;
+                        int i = 0;
+                        for (Bounds b : bounds) {
+                            int r = i / cols;
+                            int c = i % cols;
+                            b.setX(startX + c * cellW);
+                            b.setY(startY + r * cellH);
+                            i++;
+                        }
+                        break;
+                    }
+                    case "radial": {
+                        // Arrange in a circle around the current center
+                        int n = bounds.size();
+                        if (n > 0) {
+                            double cx = (minX + maxR) / 2.0;
+                            double cy = (minY + maxB) / 2.0;
+                            // Radius scaled with area and count
+                            double spanX = Math.max(200.0, (maxR - minX));
+                            double spanY = Math.max(150.0, (maxB - minY));
+                            double radius = Math.max(spanX, spanY) * 0.6 + n * 6.0;
+                            for (int i = 0; i < n; i++) {
+                                Bounds b = bounds.get(i);
+                                double theta = (2.0 * Math.PI * i) / n;
+                                int w = Math.max(80, b.getWidth());
+                                int h = Math.max(50, b.getHeight());
+                                int x = (int) Math.round(cx + radius * Math.cos(theta) - w / 2.0);
+                                int y = (int) Math.round(cy + radius * Math.sin(theta) - h / 2.0);
+                                b.setX(x);
+                                b.setY(y);
+                                if (b.getWidth() <= 0) b.setWidth(w);
+                                if (b.getHeight() <= 0) b.setHeight(h);
+                            }
+                        }
+                        break;
+                    }
                     case "auto":
                     default:
                         arrange(rep);

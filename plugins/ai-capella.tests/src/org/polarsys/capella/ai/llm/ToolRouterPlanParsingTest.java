@@ -137,6 +137,31 @@ public class ToolRouterPlanParsingTest {
     }
 
     @Test
+    public void parsesArrangeSelectionFlowAndRadial() throws Exception {
+        String flowPlan = "{\n" +
+                "  \"actions\": [\n" +
+                "    { \"type\": \"arrange_selection\", \"diagram\": \"MyLab\", \"strategy\": \"flow\" }\n" +
+                "  ]\n" +
+                "}";
+        var flow = invokeParseActions(flowPlan);
+        assertEquals(1, flow.size());
+        Object a0 = flow.get(0);
+        assertTrue(readField(a0, "type").contains("ARRANGE_SELECTION"));
+        assertEquals("flow", readField(a0, "description"));
+
+        String radialPlan = "{\n" +
+                "  \"actions\": [\n" +
+                "    { \"type\": \"arrange_selection\", \"diagram\": \"MyLab\", \"strategy\": \"radial\" }\n" +
+                "  ]\n" +
+                "}";
+        var radial = invokeParseActions(radialPlan);
+        assertEquals(1, radial.size());
+        Object a1 = radial.get(0);
+        assertTrue(readField(a1, "type").contains("ARRANGE_SELECTION"));
+        assertEquals("radial", readField(a1, "description"));
+    }
+
+    @Test
     public void parsesDiagramLifecycleActions() throws Exception {
         String plan = "{\n" +
                 "  \"actions\": [\n" +

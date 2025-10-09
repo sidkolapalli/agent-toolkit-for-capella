@@ -893,6 +893,8 @@ public final class ToolRouter {
             case "hspace":
             case "vspace":
             case "grid":
+            case "flow":
+            case "radial":
             case "auto":
                 return v;
             default:
