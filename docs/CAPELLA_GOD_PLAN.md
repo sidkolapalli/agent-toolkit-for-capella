@@ -28,10 +28,10 @@ This document outlines how the AI assistant will autonomously build production�
 
 ### Diagram/View Mastery (Sirius/GMF)
 - [x] Create/open representations; reveal/refresh; arrange; add nodes/edges by revealing semantics
-- [ ] Add/remove view‑only elements (no semantic change)
-- [ ] Precise geometry: set view bounds (x,y,w,h), pin, resize, z‑order
-- [ ] Selection ops: align, distribute, nudge, group/ungroup (if supported)
-- [ ] Diagram lifecycle: duplicate, rename, delete
+- [x] Add/remove view‑only elements (no semantic change)
+- [x] Precise geometry: set view bounds (x,y,w,h) (pin/resize/z‑order TBD)
+- [x] Selection ops: align, distribute, grid (nudge/group/ungroup TBD)
+- [x] Diagram lifecycle: duplicate, rename, delete, reveal
 - [ ] Styling: icons, labels, colors (within Capella/Sirius constraints)
 - [ ] Layout heuristics per diagram type (grid/flow/radial; minimal crossings; spacing)
 
@@ -46,13 +46,13 @@ This document outlines how the AI assistant will autonomously build production�
 ### Prompting & Tool Schema
 - [x] Robust parser (explicit `type` and single‑key action objects), canonical layer mapping (operational/logical/system/physical → OA/LA/SA/PA)
 - [x] LLM routing: Chat vs Responses; correct token params; SSE streaming
-- [ ] Expand actions:
-  - [ ] `add_view_node {diagram, semantic, x,y}`
-  - [ ] `add_view_edge {diagram, source,target}`
-  - [ ] `set_view_bounds {diagram, element, x,y,width,height}`
-  - [ ] `remove_view_element {diagram, element}`
-  - [ ] `arrange_selection {diagram, strategy}`
-  - [ ] `rename_diagram|delete_diagram|duplicate_diagram|reveal_in_diagram`
+- [x] Expand actions:
+  - [x] `add_view_node {diagram?, semantic, x?,y?}`
+  - [x] `add_view_edge {diagram?, source,target}`
+  - [x] `set_view_bounds {diagram?, element, x,y,width,height}`
+  - [x] `remove_view_element {diagram?, element}`
+  - [x] `arrange_selection {diagram?, strategy}`
+  - [x] `rename_diagram|delete_diagram|duplicate_diagram|reveal_in_diagram`
 - [ ] Tight JSON schema (required/optional fields, enums) + in‑prompt examples
 - [ ] Stable referencing (names + UUIDs + indices) and robust resolution
 
@@ -114,4 +114,3 @@ This document outlines how the AI assistant will autonomously build production�
    - Extend ToolRouter + DiagramCommands; update schema & prompt examples
    - Add telemetry for view actions; acceptance tests
 3) Iterate using JSONL logs to refine heuristics and prompts
-
