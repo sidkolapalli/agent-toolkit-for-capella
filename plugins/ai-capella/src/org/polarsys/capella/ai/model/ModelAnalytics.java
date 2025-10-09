@@ -133,7 +133,7 @@ public final class ModelAnalytics {
         return stats;
     }
 
-    private static void visit(EObject root, java.util.function.Consumer<EObject> consumer) {
+    public static void visit(EObject root, java.util.function.Consumer<EObject> consumer) {
         var iterator = EcoreUtil.getAllProperContents(root, true);
         while (iterator.hasNext()) {
             consumer.accept((EObject) iterator.next());

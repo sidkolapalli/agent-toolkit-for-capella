@@ -491,6 +491,15 @@ public final class ToolRouter {
                             t.requirementLinkCoverage(), minReqLinks));
                 }
             } catch (Exception ignore3) { }
+            // Auto-fix patterns: orphan exchanges with missing endpoints
+            try {
+                var fixes = org.polarsys.capella.ai.model.AutoFixes.apply(session);
+                if (fixes.orphanComponentExchangesRemoved > 0 || fixes.orphanFunctionalExchangesRemoved > 0) {
+                    String msg = String.format("auto-fix: removed %d component exchanges, %d functional exchanges with missing endpoints",
+                            fixes.orphanComponentExchangesRemoved, fixes.orphanFunctionalExchangesRemoved);
+                    Telemetry.recordToolCall(-1, "AUTO_FIX", "cleanup orphan exchanges", "result", msg);
+                }
+            } catch (Exception ignore4) { }
         } catch (Exception ignore) { }
         return new PlanExecutionResult(applied, errors);
     }
