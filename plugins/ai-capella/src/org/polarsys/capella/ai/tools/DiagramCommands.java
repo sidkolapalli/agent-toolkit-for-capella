@@ -121,12 +121,32 @@ public final class DiagramCommands {
 
     /** Best-effort: remove a view element corresponding to a semantic EObject from the current diagram (no semantic delete). */
     public static boolean removeViewElement(Session session, DRepresentation rep, EObject semantic) {
+        if (session == null || rep == null || semantic == null) return false;
         try {
-            // Without direct editor access, attempt a refresh and rely on reveal API to check presence.
-            // As a placeholder, we just refresh; proper implementation would locate the DDiagramElement and delete it.
-            if (session == null || rep == null || semantic == null) return false;
-            DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
-            return false; // not yet implemented
+            if (!(rep instanceof DDiagram)) {
+                DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
+                return false;
+            }
+            return SessionSafeguards.runWrite(session, "Remove view element", () -> {
+                DDiagram diagram = (DDiagram) rep;
+                java.util.List<org.eclipse.sirius.diagram.DDiagramElement> toRemove = new java.util.ArrayList<>();
+                var it = diagram.eAllContents();
+                while (it.hasNext()) {
+                    Object obj = it.next();
+                    if (obj instanceof org.eclipse.sirius.diagram.DDiagramElement) {
+                        org.eclipse.sirius.diagram.DDiagramElement el = (org.eclipse.sirius.diagram.DDiagramElement) obj;
+                        if (semantic.equals(el.getTarget())) {
+                            toRemove.add(el);
+                        }
+                    }
+                }
+                if (toRemove.isEmpty()) return false;
+                for (org.eclipse.sirius.diagram.DDiagramElement el : toRemove) {
+                    try { org.eclipse.emf.ecore.util.EcoreUtil.delete(el, true); } catch (Exception ignore) {}
+                }
+                try { DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor()); } catch (Exception ignore) {}
+                return true;
+            });
         } catch (Exception e) {
             LOG.warning("removeViewElement failed: " + e.getMessage());
             return false;
