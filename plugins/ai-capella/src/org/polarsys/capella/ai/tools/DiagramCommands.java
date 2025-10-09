@@ -639,6 +639,7 @@ public final class DiagramCommands {
             RGBValues fgV = (fg != null && fg >= 0) ? toRgb(fg) : null;
             RGBValues bgV = (bg != null && bg >= 0) ? toRgb(bg) : null;
             RGBValues bdV = (bd != null && bd >= 0) ? toRgb(bd) : null;
+            final org.eclipse.sirius.diagram.DDiagramElement targetRef = target;
             return SessionSafeguards.runWrite(session, "Style view element", () -> {
                 boolean changed = false;
                 try {
@@ -662,6 +663,32 @@ public final class DiagramCommands {
                         changed = true;
                     }
                 } catch (Throwable ignore) {}
+                // Best-effort: show/hide icon if supported by style
+                try {
+                    java.lang.reflect.Method m = styleHolder[0].getClass().getMethod("setShowIcon", boolean.class);
+                    // If method exists, default to true unless explicitly set false by caller
+                    Boolean showIcon = null;
+                    try {
+                        // Try to retrieve a cached value from a thread-local if present; otherwise skip (set below if provided)
+                        showIcon = (Boolean) org.polarsys.capella.ai.tools.DiagramCommands.ThreadLocalStyling.get("showIcon");
+                    } catch (Throwable ignore) {}
+                    if (showIcon != null) {
+                        m.invoke(styleHolder[0], showIcon.booleanValue());
+                        changed = true;
+                    }
+                } catch (Throwable ignore) {}
+                // Best-effort: set label text on representation element if supported
+                try {
+                    String labelText = null;
+                    try { labelText = (String) org.polarsys.capella.ai.tools.DiagramCommands.ThreadLocalStyling.get("labelText"); } catch (Throwable ignore) {}
+                    if (labelText != null) {
+                        try {
+                            var m = targetRef.getClass().getMethod("setName", String.class);
+                            m.invoke(targetRef, labelText);
+                            changed = true;
+                        } catch (Throwable ig2) {}
+                    }
+                } catch (Throwable ignore) {}
                 if (changed) {
                     try { DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor()); } catch (Exception ignore) {}
                 }
@@ -671,6 +698,14 @@ public final class DiagramCommands {
             LOG.warning("styleViewElement failed: " + e.getMessage());
             return false;
         }
+    }
+
+    /** Internal helper to pass additional styling flags without API changes. */
+    public static final class ThreadLocalStyling {
+        private static final ThreadLocal<java.util.Map<String, Object>> TL = ThreadLocal.withInitial(java.util.HashMap::new);
+        public static void put(String k, Object v) { TL.get().put(k, v); }
+        public static Object get(String k) { return TL.get().get(k); }
+        public static void clear() { TL.get().clear(); }
     }
 
     private static RGBValues toRgb(int rgb) {

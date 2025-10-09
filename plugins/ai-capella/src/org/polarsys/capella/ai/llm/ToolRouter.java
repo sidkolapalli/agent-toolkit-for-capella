@@ -561,7 +561,13 @@ public final class ToolRouter {
                 Integer fg = action.fg >= 0 ? Integer.valueOf(action.fg) : null;
                 Integer bg = action.bg >= 0 ? Integer.valueOf(action.bg) : null;
                 Integer bd = action.bd >= 0 ? Integer.valueOf(action.bd) : null;
-                return DiagramCommands.styleViewElement(s, rep, sem, fg, bg, bd);
+                try {
+                    if (action.showIcon != null) org.polarsys.capella.ai.tools.DiagramCommands.ThreadLocalStyling.put("showIcon", action.showIcon);
+                    if (action.labelText != null && !action.labelText.isBlank()) org.polarsys.capella.ai.tools.DiagramCommands.ThreadLocalStyling.put("labelText", action.labelText);
+                    return DiagramCommands.styleViewElement(s, rep, sem, fg, bg, bd);
+                } finally {
+                    try { org.polarsys.capella.ai.tools.DiagramCommands.ThreadLocalStyling.clear(); } catch (Throwable ignore) {}
+                }
             }
             case RENAME_DIAGRAM: {
                 Session s = SessionBridge.getActiveSession();
@@ -684,6 +690,7 @@ public final class ToolRouter {
         sb.append("Cross-check references against the live model and reuse existing artefacts when possible.\n");
         sb.append("- add_view_node {diagram?, semantic, x?, y?}\n");
         sb.append("- add_view_edge {diagram?, source, target}\n");
+        sb.append("- style_view {diagram?, element, foreground?, background?, border?, label_text?, show_icon?}\n");
         sb.append("- arrange_selection {diagram?, strategy} where strategy ∈ {left|right|top|bottom|hcenter|vcenter|hspace|vspace|grid|auto}\n");
         sb.append("Acknowledge validation warnings from dry-run simulations.\n");
         sb.append("Current model snapshot:\n");
@@ -1253,6 +1260,7 @@ public final class ToolRouter {
         // View geometry fields
         int x; int y; int width; int height;
         int fg = -1; int bg = -1; int bd = -1; // colors (0xRRGGBB)
+        String labelText; Boolean showIcon;
 
         static Action fromMap(int index, Map<String, Object> map) {
             // Tolerate both shapes:
@@ -1399,6 +1407,8 @@ public final class ToolRouter {
                     a.fg = parseColor(map.get("foreground"));
                     a.bg = parseColor(map.get("background"));
                     a.bd = parseColor(map.get("border"));
+                    a.labelText = string(map.get("label_text"));
+                    a.showIcon = (map.get("show_icon") == null) ? null : Boolean.valueOf(bool(map.get("show_icon"), false));
                     return a;
                 }
                 case RENAME_DIAGRAM:

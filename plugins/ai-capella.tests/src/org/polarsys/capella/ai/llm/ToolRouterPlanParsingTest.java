@@ -173,7 +173,7 @@ public class ToolRouterPlanParsingTest {
     public void parsesStyleView() throws Exception {
         String plan = "{\n" +
                 "  \"actions\": [\n" +
-                "    { \"style_view\": { \"element\": \"Passenger\", \"foreground\": \"#112233\", \"background\": \"#445566\", \"border\": \"#AABBCC\" } }\n" +
+                "    { \"style_view\": { \"element\": \"Passenger\", \"foreground\": \"#112233\", \"background\": \"#445566\", \"border\": \"#AABBCC\", \"label_text\": \"VIP Passenger\", \"show_icon\": true } }\n" +
                 "  ]\n" +
                 "}";
         List<Object> actions = invokeParseActions(plan);
@@ -181,6 +181,8 @@ public class ToolRouterPlanParsingTest {
         Object a0 = actions.get(0);
         assertTrue(readField(a0, "type").contains("STYLE_VIEW"));
         assertEquals("Passenger", readField(a0, "existingName"));
+        assertEquals("true", readField(a0, "showIcon"));
+        assertEquals("VIP Passenger", readField(a0, "labelText"));
     }
 
     @Test
