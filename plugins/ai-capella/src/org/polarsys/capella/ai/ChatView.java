@@ -80,6 +80,9 @@ import org.polarsys.capella.ai.telemetry.Telemetry;
 import org.polarsys.capella.ai.ui.ConversationController;
 import org.polarsys.capella.ai.ui.ConversationPanel;
 import org.polarsys.capella.ai.ui.PlanEditorDialog;
+import org.polarsys.capella.ai.session.PlanOrchestrator;
+import org.polarsys.capella.ai.importer.SpecImporter;
+import org.polarsys.capella.ai.preferences.AdvancedPreferences;
 
 /**
  * Chat-centric view providing inline model tools and immediate LLM configuration.
@@ -171,6 +174,9 @@ public class ChatView extends ViewPart {
     private Combo sessionCombo;
     private java.util.List<Session> sessionChoices = new ArrayList<>();
     private Session selectedSession;
+    private ToolPlan lastPreviewPlan;
+    private PlanOrchestrator.Handle orchestratorHandle;
+    private Text specInput;
 
     @Override
     public void createPartControl(Composite parent) {
@@ -607,6 +613,42 @@ public class ChatView extends ViewPart {
                 onImportDrawio();
             }
         });
+
+        // Autopilot orchestration & Spec-driven import
+        Group autopilot = new Group(parent, SWT.NONE);
+        autopilot.setText("Autopilot");
+        autopilot.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        autopilot.setLayout(new GridLayout(5, false));
+
+        Button applyOrchestrated = new Button(autopilot, SWT.PUSH);
+        applyOrchestrated.setText("Apply Plan (Orchestrated)");
+        applyOrchestrated.addSelectionListener(new SelectionAdapter() { @Override public void widgetSelected(SelectionEvent e) { onApplyOrchestrated(); }});
+
+        Button pause = new Button(autopilot, SWT.PUSH);
+        pause.setText("Pause");
+        pause.addSelectionListener(new SelectionAdapter() { @Override public void widgetSelected(SelectionEvent e) { if (orchestratorHandle != null) orchestratorHandle.pause(); }});
+
+        Button resume = new Button(autopilot, SWT.PUSH);
+        resume.setText("Resume");
+        resume.addSelectionListener(new SelectionAdapter() { @Override public void widgetSelected(SelectionEvent e) { if (orchestratorHandle != null) orchestratorHandle.resume(); }});
+
+        Button cancel = new Button(autopilot, SWT.PUSH);
+        cancel.setText("Cancel");
+        cancel.addSelectionListener(new SelectionAdapter() { @Override public void widgetSelected(SelectionEvent e) { if (orchestratorHandle != null) orchestratorHandle.cancel(); }});
+
+        new Label(autopilot, SWT.NONE).setText(""); // filler
+
+        Label specLabel = new Label(autopilot, SWT.NONE);
+        specLabel.setText("Spec (text):");
+        specLabel.setLayoutData(new GridData(SWT.LEFT, SWT.TOP, false, false));
+        specInput = new Text(autopilot, SWT.BORDER | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL);
+        GridData specData = new GridData(SWT.FILL, SWT.FILL, true, false, 3, 1);
+        specData.heightHint = 80;
+        specInput.setLayoutData(specData);
+        Button planFromSpec = new Button(autopilot, SWT.PUSH);
+        planFromSpec.setText("Plan from Spec");
+        planFromSpec.setLayoutData(new GridData(SWT.RIGHT, SWT.TOP, false, false));
+        planFromSpec.addSelectionListener(new SelectionAdapter() { @Override public void widgetSelected(SelectionEvent e) { onPlanFromSpec(); }});
 
         Group advanced = new Group(tools, SWT.NONE);
         advanced.setText("Element operations");
@@ -1088,6 +1130,7 @@ public class ChatView extends ViewPart {
                     }
                 }
                 var preview = conversationController.showPlanPreview(plan, summary);
+                lastPreviewPlan = plan;
                 // Merge validator issues (from parse) and dry-run issues for chips
                 java.util.List<String> chips = new java.util.ArrayList<>();
                 if (result.validationIssues != null) chips.addAll(result.validationIssues);
@@ -1163,6 +1206,12 @@ public class ChatView extends ViewPart {
         Job job = new Job("Apply AI plan") {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
+                boolean orch = AdvancedPreferences.isOrchestrationEnabled() && plan.size() > 10;
+                if (orch) {
+                    Display.getDefault().asyncExec(() -> conversationController.addSystemMessage("Starting orchestrated apply (" + plan.size() + " actions)…"));
+                    orchestratorHandle = PlanOrchestrator.start(session, diagram, plan);
+                    return Status.OK_STATUS;
+                }
                 PlanExecutionResult execution = ToolRouter.applyPlan(session, diagram, plan);
                 Display.getDefault().asyncExec(() -> {
                     conversationController.addSystemMessage("✓ Plan actions applied: " + execution.applied);
@@ -1171,6 +1220,41 @@ public class ChatView extends ViewPart {
                     }
                     Telemetry.recordPlanExecution(plan, execution);
                     updateConnectionSummary();
+                });
+                return Status.OK_STATUS;
+            }
+        };
+        job.schedule();
+    }
+
+    private void onApplyOrchestrated() {
+        Session session = getSelectedOrActiveSession();
+        if (session == null) { conversationController.addSystemMessage("No active session."); return; }
+        if (lastPreviewPlan == null || lastPreviewPlan.isEmpty()) { conversationController.addSystemMessage("No plan preview available."); return; }
+        schedulePlanExecution(session, DiagramCommands.getLastOpened(), lastPreviewPlan);
+    }
+
+    private void onPlanFromSpec() {
+        Session session = getSelectedOrActiveSession();
+        if (session == null) { conversationController.addSystemMessage("No active session."); return; }
+        String text = specInput != null ? specInput.getText() : "";
+        if (text == null || text.isBlank()) { conversationController.addSystemMessage("Enter spec text first."); return; }
+        Job job = new Job("Plan from spec") {
+            @Override
+            protected IStatus run(IProgressMonitor monitor) {
+                ToolPlan sp = SpecImporter.planFromSpec(session, text);
+                if (sp == null || sp.isEmpty()) {
+                    Display.getDefault().asyncExec(() -> conversationController.addSystemMessage("No plan proposed from spec."));
+                    return Status.OK_STATUS;
+                }
+                DryRunResult dry = PlanDryRun.evaluate(session, sp);
+                List<String> summary = new ArrayList<>(sp.describe());
+                if (dry != null && dry.issues() != null && !dry.issues().isEmpty()) {
+                    summary.add(""); summary.add("Warnings:"); dry.issues().forEach(w -> summary.add(" • " + w));
+                }
+                Display.getDefault().asyncExec(() -> {
+                    var preview = conversationController.showPlanPreview(sp, summary);
+                    lastPreviewPlan = sp;
                 });
                 return Status.OK_STATUS;
             }
