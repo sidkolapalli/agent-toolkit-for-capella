@@ -319,14 +319,52 @@ public final class ModelAnalytics {
         public List<String> messages() { return messages; }
 
         static ValidationReport fromSession(ResourceSet resourceSet) {
-            // Disable deep validation to avoid Sirius interpreter/plugin lookups causing noisy logs
-            // and slowdowns on large models. Return a neutral message.
             if (resourceSet == null) {
                 return empty();
             }
+            // Quick, bounded EMF validation to surface issues without heavy plugin lookups.
+            int errors = 0;
+            int warnings = 0;
             List<String> messages = new ArrayList<>();
-            messages.add("Validation skipped (disabled in Capella AI to reduce noise).");
-            return new ValidationReport(true, 0, 0, messages);
+            int checked = 0;
+            final int MAX_CHECK = 250; // cap the number of EObjects to validate
+            try {
+                for (Resource res : resourceSet.getResources()) {
+                    if (res == null) continue;
+                    for (EObject root : res.getContents()) {
+                        if (root == null) continue;
+                        // Validate root
+                        Diagnostic d = Diagnostician.INSTANCE.validate(root);
+                        if (d != null && d.getSeverity() != Diagnostic.OK) {
+                            if (d.getSeverity() == Diagnostic.ERROR) errors++;
+                            else if (d.getSeverity() == Diagnostic.WARNING) warnings++;
+                            messages.add(formatDiagnostic(d));
+                        }
+                        checked++;
+                        if (checked >= MAX_CHECK) break;
+                        // Validate a limited number of children
+                        var it = root.eAllContents();
+                        while (it.hasNext() && checked < MAX_CHECK) {
+                            EObject eo = (EObject) it.next();
+                            Diagnostic dd = Diagnostician.INSTANCE.validate(eo);
+                            if (dd != null && dd.getSeverity() != Diagnostic.OK) {
+                                if (dd.getSeverity() == Diagnostic.ERROR) errors++;
+                                else if (dd.getSeverity() == Diagnostic.WARNING) warnings++;
+                                messages.add(formatDiagnostic(dd));
+                            }
+                            checked++;
+                        }
+                        if (checked >= MAX_CHECK) break;
+                    }
+                    if (checked >= MAX_CHECK) break;
+                }
+            } catch (Exception ex) {
+                messages.add("Validation encountered an error: " + ex.getMessage());
+            }
+            if (messages.isEmpty()) {
+                messages.add("Validation: no issues found in quick scan.");
+            }
+            return new ValidationReport(true, errors, warnings, messages);
         }
 
         private static String formatDiagnostic(Diagnostic diagnostic) {

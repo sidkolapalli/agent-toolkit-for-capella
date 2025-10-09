@@ -444,6 +444,24 @@ public final class ToolRouter {
                 Telemetry.recordToolCall(i, action.type.name(), action.describe(), "error", msg);
             }
         }
+        // Post-apply: run a quick validation scan and record summary in telemetry
+        try {
+            var analysis = org.polarsys.capella.ai.model.ModelAnalytics.analyze(session);
+            var report = analysis.validation();
+            if (report != null && report.isAvailable()) {
+                String summary = String.format("errors=%d, warnings=%d", report.errorCount(), report.warningCount());
+                Telemetry.recordToolCall(-1, "VALIDATION", "post-apply validation", "summary", summary);
+                // Surface top messages as errors if any real errors were found
+                if (report.errorCount() > 0) {
+                    for (String msg : report.messages()) {
+                        if (msg != null && !msg.isBlank()) {
+                            errors.add("validation: " + msg);
+                        }
+                        if (errors.size() >= 5) break; // avoid flooding
+                    }
+                }
+            }
+        } catch (Exception ignore) { }
         return new PlanExecutionResult(applied, errors);
     }
 
