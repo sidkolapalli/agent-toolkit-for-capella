@@ -195,6 +195,37 @@ public class ToolRouterPlanParsingTest {
     }
 
     @Test
+    public void parsesRenameWithIndex() throws Exception {
+        String plan = "{\n" +
+                "  \"actions\": [\n" +
+                "    { \"type\": \"rename\", \"class\": \"LogicalComponent\", \"name\": \"Computer\", \"new_name\": \"Flight Computer\", \"index\": 2 }\n" +
+                "  ]\n" +
+                "}";
+        List<Object> actions = invokeParseActions(plan);
+        assertEquals(1, actions.size());
+        Object a0 = actions.get(0);
+        assertTrue(readField(a0, "type").contains("RENAME"));
+        assertEquals("LogicalComponent", readField(a0, "elementClass"));
+        assertEquals("Computer", readField(a0, "existingName"));
+        assertEquals("2", readField(a0, "existingIndex"));
+    }
+
+    @Test
+    public void parsesExchangeWithEndpointIndices() throws Exception {
+        String plan = "{\n" +
+                "  \"actions\": [\n" +
+                "    { \"create_component_exchange\": { \"layer\": \"LA\", \"name\": \"Bus\", \"source_name\": \"LC\", \"source_index\": 1, \"target_name\": \"LC\", \"target_index\": 2 } }\n" +
+                "  ]\n" +
+                "}";
+        List<Object> actions = invokeParseActions(plan);
+        assertEquals(1, actions.size());
+        Object a0 = actions.get(0);
+        assertTrue(readField(a0, "type").contains("CREATE_COMPONENT_EXCHANGE"));
+        assertEquals("1", readField(a0, "sourceIndex"));
+        assertEquals("2", readField(a0, "targetIndex"));
+    }
+
+    @Test
     public void parsesStyleView() throws Exception {
         String plan = "{\n" +
                 "  \"actions\": [\n" +

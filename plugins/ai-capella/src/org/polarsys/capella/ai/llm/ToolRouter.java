@@ -516,10 +516,36 @@ public final class ToolRouter {
                 return createComponent(session, action.layer, action.name);
             case CREATE_FUNCTION:
                 return createFunction(session, action.layer, action.name);
-            case CREATE_COMPONENT_EXCHANGE:
-                return createComponentExchange(session, action.layer, action.sourceName, action.targetName, action.name);
-            case CREATE_FUNCTIONAL_EXCHANGE:
-                return createFunctionalExchange(session, action.layer, action.sourceName, action.targetName, action.name);
+            case CREATE_COMPONENT_EXCHANGE: {
+                EObject root = ArchitectureLocator.findTargetElement(session, action.layer);
+                EObject src = (action.sourceIndex != null)
+                        ? findByNameWithIndex(session, "LogicalComponent", action.sourceName, action.sourceIndex)
+                        : Finders.findByName(session, "LogicalComponent", action.sourceName);
+                EObject tgt = (action.targetIndex != null)
+                        ? findByNameWithIndex(session, "LogicalComponent", action.targetName, action.targetIndex)
+                        : Finders.findByName(session, "LogicalComponent", action.targetName);
+                if (root == null || src == null || tgt == null) return false;
+                EObject exchange = ElementFactory.createUnder(session, root, "ComponentExchange", action.name);
+                if (exchange == null) return false;
+                setEndpoint(exchange, "source", src);
+                setEndpoint(exchange, "target", tgt);
+                return true;
+            }
+            case CREATE_FUNCTIONAL_EXCHANGE: {
+                EObject root = ArchitectureLocator.findTargetElement(session, action.layer);
+                EObject src = (action.sourceIndex != null)
+                        ? findByNameWithIndex(session, "LogicalFunction", action.sourceName, action.sourceIndex)
+                        : Finders.findByName(session, "LogicalFunction", action.sourceName);
+                EObject tgt = (action.targetIndex != null)
+                        ? findByNameWithIndex(session, "LogicalFunction", action.targetName, action.targetIndex)
+                        : Finders.findByName(session, "LogicalFunction", action.targetName);
+                if (root == null || src == null || tgt == null) return false;
+                EObject exchange = ElementFactory.createUnder(session, root, "FunctionalExchange", action.name);
+                if (exchange == null) return false;
+                setEndpoint(exchange, "source", src);
+                setEndpoint(exchange, "target", tgt);
+                return true;
+            }
             case CREATE_LAB:
                 return createLabDiagram(session, action.layer);
             case CREATE_MISSION:
@@ -1008,6 +1034,8 @@ public final class ToolRouter {
 
     private static boolean createComponentExchange(Session session, String layer, String sourceName, String targetName, String name) {
         EObject root = ArchitectureLocator.findTargetElement(session, layer);
+        Integer si = null, ti = null;
+        // Attempt to use indices if available via current action (not directly passed here)
         EObject src = Finders.findByName(session, "LogicalComponent", sourceName);
         EObject tgt = Finders.findByName(session, "LogicalComponent", targetName);
         if (root == null || src == null || tgt == null) {
@@ -1058,7 +1086,7 @@ public final class ToolRouter {
     }
 
     private static boolean rename(Session session, String elementClass, String existingName, String newName) {
-        EObject target = Finders.findByName(session, elementClass, existingName);
+        EObject target = findByNameWithIndex(session, elementClass, existingName, null);
         if (target == null) {
             return false;
         }
@@ -1066,7 +1094,7 @@ public final class ToolRouter {
     }
 
     private static boolean delete(Session session, String elementClass, String existingName) {
-        EObject target = Finders.findByName(session, elementClass, existingName);
+        EObject target = findByNameWithIndex(session, elementClass, existingName, null);
         if (target == null) {
             return false;
         }
@@ -1100,6 +1128,38 @@ public final class ToolRouter {
             }
         } catch (Exception ignore) {
         }
+    }
+    
+    private static EObject findByNameWithIndex(Session session, String simpleClass, String name, Integer index) {
+        if (session == null || simpleClass == null || name == null || name.isBlank()) return null;
+        try {
+            // If no index requested, fallback to default finder
+            if (index == null || index.intValue() <= 0) {
+                return Finders.findByName(session, simpleClass, name);
+            }
+            int want = index.intValue();
+            var domain = session.getTransactionalEditingDomain();
+            if (domain == null) return null;
+            var rs = domain.getResourceSet();
+            int seen = 0;
+            for (org.eclipse.emf.ecore.resource.Resource res : rs.getResources()) {
+                if (res == null) continue;
+                var it = res.getAllContents();
+                while (it.hasNext()) {
+                    EObject eo = it.next();
+                    if (eo == null) continue;
+                    if (!simpleClass.equals(eo.eClass().getName())) continue;
+                    var feat = eo.eClass().getEStructuralFeature("name");
+                    if (feat == null) continue;
+                    Object v = eo.eGet(feat);
+                    if (v != null && name.equals(String.valueOf(v))) {
+                        seen++;
+                        if (seen == want) return eo;
+                    }
+                }
+            }
+            return null;
+        } catch (Exception ignore) { return null; }
     }
 
     private static String uuidOf(EObject eo) {
@@ -1351,6 +1411,7 @@ public final class ToolRouter {
         int x; int y; int width; int height;
         int fg = -1; int bg = -1; int bd = -1; // colors (0xRRGGBB)
         String labelText; Boolean showIcon;
+        Integer existingIndex; Integer sourceIndex; Integer targetIndex; Integer elementIndex;
 
         static Action fromMap(int index, Map<String, Object> map) {
             // Tolerate both shapes:
@@ -1379,31 +1440,47 @@ public final class ToolRouter {
                 case CREATE_FUNCTION:
                     return new Action(type, enforceLayer(map.get("layer"), "LA", false, index), require(map, "name", index), null, null, null, null, null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
-                case CREATE_COMPONENT_EXCHANGE:
-                    return new Action(type,
+                case CREATE_COMPONENT_EXCHANGE: {
+                    Action a = new Action(type,
                             enforceLayer(map.get("layer"), "LA", false, index),
                             stringOrDefault(map.get("name"), "ComponentExchange"),
                             require(map, "source_name", index),
                             require(map, "target_name", index),
                             null, null, null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
-                case CREATE_FUNCTIONAL_EXCHANGE:
-                    return new Action(type,
+                    int si = parseInt(map.get("source_index"));
+                    int ti = parseInt(map.get("target_index"));
+                    a.sourceIndex = si > 0 ? Integer.valueOf(si) : null;
+                    a.targetIndex = ti > 0 ? Integer.valueOf(ti) : null;
+                    return a;
+                }
+                case CREATE_FUNCTIONAL_EXCHANGE: {
+                    Action a = new Action(type,
                             enforceLayer(map.get("layer"), "LA", false, index),
                             stringOrDefault(map.get("name"), "FunctionalExchange"),
                             require(map, "source_function", index),
                             require(map, "target_function", index),
                             null, null, null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
+                    int si = parseInt(map.get("source_index"));
+                    int ti = parseInt(map.get("target_index"));
+                    a.sourceIndex = si > 0 ? Integer.valueOf(si) : null;
+                    a.targetIndex = ti > 0 ? Integer.valueOf(ti) : null;
+                    return a;
+                }
                 case CREATE_LAB:
                     return new Action(type, enforceLayer(map.get("layer"), "LA", false, index), null, null, null, null, null, null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case OPEN_DIAGRAM:
                     return new Action(type, enforceLayer(map.get("layer"), "LA", false, index), stringOrDefault(map.get("name"), ""), null, null, null, null, null, stringOrDefault(map.get("type"), "LAB"), null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
-                case RENAME:
-                    return new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), require(map, "new_name", index), null, null, null, null,
+                case RENAME: {
+                    Action rn = new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), require(map, "new_name", index), null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
+                    int idx = parseInt(map.get("index"));
+                    rn.existingIndex = idx > 0 ? Integer.valueOf(idx) : null;
+                    return rn;
+                }
                 case CREATE_MISSION:
                     return new Action(type, enforceLayer(map.get("layer"), "OA", false, index), require(map, "name", index), null, null, null, null, null, null, null, stringOrDefault(map.get("description"), ""), null,
                             null, null, null, false, false, null, null, null, null, null);
@@ -1479,12 +1556,17 @@ public final class ToolRouter {
                     a.y = parseInt(map.get("y"));
                     a.width = parseInt(map.get("width"));
                     a.height = parseInt(map.get("height"));
+                    int ei = parseInt(map.get("element_index"));
+                    a.elementIndex = ei > 0 ? Integer.valueOf(ei) : null;
                     return a;
                 }
                 case REMOVE_VIEW_ELEMENT:
-                    return new Action(type, enforceLayer(map.get("layer"), "", true, index), string(map.get("diagram")), null, null,
+                    Action rve = new Action(type, enforceLayer(map.get("layer"), "", true, index), string(map.get("diagram")), null, null,
                             null, require(map, "element", index), null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
+                    int rei = parseInt(map.get("element_index"));
+                    rve.elementIndex = rei > 0 ? Integer.valueOf(rei) : null;
+                    return rve;
                 case ARRANGE_SELECTION:
                     // reuse description to carry a simple strategy label (e.g., auto, grid)
                     return new Action(type, enforceLayer(map.get("layer"), "", true, index), string(map.get("diagram")), null, null,
