@@ -16,6 +16,16 @@ import org.eclipse.sirius.viewpoint.description.Viewpoint;
 import org.eclipse.sirius.ui.business.api.dialect.DialectUIManager;
 import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.session.SessionSafeguards;
+import org.eclipse.ui.IEditorPart;
+import org.eclipse.ui.IWorkbenchPage;
+import org.eclipse.ui.IWorkbenchWindow;
+import org.eclipse.ui.PlatformUI;
+import org.eclipse.gmf.runtime.diagram.ui.editparts.IGraphicalEditPart;
+import org.eclipse.gmf.runtime.notation.Bounds;
+import org.eclipse.gmf.runtime.notation.LayoutConstraint;
+import org.eclipse.gmf.runtime.notation.Node;
+import org.eclipse.gmf.runtime.notation.NotationFactory;
+import org.eclipse.gmf.runtime.notation.View;
 
 /** In‑process diagram helpers using Sirius UI APIs (arrange/layout visible). */
 public final class DiagramCommands {
@@ -155,10 +165,91 @@ public final class DiagramCommands {
 
     /** Best-effort: set bounds for a view element (requires active editor/GMF). Placeholder returns false for now. */
     public static boolean setViewBounds(Session session, DRepresentation rep, EObject semantic, int x, int y, int w, int h) {
+        if (session == null || rep == null || semantic == null) return false;
+        if (!(rep instanceof DDiagram)) return false;
         try {
-            if (session == null || rep == null || semantic == null) return false;
-            DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
-            return false; // to be implemented with GMF editpart commands
+            // Find the DDiagramElement that targets the semantic EObject
+            DDiagram diagram = (DDiagram) rep;
+            org.eclipse.sirius.diagram.DDiagramElement target = null;
+            var it = diagram.eAllContents();
+            while (it.hasNext()) {
+                Object o = it.next();
+                if (o instanceof org.eclipse.sirius.diagram.DDiagramElement) {
+                    var el = (org.eclipse.sirius.diagram.DDiagramElement) o;
+                    if (semantic.equals(el.getTarget())) { target = el; break; }
+                }
+            }
+            if (target == null) {
+                // Attempt reveal then search again
+                addElementsByUuid(session, rep, java.util.List.of(tryUuid(semantic)));
+                DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
+                it = diagram.eAllContents();
+                while (it.hasNext()) {
+                    Object o = it.next();
+                    if (o instanceof org.eclipse.sirius.diagram.DDiagramElement) {
+                        var el = (org.eclipse.sirius.diagram.DDiagramElement) o;
+                        if (semantic.equals(el.getTarget())) { target = el; break; }
+                    }
+                }
+                if (target == null) return false;
+            }
+
+            // Locate the active Sirius diagram editor and its edit part
+            IWorkbenchWindow win = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+            if (win == null) return false;
+            IWorkbenchPage page = win.getActivePage();
+            if (page == null) return false;
+            IEditorPart part = page.getActiveEditor();
+            if (part == null) return false;
+            org.eclipse.gef.EditPartViewer viewer = null;
+            try {
+                // Try Sirius Diagram Editor API
+                Class<?> edClass = Class.forName("org.eclipse.sirius.diagram.ui.tools.api.editor.DDiagramEditor");
+                if (edClass.isInstance(part)) {
+                    var m = edClass.getMethod("getDiagramGraphicalViewer");
+                    Object v = m.invoke(part);
+                    if (v instanceof org.eclipse.gef.EditPartViewer) viewer = (org.eclipse.gef.EditPartViewer) v;
+                }
+            } catch (Throwable ignore) {}
+            if (viewer == null) return false;
+
+            IGraphicalEditPart found = null;
+            for (Object epObj : viewer.getEditPartRegistry().values()) {
+                if (epObj instanceof IGraphicalEditPart) {
+                    IGraphicalEditPart ep = (IGraphicalEditPart) epObj;
+                    try {
+                        Object semEl = ep.resolveSemanticElement();
+                        if (semEl == target) { found = ep; break; }
+                        Object model = ep.getModel();
+                        if (model instanceof View) {
+                            View view = (View) model;
+                            if (target.equals(view.getElement())) { found = ep; break; }
+                        }
+                    } catch (Exception ignore) {}
+                }
+            }
+            if (found == null) return false;
+
+            // Mutate notation bounds inside write transaction
+            final IGraphicalEditPart epFound = found;
+            return SessionSafeguards.runWrite(session, "Set view bounds", () -> {
+                Object model = epFound.getModel();
+                if (!(model instanceof View)) return false;
+                if (!(model instanceof Node)) return false; // only nodes have bounds
+                Node node = (Node) model;
+                LayoutConstraint lc = node.getLayoutConstraint();
+                if (!(lc instanceof Bounds)) {
+                    node.setLayoutConstraint(NotationFactory.eINSTANCE.createBounds());
+                    lc = node.getLayoutConstraint();
+                }
+                Bounds b = (Bounds) lc;
+                if (x >= 0) b.setX(x);
+                if (y >= 0) b.setY(y);
+                if (w > 0) b.setWidth(w);
+                if (h > 0) b.setHeight(h);
+                try { DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor()); } catch (Exception ignore) {}
+                return true;
+            });
         } catch (Exception e) {
             LOG.warning("setViewBounds failed: " + e.getMessage());
             return false;
