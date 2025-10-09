@@ -416,6 +416,13 @@ public final class ToolRouter {
         if (session == null || plan == null || plan.isEmpty()) {
             return new PlanExecutionResult(0, List.of());
         }
+        // Budget gate: limit maximum number of actions per plan
+        int maxActions = org.polarsys.capella.ai.preferences.AdvancedPreferences.getMaxPlanActions();
+        if (plan.size() > Math.max(1, maxActions)) {
+            String msg = String.format("plan exceeds action limit: %d > %d", plan.size(), maxActions);
+            Telemetry.recordToolCall(-1, "BUDGET", "plan too large", "limit", msg);
+            return new PlanExecutionResult(0, List.of(msg));
+        }
         return SessionSafeguards.deferSaves(session, () ->
             SessionSafeguards.runWrite(session, "Apply AI plan", () -> applyPlanInternal(session, diagram, plan))
         );

@@ -32,8 +32,9 @@ This document outlines how the AI assistant will autonomously build production�
 - [x] Selection ops: align, distribute, grid (nudge/group/ungroup TBD)
 - [x] Diagram lifecycle: duplicate, rename, delete, reveal
 - [x] Styling: colors (label/background/border)
-- [ ] Styling: icons, labels text (within Capella/Sirius constraints)
-- [ ] Layout heuristics per diagram type (radial/flow/per‑type spacing; minimal crossings)
+- [x] Styling: icons, labels text (within Capella/Sirius constraints)
+- [x] Basic layout heuristics: flow and radial
+- [ ] Layout heuristics per diagram type (per‑type spacing; minimal crossings)
 
 ### Autopilot Loop (Hands‑off build)
 - [x] Plan preview + dry‑run validation + diffs + undo
@@ -52,6 +53,7 @@ This document outlines how the AI assistant will autonomously build production�
   - [x] `set_view_bounds {diagram?, element, x,y,width,height}`
   - [x] `remove_view_element {diagram?, element}`
   - [x] `arrange_selection {diagram?, strategy}`
+  - [x] `style_view {diagram?, element, foreground?, background?, border?, label_text?, show_icon?}`
   - [x] `rename_diagram|delete_diagram|duplicate_diagram|reveal_in_diagram`
 - [x] Tight JSON schema (required/optional fields, enums) + in‑prompt examples
 - [x] Stable referencing: names + UUID (id)
@@ -59,15 +61,19 @@ This document outlines how the AI assistant will autonomously build production�
 
 ### Validation & Quality Gates
 - [x] Preflight existence checks (sources/targets/layers)
-- [ ] Post‑apply Capella validation packs; auto‑fix patterns
+- [x] Post‑apply quick validation (bounded EMF Diagnostician) + telemetry summary
+- [x] Auto‑fix patterns: remove orphan exchanges with missing endpoints (capped)
+- [ ] Capella validation packs (full), deeper auto‑fixers
 - [ ] Rule packs per layer (OA/SA/LA/PA) with gating thresholds
-- [ ] Coverage/traceability targets (requirements→functions→components→exchanges)
+- [x] Coverage targets (advisory): component structure + function allocation
+- [x] Traceability targets (advisory: requirements→functions; exchanges visibility)
 
 ### Safety & Controls
 - [x] Single transaction apply + Undo
 - [x] Confirmation gates for destructive ops (unless explicitly authorized)
 - [x] Telemetry toggle (opt‑in)
-- [ ] Budgets (time/ops), pause/resume; quarantine mode for risky plans
+- [x] Budgets (ops): max actions per plan with gating
+- [ ] Budgets (time), pause/resume; quarantine mode for risky plans
 
 ### Performance & Scale
 - [x] ModelIndex + targeted lookups; reuse existing elements
@@ -115,8 +121,7 @@ This document outlines how the AI assistant will autonomously build production�
    - [x] Extend ToolRouter + DiagramCommands; update schema & prompt examples
    - [x] Add telemetry for view actions; acceptance tests
 3) Next
-   - Styling: icons/label text (where supported)
-   - Tighten JSON schema + add in‑prompt examples for new actions
+   - Tighten JSON schema + add in‑prompt examples for new actions (completed)
    - Diagram targeting by name/UID across all actions (completed)
-   - Layout heuristics per diagram type (radial/flow/per‑type spacing)
+   - Layout heuristics per diagram type (flow/radial basics implemented; add per‑type spacing and crossing minimization)
    - Optional: Log Inspector view for JSONL analysis

@@ -35,7 +35,7 @@ public final class AutoFixes {
         ResourceSet rs = session.getTransactionalEditingDomain().getResourceSet();
         final List<EObject> orphanComponentExchanges = new ArrayList<>();
         final List<EObject> orphanFunctionalExchanges = new ArrayList<>();
-        final int cap = 25; // cap number of removals per run
+        final int cap = org.polarsys.capella.ai.preferences.AdvancedPreferences.getMaxAutoFixRemovals();
 
         try {
             for (Resource res : rs.getResources()) {
@@ -98,4 +98,3 @@ public final class AutoFixes {
         } catch (Exception ignore) {}
     }
 }
-
