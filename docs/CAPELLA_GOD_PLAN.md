@@ -26,14 +26,14 @@ This document outlines how the AI assistant will autonomously build production�
 - [ ] Full EPBS/Physical artifacts and allocation flows
 - [ ] Change‑set derivation (grouped diffs for review/rollback)
 
-### Diagram/View Mastery (Sirius/GMF)
 - [x] Create/open representations; reveal/refresh; arrange; add nodes/edges by revealing semantics
 - [x] Add/remove view‑only elements (no semantic change)
 - [x] Precise geometry: set view bounds (x,y,w,h) (pin/resize/z‑order TBD)
 - [x] Selection ops: align, distribute, grid (nudge/group/ungroup TBD)
 - [x] Diagram lifecycle: duplicate, rename, delete, reveal
-- [ ] Styling: icons, labels, colors (within Capella/Sirius constraints)
-- [ ] Layout heuristics per diagram type (grid/flow/radial; minimal crossings; spacing)
+- [x] Styling: colors (label/background/border)
+- [ ] Styling: icons, labels text (within Capella/Sirius constraints)
+- [ ] Layout heuristics per diagram type (radial/flow/per‑type spacing; minimal crossings)
 
 ### Autopilot Loop (Hands‑off build)
 - [x] Plan preview + dry‑run validation + diffs + undo
@@ -46,15 +46,16 @@ This document outlines how the AI assistant will autonomously build production�
 ### Prompting & Tool Schema
 - [x] Robust parser (explicit `type` and single‑key action objects), canonical layer mapping (operational/logical/system/physical → OA/LA/SA/PA)
 - [x] LLM routing: Chat vs Responses; correct token params; SSE streaming
-- [x] Expand actions:
+- [x] Expanded actions implemented:
   - [x] `add_view_node {diagram?, semantic, x?,y?}`
   - [x] `add_view_edge {diagram?, source,target}`
   - [x] `set_view_bounds {diagram?, element, x,y,width,height}`
   - [x] `remove_view_element {diagram?, element}`
   - [x] `arrange_selection {diagram?, strategy}`
   - [x] `rename_diagram|delete_diagram|duplicate_diagram|reveal_in_diagram`
-- [ ] Tight JSON schema (required/optional fields, enums) + in‑prompt examples
-- [ ] Stable referencing (names + UUIDs + indices) and robust resolution
+- [x] Tight JSON schema (required/optional fields, enums) + in‑prompt examples
+- [x] Stable referencing: names + UUID (id)
+- [ ] Stable referencing: indices
 
 ### Validation & Quality Gates
 - [x] Preflight existence checks (sources/targets/layers)
@@ -80,7 +81,7 @@ This document outlines how the AI assistant will autonomously build production�
 - [ ] Advanced Settings: routing, budgets, schema versioning, redaction
 
 ## Acceptance Criteria
-- Diagram control: view‑only add/remove/place/resize; align/distribute; readable layouts with no overlaps in ≥95% test cases.
+- Diagram control: view‑only add/remove/place/resize; align/distribute; readable layouts with no overlaps in ≥95% test cases on test suite.
 - Cross‑layer transforms: propagate/sync/trace produce expected mappings; validated; <2% false positives.
 - Autopilot: from a requirement spec, generates OA→PA skeletons + key diagrams; no fatal validation errors; undo restores pre‑state.
 - Safety & logging: destructive actions require confirmation or explicit instruction; all events logged with correlation id and timing.
@@ -110,7 +111,12 @@ This document outlines how the AI assistant will autonomously build production�
 ## Immediate Next Steps
 1) Confirm plan
 2) Implement M1:
-   - Add view actions (add/remove nodes/edges, set bounds, arrange/align/distribute, lifecycle)
-   - Extend ToolRouter + DiagramCommands; update schema & prompt examples
-   - Add telemetry for view actions; acceptance tests
-3) Iterate using JSONL logs to refine heuristics and prompts
+   - [x] Add view actions (add/remove nodes/edges, set bounds, arrange/align/distribute, lifecycle)
+   - [x] Extend ToolRouter + DiagramCommands; update schema & prompt examples
+   - [x] Add telemetry for view actions; acceptance tests
+3) Next
+   - Styling: icons/label text (where supported)
+   - Tighten JSON schema + add in‑prompt examples for new actions
+   - Diagram targeting by name/UID across all actions (completed)
+   - Layout heuristics per diagram type (radial/flow/per‑type spacing)
+   - Optional: Log Inspector view for JSONL analysis

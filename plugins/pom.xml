@@ -22,7 +22,7 @@
 
   <build>
     <plugins>
-      <!-- No Java version enforcer: supports Java 11 toolchains -->
+      <!-- Java 17 enforced via enforcer + Tycho EE -->
       <plugin>
         <groupId>org.eclipse.tycho</groupId>
         <artifactId>tycho-maven-plugin</artifactId>
@@ -35,6 +35,7 @@
         <version>${tycho.version}</version>
         <configuration>
           <dependency-resolution>p2</dependency-resolution>
+          <executionEnvironment>JavaSE-17</executionEnvironment>
           <environments>
             <environment>
               <os>macosx</os>
@@ -50,6 +51,27 @@
             </artifact>
           </target>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>3.4.1</version>
+        <executions>
+          <execution>
+            <id>enforce-java</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireJavaVersion>
+                  <version>[17,)</version>
+                </requireJavaVersion>
+              </rules>
+              <fail>true</fail>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

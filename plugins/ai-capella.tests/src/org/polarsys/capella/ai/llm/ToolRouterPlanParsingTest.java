@@ -182,4 +182,36 @@ public class ToolRouterPlanParsingTest {
         assertTrue(readField(a0, "type").contains("STYLE_VIEW"));
         assertEquals("Passenger", readField(a0, "existingName"));
     }
+
+    @Test
+    public void rejectsInvalidArrangeStrategy() throws Exception {
+        String plan = "{\n" +
+                "  \"actions\": [\n" +
+                "    { \"type\": \"arrange_selection\", \"diagram\": \"MyLab\", \"strategy\": \"diagonal\" }\n" +
+                "  ]\n" +
+                "}";
+        try {
+            invokeParseActions(plan);
+            fail("Expected schema validation to reject invalid strategy");
+        } catch (Exception ex) {
+            Throwable t = ex.getCause() != null ? ex.getCause() : ex;
+            assertNotNull("expected a validation error message", t.getMessage());
+        }
+    }
+
+    @Test
+    public void rejectsInvalidLayerValue() throws Exception {
+        String plan = "{\n" +
+                "  \"actions\": [\n" +
+                "    { \"type\": \"create_component\", \"layer\": \"foo\", \"name\": \"X\" }\n" +
+                "  ]\n" +
+                "}";
+        try {
+            invokeParseActions(plan);
+            fail("Expected schema validation to reject invalid layer");
+        } catch (Exception ex) {
+            Throwable t = ex.getCause() != null ? ex.getCause() : ex;
+            assertNotNull("expected a validation error message", t.getMessage());
+        }
+    }
 }

@@ -492,6 +492,10 @@ public final class ToolRouter {
                 return FunctionalChainActions.attachScenario(session, action.chainName, action.scenarioName);
             case ADD_VIEW_NODE: {
                 DRepresentation rep = DiagramCommands.getLastOpened();
+                if (action.name != null && !action.name.isBlank()) {
+                    DRepresentation byName = DiagramCommands.findRepresentationByNameOrUid(session, action.name);
+                    if (byName != null) rep = byName;
+                }
                 if (rep == null) return false;
                 EObject sem = findAnyByNameOrId(session, action.existingName);
                 if (sem == null) return false;
@@ -499,6 +503,10 @@ public final class ToolRouter {
             }
             case ADD_VIEW_EDGE: {
                 DRepresentation rep = DiagramCommands.getLastOpened();
+                if (action.name != null && !action.name.isBlank()) {
+                    DRepresentation byName = DiagramCommands.findRepresentationByNameOrUid(session, action.name);
+                    if (byName != null) rep = byName;
+                }
                 if (rep == null) return false;
                 EObject src = findAnyByNameOrId(session, action.sourceName);
                 EObject tgt = findAnyByNameOrId(session, action.targetName);
@@ -507,6 +515,10 @@ public final class ToolRouter {
             }
             case SET_VIEW_BOUNDS: {
                 DRepresentation rep = DiagramCommands.getLastOpened();
+                if (action.name != null && !action.name.isBlank()) {
+                    DRepresentation byName = DiagramCommands.findRepresentationByNameOrUid(session, action.name);
+                    if (byName != null) rep = byName;
+                }
                 if (rep == null) return false;
                 EObject sem = findAnyByNameOrId(session, action.existingName);
                 if (sem == null) return false;
@@ -514,6 +526,10 @@ public final class ToolRouter {
             }
             case REMOVE_VIEW_ELEMENT: {
                 DRepresentation rep = DiagramCommands.getLastOpened();
+                if (action.name != null && !action.name.isBlank()) {
+                    DRepresentation byName = DiagramCommands.findRepresentationByNameOrUid(session, action.name);
+                    if (byName != null) rep = byName;
+                }
                 if (rep == null) return false;
                 EObject sem = findAnyByNameOrId(session, action.existingName);
                 if (sem == null) return false;
@@ -521,6 +537,10 @@ public final class ToolRouter {
             }
             case ARRANGE_SELECTION: {
                 DRepresentation rep = DiagramCommands.getLastOpened();
+                if (action.name != null && !action.name.isBlank()) {
+                    DRepresentation byName = DiagramCommands.findRepresentationByNameOrUid(SessionBridge.getActiveSession(), action.name);
+                    if (byName != null) rep = byName;
+                }
                 if (rep == null) return false;
                 String strategy = (action.description == null || action.description.isBlank()) ? "auto" : action.description;
                 Session s = SessionBridge.getActiveSession();
@@ -531,6 +551,10 @@ public final class ToolRouter {
                 Session s = SessionBridge.getActiveSession();
                 if (s == null) return false;
                 DRepresentation rep = DiagramCommands.getLastOpened();
+                if (action.name != null && !action.name.isBlank()) {
+                    DRepresentation byName = DiagramCommands.findRepresentationByNameOrUid(s, action.name);
+                    if (byName != null) rep = byName;
+                }
                 if (rep == null) return false;
                 EObject sem = findAnyByNameOrId(s, action.existingName);
                 if (sem == null) return false;
@@ -660,6 +684,7 @@ public final class ToolRouter {
         sb.append("Cross-check references against the live model and reuse existing artefacts when possible.\n");
         sb.append("- add_view_node {diagram?, semantic, x?, y?}\n");
         sb.append("- add_view_edge {diagram?, source, target}\n");
+        sb.append("- arrange_selection {diagram?, strategy} where strategy ∈ {left|right|top|bottom|hcenter|vcenter|hspace|vspace|grid|auto}\n");
         sb.append("Acknowledge validation warnings from dry-run simulations.\n");
         sb.append("Current model snapshot:\n");
         try {
@@ -825,6 +850,47 @@ public final class ToolRouter {
             actions.add(Action.fromMap(index, map));
         }
         return actions;
+    }
+
+    private static String enforceLayer(Object raw, String defaultValue, boolean allowEmpty, int index) {
+        String value = stringOrDefault(raw, defaultValue);
+        String canon = canonicalLayer(value);
+        if (canon == null) canon = value;
+        if (canon == null || canon.isBlank()) {
+            if (allowEmpty) return "";
+            throw new PlanValidationException("Action " + index + " missing or invalid layer");
+        }
+        switch (canon) {
+            case "OA":
+            case "LA":
+            case "SA":
+            case "PA":
+                return canon;
+            default:
+                if (allowEmpty && canon.isBlank()) return "";
+                throw new PlanValidationException("Action " + index + " invalid layer '" + value + "'");
+        }
+    }
+
+    private static String parseArrangeStrategy(Object raw, int index) {
+        String s = string(raw);
+        if (s == null || s.isBlank()) return "auto";
+        String v = s.trim().toLowerCase(Locale.ROOT);
+        switch (v) {
+            case "left":
+            case "right":
+            case "top":
+            case "bottom":
+            case "hcenter":
+            case "vcenter":
+            case "hspace":
+            case "vspace":
+            case "grid":
+            case "auto":
+                return v;
+            default:
+                throw new PlanValidationException("Action " + index + " invalid strategy '" + s + "'");
+        }
     }
 
     private static boolean createComponent(Session session, String layer, String name) {
@@ -1210,14 +1276,14 @@ public final class ToolRouter {
             ActionType type = ActionType.from(typeValue);
             switch (type) {
                 case CREATE_COMPONENT:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null, null, null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "LA", false, index), require(map, "name", index), null, null, null, null, null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case CREATE_FUNCTION:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null, null, null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "LA", false, index), require(map, "name", index), null, null, null, null, null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case CREATE_COMPONENT_EXCHANGE:
                     return new Action(type,
-                            stringOrDefault(map.get("layer"), "LA"),
+                            enforceLayer(map.get("layer"), "LA", false, index),
                             stringOrDefault(map.get("name"), "ComponentExchange"),
                             require(map, "source_name", index),
                             require(map, "target_name", index),
@@ -1225,90 +1291,90 @@ public final class ToolRouter {
                             null, null, null, false, false, null, null, null, null, null);
                 case CREATE_FUNCTIONAL_EXCHANGE:
                     return new Action(type,
-                            stringOrDefault(map.get("layer"), "LA"),
+                            enforceLayer(map.get("layer"), "LA", false, index),
                             stringOrDefault(map.get("name"), "FunctionalExchange"),
                             require(map, "source_function", index),
                             require(map, "target_function", index),
                             null, null, null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case CREATE_LAB:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null, null, null, null, null, null, null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "LA", false, index), null, null, null, null, null, null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case OPEN_DIAGRAM:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), stringOrDefault(map.get("name"), ""), null, null, null, null, null, stringOrDefault(map.get("type"), "LAB"), null, null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "LA", false, index), stringOrDefault(map.get("name"), ""), null, null, null, null, null, stringOrDefault(map.get("type"), "LAB"), null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case RENAME:
                     return new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), require(map, "new_name", index), null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case CREATE_MISSION:
-                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), require(map, "name", index), null, null, null, null, null, null, null, stringOrDefault(map.get("description"), ""), null,
+                    return new Action(type, enforceLayer(map.get("layer"), "OA", false, index), require(map, "name", index), null, null, null, null, null, null, null, stringOrDefault(map.get("description"), ""), null,
                             null, null, null, false, false, null, null, null, null, null);
                 case CREATE_OPERATIONAL_ACTIVITY:
-                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "OA", false, index), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case CREATE_OPERATIONAL_EXCHANGE:
-                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), stringOrDefault(map.get("name"), "OperationalExchange"), require(map, "source_actor", index), require(map, "target_actor", index), null, null, null, null, null, null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "OA", false, index), stringOrDefault(map.get("name"), "OperationalExchange"), require(map, "source_actor", index), require(map, "target_actor", index), null, null, null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case LINK_OPERATIONAL_TO_CAPABILITY:
-                    return new Action(type, stringOrDefault(map.get("layer"), "OA"), null, null, null, null, require(map, "operational_activity", index), null, null, null, null, require(map, "capability", index),
+                    return new Action(type, enforceLayer(map.get("layer"), "OA", false, index), null, null, null, null, require(map, "operational_activity", index), null, null, null, null, require(map, "capability", index),
                             null, null, null, false, false, null, null, null, null, null);
                 case CREATE_SYSTEM_COMPONENT:
-                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "SA", false, index), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case CREATE_SYSTEM_FUNCTION:
-                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "SA", false, index), require(map, "name", index), null, null, null, null, null, null, stringOrDefault(map.get("parent_name"), ""), null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case CREATE_INTERFACE:
-                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), stringOrDefault(map.get("name"), "ComponentExchange"), require(map, "source_component", index), require(map, "target_component", index), null, null, null, null, null, null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "SA", false, index), stringOrDefault(map.get("name"), "ComponentExchange"), require(map, "source_component", index), require(map, "target_component", index), null, null, null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case ALLOCATE_CAPABILITY:
-                    return new Action(type, stringOrDefault(map.get("layer"), "SA"), null, null, null, null, require(map, "component", index), null, null, null, null, require(map, "capability", index),
+                    return new Action(type, enforceLayer(map.get("layer"), "SA", false, index), null, null, null, null, require(map, "component", index), null, null, null, null, require(map, "capability", index),
                             null, null, null, false, false, null, null, null, null, null);
                 case DELETE:
                     return new Action(type, null, null, null, null, require(map, "class", index), require(map, "name", index), null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case PROPAGATE_LOGICAL_TO_PHYSICAL:
-                    String targetLayer = stringOrDefault(map.get("target_layer"), stringOrDefault(map.get("layer"), "PA"));
+                    String targetLayer = enforceLayer(map.get("target_layer") != null ? map.get("target_layer") : map.get("layer"), "PA", false, index);
                     return new Action(type, targetLayer, null, null, null, null, null, null, null, null, null, null,
                             require(map, "logical_component", index), null, targetLayer,
                             bool(map.get("include_children"), true), false, null, null, null, null, null);
                 case SYNC_PHYSICAL_FROM_LOGICAL:
-                    String syncLayer = stringOrDefault(map.get("layer"), "PA");
+                    String syncLayer = enforceLayer(map.get("layer"), "PA", false, index);
                     return new Action(type, syncLayer, null, null, null, null, null, null, null, null, null, null,
                             require(map, "logical_component", index), require(map, "physical_component", index), syncLayer,
                             bool(map.get("include_children"), false), bool(map.get("update_attributes"), true), null, null, null, null, null);
                 case TRACE_COMPONENT_MAPPING:
-                    String traceLayer = stringOrDefault(map.get("layer"), "");
+                    String traceLayer = enforceLayer(map.get("layer"), "", true, index);
                     return new Action(type, traceLayer, null, null, null, null, null, null, null, null, null, null,
                             require(map, "logical_component", index), require(map, "physical_component", index), traceLayer,
                             false, false, null, null, null, null, null);
                 case CREATE_FUNCTIONAL_CHAIN:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null, null, stringOrDefault(map.get("description"), ""), null,
+                    return new Action(type, enforceLayer(map.get("layer"), "LA", false, index), require(map, "name", index), null, null, null, null, null, null, null, stringOrDefault(map.get("description"), ""), null,
                             null, null, null, false, false, require(map, "name", index), null, null, null, null);
                 case EXTEND_CHAIN:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null, null, null, null, null, null, null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "LA", false, index), null, null, null, null, null, null, null, null, null, null,
                             null, null, null, false, false,
                             require(map, "chain", index), require(map, "function", index), string(map.get("function_class")), null, null);
                 case SEQUENCE_EXCHANGE:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null, null, null, null, null, null, null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "LA", false, index), null, null, null, null, null, null, null, null, null, null,
                             null, null, null, false, false,
                             require(map, "chain", index), null, null, require(map, "exchange", index), null);
                 case ATTACH_SCENARIO:
-                    return new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null, null, null, null, null, null, null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "LA", false, index), null, null, null, null, null, null, null, null, null, null,
                             null, null, null, false, false,
                             require(map, "chain", index), null, null, null, require(map, "scenario", index));
                 case ADD_VIEW_NODE:
                     // view-only: diagram? optional; semantic required
-                    return new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "", true, index), string(map.get("diagram")), null, null,
                             null, require(map, "semantic", index), null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case ADD_VIEW_EDGE:
                     // view-only: diagram? optional; source/target required
-                    return new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), require(map, "source", index), require(map, "target", index),
+                    return new Action(type, enforceLayer(map.get("layer"), "", true, index), string(map.get("diagram")), require(map, "source", index), require(map, "target", index),
                             null, null, null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case SET_VIEW_BOUNDS: {
-                    Action a = new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), null, null,
+                    Action a = new Action(type, enforceLayer(map.get("layer"), "", true, index), string(map.get("diagram")), null, null,
                             null, require(map, "element", index), null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                     a.x = parseInt(map.get("x"));
@@ -1318,16 +1384,16 @@ public final class ToolRouter {
                     return a;
                 }
                 case REMOVE_VIEW_ELEMENT:
-                    return new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), null, null,
+                    return new Action(type, enforceLayer(map.get("layer"), "", true, index), string(map.get("diagram")), null, null,
                             null, require(map, "element", index), null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case ARRANGE_SELECTION:
                     // reuse description to carry a simple strategy label (e.g., auto, grid)
-                    return new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), null, null,
-                            null, null, null, null, null, stringOrDefault(map.get("strategy"), "auto"), null,
+                    return new Action(type, enforceLayer(map.get("layer"), "", true, index), string(map.get("diagram")), null, null,
+                            null, null, null, null, null, parseArrangeStrategy(map.get("strategy"), index), null,
                             null, null, null, false, false, null, null, null, null, null);
                 case STYLE_VIEW: {
-                    Action a = new Action(type, stringOrDefault(map.get("layer"), ""), string(map.get("diagram")), null, null,
+                    Action a = new Action(type, enforceLayer(map.get("layer"), "", true, index), string(map.get("diagram")), null, null,
                             null, require(map, "element", index), null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                     a.fg = parseColor(map.get("foreground"));
@@ -1350,7 +1416,7 @@ public final class ToolRouter {
                     return new Action(type, "", string(map.get("diagram")), null, null, null, require(map, "element", index), null, null, null, null, null,
                             null, null, null, false, false, null, null, null, null, null);
                 case BATCH_RENAME: {
-                    Action renameAction = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null,
+                    Action renameAction = new Action(type, enforceLayer(map.get("layer"), "LA", false, index), null, null, null,
                             require(map, "class", index), null, null, null, null, null, null,
                             null, null, null, false, false,
                             null, null, null, null, null);
@@ -1358,7 +1424,7 @@ public final class ToolRouter {
                     return renameAction;
                 }
                 case BATCH_REPARENT: {
-                    Action reparentAction = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null,
+                    Action reparentAction = new Action(type, enforceLayer(map.get("layer"), "LA", false, index), null, null, null,
                             require(map, "class", index), null, null, null, string(map.get("parent")), null, null,
                             null, null, null, false, false,
                             null, null, null, null, null);
@@ -1366,7 +1432,7 @@ public final class ToolRouter {
                     return reparentAction;
                 }
                 case BATCH_ALLOCATE: {
-                    Action allocateAction = new Action(type, stringOrDefault(map.get("layer"), "SA"), null, null, null,
+                    Action allocateAction = new Action(type, enforceLayer(map.get("layer"), "SA", false, index), null, null, null,
                             null, null, null, null, null, null, require(map, "capability", index),
                             null, null, null, false, false,
                             null, null, null, null, null);
@@ -1374,7 +1440,7 @@ public final class ToolRouter {
                     return allocateAction;
                 }
                 case BATCH_MAP: {
-                    Action mapAction = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null,
+                    Action mapAction = new Action(type, enforceLayer(map.get("layer"), "LA", false, index), null, null, null,
                             require(map, "source_class", index), null, null, null, null, null, null,
                             null, null, null, false, false,
                             null, null, null, null, null);
@@ -1383,7 +1449,7 @@ public final class ToolRouter {
                     return mapAction;
                 }
                 case BATCH_DELETE: {
-                    Action deleteAction = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, null,
+                    Action deleteAction = new Action(type, enforceLayer(map.get("layer"), "LA", false, index), null, null, null,
                             require(map, "class", index), null, null, null, null, null, null,
                             null, null, null, false, false,
                             null, null, null, null, null);
@@ -1391,7 +1457,7 @@ public final class ToolRouter {
                     return deleteAction;
                 }
                 case CREATE_REQUIREMENT:
-                    Action createReq = new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "name", index), null, null, null, null, null, null, null, stringOrDefault(map.get("description"), ""), null,
+                    Action createReq = new Action(type, enforceLayer(map.get("layer"), "LA", false, index), require(map, "name", index), null, null, null, null, null, null, null, stringOrDefault(map.get("description"), ""), null,
                             null, null, null, false, false,
                             null, null, null, null, null);
                     createReq.containerClass = string(map.get("container_class"));
@@ -1399,13 +1465,13 @@ public final class ToolRouter {
                     createReq.requirementType = string(map.get("requirement_type"));
                     return createReq;
                 case LINK_REQUIREMENT:
-                    Action linkReq = new Action(type, stringOrDefault(map.get("layer"), "LA"), require(map, "requirement", index), null, stringOrDefault(map.get("target_name"), ""), null, null, null, null, null, null, null,
+                    Action linkReq = new Action(type, enforceLayer(map.get("layer"), "LA", false, index), require(map, "requirement", index), null, stringOrDefault(map.get("target_name"), ""), null, null, null, null, null, null, null,
                             null, null, null, false, false,
                             null, null, null, null, null);
                     linkReq.requirementTargetClass = require(map, "target_class", index);
                     return linkReq;
                 case RECORD_REQUIREMENT_COVERAGE:
-                    Action coverage = new Action(type, stringOrDefault(map.get("layer"), "LA"), null, null, stringOrDefault(map.get("target_name"), ""), null, null, null, null, null, null, null,
+                    Action coverage = new Action(type, enforceLayer(map.get("layer"), "LA", false, index), null, null, stringOrDefault(map.get("target_name"), ""), null, null, null, null, null, null, null,
                             null, null, null, false, false,
                             null, null, null, null, null);
                     coverage.requirementTargetClass = require(map, "target_class", index);
