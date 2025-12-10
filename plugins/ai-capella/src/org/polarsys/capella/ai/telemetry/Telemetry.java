@@ -139,6 +139,31 @@ public final class Telemetry {
         );
     }
 
+    /** Record layout metrics for arrange operations (pre/post overlaps and crossings). */
+    public static void recordLayout(String diagram,
+                                    String strategy,
+                                    int selectionSize,
+                                    int overlapsPre,
+                                    int overlapsPost,
+                                    int crossingsPre,
+                                    int crossingsPost,
+                                    long durationMs) {
+        if (!isEnabled()) return;
+        String msg = String.format("diagram=%s strategy=%s size=%d overlaps %d→%d crossings %d→%d duration_ms=%d",
+                safe(diagram), safe(strategy), selectionSize, overlapsPre, overlapsPost, crossingsPre, crossingsPost, durationMs);
+        logInfo("layout", msg);
+        writeJsonLine("layout",
+                "diagram", safe(diagram),
+                "strategy", safe(strategy),
+                "selection_size", String.valueOf(selectionSize),
+                "overlaps_pre", String.valueOf(overlapsPre),
+                "overlaps_post", String.valueOf(overlapsPost),
+                "crossings_pre", String.valueOf(crossingsPre),
+                "crossings_post", String.valueOf(crossingsPost),
+                "duration_ms", String.valueOf(durationMs)
+        );
+    }
+
     /** Set/clear correlation id to group logs for a single interaction. */
     public static void setCorrelationId(String id) { CORRELATION.set(id); }
     public static void clearCorrelationId() { CORRELATION.remove(); }

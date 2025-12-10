@@ -16,6 +16,27 @@ public final class ModelChangeSet {
 
     public static Snapshot snapshot(Session session) {
         if (session == null || session.getTransactionalEditingDomain() == null) return new Snapshot(Map.of());
+        try {
+            java.util.Collection<Resource> semantics = session.getSemanticResources();
+            if (semantics != null && !semantics.isEmpty()) {
+                Map<String, Item> items = new HashMap<>();
+                try {
+                    for (Resource res : semantics) {
+                        if (res == null) continue;
+                        var it = res.getAllContents();
+                        while (it.hasNext()) {
+                            EObject eo = it.next();
+                            String uuid = idOf(eo);
+                            if (uuid == null || uuid.isBlank()) continue;
+                            String cls = eo.eClass().getName();
+                            String name = nameOf(eo);
+                            items.put(uuid, new Item(uuid, cls, name));
+                        }
+                    }
+                } catch (Exception ignore) {}
+                return new Snapshot(items);
+            }
+        } catch (Exception ignore) {}
         return snapshot(session.getTransactionalEditingDomain().getResourceSet());
     }
 
@@ -110,4 +131,3 @@ public final class ModelChangeSet {
 
     private static String safe(String s) { return s == null ? "" : s; }
 }
-

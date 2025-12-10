@@ -37,7 +37,10 @@ public final class ScenarioWorkspace {
             }
             ResourceSetImpl copySet = new ResourceSetImpl();
             Copier copier = new Copier(true, true);
-            for (Resource res : source.getResources()) {
+            java.util.Collection<Resource> semantics;
+            try { semantics = session.getSemanticResources(); } catch (Exception ex) { semantics = null; }
+            java.util.Collection<Resource> toCopy = (semantics != null && !semantics.isEmpty()) ? semantics : source.getResources();
+            for (Resource res : toCopy) {
                 if (res == null || res.getContents().isEmpty()) {
                     continue;
                 }

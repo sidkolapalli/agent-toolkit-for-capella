@@ -7,6 +7,8 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.layout.RowLayout;
+import org.eclipse.swt.layout.RowData;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
@@ -49,18 +51,19 @@ public class PlanPreviewBox {
         headerColor = createHeaderColor();
         container = new Composite(wrapper, SWT.BORDER);
         final GridData containerData = new GridData(SWT.CENTER, SWT.TOP, true, false);
-        // Dynamic width: shrink to fit on narrow views, cap at 600px on wide views
+        // Dynamic width: ~85% of viewport with safe margins, Apple-like readable width
         wrapper.addListener(SWT.Resize, e -> {
-            int availableWidth = wrapper.getSize().x;
+            int availableWidth = wrapper.getClientArea().width;
+            if (availableWidth <= 0) availableWidth = wrapper.getSize().x;
             if (availableWidth > 0) {
-                // Leave margins for padding
-                int maxWidth = Math.min(availableWidth - 40, 600);
-                containerData.widthHint = maxWidth;
-                wrapper.layout(true);
+                containerData.widthHint = computePlanWidth(availableWidth);
+                wrapper.layout(true, true);
             }
         });
-        // Initial width hint
-        containerData.widthHint = 600;
+        // Initial width hint based on current viewport if available
+        int initAvailable = wrapper.getClientArea().width;
+        if (initAvailable <= 0) initAvailable = 600;
+        containerData.widthHint = computePlanWidth(initAvailable);
         container.setLayoutData(containerData);
         container.setLayout(new GridLayout(1, false));
         container.setBackground(backgroundColor);
@@ -75,7 +78,17 @@ public class PlanPreviewBox {
 
         // Plan summary
         chipsRow = new Composite(container, SWT.NONE);
-        chipsRow.setLayout(new GridLayout(8, false));
+        // Flow layout with wrapping like compact badges
+        RowLayout chipLayout = new RowLayout(SWT.HORIZONTAL);
+        chipLayout.wrap = true;
+        chipLayout.pack = false;
+        chipLayout.justify = false;
+        chipLayout.marginLeft = 0;
+        chipLayout.marginRight = 0;
+        chipLayout.marginTop = 0;
+        chipLayout.marginBottom = 0;
+        chipLayout.spacing = 6;
+        chipsRow.setLayout(chipLayout);
         chipsRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
         planSummaryText = new Text(container, SWT.MULTI | SWT.WRAP | SWT.READ_ONLY);
@@ -164,16 +177,41 @@ public class PlanPreviewBox {
             return;
         }
         int shown = 0;
+        final int MAX_CHARS = 80;
         for (String chip : chips) {
             if (chip == null || chip.isBlank()) continue;
-            Label lbl = new Label(chipsRow, SWT.BORDER);
+            Label lbl = new Label(chipsRow, SWT.BORDER | SWT.WRAP);
             lbl.setBackground(Display.getDefault().getSystemColor(SWT.COLOR_INFO_BACKGROUND));
-            lbl.setText("⚠ " + chip.trim());
-            lbl.setLayoutData(new GridData(SWT.BEGINNING, SWT.CENTER, false, false));
+            String text = chip.trim();
+            String shortText = text.length() > MAX_CHARS ? text.substring(0, MAX_CHARS - 1).trim() + "…" : text;
+            lbl.setText("⚠ " + shortText);
+            lbl.setToolTipText(text);
+            // RowLayout respects preferred size; allow natural wrap
             shown++;
             if (shown >= 6) break;
         }
         chipsRow.layout(true, true);
+
+        // Recompute initial container size based on the current viewport
+        container.addListener(SWT.Show, ev -> {
+            Composite c = (Composite) ev.widget;
+            int w = c.getParent().getClientArea().width;
+            if (w > 0) {
+                containerData.widthHint = computePlanWidth(w);
+                c.getParent().layout(true, true);
+            }
+        });
+    }
+
+    private static int computePlanWidth(int availableWidth) {
+        // Reserve safe area margins (left+right)
+        int safe = 32;
+        int usable = Math.max(200, availableWidth - safe);
+        int target = (int) Math.round(usable * 0.85);
+        int min = 360;  // minimum comfortable panel width
+        int max = 760;  // maximum for readability and aesthetics
+        int width = Math.min(Math.max(target, min), max);
+        return Math.min(width, usable);
     }
 
     /**
@@ -285,6 +323,11 @@ public class PlanPreviewBox {
         org.eclipse.swt.widgets.Shell dialog = new org.eclipse.swt.widgets.Shell(shell, SWT.DIALOG_TRIM | SWT.RESIZE | SWT.APPLICATION_MODAL);
         dialog.setText("Plan Changes");
         dialog.setLayout(new GridLayout(1, false));
+        // Summary header
+        org.eclipse.swt.widgets.Label summary = new org.eclipse.swt.widgets.Label(dialog, SWT.WRAP);
+        summary.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        summary.setText(buildChangeSummary());
+        // Full details
         org.eclipse.swt.widgets.Text text = new org.eclipse.swt.widgets.Text(dialog, SWT.MULTI | SWT.WRAP | SWT.READ_ONLY | SWT.V_SCROLL);
         text.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         String content = (lastDetails == null || lastDetails.isEmpty()) ? "(no changes computed)" : lastDetails.stream().collect(Collectors.joining(System.lineSeparator()));
@@ -295,6 +338,49 @@ public class PlanPreviewBox {
         close.addSelectionListener(new SelectionAdapter() { @Override public void widgetSelected(SelectionEvent e) { dialog.close(); } });
         dialog.setSize(640, 420);
         dialog.open();
+    }
+
+    private String buildChangeSummary() {
+        if (lastDetails == null || lastDetails.isEmpty()) return "(no changes computed)";
+        int created = 0, deleted = 0, renamed = 0;
+        java.util.Map<String, Integer> createdByType = new java.util.HashMap<>();
+        for (String line : lastDetails) {
+            if (line == null) continue;
+            String s = line.trim();
+            if (s.startsWith("+ Create ")) {
+                created++;
+                String type = extractType(s, "+ Create ");
+                if (type != null) createdByType.merge(type, 1, Integer::sum);
+            } else if (s.startsWith("- Delete ")) {
+                deleted++;
+            } else if (s.startsWith("~ Rename ")) {
+                renamed++;
+            }
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("Summary: created=%d, deleted=%d, renamed=%d", created, deleted, renamed));
+        if (!createdByType.isEmpty()) {
+            sb.append("\nTop creates: ");
+            createdByType.entrySet().stream()
+                .sorted((a,b) -> Integer.compare(b.getValue(), a.getValue()))
+                .limit(5)
+                .forEach(e -> sb.append(e.getKey()).append("=").append(e.getValue()).append(" "));
+        }
+        return sb.toString().trim();
+    }
+
+    private String extractType(String line, String prefix) {
+        try {
+            // Expected format: "+ Create TYPE 'name' (path)"
+            String rest = line.substring(prefix.length());
+            int sp = rest.indexOf(' ');
+            if (sp > 0) {
+                return rest.substring(0, sp).trim();
+            }
+            return null;
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private void rebuildItems() {

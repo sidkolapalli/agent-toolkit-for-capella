@@ -18,9 +18,15 @@ public final class Finders {
     }
 
     public static EObject findByName(Session session, String simpleClass, String name) {
-        if (session == null) {
+        if (session == null || simpleClass == null || name == null) {
             return null;
         }
+        try {
+            java.util.Collection<Resource> semantics = session.getSemanticResources();
+            if (semantics != null && !semantics.isEmpty()) {
+                return findByNameInResources(semantics, simpleClass, name);
+            }
+        } catch (Exception ignore) {}
         ResourceSet rs = session.getTransactionalEditingDomain() != null
                 ? session.getTransactionalEditingDomain().getResourceSet()
                 : null;
@@ -57,6 +63,36 @@ public final class Finders {
             }
         } catch (Exception ignore) {
             // best effort lookup
+        }
+        return null;
+    }
+
+    private static EObject findByNameInResources(java.util.Collection<Resource> resources, String simpleClass, String name) {
+        try {
+            for (Resource res : resources) {
+                if (res == null) {
+                    continue;
+                }
+                var it = res.getAllContents();
+                while (it.hasNext()) {
+                    EObject eo = it.next();
+                    try {
+                        if (!eo.eClass().getName().equals(simpleClass)) {
+                            continue;
+                        }
+                        var feature = eo.eClass().getEStructuralFeature("name");
+                        if (feature != null) {
+                            Object value = eo.eGet(feature);
+                            if (value != null && name.equals(String.valueOf(value))) {
+                                return eo;
+                            }
+                        }
+                    } catch (Exception ignore) {
+                        // keep searching
+                    }
+                }
+            }
+        } catch (Exception ignore) {
         }
         return null;
     }

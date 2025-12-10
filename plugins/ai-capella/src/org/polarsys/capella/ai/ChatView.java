@@ -139,6 +139,8 @@ public class ChatView extends ViewPart {
     private Button enableActions;
     private Button useLlmMapping;
     private Button telemetryToggle;
+    private Button confirmBeforeApplyToggle;
+    private Button atomicApplyToggle;
     private Button stopButton;
 
     private Text elementUuid;
@@ -175,12 +177,13 @@ public class ChatView extends ViewPart {
     private java.util.List<Session> sessionChoices = new ArrayList<>();
     private Session selectedSession;
     private ToolPlan lastPreviewPlan;
+    private String lastPreviewDigest;
     private PlanOrchestrator.Handle orchestratorHandle;
     private Text specInput;
 
     @Override
     public void createPartControl(Composite parent) {
-        scroller = new ScrolledComposite(parent, SWT.V_SCROLL | SWT.H_SCROLL);
+        scroller = new ScrolledComposite(parent, SWT.V_SCROLL);
         scroller.setExpandHorizontal(true);
         scroller.setExpandVertical(true);
         scroller.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
@@ -188,6 +191,8 @@ public class ChatView extends ViewPart {
         rootComposite = new Composite(scroller, SWT.NONE);
         rootComposite.setLayout(new GridLayout(1, false));
         scroller.setContent(rootComposite);
+        // Keep min size in sync with viewport width to avoid horizontal overflow
+        scroller.addListener(SWT.Resize, e -> refreshScrollArea());
 
         // Tabs: Chat (minimal) and Advanced (everything else)
         org.eclipse.swt.widgets.TabFolder tabs = new org.eclipse.swt.widgets.TabFolder(rootComposite, SWT.NONE);
@@ -207,7 +212,7 @@ public class ChatView extends ViewPart {
             advTab.setText("Advanced");
 
             // Wrap in ScrolledComposite for vertical scrolling
-            ScrolledComposite advScroller = new ScrolledComposite(tabs, SWT.V_SCROLL | SWT.H_SCROLL);
+            ScrolledComposite advScroller = new ScrolledComposite(tabs, SWT.V_SCROLL);
             advScroller.setExpandHorizontal(true);
             advScroller.setExpandVertical(true);
             advTab.setControl(advScroller);
@@ -220,9 +225,15 @@ public class ChatView extends ViewPart {
             createModelToolsSection(advComposite);
             createSettingsSection(advComposite);
 
-            // Enable scrolling
-            advComposite.setSize(advComposite.computeSize(SWT.DEFAULT, SWT.DEFAULT));
-            advScroller.setMinSize(advComposite.computeSize(SWT.DEFAULT, SWT.DEFAULT));
+            // Enable scrolling: compute with viewport width to prevent overflow
+            int aw = advScroller.getClientArea().width > 0 ? advScroller.getClientArea().width : 800;
+            advComposite.setSize(advComposite.computeSize(aw, SWT.DEFAULT));
+            advScroller.setMinSize(advComposite.computeSize(aw, SWT.DEFAULT));
+            advScroller.addListener(SWT.Resize, ev -> {
+                int w = advScroller.getClientArea().width;
+                if (w <= 0) w = 800;
+                advScroller.setMinSize(advComposite.computeSize(w, SWT.DEFAULT));
+            });
         }
         refreshScrollArea();
 
@@ -990,6 +1001,30 @@ public class ChatView extends ViewPart {
             }
         });
 
+        // Confirm-before-apply toggle
+        confirmBeforeApplyToggle = new Button(buttonRow, SWT.CHECK);
+        confirmBeforeApplyToggle.setText("Confirm before apply");
+        confirmBeforeApplyToggle.setToolTipText("Require preview and explicit confirmation before applying any plan.");
+        confirmBeforeApplyToggle.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+        confirmBeforeApplyToggle.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                persistPreference(() -> org.polarsys.capella.ai.preferences.AdvancedPreferences.setConfirmBeforeApplyEnabled(confirmBeforeApplyToggle.getSelection()));
+            }
+        });
+
+        // Atomic apply toggle
+        atomicApplyToggle = new Button(buttonRow, SWT.CHECK);
+        atomicApplyToggle.setText("Atomic apply");
+        atomicApplyToggle.setToolTipText("If enabled, rollback all changes when a step fails or a budget/time limit is exceeded.");
+        atomicApplyToggle.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+        atomicApplyToggle.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                persistPreference(() -> org.polarsys.capella.ai.preferences.AdvancedPreferences.setAtomicApplyEnabled(atomicApplyToggle.getSelection()));
+            }
+        });
+
         Button apiKeyButton = new Button(buttonRow, SWT.PUSH);
         apiKeyButton.setText("Store API key…");
         apiKeyButton.addSelectionListener(new SelectionAdapter() {
@@ -1008,7 +1043,6 @@ public class ChatView extends ViewPart {
 
         settingsStatus = new Label(settings, SWT.WRAP);
         GridData statusData = new GridData(SWT.FILL, SWT.CENTER, true, false, 6, 1);
-        statusData.widthHint = 380;
         settingsStatus.setLayoutData(statusData);
     }
 
@@ -1131,6 +1165,7 @@ public class ChatView extends ViewPart {
                 }
                 var preview = conversationController.showPlanPreview(plan, summary);
                 lastPreviewPlan = plan;
+                lastPreviewDigest = computePlanDigest(plan);
                 // Merge validator issues (from parse) and dry-run issues for chips
                 java.util.List<String> chips = new java.util.ArrayList<>();
                 if (result.validationIssues != null) chips.addAll(result.validationIssues);
@@ -1203,6 +1238,17 @@ public class ChatView extends ViewPart {
     }
 
     private void schedulePlanExecution(Session session, DRepresentation diagram, ToolPlan plan) {
+        // Enforce confirmation gate and preview binding when enabled
+        try {
+            if (org.polarsys.capella.ai.preferences.AdvancedPreferences.isConfirmBeforeApplyEnabled()) {
+                String expected = lastPreviewDigest;
+                String actual = computePlanDigest(plan);
+                if (expected == null || !expected.equals(actual)) {
+                    conversationController.addSystemMessage("Preview required: Please review the plan before applying (content changed or not previewed).");
+                    return;
+                }
+            }
+        } catch (Exception ignore) {}
         Job job = new Job("Apply AI plan") {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
@@ -1227,10 +1273,31 @@ public class ChatView extends ViewPart {
         job.schedule();
     }
 
+    private static String computePlanDigest(ToolPlan plan) {
+        try {
+            if (plan == null || plan.isEmpty()) return "";
+            java.util.List<String> lines = plan.describe();
+            StringBuilder sb = new StringBuilder();
+            for (String l : lines) { if (l != null) sb.append(l.trim()).append('\n'); }
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] dig = md.digest(sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(dig.length * 2);
+            for (byte b : dig) hex.append(String.format("%02x", b));
+            return hex.toString();
+        } catch (Exception ex) {
+            return "";
+        }
+    }
+
     private void onApplyOrchestrated() {
         Session session = getSelectedOrActiveSession();
         if (session == null) { conversationController.addSystemMessage("No active session."); return; }
-        if (lastPreviewPlan == null || lastPreviewPlan.isEmpty()) { conversationController.addSystemMessage("No plan preview available."); return; }
+        if (org.polarsys.capella.ai.preferences.AdvancedPreferences.isConfirmBeforeApplyEnabled()) {
+            if (lastPreviewPlan == null || lastPreviewPlan.isEmpty()) {
+                conversationController.addSystemMessage("Preview required: No plan preview available.");
+                return;
+            }
+        }
         schedulePlanExecution(session, DiagramCommands.getLastOpened(), lastPreviewPlan);
     }
 
@@ -1857,7 +1924,12 @@ public class ChatView extends ViewPart {
 
     private void refreshScrollArea() {
         if (scroller != null && !scroller.isDisposed() && rootComposite != null && !rootComposite.isDisposed()) {
-            scroller.setMinSize(rootComposite.computeSize(SWT.DEFAULT, SWT.DEFAULT));
+            int w = scroller.getClientArea().width;
+            if (w <= 0) {
+                // Fallback before layout
+                w = Math.max(600, rootComposite.getSize().x);
+            }
+            scroller.setMinSize(rootComposite.computeSize(w, SWT.DEFAULT));
         }
     }
 
@@ -2770,6 +2842,12 @@ public class ChatView extends ViewPart {
 
         if (telemetryToggle != null && !telemetryToggle.isDisposed()) {
             telemetryToggle.setSelection(LLMPreferences.isTelemetryEnabled());
+        }
+        if (confirmBeforeApplyToggle != null && !confirmBeforeApplyToggle.isDisposed()) {
+            confirmBeforeApplyToggle.setSelection(org.polarsys.capella.ai.preferences.AdvancedPreferences.isConfirmBeforeApplyEnabled());
+        }
+        if (atomicApplyToggle != null && !atomicApplyToggle.isDisposed()) {
+            atomicApplyToggle.setSelection(org.polarsys.capella.ai.preferences.AdvancedPreferences.isAtomicApplyEnabled());
         }
 
         String key = LLMPreferences.getApiKey();

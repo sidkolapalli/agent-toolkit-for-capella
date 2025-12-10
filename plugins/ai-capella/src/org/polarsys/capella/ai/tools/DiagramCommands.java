@@ -27,6 +27,7 @@ import org.eclipse.gmf.runtime.notation.Node;
 import org.eclipse.gmf.runtime.notation.NotationFactory;
 import org.eclipse.gmf.runtime.notation.View;
 import org.eclipse.sirius.viewpoint.RGBValues;
+import org.polarsys.capella.ai.telemetry.Telemetry;
 
 /** In‑process diagram helpers using Sirius UI APIs (arrange/layout visible). */
 public final class DiagramCommands {
@@ -89,6 +90,12 @@ public final class DiagramCommands {
     public static boolean arrangeSelection(Session session, DRepresentation rep, String strategy) {
         if (session == null || rep == null) return false;
         String strat = (strategy == null || strategy.isBlank()) ? "auto" : strategy.toLowerCase();
+        String layerHint = null;
+        if (strat.matches("^(oa|sa|la|pa|lab)_(flow|radial)$")) {
+            int idx = strat.indexOf('_');
+            layerHint = strat.substring(0, idx).toUpperCase();
+            strat = strat.substring(idx + 1);
+        }
         try {
             if (!(rep instanceof DDiagram)) {
                 arrange(rep);
@@ -174,6 +181,17 @@ public final class DiagramCommands {
                     maxR = Math.max(maxR, b.getX() + Math.max(0, b.getWidth()));
                     maxB = Math.max(maxB, b.getY() + Math.max(0, b.getHeight()));
                 }
+                // Telemetry pre-metrics
+                String diagramName = null;
+                try {
+                    if (rep instanceof DDiagram) {
+                        var dd = (DDiagram) rep;
+                        diagramName = dd.getDescription() != null ? dd.getDescription().getName() : "diagram";
+                    }
+                } catch (Throwable ignore) {}
+                int overlapsPre = countOverlaps(bounds);
+                int crossingsPre = estimateCrossings(nodes);
+                long t0 = System.nanoTime();
                 switch (strat) {
                     case "left":
                         for (Bounds b : bounds) b.setX(minX);
@@ -238,7 +256,7 @@ public final class DiagramCommands {
                         int n = bounds.size();
                         int rows = (int) Math.ceil(Math.sqrt(n));
                         int cols = (int) Math.ceil((double) n / Math.max(1, rows));
-                        int[] spacing = computeSpacing(rep);
+                        int[] spacing = (layerHint != null) ? computeSpacing(rep, layerHint) : computeSpacing(rep);
                         int cellW = spacing[0];
                         int cellH = spacing[1];
                         // Compute a simple connectivity score and reorder to reduce crossings
@@ -283,12 +301,89 @@ public final class DiagramCommands {
                         }
                         break;
                     }
+                    case "layered": {
+                        // Sugiyama-style layered layout (left-to-right) with simple barycenter ordering
+                        int[] spacing = (layerHint != null) ? computeSpacing(rep, layerHint) : computeSpacing(rep);
+                        int cellW = spacing[0];
+                        int cellH = spacing[1];
+                        java.util.Map<Node, java.util.Set<Node>> adj = computeAdjacency(nodes);
+                        // Map Bounds<->Node for ordering and placement
+                        java.util.Map<Node, Bounds> nb = new java.util.HashMap<>();
+                        for (Node nNode : nodes) {
+                            LayoutConstraint lc = nNode.getLayoutConstraint();
+                            if (lc instanceof Bounds) nb.put(nNode, (Bounds) lc);
+                        }
+                        // Seed roots: nodes with smallest degree (or 0), then highest degree for remaining components
+                        java.util.List<Node> all = new java.util.ArrayList<>(nodes);
+                        all.sort((a,b) -> Integer.compare(adj.getOrDefault(a, java.util.Set.of()).size(), adj.getOrDefault(b, java.util.Set.of()).size()));
+                        java.util.Map<Node, Integer> level = new java.util.HashMap<>();
+                        java.util.List<java.util.List<Node>> layers = new java.util.ArrayList<>();
+                        java.util.Set<Node> visited = new java.util.HashSet<>();
+                        java.util.function.Consumer<Node> bfsFrom = start -> {
+                            java.util.ArrayDeque<Node> q = new java.util.ArrayDeque<>();
+                            level.put(start, 0); visited.add(start); q.add(start);
+                            while (!q.isEmpty()) {
+                                Node u = q.removeFirst();
+                                int lu = level.get(u);
+                                while (layers.size() <= lu) layers.add(new java.util.ArrayList<>());
+                                layers.get(lu).add(u);
+                                for (Node v : adj.getOrDefault(u, java.util.Set.of())) {
+                                    if (!visited.contains(v)) { visited.add(v); level.put(v, lu + 1); q.addLast(v); }
+                                }
+                            }
+                        };
+                        for (Node r : all) if (!visited.contains(r)) bfsFrom.accept(r);
+                        // Barycenter ordering per layer based on previous layer positions
+                        java.util.Map<Node, Integer> prevOrder = new java.util.HashMap<>();
+                        for (int li = 0; li < layers.size(); li++) {
+                            java.util.List<Node> L = layers.get(li);
+                            if (li == 0) {
+                                // Order first layer by degree desc
+                                L.sort((a,b) -> Integer.compare(adj.getOrDefault(b, java.util.Set.of()).size(), adj.getOrDefault(a, java.util.Set.of()).size()));
+                                for (int i=0;i<L.size();i++) prevOrder.put(L.get(i), i);
+                            } else {
+                                java.util.Map<Node, Double> bary = new java.util.HashMap<>();
+                                for (Node u : L) {
+                                    java.util.List<Node> preds = new java.util.ArrayList<>(adj.getOrDefault(u, java.util.Set.of()));
+                                    // only consider neighbors from previous layer for ordering
+                                    preds.removeIf(p -> level.getOrDefault(p, -1) != li - 1);
+                                    if (preds.isEmpty()) { bary.put(u, Double.POSITIVE_INFINITY); continue; }
+                                    double sum = 0; int cnt = 0;
+                                    for (Node p : preds) { Integer po = prevOrder.get(p); if (po != null) { sum += po; cnt++; } }
+                                    bary.put(u, cnt == 0 ? Double.POSITIVE_INFINITY : (sum / cnt));
+                                }
+                                L.sort((a,b) -> Double.compare(bary.getOrDefault(a, Double.POSITIVE_INFINITY), bary.getOrDefault(b, Double.POSITIVE_INFINITY)));
+                                for (int i=0;i<L.size();i++) prevOrder.put(L.get(i), i);
+                            }
+                        }
+                        // Place nodes: x by layer, y by index within layer
+                        int startX = minX;
+                        int startY = minY;
+                        for (int li = 0; li < layers.size(); li++) {
+                            java.util.List<Node> L = layers.get(li);
+                            for (int i = 0; i < L.size(); i++) {
+                                Bounds b = nb.get(L.get(i));
+                                if (b == null) continue;
+                                b.setX(startX + li * cellW);
+                                b.setY(startY + i * cellH);
+                                if (b.getWidth() <= 0) b.setWidth(Math.max(120, cellW - 40));
+                                if (b.getHeight() <= 0) b.setHeight(Math.max(80, cellH - 40));
+                            }
+                        }
+                        break;
+                    }
                     case "auto":
                     default:
                         arrange(rep);
                         break;
                 }
                 try { DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor()); } catch (Exception ignore) {}
+                // Telemetry post-metrics
+                int overlapsPost = countOverlaps(bounds);
+                int crossingsPost = estimateCrossings(nodes);
+                long durMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0);
+                String stratLabel = (layerHint != null && !layerHint.isBlank()) ? (layerHint.toLowerCase() + "_" + strat) : strat;
+                Telemetry.recordLayout(diagramName == null ? "diagram" : diagramName, stratLabel, bounds.size(), overlapsPre, overlapsPost, crossingsPre, crossingsPost, durMs);
                 return true;
             });
         } catch (Exception e) {
@@ -298,16 +393,30 @@ public final class DiagramCommands {
     }
 
     private static int[] computeSpacing(DRepresentation rep) {
+        return computeSpacing(rep, null);
+    }
+
+    private static int[] computeSpacing(DRepresentation rep, String layerHint) {
         int cellW = 200, cellH = 140;
+        if (layerHint != null) {
+            String lh = layerHint.toUpperCase();
+            if ("LA".equals(lh)) { cellW = 240; cellH = 160; }
+            else if ("SA".equals(lh)) { cellW = 240; cellH = 170; }
+            else if ("PA".equals(lh)) { cellW = 260; cellH = 180; }
+            else if ("OA".equals(lh)) { cellW = 220; cellH = 150; }
+            else if ("LAB".equals(lh)) { cellW = 260; cellH = 180; }
+        }
         try {
             if (rep instanceof DDiagram) {
                 org.eclipse.sirius.diagram.DDiagram d = (org.eclipse.sirius.diagram.DDiagram) rep;
                 String name = null;
                 try { name = d.getDescription() != null ? d.getDescription().getName() : null; } catch (Throwable ignore) {}
                 String n = name != null ? name.toLowerCase() : "";
-                if (n.contains("data flow")) { cellW = 240; cellH = 160; }
-                else if (n.contains("function breakdown")) { cellW = 220; cellH = 170; }
-                else if (n.contains("architecture blank") || n.contains("lab") || n.contains("pab") || n.contains("sab")) { cellW = 260; cellH = 180; }
+                if (n.contains("data flow") || n.contains("flow")) { cellW = 240; cellH = 160; }
+                else if (n.contains("function breakdown") || n.contains("fbd")) { cellW = 220; cellH = 170; }
+                else if (n.contains("logical architecture blank") || n.contains("lab")) { cellW = 260; cellH = 180; }
+                else if (n.contains("system architecture blank") || n.contains("sab")) { cellW = 280; cellH = 190; }
+                else if (n.contains("physical architecture blank") || n.contains("pab")) { cellW = 300; cellH = 200; }
             }
         } catch (Throwable ignore) {}
         return new int[] {cellW, cellH};
@@ -356,6 +465,46 @@ public final class DiagramCommands {
         return scores;
     }
 
+    /** Build undirected adjacency among nodes based on semantic references within the selection. */
+    private static java.util.Map<Node, java.util.Set<Node>> computeAdjacency(java.util.List<Node> nodes) {
+        java.util.Map<Node, java.util.Set<Node>> adj = new java.util.HashMap<>();
+        java.util.Map<Node, org.eclipse.emf.ecore.EObject> sem = new java.util.HashMap<>();
+        java.util.Map<org.eclipse.emf.ecore.EObject, Node> bySem = new java.util.HashMap<>();
+        for (Node n : nodes) {
+            org.eclipse.emf.ecore.EObject t = toSemantic(n);
+            if (t != null) { sem.put(n, t); bySem.put(t, n); }
+            adj.put(n, new java.util.HashSet<>());
+        }
+        java.util.Set<org.eclipse.emf.ecore.EObject> all = new java.util.HashSet<>(sem.values());
+        for (Node n : nodes) {
+            org.eclipse.emf.ecore.EObject t = sem.get(n);
+            if (t == null) continue;
+            try {
+                for (org.eclipse.emf.ecore.EStructuralFeature f : t.eClass().getEAllStructuralFeatures()) {
+                    if (f instanceof org.eclipse.emf.ecore.EReference) {
+                        org.eclipse.emf.ecore.EReference r = (org.eclipse.emf.ecore.EReference) f;
+                        if (r.isContainment()) continue;
+                        Object v = t.eGet(r);
+                        if (v instanceof org.eclipse.emf.ecore.EObject e2) {
+                            if (all.contains(e2)) {
+                                Node m = bySem.get(e2);
+                                if (m != null) { adj.get(n).add(m); adj.get(m).add(n); }
+                            }
+                        } else if (v instanceof java.util.Collection<?>) {
+                            for (Object o : (java.util.Collection<?>) v) {
+                                if (o instanceof org.eclipse.emf.ecore.EObject e3 && all.contains(e3)) {
+                                    Node m = bySem.get(e3);
+                                    if (m != null) { adj.get(n).add(m); adj.get(m).add(n); }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable ignore) {}
+        }
+        return adj;
+    }
+
     private static org.eclipse.emf.ecore.EObject toSemantic(Node node) {
         try {
             View v = node;
@@ -369,6 +518,91 @@ public final class DiagramCommands {
             }
         } catch (Throwable ignore) {}
         return null;
+    }
+
+    /** Count rectangle overlaps among given bounds. */
+    private static int countOverlaps(java.util.List<Bounds> bounds) {
+        int n = bounds.size();
+        if (n > 600) return 0; // skip heavy computation for very large selections
+        int overlaps = 0;
+        for (int i = 0; i < n; i++) {
+            Bounds a = bounds.get(i);
+            int ax1 = a.getX();
+            int ay1 = a.getY();
+            int aw = Math.max(1, a.getWidth());
+            int ah = Math.max(1, a.getHeight());
+            int ax2 = ax1 + aw;
+            int ay2 = ay1 + ah;
+            for (int j = i + 1; j < n; j++) {
+                Bounds b = bounds.get(j);
+                int bx1 = b.getX();
+                int by1 = b.getY();
+                int bw = Math.max(1, b.getWidth());
+                int bh = Math.max(1, b.getHeight());
+                int bx2 = bx1 + bw;
+                int by2 = by1 + bh;
+                if (ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1) {
+                    overlaps++;
+                }
+            }
+        }
+        return overlaps;
+    }
+
+    /** Estimate edge crossings using straight-line segments between node centers (undirected). */
+    private static int estimateCrossings(java.util.List<Node> nodes) {
+        java.util.Map<Node, java.util.Set<Node>> adj = computeAdjacency(nodes);
+        java.util.List<Node[]> edges = new java.util.ArrayList<>();
+        for (var e : adj.entrySet()) {
+            Node u = e.getKey();
+            for (Node v : e.getValue()) {
+                if (System.identityHashCode(u) < System.identityHashCode(v)) {
+                    edges.add(new Node[]{u, v});
+                }
+            }
+        }
+        int m = edges.size();
+        if (m > 5000) return 0; // avoid heavy O(m^2)
+        // centers
+        java.util.Map<Node, double[]> center = new java.util.HashMap<>();
+        for (Node n : nodes) {
+            Bounds b = (Bounds) n.getLayoutConstraint();
+            if (b == null) continue;
+            double cx = b.getX() + Math.max(1, b.getWidth()) / 2.0;
+            double cy = b.getY() + Math.max(1, b.getHeight()) / 2.0;
+            center.put(n, new double[]{cx, cy});
+        }
+        int crossings = 0;
+        for (int i = 0; i < m; i++) {
+            Node[] e1 = edges.get(i);
+            for (int j = i + 1; j < m; j++) {
+                Node[] e2 = edges.get(j);
+                if (e1[0] == e2[0] || e1[0] == e2[1] || e1[1] == e2[0] || e1[1] == e2[1]) continue;
+                double[] a1 = center.get(e1[0]);
+                double[] a2 = center.get(e1[1]);
+                double[] b1 = center.get(e2[0]);
+                double[] b2 = center.get(e2[1]);
+                if (a1 == null || a2 == null || b1 == null || b2 == null) continue;
+                if (segmentsIntersect(a1[0], a1[1], a2[0], a2[1], b1[0], b1[1], b2[0], b2[1])) crossings++;
+            }
+        }
+        return crossings;
+    }
+
+    private static double orient(double ax, double ay, double bx, double by, double cx, double cy) {
+        return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    }
+
+    private static boolean segmentsIntersect(double ax, double ay, double bx, double by,
+                                             double cx, double cy, double dx, double dy) {
+        double o1 = orient(ax, ay, bx, by, cx, cy);
+        double o2 = orient(ax, ay, bx, by, dx, dy);
+        double o3 = orient(cx, cy, dx, dy, ax, ay);
+        double o4 = orient(cx, cy, dx, dy, bx, by);
+        if (((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0)) && ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0))) {
+            return true;
+        }
+        return false;
     }
 
     /** Best-effort: resolve elements by id/uuid/fragment and refresh the diagram editor. */

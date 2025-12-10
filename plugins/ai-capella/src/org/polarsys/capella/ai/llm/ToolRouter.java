@@ -38,6 +38,47 @@ public final class ToolRouter {
 
     private ToolRouter() {}
 
+    private static final ThreadLocal<Long> APPLY_START_NANOS = new ThreadLocal<>();
+    private static volatile long CURRENT_BUDGET_MS = 0;
+    private static final Object PAUSE_MONITOR = new Object();
+    private static volatile boolean PAUSED = false;
+
+    public static void pauseExecution() { PAUSED = true; }
+    public static void resumeExecution() { PAUSED = false; synchronized (PAUSE_MONITOR) { PAUSE_MONITOR.notifyAll(); } }
+    public static boolean isPaused() { return PAUSED; }
+
+    private static void waitIfPaused() {
+        while (PAUSED) {
+            try { synchronized (PAUSE_MONITOR) { PAUSE_MONITOR.wait(100); } } catch (Exception ignore) {}
+        }
+    }
+
+    /**
+     * Parse a TOOL_PLAN JSON string into a ToolPlan.
+     * Public to enable unit testing and external plan inspection without side effects.
+     */
+    public static ToolPlan parsePlan(String json) {
+        List<Action> actions = parseActions(json);
+        return new ToolPlan(actions);
+    }
+
+    /**
+     * Produce a grouped change-set summary from a ToolPlan for review UIs.
+     * Groups by ChangeCategory and returns a mapping to each action's diff summary.
+     */
+    public static java.util.Map<ChangeCategory, java.util.List<String>> summarizeChangeSet(ToolPlan plan) {
+        if (plan == null || plan.isEmpty()) return java.util.Map.of();
+        java.util.Map<ChangeCategory, java.util.List<String>> out = new java.util.EnumMap<>(ChangeCategory.class);
+        for (PlanItem item : plan.items()) {
+            ChangeCategory cat = item.getCategory();
+            out.computeIfAbsent(cat, k -> new java.util.ArrayList<>()).add(item.getDiffSummary());
+        }
+        for (ChangeCategory c : ChangeCategory.values()) {
+            out.computeIfAbsent(c, k -> java.util.List.of());
+        }
+        return java.util.Collections.unmodifiableMap(out);
+    }
+
     public static final class Result {
         public String reply;
         public ToolPlan plan;
@@ -423,10 +464,25 @@ public final class ToolRouter {
             Telemetry.recordToolCall(-1, "BUDGET", "plan too large", "limit", msg);
             return new PlanExecutionResult(0, List.of(msg));
         }
+        CURRENT_BUDGET_MS = Math.max(0, org.polarsys.capella.ai.preferences.AdvancedPreferences.getMaxPlanTimeMillis());
+        APPLY_START_NANOS.set(System.nanoTime());
         org.polarsys.capella.ai.model.ModelChangeSet.Snapshot before = org.polarsys.capella.ai.model.ModelChangeSet.snapshot(session);
         PlanExecutionResult initial = SessionSafeguards.deferSaves(session, () ->
             SessionSafeguards.runWrite(session, "Apply AI plan", () -> applyPlanInternal(session, diagram, plan))
         );
+        APPLY_START_NANOS.remove();
+        // Atomic apply handling: if enabled and there were errors, rollback the just-applied command
+        try {
+            if (org.polarsys.capella.ai.preferences.AdvancedPreferences.isAtomicApplyEnabled() && initial != null && !initial.errors.isEmpty()) {
+                var domain = session.getTransactionalEditingDomain();
+                if (domain != null && domain.getCommandStack().canUndo()) {
+                    domain.getCommandStack().undo();
+                    Telemetry.recordToolCall(-1, "ATOMIC", "rollback", "reason", "errors=" + initial.errors.size());
+                    // Mark applied as 0 after rollback
+                    initial = new PlanExecutionResult(0, initial.errors);
+                }
+            }
+        } catch (Exception ignore) {}
         org.polarsys.capella.ai.model.ModelChangeSet.Snapshot after = org.polarsys.capella.ai.model.ModelChangeSet.snapshot(session);
         org.polarsys.capella.ai.model.ModelChangeSet.ChangeSet cs = org.polarsys.capella.ai.model.ModelChangeSet.diff(before, after);
         Telemetry.recordToolCall(-1, "CHANGESET", cs.summary(), "summary", "");
@@ -467,10 +523,20 @@ public final class ToolRouter {
         if (parsed == null || parsed.plan == null || parsed.plan.isEmpty()) {
             return null;
         }
+        // If confirmation is required, do not auto-apply refined plan; require user preview/confirm via UI
+        try {
+            if (org.polarsys.capella.ai.preferences.AdvancedPreferences.isConfirmBeforeApplyEnabled()) {
+                Telemetry.recordToolCall(-1, "SELF_HEAL", "requires-confirm", "note", "refined plan preview required");
+                return prior;
+            }
+        } catch (Exception ignore) {}
         // re-validate and apply refined plan (single iteration)
+        CURRENT_BUDGET_MS = Math.max(0, org.polarsys.capella.ai.preferences.AdvancedPreferences.getMaxPlanTimeMillis());
+        APPLY_START_NANOS.set(System.nanoTime());
         PlanExecutionResult refined = SessionSafeguards.deferSaves(session, () ->
             SessionSafeguards.runWrite(session, "Apply refined AI plan", () -> applyPlanInternal(session, diagram, parsed.plan))
         );
+        APPLY_START_NANOS.remove();
         if (refined == null) return prior;
         return new PlanExecutionResult(prior.applied + refined.applied, mergeErrors(prior.errors, refined.errors));
     }
@@ -488,6 +554,17 @@ public final class ToolRouter {
         List<String> errors = new ArrayList<>();
         List<Action> actions = plan.actions();
         for (int i = 0; i < actions.size(); i++) {
+            waitIfPaused();
+            if (CURRENT_BUDGET_MS > 0) {
+                Long start = APPLY_START_NANOS.get();
+                if (start != null) {
+                    long elapsedMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start.longValue());
+                    if (elapsedMs > CURRENT_BUDGET_MS) {
+                        errors.add("time budget exceeded");
+                        break;
+                    }
+                }
+            }
             Action action = actions.get(i);
             try {
                 Telemetry.recordToolCall(i, action.type.name(), action.describe(), "attempt", "");
@@ -902,6 +979,7 @@ public final class ToolRouter {
         sb.append("Plan quality: keep actions minimal, ordered by ARCADIA layer; batch when possible; include parents for containment; ensure sources/targets exist.\n");
         sb.append("After apply the system will run a quick validation and coverage scan; if issues arise, propose a refined TOOL_PLAN.\n");
         sb.append("Examples:\n");
+        sb.append("TOOL_PLAN:{\"actions\":[{\"arrange_selection\":{\"strategy\":\"lab_layered\"}}]}\n");
         sb.append("TOOL_PLAN:{\"actions\":[{\"create_operational_activity\":{\"layer\":\"OA\",\"name\":\"Board Passenger\",\"parent_name\":\"Passenger\"}}]}\n");
         sb.append("TOOL_PLAN:{\"actions\":[{\"create_system_component\":{\"layer\":\"SA\",\"name\":\"Flight Computer\"}},{\"create_interface\":{\"layer\":\"SA\",\"name\":\"FCU<->Sensors\",\"source_component\":\"Flight Computer\",\"target_component\":\"Sensor Suite\"}}]}\n");
         sb.append("TOOL_PLAN:{\"actions\":[{\"propagate_logical_to_physical\":{\"logical_component\":\"Autopilot\",\"include_children\":true}}]}\n");
@@ -1108,9 +1186,15 @@ public final class ToolRouter {
             case "grid":
             case "flow":
             case "radial":
+            case "layered":
             case "auto":
                 return v;
             default:
+                // Accept per-diagram heuristics like la_flow, pa_radial, lab_flow, etc.
+                // Pattern: ^(oa|sa|la|pa|lab)_(flow|radial|layered)$
+                if (v.matches("^(oa|sa|la|pa|lab)_(flow|radial|layered)$")) {
+                    return v;
+                }
                 throw new PlanValidationException("Action " + index + " invalid strategy '" + s + "'");
         }
     }

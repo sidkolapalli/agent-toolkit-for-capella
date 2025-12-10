@@ -92,9 +92,16 @@ public final class PlanOrchestrator {
                         appliedNow++;
                     } else {
                         errors.add("failed at step " + i);
+                        // Stop on first failure
+                        handleBatchFailureRollback(appliedNow);
+                        state.cancelled.set(true);
+                        break;
                     }
                 } catch (Exception ex) {
                     errors.add("error at step " + i + ": " + ex.getMessage());
+                    handleBatchFailureRollback(appliedNow);
+                    state.cancelled.set(true);
+                    break;
                 }
                 state.applied++;
                 writeCheckpoint(state);
@@ -108,6 +115,21 @@ public final class PlanOrchestrator {
                 schedule(200L);
             }
             return Status.OK_STATUS;
+        }
+
+        private void handleBatchFailureRollback(int appliedInBatch) {
+            try {
+                if (appliedInBatch <= 0) return;
+                if (!AdvancedPreferences.isOrchestratorRollbackOnFailureEnabled()) return;
+                var domain = state.session != null ? state.session.getTransactionalEditingDomain() : null;
+                if (domain != null && domain.getCommandStack() != null) {
+                    for (int k = 0; k < appliedInBatch; k++) {
+                        if (domain.getCommandStack().canUndo()) {
+                            domain.getCommandStack().undo();
+                        }
+                    }
+                }
+            } catch (Exception ignore) {}
         }
 
     }

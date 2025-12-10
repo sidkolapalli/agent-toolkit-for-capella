@@ -10,6 +10,9 @@ import java.util.Map;
 import java.util.StringJoiner;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -25,6 +28,12 @@ import org.polarsys.capella.ai.session.SessionBridge;
 /** Builds a lightweight search index over Capella model elements. */
 public final class ModelIndex {
     private static final Map<Session, CacheEntry> CACHE = new WeakHashMap<>();
+    private static final Map<Session, Future<?>> INFLIGHT = new WeakHashMap<>();
+    private static final ExecutorService INDEX_EXEC = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "capella-ai-model-index");
+        t.setDaemon(true);
+        return t;
+    });
 
     private ModelIndex() {}
 
@@ -42,7 +51,11 @@ public final class ModelIndex {
             this.listener = new org.eclipse.emf.transaction.ResourceSetListenerImpl() {
                 @Override
                 public void resourceSetChanged(org.eclipse.emf.transaction.ResourceSetChangeEvent event) {
-                    ModelIndex.invalidate(session);
+                    if (org.polarsys.capella.ai.preferences.AdvancedPreferences.isAsyncIndexingEnabled()) {
+                        ModelIndex.rebuildAsync(session);
+                    } else {
+                        ModelIndex.invalidate(session);
+                    }
                 }
             };
         }
@@ -103,6 +116,46 @@ public final class ModelIndex {
         }
     }
 
+    /** Rebuilds the index asynchronously while keeping current cache available. */
+    public static synchronized void rebuildAsync(Session session) {
+        if (session == null) return;
+        Future<?> f = INFLIGHT.get(session);
+        if (f != null && !f.isDone()) return;
+        Future<?> submitted = INDEX_EXEC.submit(() -> {
+            try {
+                List<IndexedElement> rebuilt;
+                var domain = session.getTransactionalEditingDomain();
+                if (domain != null) {
+                    final List<IndexedElement>[] holder = new List[]{List.of()};
+                    try {
+                        domain.runExclusive(() -> holder[0] = rebuild(session));
+                    } catch (Exception e) {
+                        // Fallback without exclusive lock
+                        holder[0] = rebuild(session);
+                    }
+                    rebuilt = holder[0];
+                } else {
+                    rebuilt = rebuild(session);
+                }
+                synchronized (ModelIndex.class) {
+                    CacheEntry old = CACHE.get(session);
+                    try {
+                        if (old != null) {
+                            var domain = session.getTransactionalEditingDomain();
+                            if (domain != null && old.listener != null) {
+                                domain.removeResourceSetListener(old.listener);
+                            }
+                        }
+                    } catch (Exception ignore) {}
+                    CacheEntry refreshed = new CacheEntry(session, rebuilt);
+                    CACHE.put(session, refreshed);
+                    attachListener(session, refreshed);
+                }
+            } catch (Exception ignore) {}
+        });
+        INFLIGHT.put(session, submitted);
+    }
+
     private static CacheEntry ensureEntry(Session session) {
         CacheEntry entry = CACHE.get(session);
         if (entry != null) {
@@ -129,15 +182,23 @@ public final class ModelIndex {
     }
 
     private static List<IndexedElement> rebuild(Session session) {
-        ResourceSet resourceSet = session.getTransactionalEditingDomain() != null
-                ? session.getTransactionalEditingDomain().getResourceSet()
-                : null;
-        if (resourceSet == null) {
+        if (session == null || session.getTransactionalEditingDomain() == null) {
             return List.of();
+        }
+        // Limit indexing to semantic resources for performance
+        Collection<Resource> resources;
+        try {
+            resources = session.getSemanticResources();
+        } catch (Exception ex) {
+            resources = null;
+        }
+        ResourceSet resourceSet = session.getTransactionalEditingDomain().getResourceSet();
+        if (resources == null || resources.isEmpty()) {
+            resources = resourceSet.getResources();
         }
         List<IndexedElement> elements = new ArrayList<>();
         Map<EObject, String> layerCache = new ConcurrentHashMap<>();
-        for (Resource resource : resourceSet.getResources()) {
+        for (Resource resource : resources) {
             if (resource == null || resource.getContents().isEmpty()) {
                 continue;
             }

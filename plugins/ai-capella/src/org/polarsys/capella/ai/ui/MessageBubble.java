@@ -8,6 +8,8 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Single message bubble in the conversation.
@@ -52,19 +54,21 @@ public class MessageBubble {
         labelColor = getRoleLabelColor(role);
         bubble = new Composite(wrapper, SWT.BORDER);
         final GridData bubbleData = new GridData(SWT.FILL, SWT.TOP, role == Role.SYSTEM, false);
-        // Dynamic width: shrink to fit on narrow views, cap at 500px on wide views
+        // Dynamic width: proportionally adapt to container like iOS Messages
         if (role != Role.SYSTEM) {
+            // Initial width based on viewport: ~70% of available, with safe margins
+            int initialAvail = wrapper.getClientArea().width;
+            if (initialAvail <= 0) initialAvail = wrapper.getSize().x;
+            int initial = computeBubbleWidth(initialAvail);
+            bubbleData.widthHint = initial;
             wrapper.addListener(SWT.Resize, e -> {
-                int availableWidth = wrapper.getSize().x;
+                int availableWidth = wrapper.getClientArea().width;
+                if (availableWidth <= 0) availableWidth = wrapper.getSize().x;
                 if (availableWidth > 0) {
-                    // Leave margins for spacers and padding
-                    int maxWidth = Math.min(availableWidth - 40, 500);
-                    bubbleData.widthHint = maxWidth;
-                    wrapper.layout(true);
+                    bubbleData.widthHint = computeBubbleWidth(availableWidth);
+                    wrapper.layout(true, true);
                 }
             });
-            // Initial width hint
-            bubbleData.widthHint = 500;
         } else {
             bubbleData.widthHint = SWT.DEFAULT;
         }
@@ -108,7 +112,7 @@ public class MessageBubble {
      */
     public void setText(String text) {
         if (!contentText.isDisposed()) {
-            contentText.setText(text);
+            contentText.setText(breakLongTokens(text));
         }
     }
 
@@ -117,7 +121,7 @@ public class MessageBubble {
      */
     public void appendText(String delta) {
         if (!contentText.isDisposed()) {
-            contentText.append(delta);
+            contentText.append(breakLongTokens(delta));
         }
     }
 
@@ -231,5 +235,43 @@ public class MessageBubble {
         if (color != null && !color.isDisposed()) {
             color.dispose();
         }
+    }
+
+    private static int computeBubbleWidth(int availableWidth) {
+        if (availableWidth <= 0) return 360;
+        // Reserve safe area margins (left+right)
+        int safe = 32;
+        int usable = Math.max(120, availableWidth - safe);
+        // Target 70% of usable width, clamp to readability range
+        int target = (int) Math.round(usable * 0.70);
+        int min = 280;   // comfortable minimum
+        int max = 680;   // comfortable maximum for readability
+        int width = Math.min(Math.max(target, min), max);
+        // Ensure we never exceed usable width
+        return Math.min(width, usable);
+    }
+
+    /**
+     * Insert zero-width spaces into very long unbroken tokens to allow wrap.
+     */
+    private static String breakLongTokens(String s) {
+        if (s == null || s.isBlank()) return s;
+        // Find sequences of non-whitespace of length >= 50
+        Pattern p = Pattern.compile("\\S{50,}");
+        Matcher m = p.matcher(s);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            String token = m.group();
+            StringBuilder broken = new StringBuilder();
+            int chunk = 20; // insert ZWSP every 20 chars
+            for (int i = 0; i < token.length(); i += chunk) {
+                int end = Math.min(i + chunk, token.length());
+                broken.append(token, i, end);
+                if (end < token.length()) broken.append('\u200B');
+            }
+            m.appendReplacement(sb, Matcher.quoteReplacement(broken.toString()));
+        }
+        m.appendTail(sb);
+        return sb.toString();
     }
 }
