@@ -9,6 +9,8 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
 import org.eclipse.sirius.business.api.session.Session;
+import org.eclipse.sirius.business.api.session.SessionManager;
+import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.scripting.CodeExecutionRouter;
 import org.polarsys.capella.ai.scripting.ExecutionResult;
 import org.polarsys.capella.ai.scripting.GroovyExecutor;
@@ -61,6 +63,8 @@ public final class DevServer {
             server.createContext("/chat", DevServer::handleChat);
             server.createContext("/status", DevServer::handleStatus);
             server.createContext("/prompt", DevServer::handlePrompt);
+            server.createContext("/debug", DevServer::handleDebug);
+            server.createContext("/config", DevServer::handleConfig);
 
             server.start();
             System.out.println(
@@ -327,5 +331,150 @@ public final class DevServer {
             .replace("\n", "\\n")
             .replace("\r", "\\r")
             .replace("\t", "\\t");
+    }
+
+    /**
+     * GET/POST /config - Get or set LLM configuration
+     * GET: Returns current config
+     * POST: Set config (JSON body with provider, baseUrl, model, apiKey)
+     */
+    private static void handleConfig(HttpExchange exchange) throws IOException {
+        if ("GET".equals(exchange.getRequestMethod())) {
+            StringBuilder json = new StringBuilder();
+            json.append("{");
+            json
+                .append("\"provider\": \"")
+                .append(escapeJson(LLMPreferences.getProvider()))
+                .append("\",");
+            json
+                .append("\"baseUrl\": \"")
+                .append(escapeJson(LLMPreferences.getBaseUrl()))
+                .append("\",");
+            json
+                .append("\"model\": \"")
+                .append(escapeJson(LLMPreferences.getModel()))
+                .append("\",");
+            json
+                .append("\"maxTokens\": ")
+                .append(LLMPreferences.getMaxTokens())
+                .append(",");
+            json
+                .append("\"temperature\": ")
+                .append(LLMPreferences.getTemperature())
+                .append(",");
+            json
+                .append("\"hasApiKey\": ")
+                .append(!LLMPreferences.getApiKey().isEmpty());
+            json.append("}");
+            sendResponse(exchange, 200, json.toString());
+            return;
+        }
+
+        if ("POST".equals(exchange.getRequestMethod())) {
+            String body = readBody(exchange);
+            try {
+                // Simple JSON parsing for config
+                if (body.contains("\"provider\"")) {
+                    String provider = extractJsonString(body, "provider");
+                    if (provider != null) LLMPreferences.setProvider(provider);
+                }
+                if (body.contains("\"baseUrl\"")) {
+                    String baseUrl = extractJsonString(body, "baseUrl");
+                    if (baseUrl != null) LLMPreferences.setBaseUrl(baseUrl);
+                }
+                if (body.contains("\"model\"")) {
+                    String model = extractJsonString(body, "model");
+                    if (model != null) LLMPreferences.setModel(model);
+                }
+                if (body.contains("\"apiKey\"")) {
+                    String apiKey = extractJsonString(body, "apiKey");
+                    if (apiKey != null) LLMPreferences.setApiKey(apiKey);
+                }
+                if (body.contains("\"maxTokens\"")) {
+                    String maxTokens = extractJsonString(body, "maxTokens");
+                    if (maxTokens != null) LLMPreferences.setMaxTokens(
+                        Integer.parseInt(maxTokens)
+                    );
+                }
+                LLMPreferences.flush();
+                sendResponse(exchange, 200, "{\"success\": true}");
+            } catch (Exception e) {
+                sendResponse(
+                    exchange,
+                    400,
+                    "{\"error\": \"" + escapeJson(e.getMessage()) + "\"}"
+                );
+            }
+            return;
+        }
+
+        sendResponse(exchange, 405, "{\"error\": \"Method not allowed\"}");
+    }
+
+    private static String extractJsonString(String json, String key) {
+        String pattern = "\"" + key + "\"";
+        int idx = json.indexOf(pattern);
+        if (idx < 0) return null;
+        int colonIdx = json.indexOf(":", idx);
+        if (colonIdx < 0) return null;
+        int startQuote = json.indexOf("\"", colonIdx);
+        if (startQuote < 0) return null;
+        int endQuote = json.indexOf("\"", startQuote + 1);
+        if (endQuote < 0) return null;
+        return json.substring(startQuote + 1, endQuote);
+    }
+
+    /**
+     * GET /debug - Debug session manager state
+     */
+    private static void handleDebug(HttpExchange exchange) throws IOException {
+        if (!"GET".equals(exchange.getRequestMethod())) {
+            sendResponse(exchange, 405, "{\"error\": \"Method not allowed\"}");
+            return;
+        }
+
+        StringBuilder json = new StringBuilder();
+        json.append("{");
+
+        try {
+            var sessions = SessionManager.INSTANCE.getSessions();
+            json
+                .append("\"sessionCount\": ")
+                .append(sessions.size())
+                .append(",");
+            json.append("\"sessions\": [");
+            int i = 0;
+            for (Session s : sessions) {
+                if (i > 0) json.append(",");
+                json.append("{");
+                json
+                    .append("\"isOpen\": ")
+                    .append(s != null && s.isOpen())
+                    .append(",");
+                if (s != null && s.getSessionResource() != null) {
+                    json
+                        .append("\"uri\": \"")
+                        .append(
+                            escapeJson(
+                                s.getSessionResource().getURI().toString()
+                            )
+                        )
+                        .append("\"");
+                } else {
+                    json.append("\"uri\": null");
+                }
+                json.append("}");
+                i++;
+            }
+            json.append("]");
+        } catch (Exception e) {
+            json
+                .append("\"error\": \"")
+                .append(escapeJson(e.getMessage()))
+                .append("\"");
+        }
+
+        json.append("}");
+        sendResponse(exchange, 200, json.toString());
     }
 }

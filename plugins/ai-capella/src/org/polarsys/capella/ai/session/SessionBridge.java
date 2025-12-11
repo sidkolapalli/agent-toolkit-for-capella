@@ -1,13 +1,12 @@
 package org.polarsys.capella.ai.session;
 
-import org.eclipse.core.resources.IFile;
-import org.eclipse.emf.common.util.URI;
-import org.eclipse.core.runtime.NullProgressMonitor;
-import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.jface.viewers.IStructuredSelection;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.emf.common.util.URI;
+import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.business.api.session.SessionManager;
 import org.eclipse.sirius.business.api.session.factory.SessionFactory;
@@ -21,58 +20,104 @@ import org.eclipse.ui.PlatformUI;
 
 /** Utility to access the current Capella Sirius Session in-process. */
 public final class SessionBridge {
-    private static final Logger LOG = Logger.getLogger(SessionBridge.class.getName());
+
+    private static final Logger LOG = Logger.getLogger(
+        SessionBridge.class.getName()
+    );
 
     private SessionBridge() {}
 
     /** Get the active Sirius Session from the current editor or selection. */
     public static Session getActiveSession() {
+        // First try UI-based detection (works when called from UI thread)
         try {
             IWorkbench wb = PlatformUI.getWorkbench();
             IWorkbenchWindow win = wb.getActiveWorkbenchWindow();
-            if (win == null) return null;
-            IWorkbenchPage page = win.getActivePage();
-            if (page != null) {
-                IEditorPart editor = page.getActiveEditor();
-                if (editor != null) {
-                    IEditorInput input = editor.getEditorInput();
-                    if (input instanceof IFileEditorInput) {
-                        IFile file = ((IFileEditorInput) input).getFile();
-                        URI uri = URI.createPlatformResourceURI(file.getFullPath().toString(), true);
-                        Session s = SessionManager.INSTANCE.getSession(uri, null);
-                        if (s != null && s.isOpen()) return s;
-                    }
-                }
-                // Fallback: try selection
-                ISelection sel = win.getSelectionService().getSelection();
-                if (sel instanceof IStructuredSelection) {
-                    Object first = ((IStructuredSelection) sel).getFirstElement();
-                    // Try to adapt to IFile
-                    if (first instanceof IFile) {
-                        IFile file = (IFile) first;
-                        URI uri = URI.createPlatformResourceURI(file.getFullPath().toString(), true);
-                        Session s = SessionManager.INSTANCE.getSession(uri, null);
-                        if (s != null && s.isOpen()) return s;
-                    }
-                }
-                // Fallback: if exactly one open session exists, use it
-                try {
-                    java.util.Collection<Session> sessions = SessionManager.INSTANCE.getSessions();
-                    if (sessions != null) {
-                        Session chosen = null;
-                        for (Session s : sessions) {
-                            if (s != null && s.isOpen()) {
-                                if (chosen == null) chosen = s; else { chosen = null; break; }
-                            }
+            if (win != null) {
+                IWorkbenchPage page = win.getActivePage();
+                if (page != null) {
+                    IEditorPart editor = page.getActiveEditor();
+                    if (editor != null) {
+                        IEditorInput input = editor.getEditorInput();
+                        if (input instanceof IFileEditorInput) {
+                            IFile file = ((IFileEditorInput) input).getFile();
+                            URI uri = URI.createPlatformResourceURI(
+                                file.getFullPath().toString(),
+                                true
+                            );
+                            Session s = SessionManager.INSTANCE.getSession(
+                                uri,
+                                null
+                            );
+                            if (s != null && s.isOpen()) return s;
                         }
-                        if (chosen != null) return chosen;
                     }
-                } catch (Exception ignore) {
+                    // Fallback: try selection
+                    ISelection sel = win.getSelectionService().getSelection();
+                    if (sel instanceof IStructuredSelection) {
+                        Object first =
+                            ((IStructuredSelection) sel).getFirstElement();
+                        if (first instanceof IFile) {
+                            IFile file = (IFile) first;
+                            URI uri = URI.createPlatformResourceURI(
+                                file.getFullPath().toString(),
+                                true
+                            );
+                            Session s = SessionManager.INSTANCE.getSession(
+                                uri,
+                                null
+                            );
+                            if (s != null && s.isOpen()) return s;
+                        }
+                    }
                 }
             }
         } catch (Exception ex) {
-            LOG.log(Level.WARNING, "Failed to resolve active Capella session", ex);
+            LOG.log(
+                Level.FINE,
+                "UI-based session detection failed (expected for non-UI threads)",
+                ex
+            );
         }
+
+        // Always try SessionManager fallback - works from any thread
+        // If exactly one open session exists, use it
+        try {
+            java.util.Collection<Session> sessions =
+                SessionManager.INSTANCE.getSessions();
+            if (sessions != null) {
+                Session chosen = null;
+                int openCount = 0;
+                for (Session s : sessions) {
+                    if (s != null && s.isOpen()) {
+                        chosen = s;
+                        openCount++;
+                    }
+                }
+                // Return the session if exactly one is open, or the first one if multiple
+                if (openCount == 1) {
+                    return chosen;
+                } else if (openCount > 1) {
+                    // Multiple sessions - return first open one but log warning
+                    LOG.log(
+                        Level.INFO,
+                        "Multiple open sessions detected (" +
+                            openCount +
+                            "), using first one"
+                    );
+                    for (Session s : sessions) {
+                        if (s != null && s.isOpen()) return s;
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            LOG.log(
+                Level.WARNING,
+                "Failed to query SessionManager for open sessions",
+                ex
+            );
+        }
+
         return null;
     }
 
@@ -80,16 +125,26 @@ public final class SessionBridge {
     public static Session openSession(URI airdUri) {
         if (airdUri == null) return null;
         try {
-            Session s = SessionManager.INSTANCE.getSession(airdUri, new NullProgressMonitor());
+            Session s = SessionManager.INSTANCE.getSession(
+                airdUri,
+                new NullProgressMonitor()
+            );
             if (s == null) {
-                s = SessionFactory.INSTANCE.createSession(airdUri, new NullProgressMonitor());
+                s = SessionFactory.INSTANCE.createSession(
+                    airdUri,
+                    new NullProgressMonitor()
+                );
             }
             if (s != null && !s.isOpen()) {
                 s.open(new NullProgressMonitor());
             }
             return s;
         } catch (Exception ex) {
-            LOG.log(Level.WARNING, "Failed to open Capella session: " + airdUri, ex);
+            LOG.log(
+                Level.WARNING,
+                "Failed to open Capella session: " + airdUri,
+                ex
+            );
             return null;
         }
     }

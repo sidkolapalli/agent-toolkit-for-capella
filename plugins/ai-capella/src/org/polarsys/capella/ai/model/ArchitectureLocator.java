@@ -3,7 +3,6 @@ package org.polarsys.capella.ai.model;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
@@ -16,10 +15,16 @@ import org.polarsys.capella.core.data.pa.PhysicalArchitecture;
 
 /** Find ARCADIA architecture roots in the current model. */
 public final class ArchitectureLocator {
+
     private ArchitectureLocator() {}
 
     /** All valid layer identifiers */
-    private static final List<String> VALID_LAYERS = List.of("OA", "SA", "LA", "PA");
+    private static final List<String> VALID_LAYERS = List.of(
+        "OA",
+        "SA",
+        "LA",
+        "PA"
+    );
 
     public static EObject findTargetElement(Session session, String layer) {
         try {
@@ -35,7 +40,10 @@ public final class ArchitectureLocator {
         return null;
     }
 
-    public static EObject findTargetElement(ResourceSet resourceSet, String layer) {
+    public static EObject findTargetElement(
+        ResourceSet resourceSet,
+        String layer
+    ) {
         if (resourceSet == null) {
             return null;
         }
@@ -59,11 +67,38 @@ public final class ArchitectureLocator {
             return null;
         }
         Project project = (Project) root;
+
+        // First, find SystemEngineering - architecture layers are nested under it
+        EObject systemEngineering = null;
         for (EObject child : project.eContents()) {
-            if ("OA".equalsIgnoreCase(layer) && child instanceof OperationalAnalysis) return child;
-            if ("LA".equalsIgnoreCase(layer) && child instanceof LogicalArchitecture) return child;
-            if ("PA".equalsIgnoreCase(layer) && child instanceof PhysicalArchitecture) return child;
-            if ("SA".equalsIgnoreCase(layer) && child.eClass().getName().equals("SystemAnalysis")) return child;
+            if (child.eClass().getName().equals("SystemEngineering")) {
+                systemEngineering = child;
+                break;
+            }
+        }
+
+        // If no SystemEngineering found, fall back to direct children (legacy models)
+        Iterable<EObject> searchIn = systemEngineering != null
+            ? systemEngineering.eContents()
+            : project.eContents();
+
+        for (EObject child : searchIn) {
+            if (
+                "OA".equalsIgnoreCase(layer) &&
+                child instanceof OperationalAnalysis
+            ) return child;
+            if (
+                "LA".equalsIgnoreCase(layer) &&
+                child instanceof LogicalArchitecture
+            ) return child;
+            if (
+                "PA".equalsIgnoreCase(layer) &&
+                child instanceof PhysicalArchitecture
+            ) return child;
+            if (
+                "SA".equalsIgnoreCase(layer) &&
+                child.eClass().getName().equals("SystemAnalysis")
+            ) return child;
         }
         return null;
     }
@@ -78,20 +113,34 @@ public final class ArchitectureLocator {
      * @param layer the layer identifier (OA, SA, LA, PA, or variants like "operational", "logical")
      * @return FindResult with layer element, error code, and available layers
      */
-    public static FindResult findLayerWithDiagnostic(Session session, String layer) {
+    public static FindResult findLayerWithDiagnostic(
+        Session session,
+        String layer
+    ) {
         // Input validation
         if (session == null) {
-            return FindResult.error(ErrorCode.SESSION_ERROR, "No active Capella session");
+            return FindResult.error(
+                ErrorCode.SESSION_ERROR,
+                "No active Capella session"
+            );
         }
         if (layer == null || layer.isBlank()) {
-            return FindResult.error(ErrorCode.INVALID_INPUT, "Layer identifier is required");
+            return FindResult.error(
+                ErrorCode.INVALID_INPUT,
+                "Layer identifier is required"
+            );
         }
 
         // Canonicalize layer name
         String canonical = canonicalizeLayer(layer);
         if (canonical == null) {
-            return FindResult.error(ErrorCode.INVALID_INPUT,
-                "Invalid layer identifier: '" + layer + "'. Valid layers: " + String.join(", ", VALID_LAYERS));
+            return FindResult.error(
+                ErrorCode.INVALID_INPUT,
+                "Invalid layer identifier: '" +
+                    layer +
+                    "'. Valid layers: " +
+                    String.join(", ", VALID_LAYERS)
+            );
         }
 
         // Find available layers
@@ -103,32 +152,74 @@ public final class ArchitectureLocator {
                 }
                 EObject root = res.getContents().get(0);
                 if (root instanceof Project project) {
+                    // Find SystemEngineering first - layers are nested under it
+                    EObject systemEngineering = null;
                     for (EObject child : project.eContents()) {
-                        if (child instanceof OperationalAnalysis && !availableLayers.contains("OA")) {
+                        if (
+                            child.eClass().getName().equals("SystemEngineering")
+                        ) {
+                            systemEngineering = child;
+                            break;
+                        }
+                    }
+
+                    // Search in SystemEngineering if found, otherwise in project
+                    Iterable<EObject> searchIn = systemEngineering != null
+                        ? systemEngineering.eContents()
+                        : project.eContents();
+
+                    for (EObject child : searchIn) {
+                        if (
+                            child instanceof OperationalAnalysis &&
+                            !availableLayers.contains("OA")
+                        ) {
                             availableLayers.add("OA");
-                        } else if (child instanceof LogicalArchitecture && !availableLayers.contains("LA")) {
+                        } else if (
+                            child instanceof LogicalArchitecture &&
+                            !availableLayers.contains("LA")
+                        ) {
                             availableLayers.add("LA");
-                        } else if (child instanceof PhysicalArchitecture && !availableLayers.contains("PA")) {
+                        } else if (
+                            child instanceof PhysicalArchitecture &&
+                            !availableLayers.contains("PA")
+                        ) {
                             availableLayers.add("PA");
-                        } else if (child.eClass().getName().equals("SystemAnalysis") && !availableLayers.contains("SA")) {
+                        } else if (
+                            child.eClass().getName().equals("SystemAnalysis") &&
+                            !availableLayers.contains("SA")
+                        ) {
                             availableLayers.add("SA");
                         }
                     }
                 }
             }
         } catch (Exception ex) {
-            return FindResult.error(ErrorCode.SESSION_ERROR, "Error searching model: " + ex.getMessage());
+            return FindResult.error(
+                ErrorCode.SESSION_ERROR,
+                "Error searching model: " + ex.getMessage()
+            );
         }
 
         // Find the requested layer
         EObject layerElement = findTargetElement(session, canonical);
         if (layerElement == null) {
             if (availableLayers.isEmpty()) {
-                return FindResult.notFound("Layer", canonical, List.of(),
-                    "No architecture layers found in the model. Model may not be properly initialized.");
+                return FindResult.notFound(
+                    "Layer",
+                    canonical,
+                    List.of(),
+                    "No architecture layers found in the model. Model may not be properly initialized."
+                );
             }
-            return FindResult.notFound("Layer", canonical, availableLayers,
-                "Layer '" + canonical + "' not found. Available layers: " + String.join(", ", availableLayers));
+            return FindResult.notFound(
+                "Layer",
+                canonical,
+                availableLayers,
+                "Layer '" +
+                    canonical +
+                    "' not found. Available layers: " +
+                    String.join(", ", availableLayers)
+            );
         }
 
         return FindResult.success(layerElement);
@@ -165,4 +256,3 @@ public final class ArchitectureLocator {
         return VALID_LAYERS;
     }
 }
-
