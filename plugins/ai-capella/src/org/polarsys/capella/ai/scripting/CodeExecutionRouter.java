@@ -18,12 +18,18 @@ public final class CodeExecutionRouter {
      * Result of code execution routing.
      */
     public static final class Result {
+
         public final boolean success;
         public final String output;
         public final String error;
         public final ExecutionResult executionResult;
 
-        private Result(boolean success, String output, String error, ExecutionResult executionResult) {
+        private Result(
+            boolean success,
+            String output,
+            String error,
+            ExecutionResult executionResult
+        ) {
             this.success = success;
             this.output = output;
             this.error = error;
@@ -51,8 +57,10 @@ public final class CodeExecutionRouter {
             return false;
         }
         // Look for Groovy code blocks
-        return llmResponse.contains("```groovy") ||
-               (llmResponse.contains("```") && llmResponse.contains("api."));
+        return (
+            llmResponse.contains("```groovy") ||
+            (llmResponse.contains("```") && llmResponse.contains("api."))
+        );
     }
 
     /**
@@ -84,7 +92,10 @@ public final class CodeExecutionRouter {
             output.append("Execution completed successfully.\n");
 
             if (execResult.value() != null) {
-                output.append("Result: ").append(formatValue(execResult.value())).append("\n");
+                output
+                    .append("Result: ")
+                    .append(formatValue(execResult.value()))
+                    .append("\n");
             }
 
             if (execResult.hasLogs()) {
@@ -94,7 +105,10 @@ public final class CodeExecutionRouter {
                 }
             }
 
-            output.append("\nDuration: ").append(execResult.durationMs()).append("ms");
+            output
+                .append("\nDuration: ")
+                .append(execResult.durationMs())
+                .append("ms");
 
             return Result.success(output.toString(), execResult);
         } else {
@@ -111,18 +125,32 @@ public final class CodeExecutionRouter {
      * @param llmCallback callback to get corrected code from LLM
      * @return final execution result
      */
-    public static Result executeWithRetry(Session session, String llmResponse, int maxRetries,
-                                          java.util.function.BiFunction<String, String, String> llmCallback) {
+    public static Result executeWithRetry(
+        Session session,
+        String llmResponse,
+        int maxRetries,
+        java.util.function.BiFunction<String, String, String> llmCallback
+    ) {
         Result result = execute(session, llmResponse);
 
         int attempts = 0;
-        while (!result.success && attempts < maxRetries && result.executionResult != null) {
+        while (
+            !result.success &&
+            attempts < maxRetries &&
+            result.executionResult != null
+        ) {
             // Get error feedback for LLM
             String errorFeedback = result.executionResult.formatForLLM();
 
             // Ask LLM to fix the code
-            String correctedResponse = llmCallback.apply(llmResponse, errorFeedback);
-            if (correctedResponse == null || correctedResponse.equals(llmResponse)) {
+            String correctedResponse = llmCallback.apply(
+                llmResponse,
+                errorFeedback
+            );
+            if (
+                correctedResponse == null ||
+                correctedResponse.equals(llmResponse)
+            ) {
                 break; // LLM couldn't fix it
             }
 
@@ -143,55 +171,117 @@ public final class CodeExecutionRouter {
         StringBuilder sb = new StringBuilder();
 
         sb.append("## Code Execution Mode\n\n");
-        sb.append("You can execute Groovy scripts to modify the Capella model. ");
+        sb.append(
+            "You can execute Groovy scripts to modify the Capella model. "
+        );
         sb.append("Write your code in a ```groovy code block.\n\n");
 
         sb.append("### Available API\n\n");
         sb.append("```groovy\n");
         sb.append("// === FINDING ELEMENTS ===\n");
-        sb.append("api.find(\"ElementName\")                      // Find by name (any type)\n");
-        sb.append("api.find(\"SystemFunction\", \"Process Data\")   // Find by type and name\n");
-        sb.append("api.findAll(\"LogicalComponent\")               // All elements of type\n");
-        sb.append("api.query { it.eClass().name.contains(\"Func\") } // Custom predicate\n");
-        sb.append("api.layer(\"SA\")                               // Get architecture root\n\n");
+        sb.append(
+            "api.find(\"ElementName\")                      // Find by name (any type)\n"
+        );
+        sb.append(
+            "api.find(\"SystemFunction\", \"Process Data\")   // Find by type and name\n"
+        );
+        sb.append(
+            "api.findAll(\"LogicalComponent\")               // All elements of type\n"
+        );
+        sb.append(
+            "api.query { it.eClass().name.contains(\"Func\") } // Custom predicate\n"
+        );
+        sb.append(
+            "api.layer(\"SA\")                               // Get architecture root\n\n"
+        );
 
         sb.append("// === CREATING ELEMENTS ===\n");
-        sb.append("api.create(\"SystemFunction\", \"My Function\")   // Auto-detect layer\n");
-        sb.append("api.create(\"SA\", \"SystemFunction\", \"Name\")    // In specific layer\n");
-        sb.append("api.create(\"SystemComponent\", \"Name\", parent) // Under specific parent\n\n");
+        sb.append(
+            "api.create(\"SystemFunction\", \"My Function\")   // Auto-detect layer\n"
+        );
+        sb.append(
+            "api.create(\"SA\", \"SystemFunction\", \"Name\")    // In specific layer\n"
+        );
+        sb.append(
+            "api.create(\"SystemComponent\", \"Name\", parent) // Under specific parent\n\n"
+        );
 
         sb.append("// === MODIFYING ELEMENTS ===\n");
-        sb.append("api.set(element, \"description\", \"New desc\")   // Set any property\n");
-        sb.append("api.rename(element, \"New Name\")                // Rename element\n");
-        sb.append("api.delete(element)                            // Delete element\n\n");
+        sb.append(
+            "api.set(element, \"description\", \"New desc\")   // Set any property\n"
+        );
+        sb.append(
+            "api.rename(element, \"New Name\")                // Rename element\n"
+        );
+        sb.append(
+            "api.delete(element)                            // Delete element\n\n"
+        );
 
         sb.append("// === CREATING RELATIONSHIPS ===\n");
-        sb.append("api.link(func1, func2, \"FunctionalExchange\")  // Create exchange\n");
-        sb.append("api.link(comp1, comp2, \"ComponentExchange\")   // Create interface\n");
-        sb.append("api.link(func, comp, \"allocation\")            // Allocate function\n\n");
+        sb.append(
+            "api.link(func1, func2, \"FunctionalExchange\")  // Create exchange\n"
+        );
+        sb.append(
+            "api.link(comp1, comp2, \"ComponentExchange\")   // Create interface\n"
+        );
+        sb.append(
+            "api.link(func, comp, \"allocation\")            // Allocate function\n\n"
+        );
 
         sb.append("// === NAVIGATION ===\n");
-        sb.append("api.parent(element)                            // Get parent\n");
-        sb.append("api.children(element)                          // Get children\n");
-        sb.append("api.descendants(element)                       // All descendants\n");
-        sb.append("api.type(element)                              // Get type name\n");
-        sb.append("api.name(element)                              // Get name\n\n");
+        sb.append(
+            "api.parent(element)                            // Get parent\n"
+        );
+        sb.append(
+            "api.children(element)                          // Get children\n"
+        );
+        sb.append(
+            "api.descendants(element)                       // All descendants\n"
+        );
+        sb.append(
+            "api.type(element)                              // Get type name\n"
+        );
+        sb.append(
+            "api.name(element)                              // Get name\n\n"
+        );
 
-        sb.append("// === DIAGRAMS (Full creation - not possible in Python4Capella!) ===\n");
-        sb.append("def diagram = api.diagram.create(\"SAB\", \"Overview\", root)\n");
-        sb.append("api.diagram.add(diagram, element)              // Add element to diagram\n");
-        sb.append("api.diagram.addAll(diagram, elements)          // Add multiple elements\n");
-        sb.append("api.diagram.layout(diagram, \"flow\")            // Layout: auto/grid/flow/radial\n");
-        sb.append("api.diagram.find(\"Diagram Name\")               // Find existing diagram\n\n");
+        sb.append(
+            "// === DIAGRAMS (Full creation - not possible in Python4Capella!) ===\n"
+        );
+        sb.append(
+            "def diagram = api.diagram.create(\"SAB\", \"Overview\", root)\n"
+        );
+        sb.append(
+            "api.diagram.add(diagram, element)              // Add element to diagram\n"
+        );
+        sb.append(
+            "api.diagram.addAll(diagram, elements)          // Add multiple elements\n"
+        );
+        sb.append(
+            "api.diagram.layout(diagram, \"flow\")            // Layout: auto/grid/flow/radial\n"
+        );
+        sb.append(
+            "api.diagram.find(\"Diagram Name\")               // Find existing diagram\n\n"
+        );
 
         sb.append("// === CROSS-LAYER TRANSFORMATION ===\n");
-        sb.append("api.propagate(element, \"LA\")                   // Propagate to Logical\n");
-        sb.append("api.propagate(element, \"PA\")                   // Propagate to Physical\n\n");
+        sb.append(
+            "api.propagate(element, \"LA\")                   // Propagate to Logical\n"
+        );
+        sb.append(
+            "api.propagate(element, \"PA\")                   // Propagate to Physical\n\n"
+        );
 
         sb.append("// === LOGGING ===\n");
-        sb.append("log.info(\"Created: \" + element)                // Log output\n");
-        sb.append("log.warn(\"Warning message\")                    // Warning\n");
-        sb.append("log.error(\"Error message\")                     // Error\n");
+        sb.append(
+            "log.info(\"Created: \" + element)                // Log output\n"
+        );
+        sb.append(
+            "log.warn(\"Warning message\")                    // Warning\n"
+        );
+        sb.append(
+            "log.error(\"Error message\")                     // Error\n"
+        );
         sb.append("```\n\n");
 
         sb.append("### Example: Complete Workflow\n\n");
@@ -199,30 +289,44 @@ public final class CodeExecutionRouter {
         sb.append("// Create a system with functions and diagram\n");
         sb.append("def saRoot = api.layer(\"SA\")\n\n");
         sb.append("// Create components\n");
-        sb.append("def controller = api.create(\"SA\", \"SystemComponent\", \"Flight Controller\")\n");
-        sb.append("def sensors = api.create(\"SA\", \"SystemComponent\", \"Sensor Array\")\n\n");
+        sb.append(
+            "def controller = api.create(\"SA\", \"SystemComponent\", \"Flight Controller\")\n"
+        );
+        sb.append(
+            "def sensors = api.create(\"SA\", \"SystemComponent\", \"Sensor Array\")\n\n"
+        );
         sb.append("// Create functions\n");
-        sb.append("def processData = api.create(\"SA\", \"SystemFunction\", \"Process Sensor Data\")\n");
-        sb.append("def navigate = api.create(\"SA\", \"SystemFunction\", \"Calculate Navigation\")\n\n");
+        sb.append(
+            "def processData = api.create(\"SA\", \"SystemFunction\", \"Process Sensor Data\")\n"
+        );
+        sb.append(
+            "def navigate = api.create(\"SA\", \"SystemFunction\", \"Calculate Navigation\")\n\n"
+        );
         sb.append("// Create exchange between functions\n");
-        sb.append("def exchange = api.link(processData, navigate, \"FunctionalExchange\")\n");
+        sb.append(
+            "def exchange = api.link(processData, navigate, \"FunctionalExchange\")\n"
+        );
         sb.append("api.set(exchange, \"name\", \"Sensor Data Flow\")\n\n");
         sb.append("// Allocate functions to components\n");
         sb.append("api.link(processData, sensors, \"allocation\")\n");
         sb.append("api.link(navigate, controller, \"allocation\")\n\n");
         sb.append("// Create and populate diagram\n");
-        sb.append("def diagram = api.diagram.create(\"SAB\", \"System Overview\", saRoot)\n");
+        sb.append(
+            "def diagram = api.diagram.create(\"SAB\", \"System Overview\", saRoot)\n"
+        );
         sb.append("api.diagram.add(diagram, controller)\n");
         sb.append("api.diagram.add(diagram, sensors)\n");
         sb.append("api.diagram.layout(diagram, \"flow\")\n\n");
-        sb.append("log.info(\"Created system with \" + api.findAll(\"SystemFunction\").size() + \" functions\")\n");
+        sb.append(
+            "log.info(\"Created system with \" + api.findAll(\"SystemFunction\").size() + \" functions\")\n"
+        );
         sb.append("```\n\n");
 
         // Add current model context
         if (session != null) {
             sb.append("### Current Model State\n\n");
             sb.append("```\n");
-            sb.append(ModelSummary.getSummary(session));
+            sb.append(ModelSummary.summarize(session));
             sb.append("```\n");
         }
 
@@ -242,7 +346,9 @@ public final class CodeExecutionRouter {
         if (value instanceof org.eclipse.emf.ecore.EObject eo) {
             try {
                 String className = eo.eClass().getName();
-                Object name = eo.eGet(eo.eClass().getEStructuralFeature("name"));
+                Object name = eo.eGet(
+                    eo.eClass().getEStructuralFeature("name")
+                );
                 return className + ": " + (name != null ? name : "<unnamed>");
             } catch (Exception e) {
                 return eo.getClass().getSimpleName();

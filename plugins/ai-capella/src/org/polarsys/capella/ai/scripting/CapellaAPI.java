@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
-
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.resource.Resource;
@@ -115,8 +114,10 @@ public final class CapellaAPI {
      */
     public FindResult findWithDiagnostic(String type, String name) {
         if (session == null) {
-            return FindResult.error(org.polarsys.capella.ai.model.ActionResult.ErrorCode.SESSION_ERROR,
-                "No active session");
+            return FindResult.error(
+                org.polarsys.capella.ai.model.ActionResult.ErrorCode.SESSION_ERROR,
+                "No active session"
+            );
         }
         return Finders.findByNameWithDiagnostic(session, type, name);
     }
@@ -249,7 +250,12 @@ public final class CapellaAPI {
         if (session == null || type == null || parent == null) {
             return null;
         }
-        EObject created = ElementFactory.createUnder(session, parent, type, name);
+        EObject created = ElementFactory.createUnder(
+            session,
+            parent,
+            type,
+            name
+        );
         if (created != null) {
             invalidate();
         }
@@ -271,10 +277,14 @@ public final class CapellaAPI {
             return false;
         }
         return SessionSafeguards.runWrite(session, "Set " + property, () -> {
-            EStructuralFeature feature = element.eClass().getEStructuralFeature(property);
+            EStructuralFeature feature = element
+                .eClass()
+                .getEStructuralFeature(property);
             if (feature == null) {
                 // Try case-insensitive match
-                for (EStructuralFeature f : element.eClass().getEAllStructuralFeatures()) {
+                for (EStructuralFeature f : element
+                    .eClass()
+                    .getEAllStructuralFeatures()) {
                     if (f.getName().equalsIgnoreCase(property)) {
                         feature = f;
                         break;
@@ -301,9 +311,13 @@ public final class CapellaAPI {
         if (element == null || property == null) {
             return null;
         }
-        EStructuralFeature feature = element.eClass().getEStructuralFeature(property);
+        EStructuralFeature feature = element
+            .eClass()
+            .getEStructuralFeature(property);
         if (feature == null) {
-            for (EStructuralFeature f : element.eClass().getEAllStructuralFeatures()) {
+            for (EStructuralFeature f : element
+                .eClass()
+                .getEAllStructuralFeatures()) {
                 if (f.getName().equalsIgnoreCase(property)) {
                     feature = f;
                     break;
@@ -359,7 +373,12 @@ public final class CapellaAPI {
         if (session == null || source == null || target == null) {
             return null;
         }
-        EObject result = RelationFactory.link(session, source, target, relationType);
+        EObject result = RelationFactory.link(
+            session,
+            source,
+            target,
+            relationType
+        );
         if (result != null) {
             invalidate();
         }
@@ -504,7 +523,7 @@ public final class CapellaAPI {
         if (session == null) {
             return "No active session";
         }
-        return ModelSummary.getSummary(session);
+        return ModelSummary.summarize(session);
     }
 
     // ========== Private Helpers ==========
@@ -522,7 +541,9 @@ public final class CapellaAPI {
             return null;
         }
         try {
-            EStructuralFeature feature = element.eClass().getEStructuralFeature("name");
+            EStructuralFeature feature = element
+                .eClass()
+                .getEStructuralFeature("name");
             if (feature != null) {
                 Object value = element.eGet(feature);
                 return value != null ? value.toString() : null;
@@ -538,7 +559,9 @@ public final class CapellaAPI {
             return null;
         }
         try {
-            EStructuralFeature feature = element.eClass().getEStructuralFeature("id");
+            EStructuralFeature feature = element
+                .eClass()
+                .getEStructuralFeature("id");
             if (feature != null) {
                 Object value = element.eGet(feature);
                 if (value != null) return value.toString();
@@ -559,7 +582,9 @@ public final class CapellaAPI {
     private String guessLayerFromType(String type) {
         if (type == null) return "SA";
         String lower = type.toLowerCase();
-        if (lower.startsWith("operational") || lower.startsWith("oa")) return "OA";
+        if (
+            lower.startsWith("operational") || lower.startsWith("oa")
+        ) return "OA";
         if (lower.startsWith("logical") || lower.startsWith("la")) return "LA";
         if (lower.startsWith("physical") || lower.startsWith("pa")) return "PA";
         return "SA"; // Default to System Analysis
@@ -577,9 +602,13 @@ public final class CapellaAPI {
                 default -> type.replace("System", "Logical");
             };
             case "PA" -> switch (type) {
-                case "SystemComponent", "LogicalComponent" -> "PhysicalComponent";
+                case
+                    "SystemComponent",
+                    "LogicalComponent" -> "PhysicalComponent";
                 case "SystemFunction", "LogicalFunction" -> "PhysicalFunction";
-                default -> type.replace("System", "Physical").replace("Logical", "Physical");
+                default -> type
+                    .replace("System", "Physical")
+                    .replace("Logical", "Physical");
             };
             case "SA" -> switch (type) {
                 case "OperationalActivity" -> "SystemFunction";

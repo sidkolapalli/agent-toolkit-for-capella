@@ -1,5 +1,7 @@
 package org.polarsys.capella.ai.scripting;
 
+import groovy.lang.Binding;
+import groovy.lang.GroovyShell;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Arrays;
@@ -14,14 +16,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import org.codehaus.groovy.control.CompilerConfiguration;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.codehaus.groovy.control.customizers.SecureASTCustomizer;
 import org.eclipse.sirius.business.api.session.Session;
-
-import groovy.lang.Binding;
-import groovy.lang.GroovyShell;
 
 /**
  * Sandboxed Groovy executor for LLM-generated scripts.
@@ -43,7 +41,10 @@ import groovy.lang.GroovyShell;
  * </ul>
  */
 public final class GroovyExecutor {
-    private static final Logger LOG = Logger.getLogger(GroovyExecutor.class.getName());
+
+    private static final Logger LOG = Logger.getLogger(
+        GroovyExecutor.class.getName()
+    );
 
     /** Default timeout in milliseconds */
     private static final long DEFAULT_TIMEOUT_MS = 30_000;
@@ -52,36 +53,39 @@ public final class GroovyExecutor {
     private static final int MAX_SCRIPT_LENGTH = 100_000;
 
     /** Executor for running scripts with timeout */
-    private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r, "GroovyExecutor-Worker");
-        t.setDaemon(true);
-        return t;
-    });
+    private static final ExecutorService EXECUTOR =
+        Executors.newCachedThreadPool(r -> {
+            Thread t = new Thread(r, "GroovyExecutor-Worker");
+            t.setDaemon(true);
+            return t;
+        });
 
     /** Classes/packages blocked for security */
-    private static final Set<String> BLOCKED_RECEIVERS = new HashSet<>(Arrays.asList(
-        "java.lang.System",
-        "java.lang.Runtime",
-        "java.lang.ProcessBuilder",
-        "java.io.File",
-        "java.io.FileInputStream",
-        "java.io.FileOutputStream",
-        "java.io.FileReader",
-        "java.io.FileWriter",
-        "java.io.RandomAccessFile",
-        "java.nio.file.Files",
-        "java.nio.file.Paths",
-        "java.net.Socket",
-        "java.net.ServerSocket",
-        "java.net.URL",
-        "java.net.HttpURLConnection",
-        "java.lang.reflect.Method",
-        "java.lang.reflect.Field",
-        "java.lang.reflect.Constructor",
-        "java.lang.ClassLoader",
-        "groovy.lang.GroovyShell",
-        "groovy.lang.GroovyClassLoader"
-    ));
+    private static final Set<String> BLOCKED_RECEIVERS = new HashSet<>(
+        Arrays.asList(
+            "java.lang.System",
+            "java.lang.Runtime",
+            "java.lang.ProcessBuilder",
+            "java.io.File",
+            "java.io.FileInputStream",
+            "java.io.FileOutputStream",
+            "java.io.FileReader",
+            "java.io.FileWriter",
+            "java.io.RandomAccessFile",
+            "java.nio.file.Files",
+            "java.nio.file.Paths",
+            "java.net.Socket",
+            "java.net.ServerSocket",
+            "java.net.URL",
+            "java.net.HttpURLConnection",
+            "java.lang.reflect.Method",
+            "java.lang.reflect.Field",
+            "java.lang.reflect.Constructor",
+            "java.lang.ClassLoader",
+            "groovy.lang.GroovyShell",
+            "groovy.lang.GroovyClassLoader"
+        )
+    );
 
     private GroovyExecutor() {}
 
@@ -104,21 +108,33 @@ public final class GroovyExecutor {
      * @param timeoutMs timeout in milliseconds
      * @return ExecutionResult with return value, logs, and any errors
      */
-    public static ExecutionResult execute(Session session, String script, long timeoutMs) {
+    public static ExecutionResult execute(
+        Session session,
+        String script,
+        long timeoutMs
+    ) {
         long startTime = System.currentTimeMillis();
 
         // Validate inputs
         if (session == null) {
-            return ExecutionResult.fail(ExecutionResult.ErrorCode.API_ERROR,
-                "No active Capella session");
+            return ExecutionResult.fail(
+                ExecutionResult.ErrorCode.API_ERROR,
+                "No active Capella session"
+            );
         }
         if (script == null || script.isBlank()) {
-            return ExecutionResult.fail(ExecutionResult.ErrorCode.INVALID_RESULT,
-                "Script is empty");
+            return ExecutionResult.fail(
+                ExecutionResult.ErrorCode.INVALID_RESULT,
+                "Script is empty"
+            );
         }
         if (script.length() > MAX_SCRIPT_LENGTH) {
-            return ExecutionResult.fail(ExecutionResult.ErrorCode.SECURITY_VIOLATION,
-                "Script exceeds maximum length of " + MAX_SCRIPT_LENGTH + " characters");
+            return ExecutionResult.fail(
+                ExecutionResult.ErrorCode.SECURITY_VIOLATION,
+                "Script exceeds maximum length of " +
+                    MAX_SCRIPT_LENGTH +
+                    " characters"
+            );
         }
 
         // Create script logger for output capture
@@ -142,7 +158,10 @@ public final class GroovyExecutor {
             try {
                 return shell.evaluate(script);
             } catch (SecurityException e) {
-                throw new SecurityException("Blocked operation: " + e.getMessage(), e);
+                throw new SecurityException(
+                    "Blocked operation: " + e.getMessage(),
+                    e
+                );
             }
         };
 
@@ -157,8 +176,11 @@ public final class GroovyExecutor {
             }
 
             long duration = System.currentTimeMillis() - startTime;
-            return ExecutionResult.success(result, logger.getMessages(), duration);
-
+            return ExecutionResult.success(
+                result,
+                logger.getMessages(),
+                duration
+            );
         } catch (java.util.concurrent.ExecutionException e) {
             Throwable cause = e.getCause();
             long duration = System.currentTimeMillis() - startTime;
@@ -173,7 +195,10 @@ public final class GroovyExecutor {
                 );
             }
 
-            if (cause instanceof org.codehaus.groovy.control.MultipleCompilationErrorsException) {
+            if (
+                cause instanceof
+                    org.codehaus.groovy.control.MultipleCompilationErrorsException
+            ) {
                 return ExecutionResult.fail(
                     ExecutionResult.ErrorCode.COMPILATION_ERROR,
                     "Script compilation failed: " + cause.getMessage(),
@@ -190,11 +215,12 @@ public final class GroovyExecutor {
                 logger.getMessages(),
                 duration
             );
-
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return ExecutionResult.fail(ExecutionResult.ErrorCode.TIMEOUT,
-                "Script execution was interrupted");
+            return ExecutionResult.fail(
+                ExecutionResult.ErrorCode.TIMEOUT,
+                "Script execution was interrupted"
+            );
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             LOG.log(Level.WARNING, "Unexpected error executing script", e);
@@ -224,9 +250,12 @@ public final class GroovyExecutor {
         binding.setVariable("log", logger);
 
         // Convenience: println function
-        binding.setVariable("println", (java.util.function.Consumer<Object>) obj -> {
-            logger.info(obj != null ? obj.toString() : "null");
-        });
+        binding.setVariable(
+            "println",
+            (java.util.function.Consumer<Object>) obj -> {
+                logger.info(obj != null ? obj.toString() : "null");
+            }
+        );
 
         return binding;
     }
@@ -246,9 +275,7 @@ public final class GroovyExecutor {
             "java.util.ArrayList",
             "java.util.HashMap"
         );
-        imports.addStarImports(
-            "org.polarsys.capella.ai.scripting"
-        );
+        imports.addStarImports("org.polarsys.capella.ai.scripting");
         config.addCompilationCustomizers(imports);
 
         // Add security restrictions
@@ -256,20 +283,6 @@ public final class GroovyExecutor {
 
         // Block dangerous method receivers
         secure.setReceiversBlackList(List.copyOf(BLOCKED_RECEIVERS));
-
-        // Block certain statements
-        secure.setStatementsBlacklist(Arrays.asList(
-            org.codehaus.groovy.ast.stmt.WhileStatement.class // Prevent infinite loops
-        ));
-
-        // Allow loops but we have timeout protection
-        secure.setLoopsAllowed(true);
-
-        // Allow closures (needed for Groovy idioms)
-        secure.setClosuresAllowed(true);
-
-        // Allow method definitions
-        secure.setMethodDefinitionAllowed(true);
 
         // Block package definitions (no new packages)
         secure.setPackageAllowed(false);
