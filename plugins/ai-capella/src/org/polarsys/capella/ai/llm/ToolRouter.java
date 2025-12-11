@@ -709,36 +709,36 @@ public final class ToolRouter {
             case CREATE_LAB:
                 return createLabDiagram(session, action.layer);
             case CREATE_MISSION:
-                return OperationalActions.createMission(session, action.layer, action.name, action.description);
+                return OperationalActions.createMission(session, action.layer, action.name, action.description).success();
             case CREATE_OPERATIONAL_ACTIVITY:
-                return OperationalActions.createOperationalActivity(session, action.layer, action.name, action.parentName);
+                return OperationalActions.createOperationalActivity(session, action.layer, action.name, action.parentName).success();
             case CREATE_OPERATIONAL_EXCHANGE:
-                return OperationalActions.createOperationalExchange(session, action.layer, action.name, action.sourceName, action.targetName);
+                return OperationalActions.createOperationalExchange(session, action.layer, action.name, action.sourceName, action.targetName).success();
             case LINK_OPERATIONAL_TO_CAPABILITY:
-                return OperationalActions.linkActivityToCapability(session, action.existingName, action.capabilityName);
+                return OperationalActions.linkActivityToCapability(session, action.existingName, action.capabilityName).success();
             case CREATE_SYSTEM_COMPONENT:
-                return SystemActions.createComponent(session, action.layer, action.name, action.parentName);
+                return SystemActions.createComponent(session, action.layer, action.name, action.parentName).success();
             case CREATE_SYSTEM_FUNCTION:
-                return SystemActions.createFunction(session, action.layer, action.name, action.parentName);
+                return SystemActions.createFunction(session, action.layer, action.name, action.parentName).success();
             case CREATE_INTERFACE:
-                return SystemActions.createInterface(session, action.layer, action.name, action.sourceName, action.targetName);
+                return SystemActions.createInterface(session, action.layer, action.name, action.sourceName, action.targetName).success();
             case ALLOCATE_CAPABILITY:
-                return SystemActions.allocateCapability(session, action.existingName, action.capabilityName);
+                return SystemActions.allocateCapability(session, action.existingName, action.capabilityName).success();
             case PROPAGATE_LOGICAL_TO_PHYSICAL:
                 String targetLayer = (action.targetLayer != null && !action.targetLayer.isBlank()) ? action.targetLayer : action.layer;
-                return TransformationActions.propagateLogicalComponent(session, action.logicalName, targetLayer, action.includeChildren);
+                return TransformationActions.propagateLogicalComponent(session, action.logicalName, targetLayer, action.includeChildren).success();
             case SYNC_PHYSICAL_FROM_LOGICAL:
-                return TransformationActions.syncPhysicalFromLogical(session, action.logicalName, action.physicalName, action.updateAttributes);
+                return TransformationActions.syncPhysicalFromLogical(session, action.logicalName, action.physicalName, action.updateAttributes).success();
             case TRACE_COMPONENT_MAPPING:
-                return TransformationActions.traceComponentMapping(session, action.logicalName, action.physicalName);
+                return TransformationActions.traceComponentMapping(session, action.logicalName, action.physicalName).success();
             case CREATE_FUNCTIONAL_CHAIN:
-                return FunctionalChainActions.createChain(session, action.layer, action.name, action.description);
+                return FunctionalChainActions.createChain(session, action.layer, action.name, action.description).success();
             case EXTEND_CHAIN:
-                return FunctionalChainActions.addFunction(session, action.chainName, action.functionName, action.functionClass);
+                return FunctionalChainActions.addFunction(session, action.chainName, action.functionName, action.functionClass).success();
             case SEQUENCE_EXCHANGE:
-                return FunctionalChainActions.addExchange(session, action.chainName, action.exchangeName);
+                return FunctionalChainActions.addExchange(session, action.chainName, action.exchangeName).success();
             case ATTACH_SCENARIO:
-                return FunctionalChainActions.attachScenario(session, action.chainName, action.scenarioName);
+                return FunctionalChainActions.attachScenario(session, action.chainName, action.scenarioName).success();
             case ADD_VIEW_NODE: {
                 DRepresentation rep = DiagramCommands.getLastOpened();
                 if (action.name != null && !action.name.isBlank()) {
@@ -865,21 +865,21 @@ public final class ToolRouter {
                 return DiagramCommands.revealSemantics(s, rep, java.util.List.of(sem));
             }
             case BATCH_RENAME:
-                return MassEditActions.batchRename(session, action.elementClass, action.renameItems);
+                return MassEditActions.batchRename(session, action.elementClass, action.renameItems).success();
             case BATCH_REPARENT:
-                return MassEditActions.batchReparent(session, action.elementClass, action.parentName, action.itemNames);
+                return MassEditActions.batchReparent(session, action.elementClass, action.parentName, action.itemNames).success();
             case BATCH_ALLOCATE:
-                return MassEditActions.batchAllocateCapability(session, action.capabilityName, action.itemNames);
+                return MassEditActions.batchAllocateCapability(session, action.capabilityName, action.itemNames).success();
             case BATCH_MAP:
-                return MassEditActions.batchMap(session, action.elementClass, action.containerClass, action.mappingItems);
+                return MassEditActions.batchMap(session, action.elementClass, action.containerClass, action.mappingItems).success();
             case BATCH_DELETE:
-                return MassEditActions.batchDelete(session, action.elementClass, action.itemNames);
+                return MassEditActions.batchDelete(session, action.elementClass, action.itemNames).success();
             case CREATE_REQUIREMENT:
-                return RequirementActions.createRequirement(session, action.containerClass, action.containerName, action.requirementType, action.name, action.description);
+                return RequirementActions.createRequirement(session, action.containerClass, action.containerName, action.requirementType, action.name, action.description).success();
             case LINK_REQUIREMENT:
-                return RequirementActions.linkRequirement(session, action.name, action.requirementTargetClass, action.targetName);
+                return RequirementActions.linkRequirement(session, action.name, action.requirementTargetClass, action.targetName).success();
             case RECORD_REQUIREMENT_COVERAGE:
-                return RequirementActions.recordCoverage(session, action.requirementTargetClass, action.targetName, action.requirementStatus, action.requirementNotes);
+                return RequirementActions.recordCoverage(session, action.requirementTargetClass, action.targetName, action.requirementStatus, action.requirementNotes).success();
             case OPEN_DIAGRAM:
                 return openDiagram(session, action.layer, action.diagramType, action.name);
             case RENAME:

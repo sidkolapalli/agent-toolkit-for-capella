@@ -6,8 +6,11 @@ import java.util.Locale;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.sirius.business.api.session.Session;
+import org.polarsys.capella.ai.model.ActionResult;
+import org.polarsys.capella.ai.model.ActionResult.ErrorCode;
 import org.polarsys.capella.ai.model.ArchitectureLocator;
 import org.polarsys.capella.ai.model.ElementFactory;
+import org.polarsys.capella.ai.model.FindResult;
 import org.polarsys.capella.ai.model.Finders;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.model.index.ModelIndex;
@@ -17,90 +20,211 @@ import org.polarsys.capella.ai.session.SessionSafeguards;
 public final class SystemActions {
     private SystemActions() {}
 
-    public static boolean createComponent(Session session, String layer, String name, String parentName) {
-        if (session == null || name == null || name.isBlank()) {
-            return false;
-        }
-        return SessionSafeguards.runWrite(session, "Create system component", () -> {
-            EObject container = resolveContainer(session, layer, parentName, "SystemComponent");
-            if (container == null) {
-                return false;
-            }
-            EObject component = ElementFactory.createUnder(session, container, "SystemComponent", name);
-            if (component == null) {
-                return false;
-            }
-            invalidate(session);
-            return true;
-        });
-    }
-
-    public static boolean createFunction(Session session, String layer, String name, String parentName) {
-        if (session == null || name == null || name.isBlank()) {
-            return false;
-        }
-        return SessionSafeguards.runWrite(session, "Create system function", () -> {
-            EObject container = resolveContainer(session, layer, parentName, "SystemFunction");
-            if (container == null) {
-                return false;
-            }
-            EObject function = ElementFactory.createUnder(session, container, "SystemFunction", name);
-            if (function == null) {
-                return false;
-            }
-            invalidate(session);
-            return true;
-        });
-    }
-
-    public static boolean createInterface(Session session, String layer, String name, String sourceComponent, String targetComponent) {
+    public static ActionResult createComponent(Session session, String layer, String name, String parentName) {
         if (session == null) {
-            return false;
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Create system interface", () -> {
-            EObject saRoot = ArchitectureLocator.findTargetElement(session, resolveLayer(layer, "SA"));
-            if (saRoot == null) {
-                return false;
+        if (name == null || name.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Component name is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Create system component", () -> {
+            // Resolve container with diagnostics
+            ContainerResult containerResult = resolveContainerWithDiagnostic(session, layer, parentName, "SystemComponent");
+            if (!containerResult.success) {
+                return containerResult.error;
             }
+            EObject component = ElementFactory.createUnder(session, containerResult.container, "SystemComponent", name);
+            if (component == null) {
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Failed to create SystemComponent '" + name + "'",
+                    "Check EMF constraints and ensure the container can hold SystemComponent elements");
+            }
+            invalidate(session);
+            return ActionResult.ok("Created SystemComponent '" + name + "'");
+        });
+    }
+
+    public static ActionResult createFunction(Session session, String layer, String name, String parentName) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
+        }
+        if (name == null || name.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Function name is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Create system function", () -> {
+            ContainerResult containerResult = resolveContainerWithDiagnostic(session, layer, parentName, "SystemFunction");
+            if (!containerResult.success) {
+                return containerResult.error;
+            }
+            EObject function = ElementFactory.createUnder(session, containerResult.container, "SystemFunction", name);
+            if (function == null) {
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Failed to create SystemFunction '" + name + "'",
+                    "Check EMF constraints and ensure the container can hold SystemFunction elements");
+            }
+            invalidate(session);
+            return ActionResult.ok("Created SystemFunction '" + name + "'");
+        });
+    }
+
+    public static ActionResult createInterface(Session session, String layer, String name, String sourceComponent, String targetComponent) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Create system interface", () -> {
+            // Find SA root with diagnostics
+            FindResult layerResult = ArchitectureLocator.findLayerWithDiagnostic(session, resolveLayer(layer, "SA"));
+            if (layerResult.failed()) {
+                return layerResult.toActionResult();
+            }
+            EObject saRoot = layerResult.element();
+
+            // Create exchange
             EObject exchange = ElementFactory.createUnder(session, saRoot, "ComponentExchange", defaultName(name, "ComponentExchange"));
             if (exchange == null) {
-                return false;
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Failed to create ComponentExchange",
+                    "Check EMF constraints for ComponentExchange creation");
             }
-            EObject source = Finders.findByName(session, "SystemComponent", sourceComponent);
-            EObject target = Finders.findByName(session, "SystemComponent", targetComponent);
-            assignEndpoint(exchange, "source", source);
-            assignEndpoint(exchange, "target", target);
+
+            // Find source component with diagnostics
+            FindResult sourceResult = Finders.findByNameWithDiagnostic(session, "SystemComponent", sourceComponent);
+            if (sourceResult.failed()) {
+                return ActionResult.failWithAlternatives(ErrorCode.REFERENCE_NOT_FOUND,
+                    "Source component '" + sourceComponent + "' not found",
+                    sourceResult.hasAlternatives() ? "Did you mean: " + String.join(", ", sourceResult.alternatives()) : null,
+                    sourceResult.alternatives());
+            }
+
+            // Find target component with diagnostics
+            FindResult targetResult = Finders.findByNameWithDiagnostic(session, "SystemComponent", targetComponent);
+            if (targetResult.failed()) {
+                return ActionResult.failWithAlternatives(ErrorCode.REFERENCE_NOT_FOUND,
+                    "Target component '" + targetComponent + "' not found",
+                    targetResult.hasAlternatives() ? "Did you mean: " + String.join(", ", targetResult.alternatives()) : null,
+                    targetResult.alternatives());
+            }
+
+            assignEndpoint(exchange, "source", sourceResult.element());
+            assignEndpoint(exchange, "target", targetResult.element());
             invalidate(session);
-            return true;
+            return ActionResult.ok("Created ComponentExchange from '" + sourceComponent + "' to '" + targetComponent + "'");
         });
     }
 
-    public static boolean allocateCapability(Session session, String componentName, String capabilityName) {
-        if (session == null || componentName == null || capabilityName == null) {
-            return false;
+    public static ActionResult allocateCapability(Session session, String componentName, String capabilityName) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Allocate capability to system component", () -> {
-            EObject component = Finders.findByName(session, "SystemComponent", componentName);
-            EObject capability = Finders.findByName(session, "Capability", capabilityName);
-            if (component == null || capability == null) {
-                return false;
+        if (componentName == null || componentName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Component name is required");
+        }
+        if (capabilityName == null || capabilityName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Capability name is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Allocate capability to system component", () -> {
+            // Find component with diagnostics
+            FindResult componentResult = Finders.findByNameWithDiagnostic(session, "SystemComponent", componentName);
+            if (componentResult.failed()) {
+                return componentResult.toActionResult();
             }
-            boolean linked = addReference(component, capability, "capability", "allocation", "realization");
-            if (linked) {
-                invalidate(session);
+
+            // Find capability with diagnostics
+            FindResult capabilityResult = Finders.findByNameWithDiagnostic(session, "Capability", capabilityName);
+            if (capabilityResult.failed()) {
+                return ActionResult.failWithAlternatives(ErrorCode.REFERENCE_NOT_FOUND,
+                    "Capability '" + capabilityName + "' not found",
+                    capabilityResult.hasAlternatives() ? "Did you mean: " + String.join(", ", capabilityResult.alternatives()) : null,
+                    capabilityResult.alternatives());
             }
-            return linked;
+
+            boolean linked = addReference(componentResult.element(), capabilityResult.element(), "capability", "allocation", "realization");
+            if (!linked) {
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Failed to link SystemComponent to Capability",
+                    "No suitable reference feature found for capability allocation");
+            }
+            invalidate(session);
+            return ActionResult.ok("Allocated '" + capabilityName + "' to '" + componentName + "'");
         });
     }
 
-    private static EObject resolveContainer(Session session, String layer, String parentName, String className) {
+    // ========== Legacy boolean methods for backward compatibility ==========
+
+    /** @deprecated Use {@link #createComponent(Session, String, String, String)} instead */
+    @Deprecated
+    public static boolean createComponentLegacy(Session session, String layer, String name, String parentName) {
+        return createComponent(session, layer, name, parentName).success();
+    }
+
+    /** @deprecated Use {@link #createFunction(Session, String, String, String)} instead */
+    @Deprecated
+    public static boolean createFunctionLegacy(Session session, String layer, String name, String parentName) {
+        return createFunction(session, layer, name, parentName).success();
+    }
+
+    /** @deprecated Use {@link #createInterface(Session, String, String, String, String)} instead */
+    @Deprecated
+    public static boolean createInterfaceLegacy(Session session, String layer, String name, String sourceComponent, String targetComponent) {
+        return createInterface(session, layer, name, sourceComponent, targetComponent).success();
+    }
+
+    /** @deprecated Use {@link #allocateCapability(Session, String, String)} instead */
+    @Deprecated
+    public static boolean allocateCapabilityLegacy(Session session, String componentName, String capabilityName) {
+        return allocateCapability(session, componentName, capabilityName).success();
+    }
+
+    // ========== Helper Classes ==========
+
+    /** Result of container resolution with diagnostic info. */
+    private static class ContainerResult {
+        final boolean success;
+        final EObject container;
+        final ActionResult error;
+
+        private ContainerResult(EObject container) {
+            this.success = true;
+            this.container = container;
+            this.error = null;
+        }
+
+        private ContainerResult(ActionResult error) {
+            this.success = false;
+            this.container = null;
+            this.error = error;
+        }
+
+        static ContainerResult ok(EObject container) {
+            return new ContainerResult(container);
+        }
+
+        static ContainerResult fail(ActionResult error) {
+            return new ContainerResult(error);
+        }
+    }
+
+    // ========== Helper Methods ==========
+
+    private static ContainerResult resolveContainerWithDiagnostic(Session session, String layer, String parentName, String className) {
+        // First try to find named parent
         if (parentName != null && !parentName.isBlank()) {
-            EObject parent = Finders.findByName(session, className, parentName);
-            if (parent != null) {
-                return parent;
+            FindResult parentResult = Finders.findByNameWithDiagnostic(session, className, parentName);
+            if (parentResult.success()) {
+                return ContainerResult.ok(parentResult.element());
             }
+            // Parent specified but not found - return error with alternatives
+            return ContainerResult.fail(ActionResult.failWithAlternatives(
+                ErrorCode.PARENT_NOT_FOUND,
+                "Parent " + className + " '" + parentName + "' not found",
+                parentResult.alternatives()));
         }
-        return ArchitectureLocator.findTargetElement(session, resolveLayer(layer, "SA"));
+        // No parent specified - use layer root
+        FindResult layerResult = ArchitectureLocator.findLayerWithDiagnostic(session, resolveLayer(layer, "SA"));
+        if (layerResult.failed()) {
+            return ContainerResult.fail(layerResult.toActionResult());
+        }
+        return ContainerResult.ok(layerResult.element());
     }
 
     private static void invalidate(Session session) {

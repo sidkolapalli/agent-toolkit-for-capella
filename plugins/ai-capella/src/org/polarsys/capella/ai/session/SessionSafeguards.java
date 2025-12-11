@@ -1,18 +1,20 @@
 package org.polarsys.capella.ai.session;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.function.Supplier;
 
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.emf.transaction.RecordingCommand;
 import org.eclipse.emf.transaction.TransactionalEditingDomain;
+import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.swt.widgets.Display;
 import org.polarsys.capella.ai.Activator;
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
-import org.eclipse.sirius.business.api.session.Session;
+import org.polarsys.capella.ai.model.ActionResult;
+import org.polarsys.capella.ai.model.ActionResult.ErrorCode;
 
 /**
  * Centralised safeguards for interacting with the live Capella session.
@@ -128,6 +130,93 @@ public final class SessionSafeguards {
         } else {
             display.syncExec(runnable);
         }
+    }
+
+    // ========== ActionResult-aware Methods ==========
+
+    /**
+     * Functional interface for operations that return ActionResult.
+     */
+    @FunctionalInterface
+    public interface ActionSupplier {
+        ActionResult execute();
+    }
+
+    /**
+     * Execute an action within a single RecordingCommand on the UI thread,
+     * returning ActionResult with diagnostic information on failure.
+     *
+     * <p>This method wraps the action in a transaction and converts any
+     * transaction-level failures to appropriate ActionResult error codes.</p>
+     *
+     * @param session the Capella session
+     * @param label the command label (for undo/redo stack)
+     * @param action the action to execute, must return ActionResult
+     * @return ActionResult from the action, or error result on transaction failure
+     */
+    public static ActionResult runWriteWithResult(Session session, String label, ActionSupplier action) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
+        }
+
+        TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
+        if (domain == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No transactional editing domain available");
+        }
+
+        // If already in write context, execute directly
+        if (isInWriteContext()) {
+            try {
+                ActionResult result = action.execute();
+                return result != null ? result : ActionResult.fail(ErrorCode.SESSION_ERROR, "Action returned null");
+            } catch (Exception ex) {
+                LOG.log(Level.WARNING, "Action failed in existing write context", ex);
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Action failed: " + ex.getMessage(),
+                    "Check EMF constraints and model state");
+            }
+        }
+
+        AtomicReference<ActionResult> result = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        Runnable execute = () -> {
+            try {
+                domain.getCommandStack().execute(new RecordingCommand(domain, label) {
+                    @Override
+                    protected void doExecute() {
+                        IN_WRITE.set(Boolean.TRUE);
+                        try {
+                            ActionResult actionResult = action.execute();
+                            result.set(actionResult != null ? actionResult
+                                : ActionResult.fail(ErrorCode.SESSION_ERROR, "Action returned null"));
+                        } catch (Exception ex) {
+                            LOG.log(Level.WARNING, "Action execution failed", ex);
+                            result.set(ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                                "Action failed: " + ex.getMessage(),
+                                "Check EMF constraints and model state"));
+                        } finally {
+                            IN_WRITE.set(Boolean.FALSE);
+                        }
+                    }
+                });
+            } catch (Exception ex) {
+                failure.set(ex);
+            }
+        };
+
+        runOnUiThread(execute);
+
+        // Check for transaction-level failure
+        if (failure.get() != null) {
+            LOG.log(Level.WARNING, "Transaction execution failed", failure.get());
+            return ActionResult.fail(ErrorCode.SESSION_ERROR,
+                "Transaction failed: " + failure.get().getMessage(),
+                "The model may be in an inconsistent state. Consider reopening the session.");
+        }
+
+        return result.get() != null ? result.get()
+            : ActionResult.fail(ErrorCode.SESSION_ERROR, "No result from action");
     }
 
     /** Clear ThreadLocal state to avoid leaks when the plug-in stops. */

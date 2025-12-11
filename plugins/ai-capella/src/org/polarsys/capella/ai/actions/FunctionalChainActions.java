@@ -9,8 +9,11 @@ import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.sirius.business.api.session.Session;
+import org.polarsys.capella.ai.model.ActionResult;
+import org.polarsys.capella.ai.model.ActionResult.ErrorCode;
 import org.polarsys.capella.ai.model.ArchitectureLocator;
 import org.polarsys.capella.ai.model.ElementFactory;
+import org.polarsys.capella.ai.model.FindResult;
 import org.polarsys.capella.ai.model.Finders;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.model.index.ModelIndex;
@@ -27,97 +30,282 @@ public final class FunctionalChainActions {
     private FunctionalChainActions() {
     }
 
-    public static boolean createChain(Session session, String layer, String name, String description) {
-        if (session == null || name == null || name.isBlank()) {
-            return false;
+    public static ActionResult createChain(Session session, String layer, String name, String description) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Create functional chain", () -> {
-            EObject root = ArchitectureLocator.findTargetElement(session, resolveLayer(layer, "LA"));
-            if (root == null) {
-                return false;
+        if (name == null || name.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Functional chain name is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Create functional chain", () -> {
+            FindResult layerResult = ArchitectureLocator.findLayerWithDiagnostic(session, resolveLayer(layer, "LA"));
+            if (layerResult.failed()) {
+                return layerResult.toActionResult();
             }
-            EObject chain = ElementFactory.createUnder(session, root, "FunctionalChain", name);
+            EObject chain = ElementFactory.createUnder(session, layerResult.element(), "FunctionalChain", name);
             if (chain == null) {
-                return false;
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Failed to create FunctionalChain '" + name + "'",
+                    "Check EMF constraints and ensure the layer can hold FunctionalChain elements");
             }
             setIfPresent(chain, "description", description);
             invalidate(session);
-            return true;
+            return ActionResult.ok("Created FunctionalChain '" + name + "'");
         });
     }
 
-    public static boolean addFunction(Session session, String chainName, String functionName, String preferredClass) {
-        if (session == null || chainName == null || functionName == null) {
-            return false;
+    public static ActionResult addFunction(Session session, String chainName, String functionName, String preferredClass) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Extend functional chain", () -> {
-            EObject chain = Finders.findByName(session, "FunctionalChain", chainName);
-            if (chain == null) {
-                return false;
+        if (chainName == null || chainName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Chain name is required");
+        }
+        if (functionName == null || functionName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Function name is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Extend functional chain", () -> {
+            // Find chain with diagnostics
+            FindResult chainResult = Finders.findByNameWithDiagnostic(session, "FunctionalChain", chainName);
+            if (chainResult.failed()) {
+                return chainResult.toActionResult();
             }
-            EObject function = findFunction(session, functionName, preferredClass);
-            if (function == null) {
-                return false;
+            EObject chain = chainResult.element();
+
+            // Find function with diagnostics
+            FunctionLookupResult functionResult = findFunctionWithDiagnostic(session, functionName, preferredClass);
+            if (!functionResult.success) {
+                return functionResult.error;
             }
+            EObject function = functionResult.function;
+
             if (hasInvolvement(chain, function)) {
-                return true;
+                return ActionResult.ok("Function '" + functionName + "' already involved in chain '" + chainName + "'");
             }
             boolean linked = createInvolvement(chain, function, functionName);
-            if (linked) {
-                invalidate(session);
+            if (!linked) {
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Failed to add function '" + functionName + "' to chain '" + chainName + "'",
+                    "Unable to create FunctionalChainInvolvement element");
             }
-            return linked;
+            invalidate(session);
+            return ActionResult.ok("Added function '" + functionName + "' to chain '" + chainName + "'");
         });
     }
 
-    public static boolean addExchange(Session session, String chainName, String exchangeName) {
-        if (session == null || chainName == null || exchangeName == null) {
-            return false;
+    public static ActionResult addExchange(Session session, String chainName, String exchangeName) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Sequence functional exchange", () -> {
-            EObject chain = Finders.findByName(session, "FunctionalChain", chainName);
-            if (chain == null) {
-                return false;
+        if (chainName == null || chainName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Chain name is required");
+        }
+        if (exchangeName == null || exchangeName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Exchange name is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Sequence functional exchange", () -> {
+            // Find chain with diagnostics
+            FindResult chainResult = Finders.findByNameWithDiagnostic(session, "FunctionalChain", chainName);
+            if (chainResult.failed()) {
+                return chainResult.toActionResult();
             }
-            EObject exchange = Finders.findByName(session, "FunctionalExchange", exchangeName);
-            if (exchange == null) {
-                return false;
+            EObject chain = chainResult.element();
+
+            // Find exchange with diagnostics
+            FindResult exchangeResult = Finders.findByNameWithDiagnostic(session, "FunctionalExchange", exchangeName);
+            if (exchangeResult.failed()) {
+                return ActionResult.failWithAlternatives(ErrorCode.REFERENCE_NOT_FOUND,
+                    "FunctionalExchange '" + exchangeName + "' not found",
+                    exchangeResult.hasAlternatives() ? "Did you mean: " + String.join(", ", exchangeResult.alternatives()) : null,
+                    exchangeResult.alternatives());
             }
+            EObject exchange = exchangeResult.element();
+
             if (linkReference(chain, exchange, "exchange")) {
                 invalidate(session);
-                return true;
+                return ActionResult.ok("Added exchange '" + exchangeName + "' to chain '" + chainName + "'");
             }
             // fallback: create involvement element pointing to exchange
             if (hasInvolvement(chain, exchange)) {
-                return true;
+                return ActionResult.ok("Exchange '" + exchangeName + "' already involved in chain '" + chainName + "'");
             }
             boolean linked = createInvolvement(chain, exchange, exchangeName);
-            if (linked) {
-                invalidate(session);
+            if (!linked) {
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Failed to add exchange '" + exchangeName + "' to chain '" + chainName + "'",
+                    "Unable to create involvement or link reference");
             }
-            return linked;
+            invalidate(session);
+            return ActionResult.ok("Added exchange '" + exchangeName + "' to chain '" + chainName + "'");
         });
     }
 
-    public static boolean attachScenario(Session session, String chainName, String scenarioName) {
-        if (session == null || chainName == null || scenarioName == null) {
-            return false;
+    public static ActionResult attachScenario(Session session, String chainName, String scenarioName) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Attach scenario to chain", () -> {
-            EObject chain = Finders.findByName(session, "FunctionalChain", chainName);
-            if (chain == null) {
-                return false;
+        if (chainName == null || chainName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Chain name is required");
+        }
+        if (scenarioName == null || scenarioName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Scenario name is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Attach scenario to chain", () -> {
+            // Find chain with diagnostics
+            FindResult chainResult = Finders.findByNameWithDiagnostic(session, "FunctionalChain", chainName);
+            if (chainResult.failed()) {
+                return chainResult.toActionResult();
             }
-            EObject scenario = findScenario(session, scenarioName);
-            if (scenario == null) {
-                return false;
+            EObject chain = chainResult.element();
+
+            // Find scenario with diagnostics
+            ScenarioLookupResult scenarioResult = findScenarioWithDiagnostic(session, scenarioName);
+            if (!scenarioResult.success) {
+                return scenarioResult.error;
             }
+            EObject scenario = scenarioResult.scenario;
+
             if (linkReference(chain, scenario, "scenario", "sequence", "diagram")) {
                 invalidate(session);
-                return true;
+                return ActionResult.ok("Attached scenario '" + scenarioName + "' to chain '" + chainName + "'");
             }
-            return false;
+            return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                "Failed to attach scenario '" + scenarioName + "' to chain '" + chainName + "'",
+                "No suitable reference found for scenario attachment");
         });
+    }
+
+    // ========== Legacy boolean methods for backward compatibility ==========
+
+    /** @deprecated Use {@link #createChain(Session, String, String, String)} instead */
+    @Deprecated
+    public static boolean createChainLegacy(Session session, String layer, String name, String description) {
+        return createChain(session, layer, name, description).success();
+    }
+
+    /** @deprecated Use {@link #addFunction(Session, String, String, String)} instead */
+    @Deprecated
+    public static boolean addFunctionLegacy(Session session, String chainName, String functionName, String preferredClass) {
+        return addFunction(session, chainName, functionName, preferredClass).success();
+    }
+
+    /** @deprecated Use {@link #addExchange(Session, String, String)} instead */
+    @Deprecated
+    public static boolean addExchangeLegacy(Session session, String chainName, String exchangeName) {
+        return addExchange(session, chainName, exchangeName).success();
+    }
+
+    /** @deprecated Use {@link #attachScenario(Session, String, String)} instead */
+    @Deprecated
+    public static boolean attachScenarioLegacy(Session session, String chainName, String scenarioName) {
+        return attachScenario(session, chainName, scenarioName).success();
+    }
+
+    // ========== Helper Classes ==========
+
+    /** Result of function lookup with diagnostic info. */
+    private static class FunctionLookupResult {
+        final boolean success;
+        final EObject function;
+        final ActionResult error;
+
+        private FunctionLookupResult(EObject function) {
+            this.success = true;
+            this.function = function;
+            this.error = null;
+        }
+
+        private FunctionLookupResult(ActionResult error) {
+            this.success = false;
+            this.function = null;
+            this.error = error;
+        }
+
+        static FunctionLookupResult ok(EObject function) {
+            return new FunctionLookupResult(function);
+        }
+
+        static FunctionLookupResult fail(ActionResult error) {
+            return new FunctionLookupResult(error);
+        }
+    }
+
+    /** Result of scenario lookup with diagnostic info. */
+    private static class ScenarioLookupResult {
+        final boolean success;
+        final EObject scenario;
+        final ActionResult error;
+
+        private ScenarioLookupResult(EObject scenario) {
+            this.success = true;
+            this.scenario = scenario;
+            this.error = null;
+        }
+
+        private ScenarioLookupResult(ActionResult error) {
+            this.success = false;
+            this.scenario = null;
+            this.error = error;
+        }
+
+        static ScenarioLookupResult ok(EObject scenario) {
+            return new ScenarioLookupResult(scenario);
+        }
+
+        static ScenarioLookupResult fail(ActionResult error) {
+            return new ScenarioLookupResult(error);
+        }
+    }
+
+    // ========== Helper Methods ==========
+
+    private static FunctionLookupResult findFunctionWithDiagnostic(Session session, String name, String preferredClass) {
+        // Try preferred class first
+        if (preferredClass != null && !preferredClass.isBlank()) {
+            FindResult result = Finders.findByNameWithDiagnostic(session, preferredClass, name);
+            if (result.success()) {
+                return FunctionLookupResult.ok(result.element());
+            }
+        }
+        // Try all function classes
+        List<String> allAlternatives = new java.util.ArrayList<>();
+        for (String cls : FUNCTION_CLASSES) {
+            FindResult result = Finders.findByNameWithDiagnostic(session, cls, name);
+            if (result.success()) {
+                return FunctionLookupResult.ok(result.element());
+            }
+            if (result.hasAlternatives()) {
+                allAlternatives.addAll(result.alternatives());
+            }
+        }
+        // Not found - return error with alternatives
+        String suggestion = allAlternatives.isEmpty() ? null : "Did you mean: " + String.join(", ", allAlternatives);
+        return FunctionLookupResult.fail(ActionResult.fail(ErrorCode.ELEMENT_NOT_FOUND,
+            "Function '" + name + "' not found in any layer (tried: " + String.join(", ", FUNCTION_CLASSES) + ")",
+            suggestion));
+    }
+
+    private static ScenarioLookupResult findScenarioWithDiagnostic(Session session, String name) {
+        List<String> scenarioClasses = List.of(
+                "Scenario",
+                "FunctionalScenario",
+                "OperationalScenario",
+                "SystemScenario"
+        );
+        List<String> allAlternatives = new java.util.ArrayList<>();
+        for (String cls : scenarioClasses) {
+            FindResult result = Finders.findByNameWithDiagnostic(session, cls, name);
+            if (result.success()) {
+                return ScenarioLookupResult.ok(result.element());
+            }
+            if (result.hasAlternatives()) {
+                allAlternatives.addAll(result.alternatives());
+            }
+        }
+        String suggestion = allAlternatives.isEmpty() ? null : "Did you mean: " + String.join(", ", allAlternatives);
+        return ScenarioLookupResult.fail(ActionResult.fail(ErrorCode.ELEMENT_NOT_FOUND,
+            "Scenario '" + name + "' not found (tried: " + String.join(", ", scenarioClasses) + ")",
+            suggestion));
     }
 
     private static boolean createInvolvement(EObject chain, EObject target, String nameHint) {
@@ -248,38 +436,6 @@ public final class FunctionalChainActions {
                 if (ref.getEReferenceType().isSuperTypeOf(type) || ref.getEReferenceType() == type) {
                     return ref;
                 }
-            }
-        }
-        return null;
-    }
-
-    private static EObject findFunction(Session session, String name, String preferredClass) {
-        if (preferredClass != null && !preferredClass.isBlank()) {
-            EObject fn = Finders.findByName(session, preferredClass, name);
-            if (fn != null) {
-                return fn;
-            }
-        }
-        for (String cls : FUNCTION_CLASSES) {
-            EObject fn = Finders.findByName(session, cls, name);
-            if (fn != null) {
-                return fn;
-            }
-        }
-        return null;
-    }
-
-    private static EObject findScenario(Session session, String name) {
-        List<String> scenarioClasses = List.of(
-                "Scenario",
-                "FunctionalScenario",
-                "OperationalScenario",
-                "SystemScenario"
-        );
-        for (String cls : scenarioClasses) {
-            EObject scenario = Finders.findByName(session, cls, name);
-            if (scenario != null) {
-                return scenario;
             }
         }
         return null;

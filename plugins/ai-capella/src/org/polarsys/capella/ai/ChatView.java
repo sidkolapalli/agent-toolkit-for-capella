@@ -2178,7 +2178,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = OperationalActions.createMission(session, "OA", name, description);
+        boolean ok = OperationalActions.createMission(session, "OA", name, description).success();
         append(ok ? String.format("Created mission '%s'.", name) : "Mission creation failed.");
     }
 
@@ -2212,7 +2212,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = OperationalActions.createOperationalActivity(session, "OA", name, parent.isBlank() ? null : parent);
+        boolean ok = OperationalActions.createOperationalActivity(session, "OA", name, parent.isBlank() ? null : parent).success();
         append(ok ? String.format("Created operational activity '%s'%s.", name, parent.isBlank() ? "" : " under " + parent)
                 : "Operational activity creation failed.");
     }
@@ -2259,7 +2259,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = OperationalActions.createOperationalExchange(session, "OA", exchangeName, source, target);
+        boolean ok = OperationalActions.createOperationalExchange(session, "OA", exchangeName, source, target).success();
         append(ok ? String.format("Created operational exchange %s (%s → %s).",
                 exchangeName.isBlank() ? "(auto-named)" : "'" + exchangeName + "'", source, target)
                 : "Operational exchange creation failed.");
@@ -2295,7 +2295,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = OperationalActions.linkActivityToCapability(session, activity, capability);
+        boolean ok = OperationalActions.linkActivityToCapability(session, activity, capability).success();
         append(ok ? String.format("Linked activity '%s' to capability '%s'.", activity, capability)
                 : "Failed to link operational activity to capability.");
     }
@@ -2330,7 +2330,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = SystemActions.createComponent(session, "SA", name, parent.isBlank() ? null : parent);
+        boolean ok = SystemActions.createComponent(session, "SA", name, parent.isBlank() ? null : parent).success();
         append(ok ? String.format("Created system component '%s'%s.", name, parent.isBlank() ? "" : " under " + parent)
                 : "System component creation failed.");
     }
@@ -2365,7 +2365,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = SystemActions.createFunction(session, "SA", name, parent.isBlank() ? null : parent);
+        boolean ok = SystemActions.createFunction(session, "SA", name, parent.isBlank() ? null : parent).success();
         append(ok ? String.format("Created system function '%s'%s.", name, parent.isBlank() ? "" : " under " + parent)
                 : "System function creation failed.");
     }
@@ -2412,7 +2412,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = SystemActions.createInterface(session, "SA", name, source, target);
+        boolean ok = SystemActions.createInterface(session, "SA", name, source, target).success();
         append(ok ? String.format("Created system interface %s (%s → %s).",
                 name.isBlank() ? "(auto-named)" : "'" + name + "'", source, target)
                 : "System interface creation failed.");
@@ -2448,7 +2448,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = SystemActions.allocateCapability(session, component, capability);
+        boolean ok = SystemActions.allocateCapability(session, component, capability).success();
         append(ok ? String.format("Allocated capability '%s' to system component '%s'.", capability, component)
                 : "Capability allocation failed.");
     }
@@ -2483,7 +2483,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = FunctionalChainActions.createChain(session, "LA", name, description);
+        boolean ok = FunctionalChainActions.createChain(session, "LA", name, description).success();
         append(ok ? String.format("Created functional chain '%s'.", name) : "Functional chain creation failed.");
     }
 
@@ -2529,7 +2529,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = FunctionalChainActions.addFunction(session, chain, function, functionClass.isBlank() ? null : functionClass);
+        boolean ok = FunctionalChainActions.addFunction(session, chain, function, functionClass.isBlank() ? null : functionClass).success();
         append(ok ? String.format("Extended chain '%s' with function '%s'.", chain, function) : "Failed to extend functional chain.");
     }
 
@@ -2563,7 +2563,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = FunctionalChainActions.addExchange(session, chain, exchange);
+        boolean ok = FunctionalChainActions.addExchange(session, chain, exchange).success();
         append(ok ? String.format("Added exchange '%s' to chain '%s'.", exchange, chain) : "Failed to add exchange to chain.");
     }
 
@@ -2597,7 +2597,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = FunctionalChainActions.attachScenario(session, chain, scenario);
+        boolean ok = FunctionalChainActions.attachScenario(session, chain, scenario).success();
         append(ok ? String.format("Attached scenario '%s' to chain '%s'.", scenario, chain) : "Failed to attach scenario to chain.");
     }
 
@@ -2667,7 +2667,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = RequirementActions.createRequirement(session, containerClass, containerName, reqType, name, description);
+        boolean ok = RequirementActions.createRequirement(session, containerClass, containerName, reqType, name, description).success();
         append(ok ? String.format("Created requirement '%s'.", name) : "Requirement creation failed.");
     }
 
@@ -2713,7 +2713,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = RequirementActions.linkRequirement(session, requirement, targetClass, targetName);
+        boolean ok = RequirementActions.linkRequirement(session, requirement, targetClass, targetName).success();
         append(ok ? String.format("Linked requirement '%s' to %s '%s'.", requirement, targetClass, targetName)
                 : "Failed to link requirement.");
     }
@@ -2772,7 +2772,7 @@ public class ChatView extends ViewPart {
             append("No active session.");
             return;
         }
-        boolean ok = RequirementActions.recordCoverage(session, targetClass, targetName, status, notes);
+        boolean ok = RequirementActions.recordCoverage(session, targetClass, targetName, status, notes).success();
         append(ok ? String.format("Recorded coverage for %s '%s'.", targetClass, targetName)
                 : "Failed to record requirement coverage.");
     }

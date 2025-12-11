@@ -5,12 +5,12 @@ import java.util.Locale;
 
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
-import org.eclipse.emf.ecore.resource.Resource;
-import org.eclipse.emf.ecore.resource.ResourceSet;
-import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.sirius.business.api.session.Session;
+import org.polarsys.capella.ai.model.ActionResult;
+import org.polarsys.capella.ai.model.ActionResult.ErrorCode;
 import org.polarsys.capella.ai.model.ArchitectureLocator;
 import org.polarsys.capella.ai.model.ElementFactory;
+import org.polarsys.capella.ai.model.FindResult;
 import org.polarsys.capella.ai.model.Finders;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.model.index.ModelIndex;
@@ -20,88 +20,174 @@ import org.polarsys.capella.ai.session.SessionSafeguards;
 public final class OperationalActions {
     private OperationalActions() {}
 
-    public static boolean createMission(Session session, String layer, String name, String description) {
-        if (session == null || name == null || name.isBlank()) {
-            return false;
+    public static ActionResult createMission(Session session, String layer, String name, String description) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Create mission", () -> {
-            EObject oaRoot = ArchitectureLocator.findTargetElement(session, resolveLayer(layer, "OA"));
-            if (oaRoot == null) {
-                return false;
+        if (name == null || name.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Mission name is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Create mission", () -> {
+            FindResult layerResult = ArchitectureLocator.findLayerWithDiagnostic(session, resolveLayer(layer, "OA"));
+            if (layerResult.failed()) {
+                return layerResult.toActionResult();
             }
-            EObject mission = ElementFactory.createUnder(session, oaRoot, "Mission", name);
+            EObject mission = ElementFactory.createUnder(session, layerResult.element(), "Mission", name);
             if (mission == null) {
-                return false;
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Failed to create Mission '" + name + "'",
+                    "Check EMF constraints and ensure the OA layer can hold Mission elements");
             }
             setIfPresent(mission, "description", description);
             invalidate(session);
-            return true;
+            return ActionResult.ok("Created Mission '" + name + "'");
         });
     }
 
-    public static boolean createOperationalActivity(Session session, String layer, String name, String parentName) {
-        if (session == null || name == null || name.isBlank()) {
-            return false;
+    public static ActionResult createOperationalActivity(Session session, String layer, String name, String parentName) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Create operational activity", () -> {
+        if (name == null || name.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Operational activity name is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Create operational activity", () -> {
             EObject container = null;
+            // Try to find named parent first
             if (parentName != null && !parentName.isBlank()) {
-                container = Finders.findByName(session, "OperationalActivity", parentName);
+                FindResult parentResult = Finders.findByNameWithDiagnostic(session, "OperationalActivity", parentName);
+                if (parentResult.failed()) {
+                    return ActionResult.failWithAlternatives(
+                        ErrorCode.PARENT_NOT_FOUND,
+                        "Parent OperationalActivity '" + parentName + "' not found",
+                        parentResult.alternatives());
+                }
+                container = parentResult.element();
             }
+            // Fall back to OA root
             if (container == null) {
-                container = ArchitectureLocator.findTargetElement(session, resolveLayer(layer, "OA"));
-            }
-            if (container == null) {
-                return false;
+                FindResult layerResult = ArchitectureLocator.findLayerWithDiagnostic(session, resolveLayer(layer, "OA"));
+                if (layerResult.failed()) {
+                    return layerResult.toActionResult();
+                }
+                container = layerResult.element();
             }
             EObject activity = ElementFactory.createUnder(session, container, "OperationalActivity", name);
             if (activity == null) {
-                return false;
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Failed to create OperationalActivity '" + name + "'",
+                    "Check EMF constraints for OperationalActivity creation");
             }
             invalidate(session);
-            return true;
+            return ActionResult.ok("Created OperationalActivity '" + name + "'");
         });
     }
 
-    public static boolean createOperationalExchange(Session session, String layer, String name, String sourceActor, String targetActor) {
+    public static ActionResult createOperationalExchange(Session session, String layer, String name, String sourceActor, String targetActor) {
         if (session == null) {
-            return false;
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Create operational exchange", () -> {
-            EObject oaRoot = ArchitectureLocator.findTargetElement(session, resolveLayer(layer, "OA"));
-            if (oaRoot == null) {
-                return false;
+        return SessionSafeguards.runWriteWithResult(session, "Create operational exchange", () -> {
+            FindResult layerResult = ArchitectureLocator.findLayerWithDiagnostic(session, resolveLayer(layer, "OA"));
+            if (layerResult.failed()) {
+                return layerResult.toActionResult();
             }
-            EObject exchange = ElementFactory.createUnder(session, oaRoot, "OperationalExchange", defaultName(name, "OperationalExchange"));
+            EObject exchange = ElementFactory.createUnder(session, layerResult.element(), "OperationalExchange", defaultName(name, "OperationalExchange"));
             if (exchange == null) {
-                return false;
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Failed to create OperationalExchange",
+                    "Check EMF constraints for OperationalExchange creation");
             }
-            EObject source = Finders.findByName(session, "OperationalActor", sourceActor);
-            EObject target = Finders.findByName(session, "OperationalActor", targetActor);
-            assignEndpoint(exchange, "source", source);
-            assignEndpoint(exchange, "target", target);
+
+            // Find source actor with diagnostics
+            FindResult sourceResult = Finders.findByNameWithDiagnostic(session, "OperationalActor", sourceActor);
+            if (sourceResult.failed()) {
+                return ActionResult.failWithAlternatives(ErrorCode.REFERENCE_NOT_FOUND,
+                    "Source actor '" + sourceActor + "' not found",
+                    sourceResult.hasAlternatives() ? "Did you mean: " + String.join(", ", sourceResult.alternatives()) : null,
+                    sourceResult.alternatives());
+            }
+
+            // Find target actor with diagnostics
+            FindResult targetResult = Finders.findByNameWithDiagnostic(session, "OperationalActor", targetActor);
+            if (targetResult.failed()) {
+                return ActionResult.failWithAlternatives(ErrorCode.REFERENCE_NOT_FOUND,
+                    "Target actor '" + targetActor + "' not found",
+                    targetResult.hasAlternatives() ? "Did you mean: " + String.join(", ", targetResult.alternatives()) : null,
+                    targetResult.alternatives());
+            }
+
+            assignEndpoint(exchange, "source", sourceResult.element());
+            assignEndpoint(exchange, "target", targetResult.element());
             invalidate(session);
-            return true;
+            return ActionResult.ok("Created OperationalExchange from '" + sourceActor + "' to '" + targetActor + "'");
         });
     }
 
-    public static boolean linkActivityToCapability(Session session, String operationalActivity, String capabilityName) {
-        if (session == null || operationalActivity == null || capabilityName == null) {
-            return false;
+    public static ActionResult linkActivityToCapability(Session session, String operationalActivity, String capabilityName) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Link operational activity to capability", () -> {
-            EObject activity = Finders.findByName(session, "OperationalActivity", operationalActivity);
-            EObject capability = Finders.findByName(session, "Capability", capabilityName);
-            if (activity == null || capability == null) {
-                return false;
+        if (operationalActivity == null || operationalActivity.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Operational activity name is required");
+        }
+        if (capabilityName == null || capabilityName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Capability name is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Link operational activity to capability", () -> {
+            // Find activity with diagnostics
+            FindResult activityResult = Finders.findByNameWithDiagnostic(session, "OperationalActivity", operationalActivity);
+            if (activityResult.failed()) {
+                return activityResult.toActionResult();
             }
-            boolean linked = addReference(activity, capability, "capability", "allocation", "realization");
-            if (linked) {
-                invalidate(session);
+
+            // Find capability with diagnostics
+            FindResult capabilityResult = Finders.findByNameWithDiagnostic(session, "Capability", capabilityName);
+            if (capabilityResult.failed()) {
+                return ActionResult.failWithAlternatives(ErrorCode.REFERENCE_NOT_FOUND,
+                    "Capability '" + capabilityName + "' not found",
+                    capabilityResult.hasAlternatives() ? "Did you mean: " + String.join(", ", capabilityResult.alternatives()) : null,
+                    capabilityResult.alternatives());
             }
-            return linked;
+
+            boolean linked = addReference(activityResult.element(), capabilityResult.element(), "capability", "allocation", "realization");
+            if (!linked) {
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Failed to link OperationalActivity to Capability",
+                    "No suitable reference feature found for capability linking");
+            }
+            invalidate(session);
+            return ActionResult.ok("Linked '" + operationalActivity + "' to '" + capabilityName + "'");
         });
     }
+
+    // ========== Legacy boolean methods for backward compatibility ==========
+
+    /** @deprecated Use {@link #createMission(Session, String, String, String)} instead */
+    @Deprecated
+    public static boolean createMissionLegacy(Session session, String layer, String name, String description) {
+        return createMission(session, layer, name, description).success();
+    }
+
+    /** @deprecated Use {@link #createOperationalActivity(Session, String, String, String)} instead */
+    @Deprecated
+    public static boolean createOperationalActivityLegacy(Session session, String layer, String name, String parentName) {
+        return createOperationalActivity(session, layer, name, parentName).success();
+    }
+
+    /** @deprecated Use {@link #createOperationalExchange(Session, String, String, String, String)} instead */
+    @Deprecated
+    public static boolean createOperationalExchangeLegacy(Session session, String layer, String name, String sourceActor, String targetActor) {
+        return createOperationalExchange(session, layer, name, sourceActor, targetActor).success();
+    }
+
+    /** @deprecated Use {@link #linkActivityToCapability(Session, String, String)} instead */
+    @Deprecated
+    public static boolean linkActivityToCapabilityLegacy(Session session, String operationalActivity, String capabilityName) {
+        return linkActivityToCapability(session, operationalActivity, capabilityName).success();
+    }
+
+    // ========== Helper Methods ==========
 
     private static void invalidate(Session session) {
         ModelSummary.invalidate(session);

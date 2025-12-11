@@ -12,8 +12,11 @@ import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.sirius.business.api.session.Session;
+import org.polarsys.capella.ai.model.ActionResult;
+import org.polarsys.capella.ai.model.ActionResult.ErrorCode;
 import org.polarsys.capella.ai.model.ArchitectureLocator;
 import org.polarsys.capella.ai.model.ElementFactory;
+import org.polarsys.capella.ai.model.FindResult;
 import org.polarsys.capella.ai.model.Finders;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.model.index.ModelIndex;
@@ -26,80 +29,167 @@ public final class TransformationActions {
     private TransformationActions() {
     }
 
-    public static boolean propagateLogicalComponent(Session session, String logicalName, String targetLayer) {
+    public static ActionResult propagateLogicalComponent(Session session, String logicalName, String targetLayer) {
         return propagateLogicalComponent(session, logicalName, targetLayer, true);
     }
 
-    public static boolean propagateLogicalComponent(Session session, String logicalName, String targetLayer, boolean includeChildren) {
-        if (session == null || logicalName == null || logicalName.isBlank()) {
-            return false;
+    public static ActionResult propagateLogicalComponent(Session session, String logicalName, String targetLayer, boolean includeChildren) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Propagate logical component", () -> {
-            EObject logical = Finders.findByName(session, "LogicalComponent", logicalName);
-            if (logical == null) {
-                return false;
+        if (logicalName == null || logicalName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Logical component name is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Propagate logical component", () -> {
+            // Find logical component with diagnostics
+            FindResult logicalResult = Finders.findByNameWithDiagnostic(session, "LogicalComponent", logicalName);
+            if (logicalResult.failed()) {
+                return logicalResult.toActionResult();
             }
-            EObject physicalRoot = ArchitectureLocator.findTargetElement(session, resolveLayer(targetLayer, "PA"));
-            if (physicalRoot == null) {
-                return false;
+            EObject logical = logicalResult.element();
+
+            // Find physical layer with diagnostics
+            FindResult physicalLayerResult = ArchitectureLocator.findLayerWithDiagnostic(session, resolveLayer(targetLayer, "PA"));
+            if (physicalLayerResult.failed()) {
+                return physicalLayerResult.toActionResult();
             }
+            EObject physicalRoot = physicalLayerResult.element();
+
             String componentName = readName(logical, logicalName);
             Placement placement = resolvePlacement(physicalRoot, "PhysicalComponent");
             if (placement == null) {
-                return false;
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Cannot find suitable container for PhysicalComponent in PA layer",
+                    "Ensure the Physical Architecture has a container that accepts PhysicalComponent elements");
             }
             if (containsByName(placement, componentName)) {
-                return false;
+                return ActionResult.fail(ErrorCode.DUPLICATE_AMBIGUOUS,
+                    "PhysicalComponent '" + componentName + "' already exists in PA layer",
+                    "Use syncPhysicalFromLogical to update the existing component instead");
             }
             EObject copy = createTargetCopy(logical, placement.containment.getEReferenceType(), includeChildren);
             if (copy == null) {
-                return false;
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "Failed to create PhysicalComponent copy of '" + logicalName + "'",
+                    "Check EMF constraints for PhysicalComponent creation");
             }
             addChild(placement, copy);
             createTrace(logical, copy, "trace", "allocated", "component");
             invalidate(session);
-            return true;
+            String childrenMsg = includeChildren ? " (with children)" : "";
+            return ActionResult.ok("Propagated LogicalComponent '" + logicalName + "' to PA" + childrenMsg);
         });
     }
 
-    public static boolean syncPhysicalFromLogical(Session session, String logicalName, String physicalName) {
+    public static ActionResult syncPhysicalFromLogical(Session session, String logicalName, String physicalName) {
         return syncPhysicalFromLogical(session, logicalName, physicalName, true);
     }
 
-    public static boolean syncPhysicalFromLogical(Session session, String logicalName, String physicalName, boolean updateAttributes) {
-        if (session == null || logicalName == null || physicalName == null) {
-            return false;
+    public static ActionResult syncPhysicalFromLogical(Session session, String logicalName, String physicalName, boolean updateAttributes) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Sync physical component", () -> {
-            EObject logical = Finders.findByName(session, "LogicalComponent", logicalName);
-            EObject physical = Finders.findByName(session, "PhysicalComponent", physicalName);
-            if (logical == null || physical == null) {
-                return false;
+        if (logicalName == null || logicalName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Logical component name is required");
+        }
+        if (physicalName == null || physicalName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Physical component name is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Sync physical component", () -> {
+            // Find logical component with diagnostics
+            FindResult logicalResult = Finders.findByNameWithDiagnostic(session, "LogicalComponent", logicalName);
+            if (logicalResult.failed()) {
+                return ActionResult.failWithAlternatives(ErrorCode.ELEMENT_NOT_FOUND,
+                    "LogicalComponent '" + logicalName + "' not found",
+                    logicalResult.hasAlternatives() ? "Did you mean: " + String.join(", ", logicalResult.alternatives()) : null,
+                    logicalResult.alternatives());
             }
+            EObject logical = logicalResult.element();
+
+            // Find physical component with diagnostics
+            FindResult physicalResult = Finders.findByNameWithDiagnostic(session, "PhysicalComponent", physicalName);
+            if (physicalResult.failed()) {
+                return ActionResult.failWithAlternatives(ErrorCode.ELEMENT_NOT_FOUND,
+                    "PhysicalComponent '" + physicalName + "' not found",
+                    physicalResult.hasAlternatives() ? "Did you mean: " + String.join(", ", physicalResult.alternatives()) : null,
+                    physicalResult.alternatives());
+            }
+            EObject physical = physicalResult.element();
+
             if (updateAttributes) {
                 copyScalarAttributes(logical, physical);
             }
             createTrace(logical, physical, "trace", "allocated", "component");
             invalidate(session);
-            return true;
+            String attrMsg = updateAttributes ? " (attributes synced)" : " (trace only)";
+            return ActionResult.ok("Synced PhysicalComponent '" + physicalName + "' from LogicalComponent '" + logicalName + "'" + attrMsg);
         });
     }
 
-    public static boolean traceComponentMapping(Session session, String logicalName, String physicalName) {
-        if (session == null || logicalName == null || physicalName == null) {
-            return false;
+    public static ActionResult traceComponentMapping(Session session, String logicalName, String physicalName) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Trace logical→physical", () -> {
-            EObject logical = Finders.findByName(session, "LogicalComponent", logicalName);
-            EObject physical = Finders.findByName(session, "PhysicalComponent", physicalName);
-            if (logical == null || physical == null) {
-                return false;
+        if (logicalName == null || logicalName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Logical component name is required");
+        }
+        if (physicalName == null || physicalName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Physical component name is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Trace logical→physical", () -> {
+            // Find logical component with diagnostics
+            FindResult logicalResult = Finders.findByNameWithDiagnostic(session, "LogicalComponent", logicalName);
+            if (logicalResult.failed()) {
+                return logicalResult.toActionResult();
             }
+            EObject logical = logicalResult.element();
+
+            // Find physical component with diagnostics
+            FindResult physicalResult = Finders.findByNameWithDiagnostic(session, "PhysicalComponent", physicalName);
+            if (physicalResult.failed()) {
+                return physicalResult.toActionResult();
+            }
+            EObject physical = physicalResult.element();
+
             createTrace(logical, physical, "trace", "allocated", "component");
             invalidate(session);
-            return true;
+            return ActionResult.ok("Created trace: LogicalComponent '" + logicalName + "' → PhysicalComponent '" + physicalName + "'");
         });
     }
+
+    // ========== Legacy boolean methods for backward compatibility ==========
+
+    /** @deprecated Use {@link #propagateLogicalComponent(Session, String, String)} instead */
+    @Deprecated
+    public static boolean propagateLogicalComponentLegacy(Session session, String logicalName, String targetLayer) {
+        return propagateLogicalComponent(session, logicalName, targetLayer).success();
+    }
+
+    /** @deprecated Use {@link #propagateLogicalComponent(Session, String, String, boolean)} instead */
+    @Deprecated
+    public static boolean propagateLogicalComponentLegacy(Session session, String logicalName, String targetLayer, boolean includeChildren) {
+        return propagateLogicalComponent(session, logicalName, targetLayer, includeChildren).success();
+    }
+
+    /** @deprecated Use {@link #syncPhysicalFromLogical(Session, String, String)} instead */
+    @Deprecated
+    public static boolean syncPhysicalFromLogicalLegacy(Session session, String logicalName, String physicalName) {
+        return syncPhysicalFromLogical(session, logicalName, physicalName).success();
+    }
+
+    /** @deprecated Use {@link #syncPhysicalFromLogical(Session, String, String, boolean)} instead */
+    @Deprecated
+    public static boolean syncPhysicalFromLogicalLegacy(Session session, String logicalName, String physicalName, boolean updateAttributes) {
+        return syncPhysicalFromLogical(session, logicalName, physicalName, updateAttributes).success();
+    }
+
+    /** @deprecated Use {@link #traceComponentMapping(Session, String, String)} instead */
+    @Deprecated
+    public static boolean traceComponentMappingLegacy(Session session, String logicalName, String physicalName) {
+        return traceComponentMapping(session, logicalName, physicalName).success();
+    }
+
+    // ========== Helper Methods ==========
 
     private static EObject createTargetCopy(EObject logical, EClass targetClass, boolean includeChildren) {
         if (logical == null || targetClass == null) {

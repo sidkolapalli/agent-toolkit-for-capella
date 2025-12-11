@@ -4,11 +4,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.sirius.business.api.session.Session;
+import org.polarsys.capella.ai.model.ActionResult;
+import org.polarsys.capella.ai.model.ActionResult.ErrorCode;
+import org.polarsys.capella.ai.model.FindResult;
 import org.polarsys.capella.ai.model.Finders;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.model.index.ModelIndex;
@@ -19,154 +23,345 @@ public final class MassEditActions {
     private MassEditActions() {
     }
 
-    public static boolean batchRename(Session session, String elementClass, List<RenameItem> items) {
-        if (session == null || elementClass == null || items == null || items.isEmpty()) {
-            return false;
+    public static ActionResult batchRename(Session session, String elementClass, List<RenameItem> items) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Batch rename", () -> {
-            boolean changed = false;
+        if (elementClass == null || elementClass.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Element class is required");
+        }
+        if (items == null || items.isEmpty()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Rename items list is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Batch rename", () -> {
+            int renamed = 0;
+            List<String> notFound = new ArrayList<>();
             for (RenameItem item : items) {
                 if (item == null || item.from == null || item.to == null || item.from.isBlank()) {
                     continue;
                 }
-                EObject target = Finders.findByName(session, elementClass, item.from);
-                if (target == null) {
+                FindResult result = Finders.findByNameWithDiagnostic(session, elementClass, item.from);
+                if (result.failed()) {
+                    notFound.add(item.from);
                     continue;
                 }
+                EObject target = result.element();
                 EStructuralFeature nameFeature = target.eClass().getEStructuralFeature("name");
                 if (nameFeature != null && nameFeature.isChangeable()) {
                     target.eSet(nameFeature, item.to);
-                    changed = true;
+                    renamed++;
                 }
             }
-            if (changed) {
+            if (renamed > 0) {
                 invalidate(session);
             }
-            return changed;
+            if (renamed == 0 && !notFound.isEmpty()) {
+                return ActionResult.failWithAlternatives(ErrorCode.ELEMENT_NOT_FOUND,
+                    "No elements renamed - " + notFound.size() + " element(s) not found",
+                    notFound);
+            }
+            String msg = "Renamed " + renamed + "/" + items.size() + " " + elementClass + " elements";
+            if (!notFound.isEmpty()) {
+                return ActionResult.create(true, ErrorCode.SUCCESS, msg,
+                    "Elements not found: " + String.join(", ", notFound),
+                    notFound, Map.of("renamed", renamed, "notFound", notFound.size()));
+            }
+            return ActionResult.ok(msg);
         });
     }
 
-    public static boolean batchReparent(Session session, String elementClass, String newParentName, List<String> elementNames) {
-        if (session == null || elementClass == null || newParentName == null || newParentName.isBlank()
-                || elementNames == null || elementNames.isEmpty()) {
-            return false;
+    public static ActionResult batchReparent(Session session, String elementClass, String newParentName, List<String> elementNames) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Batch reparent", () -> {
-            EObject newParent = Finders.findByName(session, elementClass, newParentName);
-            if (newParent == null) {
-                return false;
+        if (elementClass == null || elementClass.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Element class is required");
+        }
+        if (newParentName == null || newParentName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "New parent name is required");
+        }
+        if (elementNames == null || elementNames.isEmpty()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Element names list is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Batch reparent", () -> {
+            FindResult parentResult = Finders.findByNameWithDiagnostic(session, elementClass, newParentName);
+            if (parentResult.failed()) {
+                return ActionResult.fail(ErrorCode.PARENT_NOT_FOUND,
+                    "Parent " + elementClass + " '" + newParentName + "' not found",
+                    parentResult.hasAlternatives() ? "Did you mean: " + String.join(", ", parentResult.alternatives()) : null);
             }
+            EObject newParent = parentResult.element();
             EReference containment = findPrimaryContainment(newParent);
             if (containment == null) {
-                return false;
+                return ActionResult.fail(ErrorCode.INVALID_CONTAINER,
+                    "Parent '" + newParentName + "' has no containment reference for children",
+                    "Choose a different parent element");
             }
-            boolean changed = false;
+
+            int moved = 0;
+            List<String> notFound = new ArrayList<>();
+            List<String> skipped = new ArrayList<>();
             for (String name : elementNames) {
                 if (name == null || name.isBlank()) {
                     continue;
                 }
-                EObject element = Finders.findByName(session, elementClass, name);
-                if (element == null || element == newParent) {
+                FindResult result = Finders.findByNameWithDiagnostic(session, elementClass, name);
+                if (result.failed()) {
+                    notFound.add(name);
+                    continue;
+                }
+                EObject element = result.element();
+                if (element == newParent) {
+                    skipped.add(name + " (is parent)");
                     continue;
                 }
                 EObject container = element.eContainer();
                 if (container == newParent) {
+                    skipped.add(name + " (already child)");
                     continue;
                 }
                 if (!containment.getEReferenceType().isInstance(element)) {
+                    skipped.add(name + " (type mismatch)");
                     continue;
                 }
                 removeFromContainer(element);
                 addChild(newParent, containment, element);
-                changed = true;
+                moved++;
             }
-            if (changed) {
+            if (moved > 0) {
                 invalidate(session);
             }
-            return changed;
+            if (moved == 0) {
+                String detail = "";
+                if (!notFound.isEmpty()) {
+                    detail += "Not found: " + String.join(", ", notFound) + ". ";
+                }
+                if (!skipped.isEmpty()) {
+                    detail += "Skipped: " + String.join(", ", skipped);
+                }
+                return ActionResult.fail(ErrorCode.CONSTRAINT_VIOLATION,
+                    "No elements reparented",
+                    detail.isBlank() ? null : detail.trim());
+            }
+            String msg = "Reparented " + moved + "/" + elementNames.size() + " element(s) to '" + newParentName + "'";
+            if (!notFound.isEmpty() || !skipped.isEmpty()) {
+                StringBuilder detail = new StringBuilder();
+                if (!notFound.isEmpty()) {
+                    detail.append("Not found: ").append(String.join(", ", notFound)).append(". ");
+                }
+                if (!skipped.isEmpty()) {
+                    detail.append("Skipped: ").append(String.join(", ", skipped));
+                }
+                return ActionResult.create(true, ErrorCode.SUCCESS, msg, detail.toString().trim(),
+                    notFound, Map.of("moved", moved, "notFound", notFound.size(), "skipped", skipped.size()));
+            }
+            return ActionResult.ok(msg);
         });
     }
 
-    public static boolean batchAllocateCapability(Session session, String capabilityName, List<String> componentNames) {
-        if (session == null || capabilityName == null || capabilityName.isBlank()
-                || componentNames == null || componentNames.isEmpty()) {
-            return false;
+    public static ActionResult batchAllocateCapability(Session session, String capabilityName, List<String> componentNames) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Batch capability allocation", () -> {
-            EObject capability = Finders.findByName(session, "Capability", capabilityName);
-            if (capability == null) {
-                return false;
+        if (capabilityName == null || capabilityName.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Capability name is required");
+        }
+        if (componentNames == null || componentNames.isEmpty()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Component names list is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Batch capability allocation", () -> {
+            FindResult capabilityResult = Finders.findByNameWithDiagnostic(session, "Capability", capabilityName);
+            if (capabilityResult.failed()) {
+                return ActionResult.failWithAlternatives(ErrorCode.ELEMENT_NOT_FOUND,
+                    "Capability '" + capabilityName + "' not found",
+                    capabilityResult.hasAlternatives() ? "Did you mean: " + String.join(", ", capabilityResult.alternatives()) : null,
+                    capabilityResult.alternatives());
             }
-            boolean changed = false;
+            EObject capability = capabilityResult.element();
+
+            int allocated = 0;
+            List<String> notFound = new ArrayList<>();
             for (String componentName : componentNames) {
                 if (componentName == null || componentName.isBlank()) {
                     continue;
                 }
-                EObject component = Finders.findByName(session, "SystemComponent", componentName);
-                if (component == null) {
+                FindResult componentResult = Finders.findByNameWithDiagnostic(session, "SystemComponent", componentName);
+                if (componentResult.failed()) {
+                    notFound.add(componentName);
                     continue;
                 }
+                EObject component = componentResult.element();
                 if (addReference(component, capability, "allocation", "capability", "realization")) {
-                    changed = true;
+                    allocated++;
                 }
             }
-            if (changed) {
+            if (allocated > 0) {
                 invalidate(session);
             }
-            return changed;
+            if (allocated == 0 && !notFound.isEmpty()) {
+                return ActionResult.failWithAlternatives(ErrorCode.ELEMENT_NOT_FOUND,
+                    "No components allocated - " + notFound.size() + " component(s) not found",
+                    notFound);
+            }
+            String msg = "Allocated capability '" + capabilityName + "' to " + allocated + "/" + componentNames.size() + " component(s)";
+            if (!notFound.isEmpty()) {
+                return ActionResult.create(true, ErrorCode.SUCCESS, msg,
+                    "Components not found: " + String.join(", ", notFound),
+                    notFound, Map.of("allocated", allocated, "notFound", notFound.size()));
+            }
+            return ActionResult.ok(msg);
         });
     }
 
-    public static boolean batchDelete(Session session, String elementClass, List<String> names) {
-        if (session == null || elementClass == null || names == null || names.isEmpty()) {
-            return false;
+    public static ActionResult batchDelete(Session session, String elementClass, List<String> names) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Batch delete", () -> {
-            boolean changed = false;
+        if (elementClass == null || elementClass.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Element class is required");
+        }
+        if (names == null || names.isEmpty()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Element names list is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Batch delete", () -> {
+            int deleted = 0;
+            List<String> notFound = new ArrayList<>();
             for (String name : names) {
                 if (name == null || name.isBlank()) {
                     continue;
                 }
-                EObject element = Finders.findByName(session, elementClass, name);
-                if (element == null) {
+                FindResult result = Finders.findByNameWithDiagnostic(session, elementClass, name);
+                if (result.failed()) {
+                    notFound.add(name);
                     continue;
                 }
+                EObject element = result.element();
                 removeFromContainer(element);
-                changed = true;
+                deleted++;
             }
-            if (changed) {
+            if (deleted > 0) {
                 invalidate(session);
             }
-            return changed;
+            if (deleted == 0 && !notFound.isEmpty()) {
+                return ActionResult.failWithAlternatives(ErrorCode.ELEMENT_NOT_FOUND,
+                    "No elements deleted - " + notFound.size() + " element(s) not found",
+                    notFound);
+            }
+            String msg = "Deleted " + deleted + "/" + names.size() + " " + elementClass + " element(s)";
+            if (!notFound.isEmpty()) {
+                return ActionResult.create(true, ErrorCode.SUCCESS, msg,
+                    "Elements not found: " + String.join(", ", notFound),
+                    notFound, Map.of("deleted", deleted, "notFound", notFound.size()));
+            }
+            return ActionResult.ok(msg);
         });
     }
 
-    public static boolean batchMap(Session session, String sourceClass, String targetClass, List<MappingItem> entries) {
-        if (session == null || sourceClass == null || targetClass == null || entries == null || entries.isEmpty()) {
-            return false;
+    public static ActionResult batchMap(Session session, String sourceClass, String targetClass, List<MappingItem> entries) {
+        if (session == null) {
+            return ActionResult.fail(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Batch map", () -> {
-            boolean changed = false;
+        if (sourceClass == null || sourceClass.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Source class is required");
+        }
+        if (targetClass == null || targetClass.isBlank()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Target class is required");
+        }
+        if (entries == null || entries.isEmpty()) {
+            return ActionResult.fail(ErrorCode.INVALID_INPUT, "Mapping entries list is required");
+        }
+        return SessionSafeguards.runWriteWithResult(session, "Batch map", () -> {
+            int mapped = 0;
+            List<String> notFoundSources = new ArrayList<>();
+            List<String> notFoundTargets = new ArrayList<>();
             for (MappingItem entry : entries) {
                 if (entry == null || entry.source == null || entry.target == null
                         || entry.source.isBlank() || entry.target.isBlank()) {
                     continue;
                 }
-                EObject src = Finders.findByName(session, sourceClass, entry.source);
-                EObject tgt = Finders.findByName(session, targetClass, entry.target);
-                if (src == null || tgt == null) {
+                FindResult srcResult = Finders.findByNameWithDiagnostic(session, sourceClass, entry.source);
+                if (srcResult.failed()) {
+                    notFoundSources.add(entry.source);
                     continue;
                 }
+                FindResult tgtResult = Finders.findByNameWithDiagnostic(session, targetClass, entry.target);
+                if (tgtResult.failed()) {
+                    notFoundTargets.add(entry.target);
+                    continue;
+                }
+                EObject src = srcResult.element();
+                EObject tgt = tgtResult.element();
                 if (addReference(src, tgt)) {
-                    changed = true;
+                    mapped++;
                 }
             }
-            if (changed) {
+            if (mapped > 0) {
                 invalidate(session);
             }
-            return changed;
+            List<String> allNotFound = new ArrayList<>();
+            allNotFound.addAll(notFoundSources);
+            allNotFound.addAll(notFoundTargets);
+            if (mapped == 0 && !allNotFound.isEmpty()) {
+                String detail = "";
+                if (!notFoundSources.isEmpty()) {
+                    detail += "Sources not found: " + String.join(", ", notFoundSources) + ". ";
+                }
+                if (!notFoundTargets.isEmpty()) {
+                    detail += "Targets not found: " + String.join(", ", notFoundTargets);
+                }
+                return ActionResult.fail(ErrorCode.ELEMENT_NOT_FOUND,
+                    "No mappings created - elements not found",
+                    detail.trim());
+            }
+            String msg = "Mapped " + mapped + "/" + entries.size() + " " + sourceClass + " → " + targetClass + " pair(s)";
+            if (!allNotFound.isEmpty()) {
+                StringBuilder detail = new StringBuilder();
+                if (!notFoundSources.isEmpty()) {
+                    detail.append("Sources not found: ").append(String.join(", ", notFoundSources)).append(". ");
+                }
+                if (!notFoundTargets.isEmpty()) {
+                    detail.append("Targets not found: ").append(String.join(", ", notFoundTargets));
+                }
+                return ActionResult.create(true, ErrorCode.SUCCESS, msg, detail.toString().trim(),
+                    allNotFound, Map.of("mapped", mapped, "notFoundSources", notFoundSources.size(), "notFoundTargets", notFoundTargets.size()));
+            }
+            return ActionResult.ok(msg);
         });
     }
+
+    // ========== Legacy boolean methods for backward compatibility ==========
+
+    /** @deprecated Use {@link #batchRename(Session, String, List)} instead */
+    @Deprecated
+    public static boolean batchRenameLegacy(Session session, String elementClass, List<RenameItem> items) {
+        return batchRename(session, elementClass, items).success();
+    }
+
+    /** @deprecated Use {@link #batchReparent(Session, String, String, List)} instead */
+    @Deprecated
+    public static boolean batchReparentLegacy(Session session, String elementClass, String newParentName, List<String> elementNames) {
+        return batchReparent(session, elementClass, newParentName, elementNames).success();
+    }
+
+    /** @deprecated Use {@link #batchAllocateCapability(Session, String, List)} instead */
+    @Deprecated
+    public static boolean batchAllocateCapabilityLegacy(Session session, String capabilityName, List<String> componentNames) {
+        return batchAllocateCapability(session, capabilityName, componentNames).success();
+    }
+
+    /** @deprecated Use {@link #batchDelete(Session, String, List)} instead */
+    @Deprecated
+    public static boolean batchDeleteLegacy(Session session, String elementClass, List<String> names) {
+        return batchDelete(session, elementClass, names).success();
+    }
+
+    /** @deprecated Use {@link #batchMap(Session, String, String, List)} instead */
+    @Deprecated
+    public static boolean batchMapLegacy(Session session, String sourceClass, String targetClass, List<MappingItem> entries) {
+        return batchMap(session, sourceClass, targetClass, entries).success();
+    }
+
+    // ========== Data Classes ==========
 
     public static final class RenameItem {
         public final String from;
@@ -187,6 +382,8 @@ public final class MassEditActions {
             this.target = target;
         }
     }
+
+    // ========== Helper Methods ==========
 
     private static void removeFromContainer(EObject element) {
         EObject container = element.eContainer();
