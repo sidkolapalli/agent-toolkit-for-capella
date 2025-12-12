@@ -15,7 +15,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.resource.Resource;
@@ -27,42 +26,58 @@ import org.polarsys.capella.ai.session.SessionBridge;
 
 /** Builds a lightweight search index over Capella model elements. */
 public final class ModelIndex {
+
     private static final Map<Session, CacheEntry> CACHE = new WeakHashMap<>();
     private static final Map<Session, Future<?>> INFLIGHT = new WeakHashMap<>();
-    private static final ExecutorService INDEX_EXEC = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "capella-ai-model-index");
-        t.setDaemon(true);
-        return t;
-    });
+    private static final ExecutorService INDEX_EXEC =
+        Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "capella-ai-model-index");
+            t.setDaemon(true);
+            return t;
+        });
 
     private ModelIndex() {}
 
     private static final class CacheEntry {
+
         final List<IndexedElement> elements;
         final Map<String, IndexedElement> byUuid;
         final org.eclipse.emf.transaction.ResourceSetListener listener;
 
         CacheEntry(Session session, List<IndexedElement> elements) {
             this.elements = elements;
-            this.byUuid = elements.stream()
-                    .filter(element -> element.uuid != null)
-                    .collect(Collectors.toConcurrentMap(element -> element.uuid, element -> element, (left, right) -> left));
+            this.byUuid = elements
+                .stream()
+                .filter(element -> element.uuid != null)
+                .collect(
+                    Collectors.toConcurrentMap(
+                        element -> element.uuid,
+                        element -> element,
+                        (left, right) -> left
+                    )
+                );
             // Invalidate the cache on any committed model change
-            this.listener = new org.eclipse.emf.transaction.ResourceSetListenerImpl() {
-                @Override
-                public void resourceSetChanged(org.eclipse.emf.transaction.ResourceSetChangeEvent event) {
-                    if (org.polarsys.capella.ai.preferences.AdvancedPreferences.isAsyncIndexingEnabled()) {
-                        ModelIndex.rebuildAsync(session);
-                    } else {
-                        ModelIndex.invalidate(session);
+            this.listener =
+                new org.eclipse.emf.transaction.ResourceSetListenerImpl() {
+                    @Override
+                    public void resourceSetChanged(
+                        org.eclipse.emf.transaction.ResourceSetChangeEvent event
+                    ) {
+                        if (
+                            org.polarsys.capella.ai.preferences.AdvancedPreferences.isAsyncIndexingEnabled()
+                        ) {
+                            ModelIndex.rebuildAsync(session);
+                        } else {
+                            ModelIndex.invalidate(session);
+                        }
                     }
-                }
-            };
+                };
         }
     }
 
     /** Describes an indexed element for display/search. */
     public static final class IndexedElement {
+
         public final String name;
         public final String type;
         public final String layer;
@@ -70,7 +85,14 @@ public final class ModelIndex {
         public final String path;
         public final String summary;
 
-        IndexedElement(String name, String type, String layer, String uuid, String path, String summary) {
+        IndexedElement(
+            String name,
+            String type,
+            String layer,
+            String uuid,
+            String path,
+            String summary
+        ) {
             this.name = name;
             this.type = type;
             this.layer = layer;
@@ -85,20 +107,28 @@ public final class ModelIndex {
         return search(SessionBridge.getActiveSession(), query, limit);
     }
 
-    public static synchronized List<IndexedElement> search(Session session, String query, int limit) {
+    public static synchronized List<IndexedElement> search(
+        Session session,
+        String query,
+        int limit
+    ) {
         if (session == null || query == null || query.isBlank()) {
             return List.of();
         }
         List<IndexedElement> index = ensureIndex(session);
         String[] tokens = query.toLowerCase(Locale.ROOT).split("\\s+");
-        return index.stream()
-                .map(element -> new ScoredElement(element, score(element, tokens)))
-                .filter(scored -> scored.score > 0)
-                .sorted(Comparator.comparingInt((ScoredElement s) -> -s.score)
-                        .thenComparing(s -> s.element.name))
-                .limit(limit)
-                .map(scored -> scored.element)
-                .collect(Collectors.toList());
+        return index
+            .stream()
+            .map(element -> new ScoredElement(element, score(element, tokens)))
+            .filter(scored -> scored.score > 0)
+            .sorted(
+                Comparator.comparingInt((ScoredElement s) ->
+                    -s.score
+                ).thenComparing(s -> s.element.name)
+            )
+            .limit(limit)
+            .map(scored -> scored.element)
+            .collect(Collectors.toList());
     }
 
     /** Clears cached index for a session. */
@@ -126,7 +156,9 @@ public final class ModelIndex {
                 List<IndexedElement> rebuilt;
                 var domain = session.getTransactionalEditingDomain();
                 if (domain != null) {
-                    final List<IndexedElement>[] holder = new List[]{List.of()};
+                    final List<IndexedElement>[] holder = new List[] {
+                        List.of(),
+                    };
                     try {
                         domain.runExclusive(() -> holder[0] = rebuild(session));
                     } catch (Exception e) {
@@ -141,9 +173,12 @@ public final class ModelIndex {
                     CacheEntry old = CACHE.get(session);
                     try {
                         if (old != null) {
-                            var domain = session.getTransactionalEditingDomain();
-                            if (domain != null && old.listener != null) {
-                                domain.removeResourceSetListener(old.listener);
+                            var oldDomain =
+                                session.getTransactionalEditingDomain();
+                            if (oldDomain != null && old.listener != null) {
+                                oldDomain.removeResourceSetListener(
+                                    old.listener
+                                );
                             }
                         }
                     } catch (Exception ignore) {}
@@ -182,7 +217,9 @@ public final class ModelIndex {
     }
 
     private static List<IndexedElement> rebuild(Session session) {
-        if (session == null || session.getTransactionalEditingDomain() == null) {
+        if (
+            session == null || session.getTransactionalEditingDomain() == null
+        ) {
             return List.of();
         }
         // Limit indexing to semantic resources for performance
@@ -192,7 +229,9 @@ public final class ModelIndex {
         } catch (Exception ex) {
             resources = null;
         }
-        ResourceSet resourceSet = session.getTransactionalEditingDomain().getResourceSet();
+        ResourceSet resourceSet = session
+            .getTransactionalEditingDomain()
+            .getResourceSet();
         if (resources == null || resources.isEmpty()) {
             resources = resourceSet.getResources();
         }
@@ -204,7 +243,11 @@ public final class ModelIndex {
             }
             for (EObject root : resource.getContents()) {
                 visit(root, eo -> {
-                    IndexedElement element = indexElement(eo, layerCache, resourceSet);
+                    IndexedElement element = indexElement(
+                        eo,
+                        layerCache,
+                        resourceSet
+                    );
                     if (element != null) {
                         elements.add(element);
                     }
@@ -218,7 +261,10 @@ public final class ModelIndex {
         return describe(SessionBridge.getActiveSession(), eo);
     }
 
-    public static synchronized IndexedElement describe(Session session, EObject eo) {
+    public static synchronized IndexedElement describe(
+        Session session,
+        EObject eo
+    ) {
         if (session == null || eo == null) {
             return null;
         }
@@ -233,9 +279,10 @@ public final class ModelIndex {
                 return cached;
             }
         }
-        ResourceSet resourceSet = session.getTransactionalEditingDomain() != null
-                ? session.getTransactionalEditingDomain().getResourceSet()
-                : null;
+        ResourceSet resourceSet = session.getTransactionalEditingDomain() !=
+            null
+            ? session.getTransactionalEditingDomain().getResourceSet()
+            : null;
         if (resourceSet == null) {
             return null;
         }
@@ -254,7 +301,11 @@ public final class ModelIndex {
         }
     }
 
-    private static IndexedElement indexElement(EObject eo, Map<EObject, String> layerCache, ResourceSet resourceSet) {
+    private static IndexedElement indexElement(
+        EObject eo,
+        Map<EObject, String> layerCache,
+        ResourceSet resourceSet
+    ) {
         String name = readFeature(eo, "name");
         String type = eo.eClass().getName();
         String uuid = readFeature(eo, "uuid");
@@ -269,7 +320,9 @@ public final class ModelIndex {
     }
 
     private static String readFeature(EObject eo, String featureName) {
-        EStructuralFeature feature = eo.eClass().getEStructuralFeature(featureName);
+        EStructuralFeature feature = eo
+            .eClass()
+            .getEStructuralFeature(featureName);
         if (feature != null) {
             Object value = eo.eGet(feature);
             if (value != null && !String.valueOf(value).isBlank()) {
@@ -279,11 +332,18 @@ public final class ModelIndex {
         return null;
     }
 
-    private static String resolveLayer(EObject eo, Map<EObject, String> cache, ResourceSet resourceSet) {
+    private static String resolveLayer(
+        EObject eo,
+        Map<EObject, String> cache,
+        ResourceSet resourceSet
+    ) {
         EObject root = EcoreUtil.getRootContainer(eo);
         return cache.computeIfAbsent(root, key -> {
             for (String candidate : List.of("OA", "SA", "LA", "PA")) {
-                EObject layerRoot = ArchitectureLocator.findTargetElement(resourceSet, candidate);
+                EObject layerRoot = ArchitectureLocator.findTargetElement(
+                    resourceSet,
+                    candidate
+                );
                 if (layerRoot != null && EcoreUtil.isAncestor(layerRoot, eo)) {
                     return candidate;
                 }
@@ -307,7 +367,12 @@ public final class ModelIndex {
         return String.join(" / ", segments);
     }
 
-    private static String composeSummary(String name, String type, String layer, String path) {
+    private static String composeSummary(
+        String name,
+        String type,
+        String layer,
+        String path
+    ) {
         StringJoiner joiner = new StringJoiner(" · ");
         joiner.add(type);
         if (name != null && !name.isBlank()) {
@@ -343,6 +408,7 @@ public final class ModelIndex {
     }
 
     private static final class ScoredElement {
+
         final IndexedElement element;
         final int score;
 

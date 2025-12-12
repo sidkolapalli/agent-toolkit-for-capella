@@ -23,6 +23,12 @@
             class="org.polarsys.capella.ai.views.LogInspectorView"
             id="org.polarsys.capella.ai.logs"
             name="AI Log Inspector"/>
+        <view
+            allowMultiple="false"
+            category="org.polarsys.capella.ai"
+            class="org.polarsys.capella.ai.dev.DevServerView"
+            id="org.polarsys.capella.ai.dev.DevServerView"
+            name="AI Dev Server"/>
     </extension>
 
     <extension point="org.eclipse.ui.perspectiveExtensions">

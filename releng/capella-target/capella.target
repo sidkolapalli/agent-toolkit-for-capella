@@ -128,7 +128,11 @@
       <unit id="org.eclipse.license.feature.group" version="0.0.0"/>
       <repository id="eclipse-shared-license" location="https://download.eclipse.org/cbi/updates/license"/>
     </location>
-    
+    <location includeMode="planner" includeAllPlatforms="false" includeSource="true" includeConfigurePhase="false" type="InstallableUnit">
+      <unit id="org.codehaus.groovy" version="4.0.23.v202409302001-e2303"/>
+      <repository id="groovy-eclipse" location="https://groovy.jfrog.io/artifactory/plugins-release-local/org/codehaus/groovy/groovy-eclipse-integration/5.5.0/e4.27"/>
+    </location>
+
     <location includeMode="planner" includeAllPlatforms="false" includeSource="true" includeConfigurePhase="false" type="InstallableUnit">
       <unit id="org.polarsys.capella.rcp.feature.group" version="7.0.1.202503211540"/>
       <unit id="org.polarsys.capella.core.feature.feature.group" version="7.0.1.202503211540"/>
