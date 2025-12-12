@@ -59,7 +59,7 @@ public final class FileSystemAPI {
     );
 
     /** Root directory for documentation resources */
-    private static final String DOCS_ROOT = "capella-api";
+    private static final String DOCS_ROOT = "resources/capella-api";
 
     /** Maximum number of search results to return */
     private static final int MAX_SEARCH_RESULTS = 10;
@@ -85,6 +85,48 @@ public final class FileSystemAPI {
         FULL,
     }
 
+    // Static directory index for OSGi bundle compatibility
+    private static final java.util.Map<String, List<String>> DIRECTORY_INDEX =
+        new java.util.HashMap<>();
+
+    static {
+        DIRECTORY_INDEX.put(
+            "",
+            List.of("SKILL.md", "api/", "metamodel/", "skills/")
+        );
+        DIRECTORY_INDEX.put(
+            "api/",
+            List.of(
+                "SKILL.md",
+                "create.md",
+                "diagram.md",
+                "find.md",
+                "link.md",
+                "modify.md"
+            )
+        );
+        DIRECTORY_INDEX.put(
+            "metamodel/",
+            List.of("SKILL.md", "la/", "oa/", "pa/", "sa/")
+        );
+        DIRECTORY_INDEX.put("metamodel/la/", List.of("SKILL.md"));
+        DIRECTORY_INDEX.put("metamodel/oa/", List.of("SKILL.md"));
+        DIRECTORY_INDEX.put("metamodel/pa/", List.of("SKILL.md"));
+        DIRECTORY_INDEX.put("metamodel/sa/", List.of("SKILL.md"));
+        DIRECTORY_INDEX.put(
+            "skills/",
+            List.of(
+                "SKILL.md",
+                "arcadia-workflow/",
+                "interface/",
+                "state-machine/"
+            )
+        );
+        DIRECTORY_INDEX.put("skills/arcadia-workflow/", List.of("SKILL.md"));
+        DIRECTORY_INDEX.put("skills/interface/", List.of("SKILL.md"));
+        DIRECTORY_INDEX.put("skills/state-machine/", List.of("SKILL.md"));
+    }
+
     /**
      * List contents of a directory in the documentation tree.
      *
@@ -92,44 +134,40 @@ public final class FileSystemAPI {
      * @return list of entries (files and directories, directories end with "/")
      */
     public List<String> list(String path) {
-        List<String> results = new ArrayList<>();
         String normalizedPath = normalizePath(path);
-        String resourcePath = DOCS_ROOT + "/" + normalizedPath;
 
-        try {
-            URL resourceUrl = getClass()
-                .getClassLoader()
-                .getResource(resourcePath);
-            if (resourceUrl == null) {
-                // Try without trailing slash
-                if (resourcePath.endsWith("/")) {
-                    resourcePath = resourcePath.substring(
-                        0,
-                        resourcePath.length() - 1
-                    );
-                    resourceUrl = getClass()
-                        .getClassLoader()
-                        .getResource(resourcePath);
-                }
-            }
-
-            if (resourceUrl != null) {
-                URI uri = resourceUrl.toURI();
-                if ("jar".equals(uri.getScheme())) {
-                    results = listFromJar(uri, normalizedPath);
-                } else {
-                    results = listFromFileSystem(
-                        Paths.get(uri),
-                        normalizedPath
-                    );
-                }
-            }
-        } catch (URISyntaxException | IOException e) {
-            LOG.log(Level.FINE, "Error listing path: " + path, e);
+        // Ensure trailing slash for directories
+        if (!normalizedPath.isEmpty() && !normalizedPath.endsWith("/")) {
+            normalizedPath = normalizedPath + "/";
         }
 
-        Collections.sort(results);
-        return results;
+        // Use static index for OSGi bundle compatibility
+        List<String> entries = DIRECTORY_INDEX.get(normalizedPath);
+        if (entries != null) {
+            return new ArrayList<>(entries);
+        }
+
+        // Also check user skills directory
+        if (normalizedPath.equals("user-skills/") || normalizedPath.isEmpty()) {
+            List<String> result = new ArrayList<>();
+            if (normalizedPath.isEmpty()) {
+                result.addAll(DIRECTORY_INDEX.getOrDefault("", List.of()));
+                List<String> userSkills = listSkills();
+                if (!userSkills.isEmpty()) {
+                    result.add("user-skills/");
+                }
+            } else {
+                result.addAll(
+                    listSkills()
+                        .stream()
+                        .map(s -> s + ".groovy")
+                        .toList()
+                );
+            }
+            return result;
+        }
+
+        return new ArrayList<>();
     }
 
     /**
