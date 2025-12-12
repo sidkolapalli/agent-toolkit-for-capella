@@ -3,7 +3,6 @@ package org.polarsys.capella.ai;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-
 import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.IToolBarManager;
 import org.eclipse.jface.resource.JFaceResources;
@@ -73,39 +72,54 @@ public class ChatView extends ViewPart {
         container.setLayout(layout);
 
         // Output area (top, takes most space)
-        outputArea = new StyledText(container, SWT.BORDER | SWT.MULTI | SWT.V_SCROLL | SWT.WRAP | SWT.READ_ONLY);
+        outputArea = new StyledText(
+            container,
+            SWT.BORDER | SWT.MULTI | SWT.V_SCROLL | SWT.WRAP | SWT.READ_ONLY
+        );
         outputArea.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         outputArea.setFont(monoFont);
 
         // Input field (bottom)
         inputField = new Text(container, SWT.BORDER | SWT.SINGLE);
-        inputField.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        inputField.setLayoutData(
+            new GridData(SWT.FILL, SWT.CENTER, true, false)
+        );
         inputField.setMessage("Ask anything about Capella... (Enter to send)");
 
         // Handle Enter key
-        inputField.addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                if (e.keyCode == SWT.CR || e.keyCode == SWT.KEYPAD_CR) {
-                    handleSend();
+        inputField.addKeyListener(
+            new KeyAdapter() {
+                @Override
+                public void keyPressed(KeyEvent e) {
+                    if (e.keyCode == SWT.CR || e.keyCode == SWT.KEYPAD_CR) {
+                        handleSend();
+                    }
                 }
             }
-        });
+        );
 
         // Toolbar actions
         createToolbar();
 
         // Initial message
         appendOutput("Capella AI Assistant ready.\n", null);
-        appendOutput("Type a request and press Enter. I'll generate and execute Groovy code.\n\n", null);
+        appendOutput(
+            "Type a request and press Enter. I'll generate and execute Groovy code.\n\n",
+            null
+        );
         appendOutput("Tips:\n", null);
-        appendOutput("  - \"Create a system function called Process Data\"\n", null);
+        appendOutput(
+            "  - \"Create a system function called Process Data\"\n",
+            null
+        );
         appendOutput("  - \"Show me all components in the model\"\n", null);
         appendOutput("  - \"Create a state machine for Controller\"\n\n", null);
     }
 
     private void createToolbar() {
-        IToolBarManager toolbar = getViewSite().getActionBars().getToolBarManager();
+        IToolBarManager toolbar = getViewSite()
+            .getActionBars()
+            .getToolBarManager();
 
         // Clear action
         Action clearAction = new Action("Clear") {
@@ -131,9 +145,12 @@ public class ChatView extends ViewPart {
         // Show user message
         appendOutput("\n> " + input + "\n", userColor);
 
-        Session session = SessionBridge.getCurrentSession();
+        Session session = SessionBridge.getActiveSession();
         if (session == null) {
-            appendOutput("\nError: No active Capella session. Open a model first.\n", errorColor);
+            appendOutput(
+                "\nError: No active Capella session. Open a model first.\n",
+                errorColor
+            );
             inputField.setEnabled(true);
             return;
         }
@@ -144,7 +161,10 @@ public class ChatView extends ViewPart {
                 processRequest(session, input);
             } catch (Exception e) {
                 Display.getDefault().asyncExec(() -> {
-                    appendOutput("\nError: " + e.getMessage() + "\n", errorColor);
+                    appendOutput(
+                        "\nError: " + e.getMessage() + "\n",
+                        errorColor
+                    );
                     inputField.setEnabled(true);
                 });
             }
@@ -154,7 +174,9 @@ public class ChatView extends ViewPart {
     private void processRequest(Session session, String userInput) {
         // Build messages
         if (conversationHistory.isEmpty()) {
-            String systemPrompt = CodeExecutionRouter.buildCodeExecutionPrompt(session);
+            String systemPrompt = CodeExecutionRouter.buildCodeExecutionPrompt(
+                session
+            );
             conversationHistory.add(LLMService.Message.system(systemPrompt));
         }
         conversationHistory.add(LLMService.Message.user(userInput));
@@ -194,7 +216,10 @@ public class ChatView extends ViewPart {
                     appendOutput("(" + result.durationMs() + "ms)\n", null);
 
                     if (result.value() != null) {
-                        appendOutput("Result: " + formatValue(result.value()) + "\n", null);
+                        appendOutput(
+                            "Result: " + formatValue(result.value()) + "\n",
+                            null
+                        );
                     }
 
                     if (result.hasLogs()) {
@@ -215,17 +240,22 @@ public class ChatView extends ViewPart {
                     }
 
                     // Add error to conversation for self-correction opportunity
-                    conversationHistory.add(LLMService.Message.user(
-                        "The code failed with: " + result.message() +
-                        "\nPlease fix the issue and provide corrected code."
-                    ));
+                    conversationHistory.add(
+                        LLMService.Message.user(
+                            "The code failed with: " +
+                                result.message() +
+                                "\nPlease fix the issue and provide corrected code."
+                        )
+                    );
                 }
                 inputField.setEnabled(true);
             });
-
         } catch (Exception e) {
             Display.getDefault().asyncExec(() -> {
-                appendOutput("\nLLM Error: " + e.getMessage() + "\n", errorColor);
+                appendOutput(
+                    "\nLLM Error: " + e.getMessage() + "\n",
+                    errorColor
+                );
                 inputField.setEnabled(true);
             });
         }
@@ -257,7 +287,9 @@ public class ChatView extends ViewPart {
         if (value instanceof org.eclipse.emf.ecore.EObject eo) {
             try {
                 String className = eo.eClass().getName();
-                Object name = eo.eGet(eo.eClass().getEStructuralFeature("name"));
+                Object name = eo.eGet(
+                    eo.eClass().getEStructuralFeature("name")
+                );
                 return className + ": " + (name != null ? name : "<unnamed>");
             } catch (Exception e) {
                 return eo.getClass().getSimpleName();
@@ -278,8 +310,12 @@ public class ChatView extends ViewPart {
     @Override
     public void dispose() {
         if (codeColor != null && !codeColor.isDisposed()) codeColor.dispose();
-        if (errorColor != null && !errorColor.isDisposed()) errorColor.dispose();
-        if (successColor != null && !successColor.isDisposed()) successColor.dispose();
+        if (
+            errorColor != null && !errorColor.isDisposed()
+        ) errorColor.dispose();
+        if (
+            successColor != null && !successColor.isDisposed()
+        ) successColor.dispose();
         if (userColor != null && !userColor.isDisposed()) userColor.dispose();
         super.dispose();
     }

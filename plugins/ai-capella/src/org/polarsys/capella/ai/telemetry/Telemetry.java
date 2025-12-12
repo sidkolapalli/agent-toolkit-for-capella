@@ -41,9 +41,7 @@ public final class Telemetry {
         if (!isEnabled() || result == null) {
             return;
         }
-        String status = result.success()
-            ? "success"
-            : result.errorCode().name();
+        String status = result.success() ? "success" : result.code().name();
         int logCount = result.logs() != null ? result.logs().size() : 0;
         logInfo(
             "code-execution",

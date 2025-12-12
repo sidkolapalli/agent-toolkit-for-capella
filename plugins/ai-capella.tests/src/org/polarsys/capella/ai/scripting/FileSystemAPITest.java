@@ -1,74 +1,84 @@
 package org.polarsys.capella.ai.scripting;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.Assert.*;
 
 import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  * Tests for FileSystemAPI - Anthropic discovery pattern implementation.
  */
-class FileSystemAPITest {
+public class FileSystemAPITest {
 
     private FileSystemAPI fs;
 
-    @BeforeEach
-    void setUp() {
+    @Before
+    public void setUp() {
         fs = new FileSystemAPI();
     }
 
     @Test
-    void testListRoot() {
+    public void testListRoot() {
         List<String> entries = fs.list("");
 
         // Should contain main directories
-        assertTrue(entries.contains("api/") || entries.contains("SKILL.md"),
-            "Root should contain api/ or SKILL.md, got: " + entries);
+        assertTrue(
+            "Root should contain api/ or SKILL.md, got: " + entries,
+            entries.contains("api/") || entries.contains("SKILL.md")
+        );
     }
 
     @Test
-    void testListApiDirectory() {
+    public void testListApiDirectory() {
         List<String> entries = fs.list("api/");
 
         // API directory should have method docs
-        assertFalse(entries.isEmpty(), "api/ should not be empty");
+        assertFalse("api/ should not be empty", entries.isEmpty());
     }
 
     @Test
-    void testReadRootSkillMd() {
+    public void testReadRootSkillMd() {
         String content = fs.read("SKILL.md");
 
         // Root SKILL.md should exist and contain key content
         assertNotNull(content);
-        assertFalse(content.contains("File not found"),
-            "SKILL.md should exist");
-        assertTrue(content.contains("api.fs") || content.contains("Capella"),
-            "SKILL.md should document the API");
+        assertFalse(
+            "SKILL.md should exist",
+            content.contains("File not found")
+        );
+        assertTrue(
+            "SKILL.md should document the API",
+            content.contains("api.fs") || content.contains("Capella")
+        );
     }
 
     @Test
-    void testReadApiCreateMd() {
+    public void testReadApiCreateMd() {
         String content = fs.read("api/create.md");
 
         assertNotNull(content);
         // Should contain create documentation
-        assertTrue(content.contains("create") || content.contains("Create"),
-            "create.md should document create operations");
+        assertTrue(
+            "create.md should document create operations",
+            content.contains("create") || content.contains("Create")
+        );
     }
 
     @Test
-    void testReadNonExistent() {
+    public void testReadNonExistent() {
         String content = fs.read("nonexistent/file.md");
 
         // Should return helpful error message
         assertNotNull(content);
-        assertTrue(content.contains("not found") || content.contains("File not found"),
-            "Should indicate file not found");
+        assertTrue(
+            "Should indicate file not found",
+            content.contains("not found") || content.contains("File not found")
+        );
     }
 
     @Test
-    void testSearchComponent() {
+    public void testSearchComponent() {
         List<String> results = fs.search("component");
 
         // Search should find relevant docs
@@ -77,33 +87,37 @@ class FileSystemAPITest {
     }
 
     @Test
-    void testSearchEmpty() {
+    public void testSearchEmpty() {
         List<String> results = fs.search("");
 
         // Empty search should return empty results
         assertNotNull(results);
-        assertTrue(results.isEmpty(), "Empty search should return empty list");
+        assertTrue("Empty search should return empty list", results.isEmpty());
     }
 
     @Test
-    void testExists() {
-        // SKILL.md should exist
-        assertTrue(fs.exists("SKILL.md") || !fs.exists("SKILL.md"),
-            "exists() should not throw");
+    public void testExists() {
+        // exists() should not throw
+        boolean result = fs.exists("SKILL.md");
+        // Just verify it doesn't throw
+        assertTrue("exists() should return boolean", result || !result);
     }
 
     @Test
-    void testPathTraversalBlocked() {
+    public void testPathTraversalBlocked() {
         // Should not allow path traversal
         String content = fs.read("../../../etc/passwd");
 
         // Should be safe - either not found or returns safe content
         assertNotNull(content);
-        assertFalse(content.contains("root:"), "Path traversal should be blocked");
+        assertFalse(
+            "Path traversal should be blocked",
+            content.contains("root:")
+        );
     }
 
     @Test
-    void testNullPath() {
+    public void testNullPath() {
         // Null should be handled gracefully
         List<String> entries = fs.list(null);
         assertNotNull(entries);
