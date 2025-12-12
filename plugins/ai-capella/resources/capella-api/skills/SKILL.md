@@ -1,0 +1,34 @@
+# Reusable Skills
+
+Pre-built patterns for common Capella modeling tasks.
+
+## Available Skills
+
+| Skill | Description |
+|-------|-------------|
+| `state-machine/` | Create state machines with modes and transitions |
+| `interface/` | Define interfaces between components |
+| `arcadia-workflow/` | Full OA→SA→LA→PA workflow |
+
+## How to Use
+
+```groovy
+// Read a skill
+def skill = api.fs.read("skills/state-machine/SKILL.md")
+
+// The skill contains copy-pasteable code
+// Adapt the code to your specific needs
+```
+
+## Skill Structure
+
+Each skill contains:
+1. Description of what it does
+2. Complete, working code example
+3. Customization guidance
+
+## Quick Links
+
+- `api.fs.read("skills/state-machine/SKILL.md")`
+- `api.fs.read("skills/interface/SKILL.md")`
+- `api.fs.read("skills/arcadia-workflow/SKILL.md")`

@@ -55,12 +55,16 @@ public final class CapellaAPI {
     /** Diagram operations sub-API */
     public final DiagramAPI diagram;
 
+    /** Filesystem API for documentation discovery (Anthropic pattern) */
+    public final FileSystemAPI fs;
+
     /**
      * Create a CapellaAPI for the given session.
      */
     public CapellaAPI(Session session) {
         this.session = session;
         this.diagram = new DiagramAPI(session);
+        this.fs = new FileSystemAPI();
     }
 
     // ========== FIND Operations ==========
