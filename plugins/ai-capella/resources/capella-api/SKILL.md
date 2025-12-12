@@ -7,7 +7,36 @@ You can manipulate Capella models using Groovy code.
 1. **List directories**: `api.fs.list("api/")` - see available API methods
 2. **Read docs**: `api.fs.read("api/create.md")` - learn how to use a method
 3. **Search**: `api.fs.search("component")` - find relevant documentation
-4. **Skills**: `api.fs.list("skills/")` - see reusable patterns
+4. **Search with detail**: `api.fs.search("component", "name")` - name only, "description", or "full"
+5. **Skills**: `api.fs.list("skills/")` - see reusable patterns
+
+### Saving Your Own Skills
+
+You can save reusable code patterns for future use:
+
+```groovy
+// Save a skill
+api.fs.saveSkill("my-pattern", '''
+/**
+ * Creates a component with standard ports.
+ */
+def comp = api.create("LA", "LogicalComponent", name)
+api.create("ComponentPort", "in", comp)
+api.create("ComponentPort", "out", comp)
+comp
+''')
+
+// List saved skills
+api.fs.listSkills()  // ["my-pattern"]
+
+// Load and use a skill
+def code = api.fs.loadSkill("my-pattern")
+
+// Delete a skill
+api.fs.deleteSkill("my-pattern")
+```
+
+Skills are saved to `~/.capella-ai/skills/` and persist across sessions.
 
 ## Quick Start
 
