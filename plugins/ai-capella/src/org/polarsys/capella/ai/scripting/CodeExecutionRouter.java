@@ -222,6 +222,8 @@ public final class CodeExecutionRouter {
 
         sb.append("### Quick Start\n\n");
         sb.append("```groovy\n");
+        sb.append("// Get architecture layer root\n");
+        sb.append("def saLayer = api.layer(\"SA\")  // OA, SA, LA, PA\n\n");
         sb.append("// Find an element\n");
         sb.append(
             "def func = api.find(\"SystemFunction\", \"Process Data\")\n\n"
@@ -230,8 +232,16 @@ public final class CodeExecutionRouter {
         sb.append(
             "def newFunc = api.create(\"SA\", \"SystemFunction\", \"New Function\")\n\n"
         );
-        sb.append("// Link elements\n");
-        sb.append("api.link(func, newFunc, \"FunctionalExchange\")\n\n");
+        sb.append("// Link elements (exchanges, realizations)\n");
+        sb.append("api.link(func, newFunc, \"FunctionalExchange\")\n");
+        sb.append("api.link(laFunc, saFunc, \"FunctionRealization\")\n");
+        sb.append("api.link(laComp, saComp, \"ComponentRealization\")\n\n");
+        sb.append(
+            "// Allocate function to component (use api.allocate, NOT api.link)\n"
+        );
+        sb.append("api.allocate(func, comp)\n\n");
+        sb.append("// Create diagram using layer root\n");
+        sb.append("def diagram = api.diagram.create(\"SAB\", saLayer)\n\n");
         sb.append("// Always log results\n");
         sb.append("log.info(\"Created: ${api.name(newFunc)}\")\n");
         sb.append("```\n\n");
@@ -240,6 +250,35 @@ public final class CodeExecutionRouter {
             "**For complex tasks**: First explore the documentation with `api.fs.read(\"SKILL.md\")` "
         );
         sb.append("to discover the full API, then write your code.\n\n");
+
+        // Raw API access for dynamic capabilities
+        sb.append("### Raw API Access (api.tx)\n\n");
+        sb.append(
+            "When standard API methods don't support your use case, use `api.tx {}` to access Capella internals:\n\n"
+        );
+        sb.append("```groovy\n");
+        sb.append("api.tx {\n");
+        sb.append(
+            "    // Load factory via api.class.classLoader (required for OSGi)\n"
+        );
+        sb.append("    def factory = api.class.classLoader.loadClass(\n");
+        sb.append(
+            "        \"org.polarsys.capella.core.data.capellacore.CapellacoreFactory\"\n"
+        );
+        sb.append("    ).eINSTANCE\n");
+        sb.append("    \n");
+        sb.append("    // Create element and add to parent\n");
+        sb.append(
+            "    def func = api.find(\"SystemFunction\", \"My Function\")\n"
+        );
+        sb.append("    def constraint = factory.createConstraint()\n");
+        sb.append("    constraint.name = \"My Constraint\"\n");
+        sb.append("    func.ownedConstraints.add(constraint)\n");
+        sb.append("}\n");
+        sb.append("```\n\n");
+        sb.append(
+            "**Factories**: CapellacoreFactory (Constraints), OaFactory, CtxFactory, LaFactory, PaFactory, FaFactory, CsFactory, InformationFactory\n\n"
+        );
 
         // Add current model context
         if (session != null) {

@@ -3,7 +3,6 @@ package org.polarsys.capella.ai.scripting;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
-
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
@@ -29,21 +28,37 @@ import org.polarsys.capella.ai.session.SessionSafeguards;
  * </ul>
  */
 public final class RelationFactory {
+
     private RelationFactory() {}
 
     /**
      * Mapping of relation type names to their creation strategies.
      */
-    private static final Map<String, RelationStrategy> STRATEGIES = Map.ofEntries(
-        Map.entry("functionalexchange", RelationFactory::createFunctionalExchange),
-        Map.entry("componentexchange", RelationFactory::createComponentExchange),
-        Map.entry("allocation", RelationFactory::createAllocation),
-        Map.entry("involvement", RelationFactory::createInvolvement),
-        Map.entry("realization", RelationFactory::createRealization),
-        Map.entry("trace", RelationFactory::createRealization),
-        Map.entry("requirement", RelationFactory::createRequirementLink),
-        Map.entry("reference", RelationFactory::createGenericReference)
-    );
+    private static final Map<String, RelationStrategy> STRATEGIES =
+        Map.ofEntries(
+            Map.entry(
+                "functionalexchange",
+                RelationFactory::createFunctionalExchange
+            ),
+            Map.entry(
+                "componentexchange",
+                RelationFactory::createComponentExchange
+            ),
+            Map.entry("allocation", RelationFactory::createAllocation),
+            Map.entry("involvement", RelationFactory::createInvolvement),
+            Map.entry("realization", RelationFactory::createRealization),
+            Map.entry("trace", RelationFactory::createRealization),
+            Map.entry(
+                "functionrealization",
+                RelationFactory::createFunctionRealization
+            ),
+            Map.entry(
+                "componentrealization",
+                RelationFactory::createComponentRealization
+            ),
+            Map.entry("requirement", RelationFactory::createRequirementLink),
+            Map.entry("reference", RelationFactory::createGenericReference)
+        );
 
     /**
      * Create a relationship between source and target elements.
@@ -54,7 +69,12 @@ public final class RelationFactory {
      * @param relationType the type of relationship to create
      * @return the created relationship element, or null if creation failed
      */
-    public static EObject link(Session session, EObject source, EObject target, String relationType) {
+    public static EObject link(
+        Session session,
+        EObject source,
+        EObject target,
+        String relationType
+    ) {
         if (session == null || source == null || target == null) {
             return null;
         }
@@ -62,7 +82,10 @@ public final class RelationFactory {
             relationType = "reference";
         }
 
-        String normalizedType = relationType.toLowerCase(Locale.ROOT).replace("_", "").replace("-", "");
+        String normalizedType = relationType
+            .toLowerCase(Locale.ROOT)
+            .replace("_", "")
+            .replace("-", "");
         RelationStrategy strategy = STRATEGIES.get(normalizedType);
 
         if (strategy != null) {
@@ -76,55 +99,110 @@ public final class RelationFactory {
     /**
      * Create a FunctionalExchange between two functions.
      */
-    private static EObject createFunctionalExchange(Session session, EObject source, EObject target, String name) {
-        return SessionSafeguards.runWrite(session, "Create FunctionalExchange", () -> {
-            // Find container for the exchange (typically the function pkg or parent)
-            EObject container = findExchangeContainer(session, source, "FunctionalExchange");
-            if (container == null) {
-                container = source.eContainer();
-            }
+    private static EObject createFunctionalExchange(
+        Session session,
+        EObject source,
+        EObject target,
+        String name
+    ) {
+        return SessionSafeguards.runWrite(
+            session,
+            "Create FunctionalExchange",
+            () -> {
+                // Find container for the exchange (typically the function pkg or parent)
+                EObject container = findExchangeContainer(
+                    session,
+                    source,
+                    "FunctionalExchange"
+                );
+                if (container == null) {
+                    container = source.eContainer();
+                }
 
-            EObject exchange = ElementFactory.createUnder(session, container, "FunctionalExchange",
-                name != null && !name.equalsIgnoreCase("functionalexchange") ? name : "Exchange");
+                EObject exchange = ElementFactory.createUnder(
+                    session,
+                    container,
+                    "FunctionalExchange",
+                    name != null && !name.equalsIgnoreCase("functionalexchange")
+                        ? name
+                        : "Exchange"
+                );
 
-            if (exchange != null) {
-                assignEndpoint(exchange, "source", source);
-                assignEndpoint(exchange, "target", target);
+                if (exchange != null) {
+                    assignEndpoint(exchange, "source", source);
+                    assignEndpoint(exchange, "target", target);
+                }
+                return exchange;
             }
-            return exchange;
-        });
+        );
     }
 
     /**
      * Create a ComponentExchange between two components.
      */
-    private static EObject createComponentExchange(Session session, EObject source, EObject target, String name) {
-        return SessionSafeguards.runWrite(session, "Create ComponentExchange", () -> {
-            EObject container = findExchangeContainer(session, source, "ComponentExchange");
-            if (container == null) {
-                container = source.eContainer();
-            }
+    private static EObject createComponentExchange(
+        Session session,
+        EObject source,
+        EObject target,
+        String name
+    ) {
+        return SessionSafeguards.runWrite(
+            session,
+            "Create ComponentExchange",
+            () -> {
+                EObject container = findExchangeContainer(
+                    session,
+                    source,
+                    "ComponentExchange"
+                );
+                if (container == null) {
+                    container = source.eContainer();
+                }
 
-            EObject exchange = ElementFactory.createUnder(session, container, "ComponentExchange",
-                name != null && !name.equalsIgnoreCase("componentexchange") ? name : "Exchange");
+                EObject exchange = ElementFactory.createUnder(
+                    session,
+                    container,
+                    "ComponentExchange",
+                    name != null && !name.equalsIgnoreCase("componentexchange")
+                        ? name
+                        : "Exchange"
+                );
 
-            if (exchange != null) {
-                assignEndpoint(exchange, "source", source);
-                assignEndpoint(exchange, "target", target);
+                if (exchange != null) {
+                    assignEndpoint(exchange, "source", source);
+                    assignEndpoint(exchange, "target", target);
+                }
+                return exchange;
             }
-            return exchange;
-        });
+        );
     }
 
     /**
      * Create an allocation relationship (e.g., function to component).
      */
-    private static EObject createAllocation(Session session, EObject source, EObject target, String name) {
+    private static EObject createAllocation(
+        Session session,
+        EObject source,
+        EObject target,
+        String name
+    ) {
         return SessionSafeguards.runWrite(session, "Create allocation", () -> {
-            boolean linked = addReference(source, target, "allocated", "allocation", "function");
+            boolean linked = addReference(
+                source,
+                target,
+                "allocated",
+                "allocation",
+                "function"
+            );
             if (!linked) {
                 // Try reverse direction
-                linked = addReference(target, source, "allocating", "allocation", "component");
+                linked = addReference(
+                    target,
+                    source,
+                    "allocating",
+                    "allocation",
+                    "component"
+                );
             }
             return linked ? source : null;
         });
@@ -133,12 +211,28 @@ public final class RelationFactory {
     /**
      * Create an involvement relationship (e.g., activity to capability).
      */
-    private static EObject createInvolvement(Session session, EObject source, EObject target, String name) {
+    private static EObject createInvolvement(
+        Session session,
+        EObject source,
+        EObject target,
+        String name
+    ) {
         return SessionSafeguards.runWrite(session, "Create involvement", () -> {
             // Try to find involvement reference on either side
-            boolean linked = addReference(target, source, "involved", "involvement", "activity");
+            boolean linked = addReference(
+                target,
+                source,
+                "involved",
+                "involvement",
+                "activity"
+            );
             if (!linked) {
-                linked = addReference(source, target, "capability", "involvement");
+                linked = addReference(
+                    source,
+                    target,
+                    "capability",
+                    "involvement"
+                );
             }
             return linked ? source : null;
         });
@@ -147,9 +241,20 @@ public final class RelationFactory {
     /**
      * Create a realization/trace relationship between layers.
      */
-    private static EObject createRealization(Session session, EObject source, EObject target, String name) {
+    private static EObject createRealization(
+        Session session,
+        EObject source,
+        EObject target,
+        String name
+    ) {
         return SessionSafeguards.runWrite(session, "Create realization", () -> {
-            boolean linked = addReference(source, target, "realiz", "trace", "refined");
+            boolean linked = addReference(
+                source,
+                target,
+                "realiz",
+                "trace",
+                "refined"
+            );
             if (!linked) {
                 linked = addReference(target, source, "realizing", "refining");
             }
@@ -158,34 +263,152 @@ public final class RelationFactory {
     }
 
     /**
+     * Create a FunctionRealization between functions across layers.
+     * Source is the lower-level function (LA/PA), target is the higher-level function (SA/LA).
+     */
+    private static EObject createFunctionRealization(
+        Session session,
+        EObject source,
+        EObject target,
+        String name
+    ) {
+        return SessionSafeguards.runWrite(
+            session,
+            "Create FunctionRealization",
+            () -> {
+                try {
+                    var faFactory =
+                        org.polarsys.capella.core.data.fa.FaFactory.eINSTANCE;
+                    var realization = faFactory.createFunctionRealization();
+                    realization.setTargetElement(
+                        (org.polarsys.capella.common.data.modellingcore.TraceableElement) target
+                    );
+                    realization.setSourceElement(
+                        (org.polarsys.capella.common.data.modellingcore.TraceableElement) source
+                    );
+
+                    // Add to source function's ownedFunctionRealizations
+                    var realizationsRef = source
+                        .eClass()
+                        .getEStructuralFeature("ownedFunctionRealizations");
+                    if (realizationsRef != null) {
+                        @SuppressWarnings("unchecked")
+                        var list = (java.util.List<EObject>) source.eGet(
+                            realizationsRef
+                        );
+                        list.add(realization);
+                        return realization;
+                    }
+                    return null;
+                } catch (Exception e) {
+                    return null;
+                }
+            }
+        );
+    }
+
+    /**
+     * Create a ComponentRealization between components across layers.
+     * Source is the lower-level component (LA/PA), target is the higher-level component (SA/LA).
+     */
+    private static EObject createComponentRealization(
+        Session session,
+        EObject source,
+        EObject target,
+        String name
+    ) {
+        return SessionSafeguards.runWrite(
+            session,
+            "Create ComponentRealization",
+            () -> {
+                try {
+                    var csFactory =
+                        org.polarsys.capella.core.data.cs.CsFactory.eINSTANCE;
+                    var realization = csFactory.createComponentRealization();
+                    realization.setTargetElement(
+                        (org.polarsys.capella.common.data.modellingcore.TraceableElement) target
+                    );
+                    realization.setSourceElement(
+                        (org.polarsys.capella.common.data.modellingcore.TraceableElement) source
+                    );
+
+                    // Add to source component's ownedComponentRealizations
+                    var realizationsRef = source
+                        .eClass()
+                        .getEStructuralFeature("ownedComponentRealizations");
+                    if (realizationsRef != null) {
+                        @SuppressWarnings("unchecked")
+                        var list = (java.util.List<EObject>) source.eGet(
+                            realizationsRef
+                        );
+                        list.add(realization);
+                        return realization;
+                    }
+                    return null;
+                } catch (Exception e) {
+                    return null;
+                }
+            }
+        );
+    }
+
+    /**
      * Create a requirement link.
      */
-    private static EObject createRequirementLink(Session session, EObject source, EObject target, String name) {
-        return SessionSafeguards.runWrite(session, "Create requirement link", () -> {
-            boolean linked = addReference(source, target, "requirement", "satisfy", "trace");
-            if (!linked) {
-                linked = addReference(target, source, "element", "satisfy");
+    private static EObject createRequirementLink(
+        Session session,
+        EObject source,
+        EObject target,
+        String name
+    ) {
+        return SessionSafeguards.runWrite(
+            session,
+            "Create requirement link",
+            () -> {
+                boolean linked = addReference(
+                    source,
+                    target,
+                    "requirement",
+                    "satisfy",
+                    "trace"
+                );
+                if (!linked) {
+                    linked = addReference(target, source, "element", "satisfy");
+                }
+                return linked ? source : null;
             }
-            return linked ? source : null;
-        });
+        );
     }
 
     /**
      * Create a generic reference by finding a matching feature.
      */
-    private static EObject createGenericReference(Session session, EObject source, EObject target, String hintName) {
+    private static EObject createGenericReference(
+        Session session,
+        EObject source,
+        EObject target,
+        String hintName
+    ) {
         return SessionSafeguards.runWrite(session, "Create reference", () -> {
             // First try with the hint name
             if (hintName != null && !hintName.isBlank()) {
-                boolean linked = addReference(source, target, hintName.toLowerCase(Locale.ROOT));
+                boolean linked = addReference(
+                    source,
+                    target,
+                    hintName.toLowerCase(Locale.ROOT)
+                );
                 if (linked) {
                     return source;
                 }
             }
 
             // Try to find any compatible reference
-            for (EStructuralFeature feature : source.eClass().getEAllStructuralFeatures()) {
-                if (!(feature instanceof EReference ref) || ref.isContainment()) {
+            for (EStructuralFeature feature : source
+                .eClass()
+                .getEAllStructuralFeatures()) {
+                if (
+                    !(feature instanceof EReference ref) || ref.isContainment()
+                ) {
                     continue;
                 }
                 if (ref.getEReferenceType().isInstance(target)) {
@@ -213,20 +436,36 @@ public final class RelationFactory {
     /**
      * Find the appropriate container for an exchange element.
      */
-    private static EObject findExchangeContainer(Session session, EObject nearElement, String exchangeType) {
+    private static EObject findExchangeContainer(
+        Session session,
+        EObject nearElement,
+        String exchangeType
+    ) {
         // Navigate up to find a suitable container
         EObject current = nearElement;
         while (current != null) {
             EClass eClass = current.eClass();
             // Look for a package or architecture layer
             String className = eClass.getName();
-            if (className.contains("Pkg") || className.contains("Architecture") || className.contains("Analysis")) {
+            if (
+                className.contains("Pkg") ||
+                className.contains("Architecture") ||
+                className.contains("Analysis")
+            ) {
                 // Check if it can contain exchanges
                 EClass targetClass = ElementFactory.findEClass(exchangeType);
                 if (targetClass != null) {
                     for (EStructuralFeature f : eClass.getEAllStructuralFeatures()) {
-                        if (f instanceof EReference ref && ref.isContainment() && ref.isMany()) {
-                            if (ref.getEReferenceType().isSuperTypeOf(targetClass)) {
+                        if (
+                            f instanceof EReference ref &&
+                            ref.isContainment() &&
+                            ref.isMany()
+                        ) {
+                            if (
+                                ref
+                                    .getEReferenceType()
+                                    .isSuperTypeOf(targetClass)
+                            ) {
                                 return current;
                             }
                         }
@@ -239,7 +478,10 @@ public final class RelationFactory {
         // Fall back to architecture root
         String sourceClassName = nearElement.eClass().getName();
         String layer = guessLayerFromClassName(sourceClassName);
-        FindResult layerResult = ArchitectureLocator.findLayerWithDiagnostic(session, layer);
+        FindResult layerResult = ArchitectureLocator.findLayerWithDiagnostic(
+            session,
+            layer
+        );
         return layerResult.success() ? layerResult.element() : null;
     }
 
@@ -249,7 +491,9 @@ public final class RelationFactory {
     private static String guessLayerFromClassName(String className) {
         if (className == null) return "SA";
         String lower = className.toLowerCase(Locale.ROOT);
-        if (lower.contains("operational") || lower.startsWith("oa")) return "OA";
+        if (
+            lower.contains("operational") || lower.startsWith("oa")
+        ) return "OA";
         if (lower.contains("logical") || lower.startsWith("la")) return "LA";
         if (lower.contains("physical") || lower.startsWith("pa")) return "PA";
         return "SA"; // Default to System Analysis
@@ -258,8 +502,14 @@ public final class RelationFactory {
     /**
      * Add a reference from source to target using keyword matching.
      */
-    private static boolean addReference(EObject source, EObject target, String... keywords) {
-        for (EStructuralFeature feature : source.eClass().getEAllStructuralFeatures()) {
+    private static boolean addReference(
+        EObject source,
+        EObject target,
+        String... keywords
+    ) {
+        for (EStructuralFeature feature : source
+            .eClass()
+            .getEAllStructuralFeatures()) {
             if (!(feature instanceof EReference ref) || ref.isContainment()) {
                 continue;
             }
@@ -297,24 +547,33 @@ public final class RelationFactory {
     /**
      * Assign an endpoint (source/target) to an exchange element.
      */
-    private static void assignEndpoint(EObject exchange, String role, EObject endpoint) {
+    private static void assignEndpoint(
+        EObject exchange,
+        String role,
+        EObject endpoint
+    ) {
         if (exchange == null || endpoint == null) {
             return;
         }
-        for (EStructuralFeature feature : exchange.eClass().getEAllStructuralFeatures()) {
+        for (EStructuralFeature feature : exchange
+            .eClass()
+            .getEAllStructuralFeatures()) {
             if (!(feature instanceof EReference ref) || ref.isContainment()) {
                 continue;
             }
             String name = feature.getName().toLowerCase(Locale.ROOT);
-            boolean matches = (role.equals("source") && name.contains("source"))
-                           || (role.equals("target") && name.contains("target"));
+            boolean matches =
+                (role.equals("source") && name.contains("source")) ||
+                (role.equals("target") && name.contains("target"));
             if (!matches) {
                 continue;
             }
             if (ref.getEReferenceType().isInstance(endpoint)) {
                 if (ref.isMany()) {
                     @SuppressWarnings("unchecked")
-                    Collection<Object> list = (Collection<Object>) exchange.eGet(ref);
+                    Collection<Object> list = (Collection<
+                        Object
+                    >) exchange.eGet(ref);
                     if (!list.contains(endpoint)) {
                         list.add(endpoint);
                     }
@@ -331,6 +590,11 @@ public final class RelationFactory {
      */
     @FunctionalInterface
     private interface RelationStrategy {
-        EObject create(Session session, EObject source, EObject target, String name);
+        EObject create(
+            Session session,
+            EObject source,
+            EObject target,
+            String name
+        );
     }
 }

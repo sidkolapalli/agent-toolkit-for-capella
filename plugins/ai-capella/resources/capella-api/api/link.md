@@ -38,13 +38,20 @@ api.set(exchange, "name", "Sensor Interface")
 ```
 
 ### Allocations
-Allocate functions to components:
+Allocate functions/activities to components/entities.
+
+**IMPORTANT**: Use `api.allocate()` instead of `api.link()` for allocations:
 
 ```groovy
+// Allocate function to component (all layers)
 def func = api.find("SystemFunction", "Process Data")
 def comp = api.find("SystemComponent", "Processor")
+api.allocate(func, comp)  // Use api.allocate(), NOT api.link()
 
-api.link(func, comp, "allocation")
+// Allocate activity to entity (OA layer)
+def activity = api.find("OperationalActivity", "Monitor")
+def entity = api.find("Entity", "Operator")
+api.allocate(activity, entity)
 ```
 
 ### Realizations
@@ -59,13 +66,14 @@ api.link(logFunc, sysFunc, "realization")
 
 ## Common Relationship Types
 
-| Type | Connects | Purpose |
-|------|----------|---------|
-| `FunctionalExchange` | Function to Function | Data/control flow |
-| `ComponentExchange` | Component to Component | Interface |
-| `allocation` | Function to Component | Where function runs |
-| `realization` | LA/PA to SA | Traces between layers |
-| `involvement` | Activity to Capability | What achieves what |
+| Type | Connects | Method |
+|------|----------|--------|
+| `FunctionalExchange` | Function to Function | `api.link()` |
+| `ComponentExchange` | Component to Component | `api.link()` |
+| `FunctionRealization` | LA/PA Function to SA/LA Function | `api.link()` |
+| `ComponentRealization` | LA/PA Component to SA/LA Component | `api.link()` |
+| Allocation | Function to Component | `api.allocate()` |
+| `involvement` | Activity to Capability | `api.link()` |
 
 ## Examples
 
@@ -80,6 +88,20 @@ api.link(process, output, "FunctionalExchange")
 
 log.info("Created function chain")
 ```
+
+## Physical Layer Connections
+
+Physical components use `ComponentExchange` (same as other layers):
+
+```groovy
+def pc1 = api.find("PhysicalComponent", "Sensor Unit")
+def pc2 = api.find("PhysicalComponent", "Processing Unit")
+
+// Use ComponentExchange for physical connections
+api.link(pc1, pc2, "ComponentExchange")
+```
+
+Note: `PhysicalLink` is a different concept for physical paths/ports.
 
 ## Tips
 

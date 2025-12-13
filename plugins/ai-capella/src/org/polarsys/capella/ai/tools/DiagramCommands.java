@@ -14,7 +14,14 @@ import org.eclipse.gmf.runtime.notation.View;
 import org.eclipse.sirius.business.api.dialect.DialectManager;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.diagram.DDiagram;
+import org.eclipse.sirius.diagram.DDiagramElement;
+import org.eclipse.sirius.diagram.DNode;
+import org.eclipse.sirius.diagram.DNodeContainer;
+import org.eclipse.sirius.diagram.DiagramFactory;
+import org.eclipse.sirius.diagram.description.AbstractNodeMapping;
+import org.eclipse.sirius.diagram.description.ContainerMapping;
 import org.eclipse.sirius.diagram.description.DiagramDescription;
+import org.eclipse.sirius.diagram.description.NodeMapping;
 import org.eclipse.sirius.ui.business.api.dialect.DialectUIManager;
 import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.eclipse.sirius.viewpoint.RGBValues;
@@ -981,25 +988,384 @@ public final class DiagramCommands {
         return resolved;
     }
 
-    /** Create a node view by refreshing and revealing an existing semantic element (no internal UI reflection). */
+    /**
+     * Create a node view for a semantic element on a diagram.
+     * Uses Sirius's DDiagramElementSynchronizer for proper synchronized diagram support.
+     */
     public static boolean createNode(
         Session session,
         DRepresentation rep,
         EObject semantic
     ) {
         if (session == null || rep == null || semantic == null) return false;
+        if (!(rep instanceof DDiagram)) return false;
+
+        DDiagram diagram = (DDiagram) rep;
+
         try {
-            addElementsByUuid(
+            // Check if already on diagram
+            for (DDiagramElement elem : diagram.getDiagramElements()) {
+                if (semantic.equals(elem.getTarget())) {
+                    LOG.info("Element already on diagram: " + semantic);
+                    return true;
+                }
+            }
+
+            // Use Sirius's proper element creation via DDiagramElementSynchronizer
+            return SessionSafeguards.runWrite(
                 session,
-                rep,
-                java.util.List.of(tryUuid(semantic))
+                "Add element to diagram",
+                () -> {
+                    try {
+                        // Get the diagram description
+                        DiagramDescription desc = diagram.getDescription();
+                        if (desc == null) {
+                            LOG.warning("Diagram has no description");
+                            return false;
+                        }
+
+                        // Find appropriate mapping for this element type
+                        AbstractNodeMapping mapping = findNodeMapping(
+                            desc,
+                            semantic
+                        );
+                        if (mapping == null) {
+                            LOG.warning(
+                                "No mapping found for: " +
+                                    semantic.eClass().getName()
+                            );
+                            return false;
+                        }
+
+                        // Use Sirius synchronizer to create element properly
+                        Class<?> syncClass = Class.forName(
+                            "org.eclipse.sirius.diagram.business.internal.sync.DDiagramElementSynchronizer"
+                        );
+
+                        // Get interpreter from session
+                        Object interpreter = null;
+                        try {
+                            var getInterpreter = session
+                                .getClass()
+                                .getMethod("getInterpreter");
+                            interpreter = getInterpreter.invoke(session);
+                        } catch (Exception e) {
+                            // Try alternative: get from Sirius runtime
+                            Class<?> siriusPlugin = Class.forName(
+                                "org.eclipse.sirius.business.api.componentization.ViewpointRegistry"
+                            );
+                            var getInstance = siriusPlugin.getMethod(
+                                "getInstance"
+                            );
+                            var registry = getInstance.invoke(null);
+                        }
+
+                        // Create synchronizer
+                        var syncConstructor = syncClass.getConstructor(
+                            DDiagram.class,
+                            Class.forName(
+                                "org.eclipse.sirius.common.tools.api.interpreter.IInterpreter"
+                            ),
+                            Class.forName(
+                                "org.eclipse.sirius.ecore.extender.business.api.accessor.ModelAccessor"
+                            )
+                        );
+
+                        // Get model accessor
+                        var getAccessor = session
+                            .getClass()
+                            .getMethod("getModelAccessor");
+                        var accessor = getAccessor.invoke(session);
+
+                        // Get interpreter
+                        var getInterp = session
+                            .getClass()
+                            .getMethod("getInterpreter");
+                        var interp = getInterp.invoke(session);
+
+                        var synchronizer = syncConstructor.newInstance(
+                            diagram,
+                            interp,
+                            accessor
+                        );
+
+                        // Call createNewNode method
+                        if (mapping instanceof ContainerMapping) {
+                            var createMethod = syncClass.getMethod(
+                                "createNewNode",
+                                Class.forName(
+                                    "org.eclipse.sirius.diagram.DDiagramElementContainer"
+                                ),
+                                EObject.class,
+                                ContainerMapping.class
+                            );
+                            // null parent = add to diagram root
+                            var result = createMethod.invoke(
+                                synchronizer,
+                                null,
+                                semantic,
+                                mapping
+                            );
+                            if (result != null) {
+                                diagram
+                                    .getOwnedDiagramElements()
+                                    .add((DDiagramElement) result);
+                                LOG.info(
+                                    "Created container for: " +
+                                        semantic.eClass().getName()
+                                );
+                            }
+                        } else if (mapping instanceof NodeMapping) {
+                            var createMethod = syncClass.getMethod(
+                                "createNewNode",
+                                Class.forName(
+                                    "org.eclipse.sirius.diagram.DDiagramElementContainer"
+                                ),
+                                EObject.class,
+                                NodeMapping.class
+                            );
+                            var result = createMethod.invoke(
+                                synchronizer,
+                                null,
+                                semantic,
+                                mapping
+                            );
+                            if (result != null) {
+                                diagram
+                                    .getOwnedDiagramElements()
+                                    .add((DDiagramElement) result);
+                                LOG.info(
+                                    "Created node for: " +
+                                        semantic.eClass().getName()
+                                );
+                            }
+                        }
+
+                        // Refresh to apply styles
+                        DialectManager.INSTANCE.refresh(
+                            diagram,
+                            new NullProgressMonitor()
+                        );
+                        return true;
+                    } catch (Exception e) {
+                        LOG.warning(
+                            "Synchronizer approach failed: " + e.getMessage()
+                        );
+
+                        // Fallback: manually create and add element to correct container
+                        DiagramDescription desc = diagram.getDescription();
+                        AbstractNodeMapping mapping = findNodeMapping(
+                            desc,
+                            semantic
+                        );
+
+                        if (mapping != null) {
+                            DDiagramElement newElement = createDiagramElement(
+                                mapping,
+                                semantic
+                            );
+                            if (newElement != null) {
+                                // Find correct parent container based on allocations
+                                DNodeContainer parentContainer =
+                                    findParentContainer(diagram, semantic);
+                                if (parentContainer != null) {
+                                    parentContainer
+                                        .getOwnedDiagramElements()
+                                        .add(newElement);
+                                    LOG.info(
+                                        "Added to container: " +
+                                            parentContainer.getTarget()
+                                    );
+                                } else {
+                                    diagram
+                                        .getOwnedDiagramElements()
+                                        .add(newElement);
+                                    LOG.info("Added to diagram root");
+                                }
+                                DialectManager.INSTANCE.refresh(
+                                    diagram,
+                                    new NullProgressMonitor()
+                                );
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                }
             );
-            DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
-            return true;
         } catch (Exception e) {
-            LOG.warning("createNode (reveal) failed: " + e.getMessage());
+            LOG.warning("createNode failed: " + e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Find the parent container on the diagram for a semantic element.
+     * Looks for allocation relationships (e.g., activity allocated to entity).
+     */
+    private static DNodeContainer findParentContainer(
+        DDiagram diagram,
+        EObject semantic
+    ) {
+        EObject semanticParent = findSemanticParent(semantic);
+
+        if (semanticParent != null) {
+            for (DDiagramElement elem : diagram.getDiagramElements()) {
+                if (
+                    semanticParent.equals(elem.getTarget()) &&
+                    elem instanceof DNodeContainer
+                ) {
+                    return (DNodeContainer) elem;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Find the semantic parent of an element via allocations.
+     */
+    private static EObject findSemanticParent(EObject semantic) {
+        try {
+            var eClass = semantic.eClass();
+
+            // Check componentFunctionalAllocations and get source
+            var allocsRef = eClass.getEStructuralFeature(
+                "componentFunctionalAllocations"
+            );
+            if (allocsRef != null) {
+                Object val = semantic.eGet(allocsRef);
+                if (val instanceof java.util.Collection<?>) {
+                    for (Object alloc : (java.util.Collection<?>) val) {
+                        if (alloc instanceof EObject) {
+                            var sourceRef =
+                                ((EObject) alloc).eClass().getEStructuralFeature(
+                                    "sourceElement"
+                                );
+                            if (sourceRef != null) {
+                                Object source = ((EObject) alloc).eGet(
+                                    sourceRef
+                                );
+                                if (source instanceof EObject) {
+                                    return (EObject) source;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOG.fine("Could not find semantic parent: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Find the appropriate node or container mapping for a semantic element.
+     */
+    private static AbstractNodeMapping findNodeMapping(
+        DiagramDescription desc,
+        EObject semantic
+    ) {
+        String targetClass = semantic.eClass().getName();
+        String targetPackage = semantic.eClass().getEPackage().getName();
+
+        // Check default layer's container mappings
+        if (desc.getDefaultLayer() != null) {
+            for (ContainerMapping cm : desc
+                .getDefaultLayer()
+                .getContainerMappings()) {
+                if (mappingMatchesClass(cm, targetClass, targetPackage)) {
+                    return cm;
+                }
+                // Check sub-mappings
+                for (NodeMapping subNm : cm.getSubNodeMappings()) {
+                    if (
+                        mappingMatchesClass(subNm, targetClass, targetPackage)
+                    ) {
+                        return subNm;
+                    }
+                }
+                for (ContainerMapping subCm : cm.getSubContainerMappings()) {
+                    if (
+                        mappingMatchesClass(subCm, targetClass, targetPackage)
+                    ) {
+                        return subCm;
+                    }
+                }
+            }
+
+            // Check default layer's node mappings
+            for (NodeMapping nm : desc.getDefaultLayer().getNodeMappings()) {
+                if (mappingMatchesClass(nm, targetClass, targetPackage)) {
+                    return nm;
+                }
+            }
+        }
+
+        // Check additional layers
+        for (var layer : desc.getAdditionalLayers()) {
+            for (ContainerMapping cm : layer.getContainerMappings()) {
+                if (mappingMatchesClass(cm, targetClass, targetPackage)) {
+                    return cm;
+                }
+            }
+            for (NodeMapping nm : layer.getNodeMappings()) {
+                if (mappingMatchesClass(nm, targetClass, targetPackage)) {
+                    return nm;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if a mapping's domain class matches the element's class.
+     */
+    private static boolean mappingMatchesClass(
+        AbstractNodeMapping mapping,
+        String className,
+        String packageName
+    ) {
+        String domainClass = mapping.getDomainClass();
+        if (domainClass == null || domainClass.isBlank()) return false;
+
+        // Domain class can be:
+        // - Short name: "OperationalActivity"
+        // - Qualified: "org.polarsys.capella.core.data.oa.OperationalActivity"
+        // - EPackage:Class: "oa:OperationalActivity" or "oa::OperationalActivity"
+
+        return (
+            domainClass.equals(className) ||
+            domainClass.endsWith("." + className) ||
+            domainClass.endsWith(":" + className) ||
+            domainClass.endsWith("::" + className) ||
+            domainClass.equalsIgnoreCase(packageName + "." + className) ||
+            domainClass.equalsIgnoreCase(packageName + ":" + className)
+        );
+    }
+
+    /**
+     * Create the appropriate DDiagramElement based on mapping type.
+     */
+    private static DDiagramElement createDiagramElement(
+        AbstractNodeMapping mapping,
+        EObject semantic
+    ) {
+        if (mapping instanceof ContainerMapping) {
+            DNodeContainer container =
+                DiagramFactory.eINSTANCE.createDNodeContainer();
+            container.setTarget(semantic);
+            container.setActualMapping((ContainerMapping) mapping);
+            return container;
+        } else if (mapping instanceof NodeMapping) {
+            DNode node = DiagramFactory.eINSTANCE.createDNode();
+            node.setTarget(semantic);
+            node.setActualMapping((NodeMapping) mapping);
+            return node;
+        }
+        return null;
     }
 
     /** Create an edge by relying on semantic link creation and revealing endpoints (no internal UI reflection). */

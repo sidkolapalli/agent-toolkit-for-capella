@@ -257,6 +257,44 @@ public final class GroovyExecutor {
             }
         );
 
+        // Capella factories for raw API access via api.tx {}
+        binding.setVariable(
+            "OaFactory",
+            org.polarsys.capella.core.data.oa.OaFactory.eINSTANCE
+        );
+        binding.setVariable(
+            "CtxFactory",
+            org.polarsys.capella.core.data.ctx.CtxFactory.eINSTANCE
+        );
+        binding.setVariable(
+            "LaFactory",
+            org.polarsys.capella.core.data.la.LaFactory.eINSTANCE
+        );
+        binding.setVariable(
+            "PaFactory",
+            org.polarsys.capella.core.data.pa.PaFactory.eINSTANCE
+        );
+        binding.setVariable(
+            "FaFactory",
+            org.polarsys.capella.core.data.fa.FaFactory.eINSTANCE
+        );
+        binding.setVariable(
+            "CsFactory",
+            org.polarsys.capella.core.data.cs.CsFactory.eINSTANCE
+        );
+        binding.setVariable(
+            "RequirementFactory",
+            org.polarsys.capella.core.data.requirement.RequirementFactory.eINSTANCE
+        );
+        binding.setVariable(
+            "InformationFactory",
+            org.polarsys.capella.core.data.information.InformationFactory.eINSTANCE
+        );
+        binding.setVariable(
+            "CapellacoreFactory",
+            org.polarsys.capella.core.data.capellacore.CapellacoreFactory.eINSTANCE
+        );
+
         return binding;
     }
 
@@ -276,6 +314,20 @@ public final class GroovyExecutor {
             "java.util.HashMap"
         );
         imports.addStarImports("org.polarsys.capella.ai.scripting");
+
+        // Add Capella factory imports for raw API access via api.tx {}
+        imports.addStarImports(
+            "org.polarsys.capella.core.data.oa",
+            "org.polarsys.capella.core.data.ctx",
+            "org.polarsys.capella.core.data.la",
+            "org.polarsys.capella.core.data.pa",
+            "org.polarsys.capella.core.data.fa",
+            "org.polarsys.capella.core.data.cs",
+            "org.polarsys.capella.core.data.information",
+            "org.polarsys.capella.core.data.requirement",
+            "org.polarsys.capella.core.data.capellacore",
+            "org.polarsys.capella.core.data.capellamodeller"
+        );
         config.addCompilationCustomizers(imports);
 
         // Add security restrictions

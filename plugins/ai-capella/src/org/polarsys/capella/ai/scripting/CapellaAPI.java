@@ -1,5 +1,6 @@
 package org.polarsys.capella.ai.scripting;
 
+import groovy.lang.Closure;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -216,7 +217,9 @@ public final class CapellaAPI {
         }
         // Guess the layer from the type name
         String layer = guessLayerFromType(type);
-        return create(layer, type, name);
+        // Resolve type aliases
+        String resolvedType = resolveTypeAlias(type, layer);
+        return create(layer, resolvedType, name);
     }
 
     /**
@@ -235,8 +238,21 @@ public final class CapellaAPI {
         if (root == null) {
             return null;
         }
-        EObject created = ElementFactory.createUnder(session, root, type, name);
+        // Resolve type aliases (e.g., OperationalActor -> Entity)
+        String resolvedType = resolveTypeAlias(type, layer);
+        boolean isActor = isActorAlias(type);
+
+        EObject created = ElementFactory.createUnder(
+            session,
+            root,
+            resolvedType,
+            name
+        );
         if (created != null) {
+            // If this was an actor alias, set the actor property
+            if (isActor) {
+                set(created, "actor", true);
+            }
             invalidate();
         }
         return created;
@@ -396,6 +412,59 @@ public final class CapellaAPI {
         return link(source, target, "reference");
     }
 
+    /**
+     * Allocate a function/activity to a component/entity.
+     * This is required for the function to appear inside the component on diagrams.
+     *
+     * <p>Example:
+     * <pre>{@code
+     * def activity = api.create("OA", "OperationalActivity", "Process Data")
+     * def entity = api.find("Entity", "Aircraft")
+     * api.allocate(activity, entity)  // Activity now appears inside Aircraft on OAB
+     * }</pre>
+     *
+     * @param function the function or activity to allocate
+     * @param component the component or entity to allocate to
+     * @return true if allocation was successful
+     */
+    public boolean allocate(EObject function, EObject component) {
+        if (session == null || function == null || component == null) {
+            return false;
+        }
+        return SessionSafeguards.runWrite(session, "Allocate function", () -> {
+            try {
+                // Create ComponentFunctionalAllocation
+                var faFactory =
+                    org.polarsys.capella.core.data.fa.FaFactory.eINSTANCE;
+                var allocation =
+                    faFactory.createComponentFunctionalAllocation();
+                allocation.setTargetElement(
+                    (org.polarsys.capella.common.data.modellingcore.TraceableElement) function
+                );
+                allocation.setSourceElement(
+                    (org.polarsys.capella.common.data.modellingcore.TraceableElement) component
+                );
+
+                // Add to component's ownedFunctionalAllocation
+                var allocRef = component
+                    .eClass()
+                    .getEStructuralFeature("ownedFunctionalAllocation");
+                if (allocRef != null) {
+                    @SuppressWarnings("unchecked")
+                    var allocList = (java.util.List<EObject>) component.eGet(
+                        allocRef
+                    );
+                    allocList.add(allocation);
+                    invalidate();
+                    return true;
+                }
+                return false;
+            } catch (Exception e) {
+                return false;
+            }
+        });
+    }
+
     // ========== NAVIGATION Operations ==========
 
     /**
@@ -459,6 +528,82 @@ public final class CapellaAPI {
      */
     public String name(EObject element) {
         return getName(element);
+    }
+
+    /**
+     * Get the ID/UUID of an element.
+     */
+    public String id(EObject element) {
+        return getUuid(element);
+    }
+
+    // ========== RAW API ACCESS ==========
+
+    /**
+     * Execute raw Capella API code within a safe transaction.
+     * Use this when standard API methods don't support your use case.
+     *
+     * <p>This enables dynamic access to ALL Capella functionality by allowing
+     * direct use of internal Capella factories and EMF APIs.
+     *
+     * <p>Example:
+     * <pre>{@code
+     * api.tx {
+     *     def factory = org.polarsys.capella.core.data.requirement.RequirementFactory.eINSTANCE
+     *     def req = factory.createSystemUserRequirement()
+     *     req.name = "REQ-001"
+     *     req.requirementId = "REQ-001"
+     *
+     *     def reqPkg = api.layer("SA").ownedRequirementPkgs[0]
+     *     reqPkg.ownedRequirements.add(req)
+     *     req
+     * }
+     * }</pre>
+     *
+     * @param closure the Groovy closure containing raw API code
+     * @return the result of the closure (typically the created/modified element)
+     */
+    public Object tx(Closure<?> closure) {
+        if (session == null) {
+            throw new IllegalStateException("No active Capella session");
+        }
+        return SessionSafeguards.runWrite(session, "Raw API execution", () -> {
+            try {
+                Object result = closure.call();
+                invalidate();
+                return result;
+            } catch (Exception e) {
+                throw new RuntimeException(
+                    "Raw API execution failed: " + e.getMessage(),
+                    e
+                );
+            }
+        });
+    }
+
+    /**
+     * Execute raw Capella API code with a descriptive label.
+     *
+     * @param label description for undo/redo stack
+     * @param closure the Groovy closure containing raw API code
+     * @return the result of the closure
+     */
+    public Object tx(String label, Closure<?> closure) {
+        if (session == null) {
+            throw new IllegalStateException("No active Capella session");
+        }
+        return SessionSafeguards.runWrite(session, label, () -> {
+            try {
+                Object result = closure.call();
+                invalidate();
+                return result;
+            } catch (Exception e) {
+                throw new RuntimeException(
+                    label + " failed: " + e.getMessage(),
+                    e
+                );
+            }
+        });
     }
 
     // ========== VALIDATION Operations ==========
@@ -620,6 +765,36 @@ public final class CapellaAPI {
                 default -> type;
             };
             default -> type;
+        };
+    }
+
+    /**
+     * Resolve type aliases to actual Capella types.
+     * For example, OperationalActor -> Entity, SystemActor -> SystemComponent.
+     */
+    private String resolveTypeAlias(String type, String layer) {
+        if (type == null) return null;
+        return switch (type) {
+            case "OperationalActor" -> "Entity";
+            case "SystemActor" -> "SystemComponent";
+            case "LogicalActor" -> "LogicalComponent";
+            case "PhysicalActor" -> "PhysicalComponent";
+            default -> type;
+        };
+    }
+
+    /**
+     * Check if a type name is an actor alias that needs the actor property set.
+     */
+    private boolean isActorAlias(String type) {
+        if (type == null) return false;
+        return switch (type) {
+            case
+                "OperationalActor",
+                "SystemActor",
+                "LogicalActor",
+                "PhysicalActor" -> true;
+            default -> false;
         };
     }
 }

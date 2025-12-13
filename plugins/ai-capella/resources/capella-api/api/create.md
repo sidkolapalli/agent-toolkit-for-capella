@@ -38,7 +38,8 @@ api.set(newFunc, "visible_in_doc", true)
 ### OA - Operational Analysis
 - `OperationalCapability` - What the system must achieve
 - `OperationalActivity` - Activities performed by actors
-- `OperationalActor` / `Entity` - Who performs activities
+- `Entity` - Operational actors and components
+  - For actors: `api.set(entity, "actor", true)`
 
 ### SA - System Analysis
 - `SystemFunction` - Functions the system performs

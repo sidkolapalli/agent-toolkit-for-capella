@@ -3,7 +3,6 @@ package org.polarsys.capella.ai.scripting;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.sirius.business.api.dialect.DialectManager;
 import org.eclipse.sirius.business.api.session.Session;
@@ -46,12 +45,66 @@ public final class DiagramAPI {
      * @param target the semantic element to create the diagram for
      * @return the created diagram representation, or null if creation failed
      */
-    public DRepresentation create(String diagramType, String name, EObject target) {
+    public DRepresentation create(
+        String diagramType,
+        String name,
+        EObject target
+    ) {
         if (session == null || target == null) {
             return null;
         }
         String descriptionName = resolveDiagramDescription(diagramType);
-        return DiagramCommands.createAndOpenDiagram(target, descriptionName, name);
+
+        // Find the correct target element if the given target is a layer root
+        EObject actualTarget = findDiagramTarget(target, descriptionName);
+        if (actualTarget == null) {
+            actualTarget = target;
+        }
+
+        return DiagramCommands.createAndOpenDiagram(
+            actualTarget,
+            descriptionName,
+            name
+        );
+    }
+
+    /**
+     * Find the correct target element for a diagram type.
+     * Architecture blank diagrams need ComponentPkg, not the layer root.
+     */
+    private EObject findDiagramTarget(EObject target, String descriptionName) {
+        if (target == null) return null;
+
+        String targetClass = target.eClass().getName();
+
+        // If target is already a valid type, use it
+        if (
+            targetClass.contains("ComponentPkg") ||
+            targetClass.contains("Component")
+        ) {
+            return target;
+        }
+
+        // If target is a layer root, find the appropriate child
+        if (
+            targetClass.equals("OperationalAnalysis") ||
+            targetClass.equals("SystemAnalysis") ||
+            targetClass.equals("LogicalArchitecture") ||
+            targetClass.equals("PhysicalArchitecture")
+        ) {
+            // Look for ComponentPkg or EntityPkg
+            for (EObject child : target.eContents()) {
+                String childClass = child.eClass().getName();
+                if (
+                    childClass.contains("ComponentPkg") ||
+                    childClass.contains("EntityPkg")
+                ) {
+                    return child;
+                }
+            }
+        }
+
+        return target;
     }
 
     /**
@@ -92,7 +145,8 @@ public final class DiagramAPI {
             return List.of();
         }
         try {
-            Collection<DRepresentation> reps = DialectManager.INSTANCE.getAllRepresentations(session);
+            Collection<DRepresentation> reps =
+                DialectManager.INSTANCE.getAllRepresentations(session);
             return new ArrayList<>(reps);
         } catch (Exception e) {
             return List.of();
@@ -147,8 +201,17 @@ public final class DiagramAPI {
     /**
      * Create an edge between two elements in the diagram.
      */
-    public boolean addEdge(DRepresentation diagram, EObject source, EObject target) {
-        if (session == null || diagram == null || source == null || target == null) {
+    public boolean addEdge(
+        DRepresentation diagram,
+        EObject source,
+        EObject target
+    ) {
+        if (
+            session == null ||
+            diagram == null ||
+            source == null ||
+            target == null
+        ) {
             return false;
         }
         return DiagramCommands.createEdge(session, diagram, source, target);
@@ -243,24 +306,49 @@ public final class DiagramAPI {
      * @param height height (0 to keep current)
      * @return true if bounds were set
      */
-    public boolean setBounds(DRepresentation diagram, EObject element, int x, int y, int width, int height) {
+    public boolean setBounds(
+        DRepresentation diagram,
+        EObject element,
+        int x,
+        int y,
+        int width,
+        int height
+    ) {
         if (session == null || diagram == null || element == null) {
             return false;
         }
-        return DiagramCommands.setViewBounds(session, diagram, element, x, y, width, height);
+        return DiagramCommands.setViewBounds(
+            session,
+            diagram,
+            element,
+            x,
+            y,
+            width,
+            height
+        );
     }
 
     /**
      * Move an element's view to a specific position.
      */
-    public boolean move(DRepresentation diagram, EObject element, int x, int y) {
+    public boolean move(
+        DRepresentation diagram,
+        EObject element,
+        int x,
+        int y
+    ) {
         return setBounds(diagram, element, x, y, 0, 0);
     }
 
     /**
      * Resize an element's view.
      */
-    public boolean resize(DRepresentation diagram, EObject element, int width, int height) {
+    public boolean resize(
+        DRepresentation diagram,
+        EObject element,
+        int width,
+        int height
+    ) {
         return setBounds(diagram, element, -1, -1, width, height);
     }
 
@@ -303,7 +391,9 @@ public final class DiagramAPI {
             return "Unknown";
         }
         try {
-            Object name = element.eGet(element.eClass().getEStructuralFeature("name"));
+            Object name = element.eGet(
+                element.eClass().getEStructuralFeature("name")
+            );
             return name != null ? name.toString() : element.eClass().getName();
         } catch (Exception e) {
             return element.eClass().getName();
