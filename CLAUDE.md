@@ -46,6 +46,54 @@ mvn -f plugins clean -DskipTests
 - Always run `mvn -f plugins clean verify` before committing to catch compile-time errors
 - When adding features, verify UI flows, EMF transactions, and undo/redo behavior
 
+### Dev Server Testing (Recommended for API development)
+
+The AI Dev Server exposes a REST API for testing code execution without the Eclipse UI.
+
+**Setup:**
+1. Launch Capella and open a model (e.g., IFE sample project)
+2. Start Dev Server: `Window → Show View → Other → Capella AI → AI Dev Server`
+3. Click "Start" - server runs on `http://localhost:8765`
+
+**Endpoints:**
+```bash
+# Check server status
+curl http://localhost:8765/status
+
+# Execute Groovy code directly
+curl -X POST http://localhost:8765/execute \
+  -H "Content-Type: text/plain" \
+  -d 'api.findAll("SystemFunction").size()'
+
+# Full LLM chat (requires API key configured)
+curl -X POST http://localhost:8765/chat \
+  -H "Content-Type: text/plain" \
+  -d "List all SystemFunctions in this model"
+
+# Get system prompt
+curl http://localhost:8765/prompt
+```
+
+**Test script:** `./test-dev-server.sh` runs a full test suite.
+
+**Rebuilding plugin for testing:**
+```bash
+# After editing Java source files:
+cd plugins/ai-capella
+
+# Build classpath (find jars in Capella installation)
+CAPELLA_PLUGINS="/path/to/capella/plugins"
+GROOVY_JAR="/path/to/capella/configuration/org.eclipse.osgi/.../groovy-4.0.23.jar"
+
+# Compile changed files
+javac --release 17 -cp "$CP" -d /tmp/build src/org/polarsys/capella/ai/scripting/*.java
+
+# Update JAR in dropins
+cd /tmp/build && jar cf /path/to/capella/dropins/org.polarsys.capella.ai-*.jar .
+
+# Restart Capella to load changes
+```
+
 ## Architecture
 
 ### Module Structure
