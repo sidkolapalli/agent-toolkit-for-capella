@@ -143,12 +143,41 @@ public final class DiagramAPI {
 
     /**
      * Find a diagram by name.
+     *
+     * @param name the diagram name or UID to find
+     * @return the found diagram representation
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if name is null/blank or diagram not found
      */
     public DRepresentation find(String name) {
-        if (session == null || name == null) {
-            return null;
+        if (session == null) {
+            throw new IllegalStateException("No active session");
         }
-        return DiagramCommands.findRepresentationByNameOrUid(session, name);
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException(
+                "Diagram name cannot be null or blank"
+            );
+        }
+        DRepresentation result = DiagramCommands.findRepresentationByNameOrUid(
+            session,
+            name
+        );
+        if (result == null) {
+            List<String> available = list()
+                .stream()
+                .map(d -> d.getName())
+                .limit(5)
+                .toList();
+            throw new IllegalArgumentException(
+                "Diagram '" +
+                    name +
+                    "' not found. " +
+                    (available.isEmpty()
+                        ? "No diagrams in model."
+                        : "Available: " + available)
+            );
+        }
+        return result;
     }
 
     /**
@@ -188,12 +217,34 @@ public final class DiagramAPI {
 
     /**
      * Add a semantic element to a diagram.
+     *
+     * @param diagram the diagram to add to
+     * @param element the semantic element to add
+     * @return true if the element was added
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if diagram or element is null, or add fails
      */
     public boolean add(DRepresentation diagram, EObject element) {
-        if (session == null || diagram == null || element == null) {
-            return false;
+        if (session == null) {
+            throw new IllegalStateException("No active session");
         }
-        return DiagramCommands.createNode(session, diagram, element);
+        if (diagram == null) {
+            throw new IllegalArgumentException("Diagram cannot be null");
+        }
+        if (element == null) {
+            throw new IllegalArgumentException("Element to add cannot be null");
+        }
+        boolean success = DiagramCommands.createNode(session, diagram, element);
+        if (!success) {
+            throw new IllegalArgumentException(
+                "Failed to add " +
+                    element.eClass().getName() +
+                    " to diagram '" +
+                    diagram.getName() +
+                    "'. Element may not be displayable in this diagram type."
+            );
+        }
+        return true;
     }
 
     /**
@@ -243,12 +294,40 @@ public final class DiagramAPI {
 
     /**
      * Remove an element's view from the diagram (does not delete the semantic element).
+     *
+     * @param diagram the diagram to remove from
+     * @param element the semantic element whose view should be removed
+     * @return true if the view was removed
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if diagram or element is null, or removal fails
      */
     public boolean remove(DRepresentation diagram, EObject element) {
-        if (session == null || diagram == null || element == null) {
-            return false;
+        if (session == null) {
+            throw new IllegalStateException("No active session");
         }
-        return DiagramCommands.removeViewElement(session, diagram, element);
+        if (diagram == null) {
+            throw new IllegalArgumentException("Diagram cannot be null");
+        }
+        if (element == null) {
+            throw new IllegalArgumentException(
+                "Element to remove cannot be null"
+            );
+        }
+        boolean success = DiagramCommands.removeViewElement(
+            session,
+            diagram,
+            element
+        );
+        if (!success) {
+            throw new IllegalArgumentException(
+                "Failed to remove " +
+                    element.eClass().getName() +
+                    " from diagram '" +
+                    diagram.getName() +
+                    "'. Element may not exist in this diagram."
+            );
+        }
+        return true;
     }
 
     // ========== Layout ==========
@@ -268,12 +347,32 @@ public final class DiagramAPI {
      *                 "left", "right", "top", "bottom", "hcenter", "vcenter",
      *                 "hspace", "vspace"
      * @return true if layout was applied
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if diagram is null or layout fails
      */
     public boolean layout(DRepresentation diagram, String strategy) {
-        if (session == null || diagram == null) {
-            return false;
+        if (session == null) {
+            throw new IllegalStateException("No active session");
         }
-        return DiagramCommands.arrangeSelection(session, diagram, strategy);
+        if (diagram == null) {
+            throw new IllegalArgumentException("Diagram cannot be null");
+        }
+        boolean success = DiagramCommands.arrangeSelection(
+            session,
+            diagram,
+            strategy
+        );
+        if (!success) {
+            throw new IllegalArgumentException(
+                "Failed to apply layout '" +
+                    strategy +
+                    "' to diagram '" +
+                    diagram.getName() +
+                    "'. " +
+                    "Valid strategies: auto, grid, flow, radial, layered, left, right, top, bottom"
+            );
+        }
+        return true;
     }
 
     /**
@@ -289,32 +388,103 @@ public final class DiagramAPI {
 
     /**
      * Rename a diagram.
+     *
+     * @param diagram the diagram to rename
+     * @param newName the new name for the diagram
+     * @return true if renamed successfully
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if diagram or newName is null, or rename fails
      */
     public boolean rename(DRepresentation diagram, String newName) {
-        if (session == null || diagram == null || newName == null) {
-            return false;
+        if (session == null) {
+            throw new IllegalStateException("No active session");
         }
-        return DiagramCommands.renameDiagram(session, diagram, newName);
+        if (diagram == null) {
+            throw new IllegalArgumentException("Diagram cannot be null");
+        }
+        if (newName == null || newName.isBlank()) {
+            throw new IllegalArgumentException(
+                "New diagram name cannot be null or blank"
+            );
+        }
+        boolean success = DiagramCommands.renameDiagram(
+            session,
+            diagram,
+            newName
+        );
+        if (!success) {
+            throw new IllegalArgumentException(
+                "Failed to rename diagram '" +
+                    diagram.getName() +
+                    "' to '" +
+                    newName +
+                    "'"
+            );
+        }
+        return true;
     }
 
     /**
      * Delete a diagram.
+     *
+     * @param diagram the diagram to delete
+     * @return true if deleted successfully
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if diagram is null or delete fails
      */
     public boolean delete(DRepresentation diagram) {
-        if (session == null || diagram == null) {
-            return false;
+        if (session == null) {
+            throw new IllegalStateException("No active session");
         }
-        return DiagramCommands.deleteDiagram(session, diagram);
+        if (diagram == null) {
+            throw new IllegalArgumentException("Diagram cannot be null");
+        }
+        String diagramName = diagram.getName();
+        boolean success = DiagramCommands.deleteDiagram(session, diagram);
+        if (!success) {
+            throw new IllegalArgumentException(
+                "Failed to delete diagram '" + diagramName + "'"
+            );
+        }
+        return true;
     }
 
     /**
      * Duplicate a diagram.
+     *
+     * @param diagram the diagram to duplicate
+     * @param newName the name for the duplicated diagram
+     * @return true if duplicated successfully
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if diagram or newName is null, or duplication fails
      */
     public boolean duplicate(DRepresentation diagram, String newName) {
-        if (session == null || diagram == null || newName == null) {
-            return false;
+        if (session == null) {
+            throw new IllegalStateException("No active session");
         }
-        return DiagramCommands.duplicateDiagram(session, diagram, newName);
+        if (diagram == null) {
+            throw new IllegalArgumentException("Diagram cannot be null");
+        }
+        if (newName == null || newName.isBlank()) {
+            throw new IllegalArgumentException(
+                "New diagram name cannot be null or blank"
+            );
+        }
+        boolean success = DiagramCommands.duplicateDiagram(
+            session,
+            diagram,
+            newName
+        );
+        if (!success) {
+            throw new IllegalArgumentException(
+                "Failed to duplicate diagram '" +
+                    diagram.getName() +
+                    "' as '" +
+                    newName +
+                    "'"
+            );
+        }
+        return true;
     }
 
     // ========== View Positioning ==========

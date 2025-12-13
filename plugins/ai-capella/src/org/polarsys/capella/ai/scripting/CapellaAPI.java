@@ -209,11 +209,20 @@ public final class CapellaAPI {
      *
      * @param type the simple class name
      * @param name the element name
-     * @return the created element, or null if creation failed
+     * @return the created element
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if type is null/blank
      */
     public EObject create(String type, String name) {
-        if (session == null || type == null) {
-            return null;
+        if (session == null) {
+            throw new IllegalStateException(
+                "No active Capella session. Open a model first."
+            );
+        }
+        if (type == null || type.isBlank()) {
+            throw new IllegalArgumentException(
+                "Element type cannot be null or blank"
+            );
         }
         // Guess the layer from the type name
         String layer = guessLayerFromType(type);
@@ -228,15 +237,29 @@ public final class CapellaAPI {
      * @param layer the layer (OA, SA, LA, PA)
      * @param type the simple class name
      * @param name the element name
-     * @return the created element, or null if creation failed
+     * @return the created element
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if layer not found or type invalid
      */
     public EObject create(String layer, String type, String name) {
-        if (session == null || type == null) {
-            return null;
+        if (session == null) {
+            throw new IllegalStateException(
+                "No active Capella session. Open a model first."
+            );
+        }
+        if (type == null || type.isBlank()) {
+            throw new IllegalArgumentException(
+                "Element type cannot be null or blank"
+            );
         }
         EObject root = layer(layer);
         if (root == null) {
-            return null;
+            throw new IllegalArgumentException(
+                "Architecture layer '" +
+                    layer +
+                    "' not found. " +
+                    "Valid layers: OA, SA, LA, PA"
+            );
         }
         // Resolve type aliases (e.g., OperationalActor -> Entity)
         String resolvedType = resolveTypeAlias(type, layer);
@@ -248,13 +271,22 @@ public final class CapellaAPI {
             resolvedType,
             name
         );
-        if (created != null) {
-            // If this was an actor alias, set the actor property
-            if (isActor) {
-                set(created, "actor", true);
-            }
-            invalidate();
+        if (created == null) {
+            throw new IllegalArgumentException(
+                "Failed to create '" +
+                    type +
+                    "' in " +
+                    layer +
+                    " layer. " +
+                    "Check type spelling. Common types: SystemFunction, SystemComponent, " +
+                    "LogicalFunction, LogicalComponent, PhysicalFunction, PhysicalComponent"
+            );
         }
+        // If this was an actor alias, set the actor property
+        if (isActor) {
+            set(created, "actor", true);
+        }
+        invalidate();
         return created;
     }
 
@@ -264,11 +296,26 @@ public final class CapellaAPI {
      * @param type the simple class name
      * @param name the element name
      * @param parent the parent element
-     * @return the created element, or null if creation failed
+     * @return the created element
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if type/parent is null or creation fails
      */
     public EObject create(String type, String name, EObject parent) {
-        if (session == null || type == null || parent == null) {
-            return null;
+        if (session == null) {
+            throw new IllegalStateException(
+                "No active Capella session. Open a model first."
+            );
+        }
+        if (type == null || type.isBlank()) {
+            throw new IllegalArgumentException(
+                "Element type cannot be null or blank"
+            );
+        }
+        if (parent == null) {
+            throw new IllegalArgumentException(
+                "Parent element cannot be null. Use create(layer, type, name) " +
+                    "to create elements at the layer root."
+            );
         }
         EObject created = ElementFactory.createUnder(
             session,
@@ -276,9 +323,17 @@ public final class CapellaAPI {
             type,
             name
         );
-        if (created != null) {
-            invalidate();
+        if (created == null) {
+            throw new IllegalArgumentException(
+                "Failed to create '" +
+                    type +
+                    "' under " +
+                    parent.eClass().getName() +
+                    ". " +
+                    "This type may not be valid as a child of this parent element."
+            );
         }
+        invalidate();
         return created;
     }
 
@@ -291,10 +346,24 @@ public final class CapellaAPI {
      * @param property the property name
      * @param value the new value
      * @return true if property was set
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if element/property is null or property not found
      */
     public boolean set(EObject element, String property, Object value) {
-        if (session == null || element == null || property == null) {
-            return false;
+        if (session == null) {
+            throw new IllegalStateException(
+                "No active Capella session. Open a model first."
+            );
+        }
+        if (element == null) {
+            throw new IllegalArgumentException(
+                "Cannot set property on null element"
+            );
+        }
+        if (property == null || property.isBlank()) {
+            throw new IllegalArgumentException(
+                "Property name cannot be null or blank"
+            );
         }
         return SessionSafeguards.runWrite(session, "Set " + property, () -> {
             EStructuralFeature feature = element
@@ -311,12 +380,37 @@ public final class CapellaAPI {
                     }
                 }
             }
-            if (feature != null && feature.isChangeable()) {
-                element.eSet(feature, value);
-                invalidate();
-                return true;
+            if (feature == null) {
+                // Build list of available properties for error message
+                List<String> available = element
+                    .eClass()
+                    .getEAllStructuralFeatures()
+                    .stream()
+                    .filter(f -> f.isChangeable())
+                    .map(f -> f.getName())
+                    .limit(15)
+                    .toList();
+                throw new IllegalArgumentException(
+                    "Property '" +
+                        property +
+                        "' not found on " +
+                        element.eClass().getName() +
+                        ". " +
+                        "Available properties: " +
+                        available
+                );
             }
-            return false;
+            if (!feature.isChangeable()) {
+                throw new IllegalArgumentException(
+                    "Property '" +
+                        property +
+                        "' is read-only on " +
+                        element.eClass().getName()
+                );
+            }
+            element.eSet(feature, value);
+            invalidate();
+            return true;
         });
     }
 
@@ -426,10 +520,24 @@ public final class CapellaAPI {
      * @param function the function or activity to allocate
      * @param component the component or entity to allocate to
      * @return true if allocation was successful
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if function/component is null or allocation fails
      */
     public boolean allocate(EObject function, EObject component) {
-        if (session == null || function == null || component == null) {
-            return false;
+        if (session == null) {
+            throw new IllegalStateException(
+                "No active Capella session. Open a model first."
+            );
+        }
+        if (function == null) {
+            throw new IllegalArgumentException(
+                "Function/activity to allocate cannot be null"
+            );
+        }
+        if (component == null) {
+            throw new IllegalArgumentException(
+                "Component/entity to allocate to cannot be null"
+            );
         }
         return SessionSafeguards.runWrite(session, "Allocate function", () -> {
             try {
@@ -449,18 +557,44 @@ public final class CapellaAPI {
                 var allocRef = component
                     .eClass()
                     .getEStructuralFeature("ownedFunctionalAllocation");
-                if (allocRef != null) {
-                    @SuppressWarnings("unchecked")
-                    var allocList = (java.util.List<EObject>) component.eGet(
-                        allocRef
+                if (allocRef == null) {
+                    throw new IllegalArgumentException(
+                        "Component '" +
+                            component.eClass().getName() +
+                            "' does not support function allocation. " +
+                            "Only SystemComponent, LogicalComponent, PhysicalComponent, " +
+                            "and Entity types support allocation."
                     );
-                    allocList.add(allocation);
-                    invalidate();
-                    return true;
                 }
-                return false;
+                @SuppressWarnings("unchecked")
+                var allocList = (java.util.List<EObject>) component.eGet(
+                    allocRef
+                );
+                allocList.add(allocation);
+                invalidate();
+                return true;
+            } catch (ClassCastException e) {
+                throw new IllegalArgumentException(
+                    "Cannot allocate '" +
+                        function.eClass().getName() +
+                        "' to '" +
+                        component.eClass().getName() +
+                        "'. " +
+                        "Allocation requires a function (SystemFunction, LogicalFunction, " +
+                        "PhysicalFunction, OperationalActivity) and a component (SystemComponent, " +
+                        "LogicalComponent, PhysicalComponent, Entity)."
+                );
+            } catch (IllegalArgumentException e) {
+                throw e; // Re-throw our own exceptions
             } catch (Exception e) {
-                return false;
+                throw new IllegalArgumentException(
+                    "Failed to allocate " +
+                        function.eClass().getName() +
+                        " to " +
+                        component.eClass().getName() +
+                        ": " +
+                        e.getMessage()
+                );
             }
         });
     }

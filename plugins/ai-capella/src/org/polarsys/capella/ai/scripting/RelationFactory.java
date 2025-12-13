@@ -67,7 +67,9 @@ public final class RelationFactory {
      * @param source the source element
      * @param target the target element
      * @param relationType the type of relationship to create
-     * @return the created relationship element, or null if creation failed
+     * @return the created relationship element
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if source/target is null or link creation fails
      */
     public static EObject link(
         Session session,
@@ -75,8 +77,20 @@ public final class RelationFactory {
         EObject target,
         String relationType
     ) {
-        if (session == null || source == null || target == null) {
-            return null;
+        if (session == null) {
+            throw new IllegalStateException(
+                "No active Capella session for linking"
+            );
+        }
+        if (source == null) {
+            throw new IllegalArgumentException(
+                "Link source element cannot be null"
+            );
+        }
+        if (target == null) {
+            throw new IllegalArgumentException(
+                "Link target element cannot be null"
+            );
         }
         if (relationType == null || relationType.isBlank()) {
             relationType = "reference";
@@ -88,12 +102,33 @@ public final class RelationFactory {
             .replace("-", "");
         RelationStrategy strategy = STRATEGIES.get(normalizedType);
 
+        EObject result;
         if (strategy != null) {
-            return strategy.create(session, source, target, relationType);
+            result = strategy.create(session, source, target, relationType);
+        } else {
+            // Fallback: try to find matching reference by name
+            result = createGenericReference(
+                session,
+                source,
+                target,
+                relationType
+            );
         }
 
-        // Fallback: try to find matching reference by name
-        return createGenericReference(session, source, target, relationType);
+        if (result == null) {
+            throw new IllegalArgumentException(
+                "Cannot create '" +
+                    relationType +
+                    "' link from " +
+                    source.eClass().getName() +
+                    " to " +
+                    target.eClass().getName() +
+                    ". " +
+                    "Valid relation types: FunctionalExchange, ComponentExchange, " +
+                    "Realization, Allocation, Transition, reference"
+            );
+        }
+        return result;
     }
 
     /**
@@ -299,9 +334,26 @@ public final class RelationFactory {
                         list.add(realization);
                         return realization;
                     }
-                    return null;
+                    throw new IllegalArgumentException(
+                        "Cannot create FunctionRealization: source " +
+                            source.eClass().getName() +
+                            " does not have ownedFunctionRealizations feature"
+                    );
+                } catch (ClassCastException e) {
+                    throw new IllegalArgumentException(
+                        "Cannot create FunctionRealization between " +
+                            source.eClass().getName() +
+                            " and " +
+                            target.eClass().getName() +
+                            ": elements must be TraceableElement types. " +
+                            e.getMessage()
+                    );
                 } catch (Exception e) {
-                    return null;
+                    throw new RuntimeException(
+                        "Failed to create FunctionRealization: " +
+                            e.getMessage(),
+                        e
+                    );
                 }
             }
         );
@@ -344,9 +396,26 @@ public final class RelationFactory {
                         list.add(realization);
                         return realization;
                     }
-                    return null;
+                    throw new IllegalArgumentException(
+                        "Cannot create ComponentRealization: source " +
+                            source.eClass().getName() +
+                            " does not have ownedComponentRealizations feature"
+                    );
+                } catch (ClassCastException e) {
+                    throw new IllegalArgumentException(
+                        "Cannot create ComponentRealization between " +
+                            source.eClass().getName() +
+                            " and " +
+                            target.eClass().getName() +
+                            ": elements must be TraceableElement types. " +
+                            e.getMessage()
+                    );
                 } catch (Exception e) {
-                    return null;
+                    throw new RuntimeException(
+                        "Failed to create ComponentRealization: " +
+                            e.getMessage(),
+                        e
+                    );
                 }
             }
         );
