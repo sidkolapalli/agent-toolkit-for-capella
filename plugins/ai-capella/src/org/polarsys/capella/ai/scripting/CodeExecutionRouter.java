@@ -280,6 +280,40 @@ public final class CodeExecutionRouter {
             "**Factories**: CapellacoreFactory (Constraints), OaFactory, CtxFactory, LaFactory, PaFactory, FaFactory, CsFactory, InformationFactory\n\n"
         );
 
+        // Requirements Viewpoint pattern with examples (Anthropic multishot pattern)
+        sb.append("### Requirements Viewpoint\n\n");
+        sb.append(
+            "To create Requirements, use this EXACT pattern (do not modify):\n\n"
+        );
+        sb.append("<example>\n");
+        sb.append("User request: Create a requirement\n");
+        sb.append("Correct code:\n");
+        sb.append("```groovy\n");
+        sb.append("import org.osgi.framework.FrameworkUtil\n");
+        sb.append(
+            "def ctx = FrameworkUtil.getBundle(api.class).bundleContext\n"
+        );
+        sb.append(
+            "def reqBundle = ctx.bundles.find { it.symbolicName == \"org.polarsys.kitalpha.vp.requirements.model\" }\n"
+        );
+        sb.append(
+            "def factory = reqBundle.loadClass(\"org.polarsys.kitalpha.vp.requirements.Requirements.RequirementsFactory\").eINSTANCE\n"
+        );
+        sb.append("def req = factory.createRequirement()\n");
+        sb.append("req.reqIFLongName = \"My Requirement\"\n");
+        sb.append("log.info(\"Created: \" + req.reqIFLongName)\n");
+        sb.append("req\n");
+        sb.append("```\n");
+        sb.append("</example>\n\n");
+        sb.append("**CRITICAL rules for Requirements**:\n");
+        sb.append(
+            "- Use `FrameworkUtil.getBundle(api.class)` - NOT `this.class`\n"
+        );
+        sb.append("- Use `req.reqIFLongName` - NOT `req.name`\n");
+        sb.append(
+            "- Bundle name is exactly `org.polarsys.kitalpha.vp.requirements.model`\n\n"
+        );
+
         // Add current model context
         if (session != null) {
             sb.append("### Current Model State\n\n");
