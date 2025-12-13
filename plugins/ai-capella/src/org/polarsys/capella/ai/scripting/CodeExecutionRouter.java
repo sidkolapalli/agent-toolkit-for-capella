@@ -240,8 +240,10 @@ public final class CodeExecutionRouter {
             "// Allocate function to component (use api.allocate, NOT api.link)\n"
         );
         sb.append("api.allocate(func, comp)\n\n");
-        sb.append("// Create diagram using layer root\n");
-        sb.append("def diagram = api.diagram.create(\"SAB\", saLayer)\n\n");
+        sb.append("// Create diagram: create(type, name, target)\n");
+        sb.append(
+            "def diagram = api.diagram.create(\"SAB\", \"My Diagram\", saLayer)\n\n"
+        );
         sb.append("// Always log results\n");
         sb.append("log.info(\"Created: ${api.name(newFunc)}\")\n");
         sb.append("```\n\n");
@@ -279,6 +281,36 @@ public final class CodeExecutionRouter {
         sb.append(
             "**Factories**: CapellacoreFactory (Constraints), OaFactory, CtxFactory, LaFactory, PaFactory, FaFactory, CsFactory, InformationFactory\n\n"
         );
+
+        // Diagram creation pattern with examples (Anthropic multishot pattern)
+        sb.append("### Diagram Creation\n\n");
+        sb.append(
+            "To create diagrams, use this EXACT signature: `create(type, name, target)`\n\n"
+        );
+        sb.append("<example>\n");
+        sb.append("User request: Create a System Architecture Blank diagram\n");
+        sb.append("Correct code:\n");
+        sb.append("```groovy\n");
+        sb.append("def saLayer = api.layer(\"SA\")\n");
+        sb.append(
+            "def diagram = api.diagram.create(\"SAB\", \"System Overview\", saLayer)\n"
+        );
+        sb.append("log.info(\"Created diagram: \" + diagram.name)\n");
+        sb.append("```\n");
+        sb.append("</example>\n\n");
+        sb.append("<example>\n");
+        sb.append(
+            "User request: Create an LAB diagram called My Logical View\n"
+        );
+        sb.append("Correct code:\n");
+        sb.append("```groovy\n");
+        sb.append("def laLayer = api.layer(\"LA\")\n");
+        sb.append(
+            "def diagram = api.diagram.create(\"LAB\", \"My Logical View\", laLayer)\n"
+        );
+        sb.append("log.info(\"Created diagram: \" + diagram.name)\n");
+        sb.append("```\n");
+        sb.append("</example>\n\n");
 
         // Requirements Viewpoint pattern with examples (Anthropic multishot pattern)
         sb.append("### Requirements Viewpoint\n\n");

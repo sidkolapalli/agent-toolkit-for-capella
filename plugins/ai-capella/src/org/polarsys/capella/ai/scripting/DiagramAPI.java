@@ -43,17 +43,29 @@ public final class DiagramAPI {
      * @param diagramType the diagram type (e.g., "SAB", "LAB", "PAB", "OAB")
      * @param name the diagram name
      * @param target the semantic element to create the diagram for
-     * @return the created diagram representation, or null if creation failed
+     * @return the created diagram representation
+     * @throws IllegalStateException if no active session
+     * @throws IllegalArgumentException if target is null or diagram type is unknown
      */
     public DRepresentation create(
         String diagramType,
         String name,
         EObject target
     ) {
-        if (session == null || target == null) {
-            return null;
+        if (session == null) {
+            throw new IllegalStateException("No active session");
+        }
+        if (target == null) {
+            throw new IllegalArgumentException("Target element cannot be null");
         }
         String descriptionName = resolveDiagramDescription(diagramType);
+        if (descriptionName == null) {
+            throw new IllegalArgumentException(
+                "Unknown diagram type: " +
+                    diagramType +
+                    ". Valid types: OAB, SAB, LAB, PAB, SDFB, LDFB, PDFB, CDB, ES, FS, IS"
+            );
+        }
 
         // Find the correct target element if the given target is a layer root
         EObject actualTarget = findDiagramTarget(target, descriptionName);
@@ -112,6 +124,18 @@ public final class DiagramAPI {
      */
     public DRepresentation create(String diagramType, EObject target) {
         String name = diagramType + " - " + getElementName(target);
+        return create(diagramType, name, target);
+    }
+
+    /**
+     * Create a diagram (alternate argument order for LLM compatibility).
+     * Accepts create(type, target, name) in addition to create(type, name, target).
+     */
+    public DRepresentation create(
+        String diagramType,
+        EObject target,
+        String name
+    ) {
         return create(diagramType, name, target);
     }
 
@@ -356,10 +380,13 @@ public final class DiagramAPI {
 
     /**
      * Resolve diagram type abbreviation to full description name.
+     *
+     * @param type diagram type abbreviation (e.g., "SAB", "LAB")
+     * @return the full description name, or null if type is unknown
      */
     private String resolveDiagramDescription(String type) {
         if (type == null) {
-            return "System Architecture Blank";
+            return null;
         }
         return switch (type.toUpperCase()) {
             case "OAB", "OPERATIONAL" -> "Operational Activity Blank";
@@ -379,7 +406,7 @@ public final class DiagramAPI {
             case "ES", "SCENARIO" -> "Exchange Scenario";
             case "FS" -> "Functional Scenario";
             case "IS" -> "Interface Scenario";
-            default -> type; // Use as-is if not recognized
+            default -> null; // Unknown type
         };
     }
 

@@ -63,12 +63,18 @@ public final class DiagramCommands {
         if (domain == null) return null;
 
         final DRepresentation[] rep = new DRepresentation[1];
+        final String[] errorMsg = new String[1];
         SessionSafeguards.runWrite(session, "Create diagram", () -> {
             RepresentationDescription desc = findDiagramDescription(
                 session,
                 descriptionName
             );
             if (desc == null) {
+                errorMsg[0] =
+                    "Diagram description '" +
+                    descriptionName +
+                    "' not found in selected viewpoints. " +
+                    "Ensure the correct Capella viewpoints are activated.";
                 return null;
             }
             DRepresentation created =
@@ -82,6 +88,11 @@ public final class DiagramCommands {
             rep[0] = created;
             return created;
         });
+
+        // Throw exception with descriptive message if diagram creation failed
+        if (errorMsg[0] != null) {
+            throw new IllegalArgumentException(errorMsg[0]);
+        }
         if (rep[0] != null) {
             SessionSafeguards.runOnUiThread(() -> {
                 try {
@@ -1588,9 +1599,11 @@ public final class DiagramCommands {
         Session session,
         String name
     ) {
+        java.util.List<String> available = new java.util.ArrayList<>();
         for (Viewpoint vp : session.getSelectedViewpoints(false)) {
             for (RepresentationDescription rd : vp.getOwnedRepresentations()) {
                 if (rd instanceof DiagramDescription) {
+                    available.add(rd.getName());
                     if (
                         name.equals(rd.getName()) || name.equals(rd.getLabel())
                     ) {
@@ -1599,6 +1612,14 @@ public final class DiagramCommands {
                 }
             }
         }
+        // Log available descriptions to help diagnose issues
+        System.err.println(
+            "[DiagramCommands] Description '" +
+                name +
+                "' not found. " +
+                "Available: " +
+                available
+        );
         return null;
     }
 
