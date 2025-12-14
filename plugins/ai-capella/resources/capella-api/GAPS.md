@@ -1,202 +1,129 @@
-# ARCADIA Workflow Testing - Identified Gaps
+# API Gaps and Known Limitations
 
-This document summarizes gaps found during comprehensive testing of the Capella API across all ARCADIA layers.
+This document tracks known limitations in the Capella API.
+
+> **Last Updated**: 2024-12-13
+> **Status**: Most cross-layer issues resolved in Issue #36
+
+---
 
 ## Summary
 
-| Layer | Issue | Severity | Status |
-|-------|-------|----------|--------|
-| OA | `OperationalActor` returns null | Medium | Document workaround |
-| All | Diagram creation fails on layer root | High | Fixed (pending deploy) |
-| PA | `PhysicalLink` returns null | Medium | Document workaround |
-| Cross-layer | `ComponentRealization` fails | Medium | Needs implementation |
-| Cross-layer | `FunctionRealization` works | - | Working |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| OperationalActor creation | ✅ Fixed | Auto-maps to Entity with `actor=true` |
+| ComponentRealization | ✅ Fixed | Works in RelationFactory |
+| FunctionRealization | ✅ Working | Always worked |
+| Architecture Blank diagrams | ✅ Fixed | SAB, LAB, PAB work |
+| Data Flow Blank diagrams | ❌ Not Working | SDFB, LDFB, PDFB fail (Issue #57) |
+| OAB diagram | ⚠️ Viewpoint | Requires viewpoint activation |
 
 ---
 
-## Detailed Findings
+## Working Features
 
-### 1. OA Layer: OperationalActor Type
+### Cross-Layer Traceability
 
-**Issue**: `api.create("OA", "OperationalActor", "Pilot")` returns `null`
-
-**Root Cause**: In Capella's metamodel, there is no separate `OperationalActor` class. Actors at the OA layer are represented as `Entity` objects with the `actor` property set to `true`.
-
-**Workaround**:
-```groovy
-// Instead of:
-def actor = api.create("OA", "OperationalActor", "Pilot")  // Returns null
-
-// Use:
-def actor = api.create("OA", "Entity", "Pilot")
-api.set(actor, "actor", true)  // Mark as actor
-```
-
-**Fix Options**:
-1. Update documentation to use `Entity` with actor property
-2. Add type alias in ElementFactory to map `OperationalActor` → `Entity` with actor=true
-
----
-
-### 2. All Layers: Diagram Creation Target
-
-**Issue**: `api.diagram.create("SAB", saLayer)` returns `false` when passing architecture layer root
-
-**Root Cause**: Architecture Blank diagrams (OAB, SAB, LAB, PAB) require a `ComponentPkg` or `EntityPkg` as target, not the architecture layer root.
-
-**Example**:
-```groovy
-// This fails:
-def saLayer = api.layer("SA")
-api.diagram.create("SAB", saLayer)  // Returns false
-
-// This works:
-def saLayer = api.layer("SA")
-def systemCompPkg = saLayer.eContents().find { it.eClass().name.contains("ComponentPkg") }
-api.diagram.create("SAB", systemCompPkg)  // Returns true
-```
-
-**Status**: Fixed in `DiagramAPI.findDiagramTarget()` - automatically resolves to correct child package. Pending deployment.
-
----
-
-### 3. PA Layer: PhysicalLink Type
-
-**Issue**: `api.link(comp1, comp2, "PhysicalLink")` returns `null`
-
-**Root Cause**: The `RelationFactory` does not have a handler for `PhysicalLink`. Physical connections use `ComponentExchange` at all architecture levels.
-
-**Workaround**:
-```groovy
-// Instead of:
-api.link(comp1, comp2, "PhysicalLink")  // Returns null
-
-// Use:
-api.link(comp1, comp2, "ComponentExchange")  // Works correctly
-```
-
-**Note**: This is actually correct behavior - Capella uses `ComponentExchange` for component-level connections across all layers. Physical links are a different concept related to physical paths/ports.
-
----
-
-### 4. Cross-Layer: ComponentRealization
-
-**Issue**: `api.link(laComp, saComp, "ComponentRealization")` fails
-
-**Root Cause**: `ComponentRealization` requires special handling:
-1. The realization must be owned by the source component (LA component)
-2. It uses `targetElement` to reference the SA component
-3. Standard `api.link()` doesn't handle this pattern
-
-**Current Behavior**:
-```groovy
-def saComp = api.find("SystemComponent", "System")
-def laComp = api.find("LogicalComponent", "Controller")
-
-// This fails:
-api.link(laComp, saComp, "ComponentRealization")  // Returns null
-```
-
-**Fix Required**: Add `ComponentRealization` handler to `RelationFactory.java`:
-```java
-case "ComponentRealization":
-    var crFactory = CsFactory.eINSTANCE;
-    var realization = crFactory.createComponentRealization();
-    realization.setTargetElement((TraceableElement) target);
-    ((Component) source).getOwnedComponentRealizations().add(realization);
-    return realization;
-```
-
----
-
-### 5. Cross-Layer: FunctionRealization (Working)
-
-**Status**: Working correctly
+All cross-layer links now work correctly:
 
 ```groovy
+// Function Realization (LA → SA)
 def sysFunc = api.find("SystemFunction", "Process Data")
 def logFunc = api.find("LogicalFunction", "Process Data")
+api.link(logFunc, sysFunc, "FunctionRealization")  // ✅ Works
 
-// This works:
-def realization = api.link(logFunc, sysFunc, "FunctionRealization")
-log.info("Created: ${realization}")  // Shows realization object
+// Component Realization (LA → SA)
+def sysComp = api.find("SystemComponent", "Controller")
+def logComp = api.find("LogicalComponent", "Controller")
+api.link(logComp, sysComp, "ComponentRealization")  // ✅ Works
 ```
 
----
+### Actor Types
 
-## Documentation Updates Needed
-
-### create.md Updates
-
-Replace:
-```markdown
-### OA - Operational Analysis
-- `OperationalActor` / `Entity` - Who performs activities
-```
-
-With:
-```markdown
-### OA - Operational Analysis
-- `Entity` - Operational actors and components
-  - Set `actor=true` for actors: `api.set(entity, "actor", true)`
-```
-
-### link.md Updates
-
-Add clarification:
-```markdown
-### Physical Connections
-Physical components use ComponentExchange (same as other layers):
+All actor types work correctly:
 
 ```groovy
-def pc1 = api.find("PhysicalComponent", "Sensor Unit")
-def pc2 = api.find("PhysicalComponent", "Processing Unit")
+// OA Layer - OperationalActor
+def actor = api.create("OA", "OperationalActor", "Pilot")  // ✅ Creates Entity with actor=true
 
-// Use ComponentExchange for physical connections
-api.link(pc1, pc2, "ComponentExchange")
+// SA Layer - SystemActor
+def sysActor = api.create("SA", "SystemActor", "User")  // ✅ Creates SystemComponent with actor=true
 ```
 
-Note: `PhysicalLink` is a different concept related to physical paths.
-```
-
----
-
-## Priority Fixes
-
-### High Priority
-1. **Deploy DiagramAPI fix** - Diagram creation with layer root already fixed, needs rebuild
-
-### Medium Priority  
-2. **Add ComponentRealization support** - Enable cross-layer component traceability
-3. **Add OperationalActor alias** - Map to Entity with actor=true
-
-### Low Priority (Documentation)
-4. **Update create.md** - Clarify Entity vs OperationalActor
-5. **Update link.md** - Clarify ComponentExchange vs PhysicalLink
-
----
-
-## Test Commands Used
+### Architecture Blank Diagrams
 
 ```groovy
-// OA Layer Test
-def entity = api.create("OA", "Entity", "Aircraft")
-def activity = api.create("OA", "OperationalActivity", "Navigate")
-api.allocate(activity, entity)
+def saLayer = api.layer("SA")
+api.diagram.create("SAB", "Overview", saLayer)  // ✅ Works
 
-// SA Layer Test  
-def sysFunc = api.create("SA", "SystemFunction", "Control Flight")
-def sysComp = api.create("SA", "SystemComponent", "Flight Controller")
+def laLayer = api.layer("LA")
+api.diagram.create("LAB", "Logical View", laLayer)  // ✅ Works
 
-// LA Layer Test
-def logFunc = api.create("LA", "LogicalFunction", "Control Flight")
-def logComp = api.create("LA", "LogicalComponent", "Navigation Computer")
-
-// PA Layer Test
-def physFunc = api.create("PA", "PhysicalFunction", "Control Flight")
-def physComp = api.create("PA", "PhysicalComponent", "Flight Computer")
-
-// Cross-Layer Traceability
-api.link(logFunc, sysFunc, "FunctionRealization")  // Works
-api.link(logComp, sysComp, "ComponentRealization")  // Fails - needs fix
+def paLayer = api.layer("PA")
+api.diagram.create("PAB", "Physical View", paLayer)  // ✅ Works
 ```
+
+---
+
+## Known Limitations
+
+### 1. Data Flow Blank Diagrams (Issue #57)
+
+SDFB, LDFB, and PDFB diagram types return null:
+
+```groovy
+def saLayer = api.layer("SA")
+api.diagram.create("SDFB", "Data Flow", saLayer)  // ❌ Returns null
+```
+
+**Workaround**: Use Architecture Blank diagrams instead, or create Data Flow diagrams manually in Capella UI.
+
+### 2. OAB Diagram Viewpoint
+
+Operational Activity Blank requires viewpoint activation:
+
+```groovy
+def oaLayer = api.layer("OA")
+api.diagram.create("OAB", "Operational View", oaLayer)  
+// ❌ "Diagram description not found in selected viewpoints"
+```
+
+**Workaround**: Ensure "Operational Analysis" viewpoint is activated in Capella before creating OAB diagrams.
+
+### 3. PhysicalLink vs ComponentExchange
+
+`PhysicalLink` is not a valid relation type. Physical components use `ComponentExchange`:
+
+```groovy
+// Wrong
+api.link(pc1, pc2, "PhysicalLink")  // ❌ Returns null
+
+// Correct
+api.link(pc1, pc2, "ComponentExchange")  // ✅ Works
+```
+
+**Note**: `PhysicalLink` in Capella refers to physical paths/cables, not component connections.
+
+---
+
+## Error Messages
+
+The API now provides descriptive error messages for common issues:
+
+| Error | Meaning |
+|-------|---------|
+| "No active Capella session" | Open a model first |
+| "Element type cannot be null" | Provide a valid type name |
+| "Architecture layer 'XX' not found" | Use OA, SA, LA, or PA |
+| "Property 'X' not found... Available: [...]" | Check property name spelling |
+| "Failed to create 'X'... Common types: [...]" | Check type name spelling |
+
+---
+
+## Reporting New Gaps
+
+If you find an API operation that fails silently or behaves unexpectedly:
+
+1. Test with the dev server: `curl -X POST http://localhost:8765/execute -d 'your code'`
+2. Check if error message is helpful
+3. If not, file an issue at: https://github.com/akon2997/capella-ai/issues
