@@ -3,7 +3,9 @@ package org.polarsys.capella.ai.scripting;
 import groovy.lang.Closure;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
@@ -13,6 +15,7 @@ import org.polarsys.capella.ai.model.ArchitectureLocator;
 import org.polarsys.capella.ai.model.ElementFactory;
 import org.polarsys.capella.ai.model.FindResult;
 import org.polarsys.capella.ai.model.Finders;
+import org.polarsys.capella.ai.model.ModelAnalytics;
 import org.polarsys.capella.ai.model.ModelOps;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.model.index.ModelIndex;
@@ -59,6 +62,19 @@ public final class CapellaAPI {
     /** Filesystem API for documentation discovery (Anthropic pattern) */
     public final FileSystemAPI fs;
 
+    // ========== Instance-Level Script Cache ==========
+    /** Cache for find(type, name) results. Key: "type:name" */
+    private final Map<String, EObject> findCache = new HashMap<>();
+
+    /** Cache for findAll(type) results. Key: type */
+    private final Map<String, List<EObject>> findAllCache = new HashMap<>();
+
+    /** Cache for layer roots. Key: canonical layer name */
+    private final Map<String, EObject> layerCache = new HashMap<>();
+
+    /** Flag indicating cache needs clearing after mutation */
+    private boolean cacheDirty = false;
+
     /**
      * Create a CapellaAPI for the given session.
      */
@@ -80,6 +96,12 @@ public final class CapellaAPI {
         if (session == null || name == null) {
             return null;
         }
+        ensureCacheValid();
+        String cacheKey = findCacheKey("*", name);
+        EObject cached = findCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
         // Search all semantic resources for any element with this name
         try {
             for (Resource res : session.getSemanticResources()) {
@@ -89,6 +111,7 @@ public final class CapellaAPI {
                     EObject eo = it.next();
                     String elementName = getName(eo);
                     if (name.equals(elementName)) {
+                        findCache.put(cacheKey, eo);
                         return eo;
                     }
                 }
@@ -107,10 +130,20 @@ public final class CapellaAPI {
      * @return the element, or null if not found
      */
     public EObject find(String type, String name) {
-        if (session == null) {
+        if (session == null || type == null || name == null) {
             return null;
         }
-        return Finders.findByName(session, type, name);
+        ensureCacheValid();
+        String cacheKey = findCacheKey(type, name);
+        EObject cached = findCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        EObject result = Finders.findByName(session, type, name);
+        if (result != null) {
+            findCache.put(cacheKey, result);
+        }
+        return result;
     }
 
     /**
@@ -134,10 +167,15 @@ public final class CapellaAPI {
      * @return list of matching elements (never null)
      */
     public List<EObject> findAll(String type) {
-        List<EObject> results = new ArrayList<>();
         if (session == null || type == null) {
-            return results;
+            return new ArrayList<>();
         }
+        ensureCacheValid();
+        List<EObject> cached = findAllCache.get(type);
+        if (cached != null) {
+            return new ArrayList<>(cached);  // Defensive copy
+        }
+        List<EObject> results = new ArrayList<>();
         try {
             for (Resource res : session.getSemanticResources()) {
                 if (res == null) continue;
@@ -153,6 +191,7 @@ public final class CapellaAPI {
         } catch (Exception e) {
             // Best effort
         }
+        findAllCache.put(type, List.copyOf(results));
         return results;
     }
 
@@ -615,7 +654,16 @@ public final class CapellaAPI {
         if (canonical == null) {
             canonical = "SA"; // Default
         }
-        return ArchitectureLocator.findTargetElement(session, canonical);
+        // Layer roots never change during script - no need for ensureCacheValid()
+        EObject cached = layerCache.get(canonical);
+        if (cached != null) {
+            return cached;
+        }
+        EObject result = ArchitectureLocator.findTargetElement(session, canonical);
+        if (result != null) {
+            layerCache.put(canonical, result);
+        }
+        return result;
     }
 
     /**
@@ -812,11 +860,31 @@ public final class CapellaAPI {
     // ========== Private Helpers ==========
 
     private void invalidate() {
+        cacheDirty = true;
         if (session != null) {
             ModelSummary.invalidate(session);
             ModelIndex.invalidate(session);
+            ModelAnalytics.invalidate(session);
             SessionSafeguards.requestSave(session);
         }
+    }
+
+    /**
+     * Clear caches if they've been invalidated by a mutation.
+     */
+    private void ensureCacheValid() {
+        if (cacheDirty) {
+            findCache.clear();
+            findAllCache.clear();
+            cacheDirty = false;
+        }
+    }
+
+    /**
+     * Generate cache key for find(type, name).
+     */
+    private static String findCacheKey(String type, String name) {
+        return type + ":" + name;
     }
 
     private String getName(EObject element) {

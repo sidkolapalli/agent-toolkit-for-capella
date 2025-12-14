@@ -172,7 +172,7 @@ public final class DiagramCommands {
                         }
                     }
                 }
-            } catch (Throwable ignore) {}
+            } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
 
             java.util.List<Node> nodes = new java.util.ArrayList<>();
             // Prefer selection if available
@@ -214,7 +214,7 @@ public final class DiagramCommands {
                                             nodes.add((Node) ep.getModel());
                                             break;
                                         }
-                                    } catch (Exception ignore) {}
+                                    } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                                 }
                             }
                         }
@@ -269,7 +269,7 @@ public final class DiagramCommands {
                                 ? dd.getDescription().getName()
                                 : "diagram";
                         }
-                    } catch (Throwable ignore) {}
+                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                     int overlapsPre = countOverlaps(bounds);
                     int crossingsPre = estimateCrossings(nodes);
                     long t0 = System.nanoTime();
@@ -613,7 +613,7 @@ public final class DiagramCommands {
                             rep,
                             new NullProgressMonitor()
                         );
-                    } catch (Exception ignore) {}
+                    } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                     // Telemetry post-metrics
                     int overlapsPost = countOverlaps(bounds);
                     int crossingsPost = estimateCrossings(nodes);
@@ -679,7 +679,7 @@ public final class DiagramCommands {
                     name = d.getDescription() != null
                         ? d.getDescription().getName()
                         : null;
-                } catch (Throwable ignore) {}
+                } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                 String n = name != null ? name.toLowerCase() : "";
                 if (n.contains("data flow") || n.contains("flow")) {
                     cellW = 240;
@@ -708,7 +708,7 @@ public final class DiagramCommands {
                     cellH = 200;
                 }
             }
-        } catch (Throwable ignore) {}
+        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
         return new int[] { cellW, cellH };
     }
 
@@ -757,7 +757,7 @@ public final class DiagramCommands {
                             }
                         }
                     }
-                } catch (Throwable ignore) {}
+                } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
             }
             // Save by Bounds (from node)
             Bounds b = (Bounds) n.getLayoutConstraint();
@@ -823,7 +823,7 @@ public final class DiagramCommands {
                         }
                     }
                 }
-            } catch (Throwable ignore) {}
+            } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
         }
         return adj;
     }
@@ -844,9 +844,9 @@ public final class DiagramCommands {
                     if (
                         t instanceof org.eclipse.emf.ecore.EObject
                     ) return (org.eclipse.emf.ecore.EObject) t;
-                } catch (Throwable ignore) {}
+                } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
             }
-        } catch (Throwable ignore) {}
+        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
         return null;
     }
 
@@ -1444,14 +1444,14 @@ public final class DiagramCommands {
                                 el,
                                 true
                             );
-                        } catch (Exception ignore) {}
+                        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                     }
                     try {
                         DialectManager.INSTANCE.refresh(
                             rep,
                             new NullProgressMonitor()
                         );
-                    } catch (Exception ignore) {}
+                    } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                     return true;
                 }
             );
@@ -1532,7 +1532,7 @@ public final class DiagramCommands {
                     if (v instanceof org.eclipse.gef.EditPartViewer) viewer =
                         (org.eclipse.gef.EditPartViewer) v;
                 }
-            } catch (Throwable ignore) {}
+            } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
             if (viewer == null) return false;
 
             IGraphicalEditPart found = null;
@@ -1553,7 +1553,7 @@ public final class DiagramCommands {
                                 break;
                             }
                         }
-                    } catch (Exception ignore) {}
+                    } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                 }
             }
             if (found == null) return false;
@@ -1585,7 +1585,7 @@ public final class DiagramCommands {
                             rep,
                             new NullProgressMonitor()
                         );
-                    } catch (Exception ignore) {}
+                    } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                     return true;
                 }
             );
@@ -1649,10 +1649,10 @@ public final class DiagramCommands {
                             eo
                         );
                         if (uri != null && id.equals(uri.fragment())) return eo;
-                    } catch (Exception ignore) {}
+                    } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                 }
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
         return null;
     }
 
@@ -1665,7 +1665,7 @@ public final class DiagramCommands {
             var rs = domain.getResourceSet();
             if (rs == null) return null;
             return findById(rs, id);
-        } catch (Exception ignore) {}
+        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
         return null;
     }
 
@@ -1683,7 +1683,7 @@ public final class DiagramCommands {
             for (DRepresentation r : reps) {
                 if (uid.equals(r.getUid())) return r;
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
         return null;
     }
 
@@ -1710,9 +1710,9 @@ public final class DiagramCommands {
                         .getMethod("getName");
                     Object n = getName.invoke(r);
                     if (idOrName.equals(String.valueOf(n))) return r;
-                } catch (Throwable ignore) {}
+                } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
         return null;
     }
 
@@ -1766,7 +1766,7 @@ public final class DiagramCommands {
                                 DRepresentation.class
                             );
                         desc = m.invoke(DialectManager.INSTANCE, rep);
-                    } catch (Throwable ignore) {}
+                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                     if (desc != null) {
                         java.lang.reflect.Method del =
                             DialectManager.class.getMethod(
@@ -1817,7 +1817,7 @@ public final class DiagramCommands {
                                     DRepresentation.class
                                 );
                             descriptor = m.invoke(DialectManager.INSTANCE, rep);
-                        } catch (Throwable ignore) {}
+                        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                         if (descriptor == null) return false;
                         EObject target = null;
                         RepresentationDescription desc = null;
@@ -1827,7 +1827,7 @@ public final class DiagramCommands {
                                 .getMethod("getTarget");
                             Object t = getTarget.invoke(descriptor);
                             if (t instanceof EObject) target = (EObject) t;
-                        } catch (Throwable ignore) {}
+                        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                         try {
                             java.lang.reflect.Method getDesc = descriptor
                                 .getClass()
@@ -1835,7 +1835,7 @@ public final class DiagramCommands {
                             Object d = getDesc.invoke(descriptor);
                             if (d instanceof RepresentationDescription) desc =
                                 (RepresentationDescription) d;
-                        } catch (Throwable ignore) {}
+                        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                         if (target == null || desc == null) return false;
                         DRepresentation copy =
                             DialectManager.INSTANCE.createRepresentation(
@@ -1939,7 +1939,7 @@ public final class DiagramCommands {
                 if (
                     st instanceof org.eclipse.sirius.viewpoint.Style
                 ) styleHolder[0] = (org.eclipse.sirius.viewpoint.Style) st;
-            } catch (Throwable ignore) {}
+            } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
             if (styleHolder[0] == null) return false;
             RGBValues fgV = (fg != null && fg >= 0) ? toRgb(fg) : null;
             RGBValues bgV = (bg != null && bg >= 0) ? toRgb(bg) : null;
@@ -1959,7 +1959,7 @@ public final class DiagramCommands {
                             m.invoke(styleHolder[0], fgV);
                             changed = true;
                         }
-                    } catch (Throwable ignore) {}
+                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                     try {
                         if (bgV != null) {
                             var m = styleHolder[0].getClass().getMethod(
@@ -1969,7 +1969,7 @@ public final class DiagramCommands {
                             m.invoke(styleHolder[0], bgV);
                             changed = true;
                         }
-                    } catch (Throwable ignore) {}
+                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                     try {
                         if (bdV != null) {
                             var m = styleHolder[0].getClass().getMethod(
@@ -1979,7 +1979,7 @@ public final class DiagramCommands {
                             m.invoke(styleHolder[0], bdV);
                             changed = true;
                         }
-                    } catch (Throwable ignore) {}
+                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                     // Best-effort: show/hide icon if supported by style
                     try {
                         java.lang.reflect.Method m =
@@ -1995,12 +1995,12 @@ public final class DiagramCommands {
                                 (Boolean) org.polarsys.capella.ai.tools.DiagramCommands.ThreadLocalStyling.get(
                                     "showIcon"
                                 );
-                        } catch (Throwable ignore) {}
+                        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                         if (showIcon != null) {
                             m.invoke(styleHolder[0], showIcon.booleanValue());
                             changed = true;
                         }
-                    } catch (Throwable ignore) {}
+                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                     // Best-effort: set label text on representation element if supported
                     try {
                         String labelText = null;
@@ -2009,7 +2009,7 @@ public final class DiagramCommands {
                                 (String) org.polarsys.capella.ai.tools.DiagramCommands.ThreadLocalStyling.get(
                                     "labelText"
                                 );
-                        } catch (Throwable ignore) {}
+                        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                         if (labelText != null) {
                             try {
                                 var m = targetRef
@@ -2017,16 +2017,16 @@ public final class DiagramCommands {
                                     .getMethod("setName", String.class);
                                 m.invoke(targetRef, labelText);
                                 changed = true;
-                            } catch (Throwable ig2) {}
+                            } catch (Throwable ex) { LOG.fine("[DiagramCommands] nested: " + ex.getMessage()); }
                         }
-                    } catch (Throwable ignore) {}
+                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                     if (changed) {
                         try {
                             DialectManager.INSTANCE.refresh(
                                 rep,
                                 new NullProgressMonitor()
                             );
-                        } catch (Exception ignore) {}
+                        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
                     }
                     return changed;
                 }
@@ -2093,7 +2093,7 @@ public final class DiagramCommands {
                     new NullProgressMonitor()
                 );
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
     }
 
     private static String tryUuid(EObject eo) {
@@ -2103,7 +2103,7 @@ public final class DiagramCommands {
                 Object v = eo.eGet(f);
                 if (v != null) return String.valueOf(v);
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
         return String.valueOf(eo.hashCode());
     }
 }

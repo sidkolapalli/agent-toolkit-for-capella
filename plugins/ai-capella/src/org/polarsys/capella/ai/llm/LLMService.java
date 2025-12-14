@@ -195,7 +195,13 @@ public final class LLMService {
                     }
                 }
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) {
+            // JSON parsing failed - return raw response
+            System.err.println(
+                "[LLMService] Error parsing OpenAI chat response: " +
+                    ex.getMessage()
+            );
+        }
         tryLogConversation(
             provider,
             "openai-chat",
@@ -296,7 +302,13 @@ public final class LLMService {
                     if (sb.length() > 0) return sb.toString();
                 }
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) {
+            // JSON parsing failed - return raw response
+            System.err.println(
+                "[LLMService] Error parsing OpenAI responses: " +
+                    ex.getMessage()
+            );
+        }
         tryLogConversation(
             provider,
             "openai-responses",
@@ -830,7 +842,12 @@ public final class LLMService {
                     }
                 }
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) {
+            // Streaming delta parse error - return empty
+            System.err.println(
+                "[LLMService] Error extracting OpenAI delta: " + ex.getMessage()
+            );
+        }
         return "";
     }
 
@@ -857,7 +874,13 @@ public final class LLMService {
                     }
                 }
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) {
+            // Streaming delta parse error - return empty
+            System.err.println(
+                "[LLMService] Error extracting Anthropic delta: " +
+                    ex.getMessage()
+            );
+        }
         return "";
     }
 
@@ -879,7 +902,13 @@ public final class LLMService {
                     }
                 }
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) {
+            // Streaming delta parse error - return empty
+            System.err.println(
+                "[LLMService] Error extracting Responses delta: " +
+                    ex.getMessage()
+            );
+        }
         return "";
     }
 

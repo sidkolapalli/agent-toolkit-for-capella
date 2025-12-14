@@ -278,7 +278,12 @@ public final class Telemetry {
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND
             );
-        } catch (Exception ignore) {}
+        } catch (Exception ex) {
+            // Telemetry write failure - don't interrupt main flow
+            System.err.println(
+                "[Telemetry] Error writing log: " + ex.getMessage()
+            );
+        }
     }
 
     private static String jsonEscape(String s) {

@@ -142,7 +142,12 @@ public final class ModelIndex {
                         domain.removeResourceSetListener(entry.listener);
                     }
                 }
-            } catch (Exception ignore) {}
+            } catch (Exception ex) {
+                System.err.println(
+                    "[ModelIndex] Error removing listener during invalidation: " +
+                        ex.getMessage()
+                );
+            }
         }
     }
 
@@ -181,12 +186,22 @@ public final class ModelIndex {
                                 );
                             }
                         }
-                    } catch (Exception ignore) {}
+                    } catch (Exception ex) {
+                        System.err.println(
+                            "[ModelIndex] Error removing old listener during rebuild: " +
+                                ex.getMessage()
+                        );
+                    }
                     CacheEntry refreshed = new CacheEntry(session, rebuilt);
                     CACHE.put(session, refreshed);
                     attachListener(session, refreshed);
                 }
-            } catch (Exception ignore) {}
+            } catch (Exception ex) {
+                System.err.println(
+                    "[ModelIndex] Error during async rebuild: " +
+                        ex.getMessage()
+                );
+            }
         });
         INFLIGHT.put(session, submitted);
     }
@@ -213,7 +228,11 @@ public final class ModelIndex {
             if (domain != null) {
                 domain.addResourceSetListener(entry.listener);
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) {
+            System.err.println(
+                "[ModelIndex] Error attaching listener: " + ex.getMessage()
+            );
+        }
     }
 
     private static List<IndexedElement> rebuild(Session session) {

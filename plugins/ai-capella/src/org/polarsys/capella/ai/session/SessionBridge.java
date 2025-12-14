@@ -168,7 +168,11 @@ public final class SessionBridge {
             for (Session s : SessionManager.INSTANCE.getSessions()) {
                 if (s != null && s.isOpen()) out.add(s);
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) {
+            System.err.println(
+                "[SessionBridge] Error listing sessions: " + ex.getMessage()
+            );
+        }
         return out;
     }
 }

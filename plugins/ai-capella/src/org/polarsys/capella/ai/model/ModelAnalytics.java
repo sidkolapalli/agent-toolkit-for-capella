@@ -13,7 +13,6 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
 import org.eclipse.emf.common.util.Diagnostic;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EObject;
@@ -29,36 +28,51 @@ import org.eclipse.sirius.business.api.session.Session;
  * Aggregates higher-level analytics for the active Capella session.
  */
 public final class ModelAnalytics {
-    private static final long CACHE_TTL_MS = 5_000L;
-    private static final Map<Session, CacheEntry> CACHE = Collections.synchronizedMap(new WeakHashMap<>());
 
-    private enum LayerId { OA, SA, LA, PA }
+    private static final long CACHE_TTL_MS = 5_000L;
+    private static final Map<Session, CacheEntry> CACHE =
+        Collections.synchronizedMap(new WeakHashMap<>());
+
+    private enum LayerId {
+        OA,
+        SA,
+        LA,
+        PA,
+    }
 
     private static final Map<LayerId, LayerConfig> LAYER_CONFIGS = Map.of(
-        LayerId.OA, new LayerConfig(
+        LayerId.OA,
+        new LayerConfig(
             "Operational",
             Set.of("OperationalEntity", "OperationalActor"),
             Set.of("OperationalActivity"),
             Set.of("OperationalActivityFlow", "OperationalExchange"),
-            Set.of("Requirement", "OperationalCapability")),
-        LayerId.SA, new LayerConfig(
+            Set.of("Requirement", "OperationalCapability")
+        ),
+        LayerId.SA,
+        new LayerConfig(
             "System",
             Set.of("SystemComponent"),
             Set.of("SystemFunction"),
             Set.of("Exchange", "FunctionalExchange", "ComponentExchange"),
-            Set.of("SystemRequirement", "Requirement")),
-        LayerId.LA, new LayerConfig(
+            Set.of("SystemRequirement", "Requirement")
+        ),
+        LayerId.LA,
+        new LayerConfig(
             "Logical",
             Set.of("LogicalComponent"),
             Set.of("LogicalFunction"),
             Set.of("ComponentExchange", "FunctionalExchange"),
-            Set.of("Requirement", "LogicalRequirement")),
-        LayerId.PA, new LayerConfig(
+            Set.of("Requirement", "LogicalRequirement")
+        ),
+        LayerId.PA,
+        new LayerConfig(
             "Physical",
             Set.of("PhysicalComponent"),
             Set.of("PhysicalFunction"),
             Set.of("ComponentExchange", "PhysicalLink"),
-            Set.of("Requirement", "PhysicalRequirement"))
+            Set.of("Requirement", "PhysicalRequirement")
+        )
     );
 
     private ModelAnalytics() {}
@@ -72,25 +86,42 @@ public final class ModelAnalytics {
         if (cached != null && now - cached.timestamp < CACHE_TTL_MS) {
             return cached.analysis;
         }
-        ResourceSet resourceSet = Optional.ofNullable(session.getTransactionalEditingDomain())
-                .map(ed -> ed.getResourceSet()).orElse(null);
+        ResourceSet resourceSet = Optional.ofNullable(
+            session.getTransactionalEditingDomain()
+        )
+            .map(ed -> ed.getResourceSet())
+            .orElse(null);
         Analysis analysis = computeAnalysis(session, resourceSet);
         CACHE.put(session, new CacheEntry(analysis, now));
         return analysis;
     }
 
-    private static Analysis computeAnalysis(Session session, ResourceSet resourceSet) {
+    private static Analysis computeAnalysis(
+        Session session,
+        ResourceSet resourceSet
+    ) {
         Map<LayerId, LayerStats> layerStats = new EnumMap<>(LayerId.class);
         for (LayerId layerId : LayerId.values()) {
             EObject root = resourceSet != null
-                    ? ArchitectureLocator.findTargetElement(resourceSet, layerId.name())
-                    : ArchitectureLocator.findTargetElement(session, layerId.name());
+                ? ArchitectureLocator.findTargetElement(
+                      resourceSet,
+                      layerId.name()
+                  )
+                : ArchitectureLocator.findTargetElement(
+                      session,
+                      layerId.name()
+                  );
             if (root != null) {
-                layerStats.put(layerId, analyseLayer(root, LAYER_CONFIGS.get(layerId)));
+                layerStats.put(
+                    layerId,
+                    analyseLayer(root, LAYER_CONFIGS.get(layerId))
+                );
             }
         }
         ValidationReport validation = ValidationReport.fromSession(resourceSet);
-        FunctionalSnapshot snapshot = FunctionalSnapshot.fromResourceSet(resourceSet);
+        FunctionalSnapshot snapshot = FunctionalSnapshot.fromResourceSet(
+            resourceSet
+        );
         DependencyGraph graph = DependencyGraph.fromResourceSet(resourceSet);
         return new Analysis(layerStats, validation, snapshot, graph);
     }
@@ -123,17 +154,30 @@ public final class ModelAnalytics {
                 stats.exchanges++;
             }
 
-            if (config.requirementClasses.stream().anyMatch(className::equals)) {
+            if (
+                config.requirementClasses.stream().anyMatch(className::equals)
+            ) {
                 stats.requirements++;
             }
         });
 
-        stats.topComponentGaps = gapComponents.stream().filter(n -> !n.isBlank()).limit(5).collect(Collectors.toList());
-        stats.topUnallocatedFunctions = unallocatedFunctions.stream().filter(n -> !n.isBlank()).limit(5).collect(Collectors.toList());
+        stats.topComponentGaps = gapComponents
+            .stream()
+            .filter(n -> !n.isBlank())
+            .limit(5)
+            .collect(Collectors.toList());
+        stats.topUnallocatedFunctions = unallocatedFunctions
+            .stream()
+            .filter(n -> !n.isBlank())
+            .limit(5)
+            .collect(Collectors.toList());
         return stats;
     }
 
-    public static void visit(EObject root, java.util.function.Consumer<EObject> consumer) {
+    public static void visit(
+        EObject root,
+        java.util.function.Consumer<EObject> consumer
+    ) {
         var iterator = EcoreUtil.getAllProperContents(root, true);
         while (iterator.hasNext()) {
             consumer.accept((EObject) iterator.next());
@@ -141,7 +185,9 @@ public final class ModelAnalytics {
     }
 
     private static boolean hasChildComponent(EObject component) {
-        for (EStructuralFeature feature : component.eClass().getEAllStructuralFeatures()) {
+        for (EStructuralFeature feature : component
+            .eClass()
+            .getEAllStructuralFeatures()) {
             if (feature instanceof EReference) {
                 EReference ref = (EReference) feature;
                 if (ref.isContainment()) {
@@ -163,7 +209,9 @@ public final class ModelAnalytics {
     }
 
     private static boolean hasAllocationToComponent(EObject function) {
-        for (EStructuralFeature feature : function.eClass().getEAllStructuralFeatures()) {
+        for (EStructuralFeature feature : function
+            .eClass()
+            .getEAllStructuralFeatures()) {
             if (feature instanceof EReference ref && !ref.isContainment()) {
                 String name = ref.getName().toLowerCase(Locale.ROOT);
                 if (name.contains("component") || name.contains("allocation")) {
@@ -203,14 +251,20 @@ public final class ModelAnalytics {
     }
 
     private static final class LayerConfig {
+
         final String label;
         final Set<String> componentClasses;
         final Set<String> functionClasses;
         final Set<String> exchangeClasses;
         final Set<String> requirementClasses;
 
-        LayerConfig(String label, Set<String> componentClasses, Set<String> functionClasses,
-                    Set<String> exchangeClasses, Set<String> requirementClasses) {
+        LayerConfig(
+            String label,
+            Set<String> componentClasses,
+            Set<String> functionClasses,
+            Set<String> exchangeClasses,
+            Set<String> requirementClasses
+        ) {
             this.label = label;
             this.componentClasses = componentClasses;
             this.functionClasses = functionClasses;
@@ -220,6 +274,7 @@ public final class ModelAnalytics {
     }
 
     private static final class CacheEntry {
+
         final Analysis analysis;
         final long timestamp;
 
@@ -232,13 +287,18 @@ public final class ModelAnalytics {
     // ----------------------------------------------------------------------------------------------
 
     public static final class Analysis {
+
         private final Map<LayerId, LayerStats> layers;
         private final ValidationReport validation;
         private final FunctionalSnapshot snapshot;
         private final DependencyGraph dependencyGraph;
 
-        Analysis(Map<LayerId, LayerStats> layers, ValidationReport validation,
-                 FunctionalSnapshot snapshot, DependencyGraph dependencyGraph) {
+        Analysis(
+            Map<LayerId, LayerStats> layers,
+            ValidationReport validation,
+            FunctionalSnapshot snapshot,
+            DependencyGraph dependencyGraph
+        ) {
             this.layers = layers;
             this.validation = validation;
             this.snapshot = snapshot;
@@ -246,7 +306,12 @@ public final class ModelAnalytics {
         }
 
         static Analysis empty() {
-            return new Analysis(Map.of(), ValidationReport.empty(), FunctionalSnapshot.empty(), DependencyGraph.empty());
+            return new Analysis(
+                Map.of(),
+                ValidationReport.empty(),
+                FunctionalSnapshot.empty(),
+                DependencyGraph.empty()
+            );
         }
 
         public Map<String, LayerStats> layerStats() {
@@ -257,12 +322,21 @@ public final class ModelAnalytics {
             return readable;
         }
 
-        public ValidationReport validation() { return validation; }
-        public FunctionalSnapshot snapshot() { return snapshot; }
-        public DependencyGraph dependencyGraph() { return dependencyGraph; }
+        public ValidationReport validation() {
+            return validation;
+        }
+
+        public FunctionalSnapshot snapshot() {
+            return snapshot;
+        }
+
+        public DependencyGraph dependencyGraph() {
+            return dependencyGraph;
+        }
     }
 
     public static final class LayerStats {
+
         private final String label;
         int components;
         int functions;
@@ -277,32 +351,69 @@ public final class ModelAnalytics {
             this.label = label;
         }
 
-        public String label() { return label; }
-        public int components() { return components; }
-        public int functions() { return functions; }
-        public int exchanges() { return exchanges; }
-        public int requirements() { return requirements; }
-        public int componentsWithoutChildren() { return componentsWithoutChildren; }
-        public int functionsWithoutAllocation() { return functionsWithoutAllocation; }
-        public List<String> topComponentGaps() { return topComponentGaps; }
-        public List<String> topUnallocatedFunctions() { return topUnallocatedFunctions; }
+        public String label() {
+            return label;
+        }
+
+        public int components() {
+            return components;
+        }
+
+        public int functions() {
+            return functions;
+        }
+
+        public int exchanges() {
+            return exchanges;
+        }
+
+        public int requirements() {
+            return requirements;
+        }
+
+        public int componentsWithoutChildren() {
+            return componentsWithoutChildren;
+        }
+
+        public int functionsWithoutAllocation() {
+            return functionsWithoutAllocation;
+        }
+
+        public List<String> topComponentGaps() {
+            return topComponentGaps;
+        }
+
+        public List<String> topUnallocatedFunctions() {
+            return topUnallocatedFunctions;
+        }
 
         public double componentStructureCoverage() {
-            return components == 0 ? 100d : ((components - componentsWithoutChildren) * 100d) / components;
+            return components == 0
+                ? 100d
+                : ((components - componentsWithoutChildren) * 100d) /
+                  components;
         }
 
         public double functionAllocationCoverage() {
-            return functions == 0 ? 100d : ((functions - functionsWithoutAllocation) * 100d) / functions;
+            return functions == 0
+                ? 100d
+                : ((functions - functionsWithoutAllocation) * 100d) / functions;
         }
     }
 
     public static final class ValidationReport {
+
         private final boolean available;
         private final int errors;
         private final int warnings;
         private final List<String> messages;
 
-        ValidationReport(boolean available, int errors, int warnings, List<String> messages) {
+        ValidationReport(
+            boolean available,
+            int errors,
+            int warnings,
+            List<String> messages
+        ) {
             this.available = available;
             this.errors = errors;
             this.warnings = warnings;
@@ -310,13 +421,29 @@ public final class ModelAnalytics {
         }
 
         static ValidationReport empty() {
-            return new ValidationReport(false, 0, 0, List.of("Validation unavailable."));
+            return new ValidationReport(
+                false,
+                0,
+                0,
+                List.of("Validation unavailable.")
+            );
         }
 
-        public boolean isAvailable() { return available; }
-        public int errorCount() { return errors; }
-        public int warningCount() { return warnings; }
-        public List<String> messages() { return messages; }
+        public boolean isAvailable() {
+            return available;
+        }
+
+        public int errorCount() {
+            return errors;
+        }
+
+        public int warningCount() {
+            return warnings;
+        }
+
+        public List<String> messages() {
+            return messages;
+        }
 
         static ValidationReport fromSession(ResourceSet resourceSet) {
             if (resourceSet == null) {
@@ -337,7 +464,9 @@ public final class ModelAnalytics {
                         Diagnostic d = Diagnostician.INSTANCE.validate(root);
                         if (d != null && d.getSeverity() != Diagnostic.OK) {
                             if (d.getSeverity() == Diagnostic.ERROR) errors++;
-                            else if (d.getSeverity() == Diagnostic.WARNING) warnings++;
+                            else if (
+                                d.getSeverity() == Diagnostic.WARNING
+                            ) warnings++;
                             messages.add(formatDiagnostic(d));
                         }
                         checked++;
@@ -347,9 +476,15 @@ public final class ModelAnalytics {
                         while (it.hasNext() && checked < MAX_CHECK) {
                             EObject eo = (EObject) it.next();
                             Diagnostic dd = Diagnostician.INSTANCE.validate(eo);
-                            if (dd != null && dd.getSeverity() != Diagnostic.OK) {
-                                if (dd.getSeverity() == Diagnostic.ERROR) errors++;
-                                else if (dd.getSeverity() == Diagnostic.WARNING) warnings++;
+                            if (
+                                dd != null && dd.getSeverity() != Diagnostic.OK
+                            ) {
+                                if (
+                                    dd.getSeverity() == Diagnostic.ERROR
+                                ) errors++;
+                                else if (
+                                    dd.getSeverity() == Diagnostic.WARNING
+                                ) warnings++;
                                 messages.add(formatDiagnostic(dd));
                             }
                             checked++;
@@ -359,7 +494,9 @@ public final class ModelAnalytics {
                     if (checked >= MAX_CHECK) break;
                 }
             } catch (Exception ex) {
-                messages.add("Validation encountered an error: " + ex.getMessage());
+                messages.add(
+                    "Validation encountered an error: " + ex.getMessage()
+                );
             }
             if (messages.isEmpty()) {
                 messages.add("Validation: no issues found in quick scan.");
@@ -368,18 +505,26 @@ public final class ModelAnalytics {
         }
 
         private static String formatDiagnostic(Diagnostic diagnostic) {
-            String source = diagnostic.getSource() != null ? diagnostic.getSource() : "Unknown";
+            String source = diagnostic.getSource() != null
+                ? diagnostic.getSource()
+                : "Unknown";
             return source + ": " + diagnostic.getMessage();
         }
     }
 
     public static final class FunctionalSnapshot {
+
         private final int chainCount;
         private final int scenarioCount;
         private final List<String> representativeChains;
         private final List<String> representativeScenarios;
 
-        FunctionalSnapshot(int chainCount, int scenarioCount, List<String> representativeChains, List<String> representativeScenarios) {
+        FunctionalSnapshot(
+            int chainCount,
+            int scenarioCount,
+            List<String> representativeChains,
+            List<String> representativeScenarios
+        ) {
             this.chainCount = chainCount;
             this.scenarioCount = scenarioCount;
             this.representativeChains = representativeChains;
@@ -390,10 +535,21 @@ public final class ModelAnalytics {
             return new FunctionalSnapshot(0, 0, List.of(), List.of());
         }
 
-        public int chainCount() { return chainCount; }
-        public int scenarioCount() { return scenarioCount; }
-        public List<String> representativeChains() { return representativeChains; }
-        public List<String> representativeScenarios() { return representativeScenarios; }
+        public int chainCount() {
+            return chainCount;
+        }
+
+        public int scenarioCount() {
+            return scenarioCount;
+        }
+
+        public List<String> representativeChains() {
+            return representativeChains;
+        }
+
+        public List<String> representativeScenarios() {
+            return representativeScenarios;
+        }
 
         static FunctionalSnapshot fromResourceSet(ResourceSet resourceSet) {
             if (resourceSet == null) {
@@ -411,7 +567,10 @@ public final class ModelAnalytics {
                         if (cls.contains("FunctionalChain")) {
                             chains.add(nameOf(eo));
                         }
-                        if (cls.contains("Scenario") || cls.contains("StateMachine")) {
+                        if (
+                            cls.contains("Scenario") ||
+                            cls.contains("StateMachine")
+                        ) {
                             scenarios.add(nameOf(eo));
                         }
                     });
@@ -419,15 +578,29 @@ public final class ModelAnalytics {
             }
             chainCount = chains.size();
             scenarioCount = scenarios.size();
-            List<String> topChains = chains.stream().filter(n -> !n.isBlank()).limit(5).collect(Collectors.toList());
-            List<String> topScenarios = scenarios.stream().filter(n -> !n.isBlank()).limit(5).collect(Collectors.toList());
-            return new FunctionalSnapshot(chainCount, scenarioCount, topChains, topScenarios);
+            List<String> topChains = chains
+                .stream()
+                .filter(n -> !n.isBlank())
+                .limit(5)
+                .collect(Collectors.toList());
+            List<String> topScenarios = scenarios
+                .stream()
+                .filter(n -> !n.isBlank())
+                .limit(5)
+                .collect(Collectors.toList());
+            return new FunctionalSnapshot(
+                chainCount,
+                scenarioCount,
+                topChains,
+                topScenarios
+            );
         }
     }
 
     // ----------------------------------------------------------------------------------------------
     // Traceability (advisory metrics)
     public static final class TraceabilityStats {
+
         private final int requirementCount;
         private final int requirementsLinked;
         private final int functionCount;
@@ -435,9 +608,14 @@ public final class ModelAnalytics {
         private final int componentExchangeCount;
         private final int componentsWithExchanges; // components participating in exchanges
 
-        TraceabilityStats(int requirementCount, int requirementsLinked,
-                          int functionCount, int functionsAllocated,
-                          int componentExchangeCount, int componentsWithExchanges) {
+        TraceabilityStats(
+            int requirementCount,
+            int requirementsLinked,
+            int functionCount,
+            int functionsAllocated,
+            int componentExchangeCount,
+            int componentsWithExchanges
+        ) {
             this.requirementCount = requirementCount;
             this.requirementsLinked = requirementsLinked;
             this.functionCount = functionCount;
@@ -446,36 +624,60 @@ public final class ModelAnalytics {
             this.componentsWithExchanges = componentsWithExchanges;
         }
 
-        public int requirementCount() { return requirementCount; }
-        public int requirementsLinked() { return requirementsLinked; }
-        public int functionCount() { return functionCount; }
-        public int functionsAllocated() { return functionsAllocated; }
-        public int componentExchangeCount() { return componentExchangeCount; }
-        public int componentsWithExchanges() { return componentsWithExchanges; }
+        public int requirementCount() {
+            return requirementCount;
+        }
+
+        public int requirementsLinked() {
+            return requirementsLinked;
+        }
+
+        public int functionCount() {
+            return functionCount;
+        }
+
+        public int functionsAllocated() {
+            return functionsAllocated;
+        }
+
+        public int componentExchangeCount() {
+            return componentExchangeCount;
+        }
+
+        public int componentsWithExchanges() {
+            return componentsWithExchanges;
+        }
 
         public double requirementLinkCoverage() {
-            return requirementCount == 0 ? 100d : (requirementsLinked * 100d) / requirementCount;
+            return requirementCount == 0
+                ? 100d
+                : (requirementsLinked * 100d) / requirementCount;
         }
 
         public double exchangeParticipationCoverage() {
             // Crude proxy: percent of components that appear in at least one exchange compared to unique components seen.
             // If no components seen in exchanges, return 0; callers should interpret advisory only.
-            return componentsWithExchanges == 0 ? (componentExchangeCount == 0 ? 100d : 0d)
-                    : 100d; // if we have any participation, we assume good — detailed ratio requires full component set
+            return componentsWithExchanges == 0
+                ? (componentExchangeCount == 0 ? 100d : 0d)
+                : 100d; // if we have any participation, we assume good — detailed ratio requires full component set
         }
     }
 
     public static TraceabilityStats computeTraceability(Session session) {
         ResourceSet rs = Optional.ofNullable(session)
-                .map(s -> s.getTransactionalEditingDomain())
-                .map(ed -> ed.getResourceSet()).orElse(null);
+            .map(s -> s.getTransactionalEditingDomain())
+            .map(ed -> ed.getResourceSet())
+            .orElse(null);
         return computeTraceability(rs);
     }
 
-    public static TraceabilityStats computeTraceability(ResourceSet resourceSet) {
+    public static TraceabilityStats computeTraceability(
+        ResourceSet resourceSet
+    ) {
         if (resourceSet == null) return new TraceabilityStats(0, 0, 0, 0, 0, 0);
-        final int[] counts = new int[] {0,0,0,0,0}; // req, reqLinked, fun, funAllocated, exch
-        java.util.Set<EObject> componentsInExchanges = new java.util.HashSet<>();
+        final int[] counts = new int[] { 0, 0, 0, 0, 0 }; // req, reqLinked, fun, funAllocated, exch
+        java.util.Set<EObject> componentsInExchanges =
+            new java.util.HashSet<>();
         try {
             for (Resource res : resourceSet.getResources()) {
                 if (res == null) continue;
@@ -486,17 +688,39 @@ public final class ModelAnalytics {
                             counts[0]++;
                             // Heuristic: consider linked if it has any non-containment reference to a Function/Component
                             boolean linked = false;
-                            for (EStructuralFeature f : eo.eClass().getEAllStructuralFeatures()) {
-                                if (f instanceof EReference ref && !ref.isContainment()) {
+                            for (EStructuralFeature f : eo
+                                .eClass()
+                                .getEAllStructuralFeatures()) {
+                                if (
+                                    f instanceof EReference ref &&
+                                    !ref.isContainment()
+                                ) {
                                     Object v = eo.eGet(ref);
                                     if (v instanceof EObject e2) {
                                         String c2 = e2.eClass().getName();
-                                        if (c2.contains("Function") || c2.contains("Component")) { linked = true; break; }
-                                    } else if (v instanceof java.util.Collection<?> coll) {
+                                        if (
+                                            c2.contains("Function") ||
+                                            c2.contains("Component")
+                                        ) {
+                                            linked = true;
+                                            break;
+                                        }
+                                    } else if (
+                                        v instanceof
+                                            java.util.Collection<?> coll
+                                    ) {
                                         for (Object o : coll) {
                                             if (o instanceof EObject e2) {
-                                                String c2 = e2.eClass().getName();
-                                                if (c2.contains("Function") || c2.contains("Component")) { linked = true; break; }
+                                                String c2 = e2
+                                                    .eClass()
+                                                    .getName();
+                                                if (
+                                                    c2.contains("Function") ||
+                                                    c2.contains("Component")
+                                                ) {
+                                                    linked = true;
+                                                    break;
+                                                }
                                             }
                                         }
                                         if (linked) break;
@@ -512,17 +736,31 @@ public final class ModelAnalytics {
                         if (cls.contains("ComponentExchange")) {
                             counts[4]++;
                             // record endpoints if present
-                            for (EStructuralFeature f : eo.eClass().getEAllStructuralFeatures()) {
-                                if (f instanceof EReference ref && !ref.isContainment()) {
+                            for (EStructuralFeature f : eo
+                                .eClass()
+                                .getEAllStructuralFeatures()) {
+                                if (
+                                    f instanceof EReference ref &&
+                                    !ref.isContainment()
+                                ) {
                                     Object v = eo.eGet(ref);
                                     if (v instanceof EObject e2) {
                                         String c2 = e2.eClass().getName();
-                                        if (c2.contains("Component")) componentsInExchanges.add(e2);
-                                    } else if (v instanceof java.util.Collection<?> coll) {
+                                        if (
+                                            c2.contains("Component")
+                                        ) componentsInExchanges.add(e2);
+                                    } else if (
+                                        v instanceof
+                                            java.util.Collection<?> coll
+                                    ) {
                                         for (Object o : coll) {
                                             if (o instanceof EObject e2) {
-                                                String c2 = e2.eClass().getName();
-                                                if (c2.contains("Component")) componentsInExchanges.add(e2);
+                                                String c2 = e2
+                                                    .eClass()
+                                                    .getName();
+                                                if (
+                                                    c2.contains("Component")
+                                                ) componentsInExchanges.add(e2);
                                             }
                                         }
                                     }
@@ -532,18 +770,33 @@ public final class ModelAnalytics {
                     });
                 }
             }
-        } catch (Exception ignore) {}
-        return new TraceabilityStats(counts[0], counts[1], counts[2], counts[3], counts[4], componentsInExchanges.size());
+        } catch (Exception ex) {
+            System.err.println(
+                "[ModelAnalytics] Error computing traceability stats: " +
+                    ex.getMessage()
+            );
+        }
+        return new TraceabilityStats(
+            counts[0],
+            counts[1],
+            counts[2],
+            counts[3],
+            counts[4],
+            componentsInExchanges.size()
+        );
     }
 
     public static final class DependencyGraph {
+
         private final Map<String, List<String>> componentToFunctions;
         private final Map<String, List<String>> functionToComponents;
         private final Map<String, List<String>> componentToRequirements;
 
-        private DependencyGraph(Map<String, List<String>> componentToFunctions,
-                                 Map<String, List<String>> functionToComponents,
-                                 Map<String, List<String>> componentToRequirements) {
+        private DependencyGraph(
+            Map<String, List<String>> componentToFunctions,
+            Map<String, List<String>> functionToComponents,
+            Map<String, List<String>> componentToRequirements
+        ) {
             this.componentToFunctions = componentToFunctions;
             this.functionToComponents = functionToComponents;
             this.componentToRequirements = componentToRequirements;
@@ -553,17 +806,28 @@ public final class ModelAnalytics {
             return new DependencyGraph(Map.of(), Map.of(), Map.of());
         }
 
-        public Map<String, List<String>> componentToFunctions() { return componentToFunctions; }
-        public Map<String, List<String>> functionToComponents() { return functionToComponents; }
-        public Map<String, List<String>> componentToRequirements() { return componentToRequirements; }
+        public Map<String, List<String>> componentToFunctions() {
+            return componentToFunctions;
+        }
+
+        public Map<String, List<String>> functionToComponents() {
+            return functionToComponents;
+        }
+
+        public Map<String, List<String>> componentToRequirements() {
+            return componentToRequirements;
+        }
 
         static DependencyGraph fromResourceSet(ResourceSet resourceSet) {
             if (resourceSet == null) {
                 return empty();
             }
-            Map<String, List<String>> componentToFunctions = new LinkedHashMap<>();
-            Map<String, List<String>> functionToComponents = new LinkedHashMap<>();
-            Map<String, List<String>> componentToRequirements = new LinkedHashMap<>();
+            Map<String, List<String>> componentToFunctions =
+                new LinkedHashMap<>();
+            Map<String, List<String>> functionToComponents =
+                new LinkedHashMap<>();
+            Map<String, List<String>> componentToRequirements =
+                new LinkedHashMap<>();
 
             for (Resource res : resourceSet.getResources()) {
                 if (res == null) continue;
@@ -572,14 +836,34 @@ public final class ModelAnalytics {
                         String cls = eo.eClass().getName();
                         String name = nameOf(eo);
                         if (cls.endsWith("Component")) {
-                            List<String> functions = collectReferences(eo, target -> target.contains("Function"));
+                            List<String> functions = collectReferences(
+                                eo,
+                                target -> target.contains("Function")
+                            );
                             if (!functions.isEmpty()) {
-                                componentToFunctions.computeIfAbsent(name, k -> new ArrayList<>()).addAll(functions);
-                                functions.forEach(fn -> functionToComponents.computeIfAbsent(fn, k -> new ArrayList<>()).add(name));
+                                componentToFunctions
+                                    .computeIfAbsent(name, k ->
+                                        new ArrayList<>()
+                                    )
+                                    .addAll(functions);
+                                functions.forEach(fn ->
+                                    functionToComponents
+                                        .computeIfAbsent(fn, k ->
+                                            new ArrayList<>()
+                                        )
+                                        .add(name)
+                                );
                             }
-                            List<String> requirements = collectReferences(eo, target -> target.contains("Requirement"));
+                            List<String> requirements = collectReferences(
+                                eo,
+                                target -> target.contains("Requirement")
+                            );
                             if (!requirements.isEmpty()) {
-                                componentToRequirements.computeIfAbsent(name, k -> new ArrayList<>()).addAll(requirements);
+                                componentToRequirements
+                                    .computeIfAbsent(name, k ->
+                                        new ArrayList<>()
+                                    )
+                                    .addAll(requirements);
                             }
                         }
                     });
@@ -589,12 +873,21 @@ public final class ModelAnalytics {
             componentToFunctions.replaceAll((k, v) -> dedupe(v));
             functionToComponents.replaceAll((k, v) -> dedupe(v));
             componentToRequirements.replaceAll((k, v) -> dedupe(v));
-            return new DependencyGraph(componentToFunctions, functionToComponents, componentToRequirements);
+            return new DependencyGraph(
+                componentToFunctions,
+                functionToComponents,
+                componentToRequirements
+            );
         }
 
-        private static List<String> collectReferences(EObject source, Predicate<String> classPredicate) {
+        private static List<String> collectReferences(
+            EObject source,
+            Predicate<String> classPredicate
+        ) {
             List<String> results = new ArrayList<>();
-            for (EStructuralFeature feature : source.eClass().getEAllStructuralFeatures()) {
+            for (EStructuralFeature feature : source
+                .eClass()
+                .getEAllStructuralFeatures()) {
                 if (feature instanceof EReference ref && !ref.isContainment()) {
                     Object value = source.eGet(ref);
                     if (value instanceof Collection<?> collection) {

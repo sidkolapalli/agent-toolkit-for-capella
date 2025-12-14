@@ -1,7 +1,7 @@
 package org.polarsys.capella.ai.views;
 
 import java.util.List;
-
+import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -11,12 +11,12 @@ import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
 import org.eclipse.swt.widgets.TableItem;
 import org.eclipse.ui.part.ViewPart;
-import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.polarsys.capella.ai.browse.DiagramBrowser;
 import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.tools.DiagramCommands;
 
 public class DiagramsView extends ViewPart {
+
     private Table table;
     private Button refresh;
     private Button open;
@@ -30,7 +30,7 @@ public class DiagramsView extends ViewPart {
         table.setHeaderVisible(true);
         table.setLinesVisible(true);
         table.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 3, 1));
-        String[] cols = {"Name", "Type", "UID"};
+        String[] cols = { "Name", "Type", "UID" };
         for (String c : cols) {
             TableColumn tc = new TableColumn(table, SWT.LEFT);
             tc.setText(c);
@@ -66,15 +66,28 @@ public class DiagramsView extends ViewPart {
     private void doOpen() {
         TableItem[] sel = table.getSelection();
         if (sel.length == 0) return;
-        DiagramBrowser.DiagramInfo d = (DiagramBrowser.DiagramInfo) sel[0].getData();
+        DiagramBrowser.DiagramInfo d =
+            (DiagramBrowser.DiagramInfo) sel[0].getData();
         var session = SessionBridge.getActiveSession();
         if (session == null) return;
-        DRepresentation rep = DiagramCommands.findRepresentationByUid(session, d.uid);
+        DRepresentation rep = DiagramCommands.findRepresentationByUid(
+            session,
+            d.uid
+        );
         if (rep != null) {
             try {
-                org.eclipse.sirius.ui.business.api.dialect.DialectUIManager.INSTANCE.openEditor(session, rep, new org.eclipse.core.runtime.NullProgressMonitor());
+                org.eclipse.sirius.ui.business.api.dialect.DialectUIManager.INSTANCE.openEditor(
+                    session,
+                    rep,
+                    new org.eclipse.core.runtime.NullProgressMonitor()
+                );
                 DiagramCommands.lastOpened = rep;
-            } catch (Exception ignore) {}
+            } catch (Exception ex) {
+                System.err.println(
+                    "[DiagramsView] Error opening diagram editor: " +
+                        ex.getMessage()
+                );
+            }
         }
     }
 
@@ -83,8 +96,12 @@ public class DiagramsView extends ViewPart {
         if (session == null) return;
         TableItem[] sel = table.getSelection();
         if (sel.length == 0) return;
-        DiagramBrowser.DiagramInfo d = (DiagramBrowser.DiagramInfo) sel[0].getData();
-        DRepresentation rep = DiagramCommands.findRepresentationByUid(session, d.uid);
+        DiagramBrowser.DiagramInfo d =
+            (DiagramBrowser.DiagramInfo) sel[0].getData();
+        DRepresentation rep = DiagramCommands.findRepresentationByUid(
+            session,
+            d.uid
+        );
         if (rep != null) {
             DiagramCommands.arrange(rep);
         }
@@ -95,4 +112,3 @@ public class DiagramsView extends ViewPart {
         table.setFocus();
     }
 }
-

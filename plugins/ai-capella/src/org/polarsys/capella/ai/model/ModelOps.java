@@ -5,12 +5,13 @@ import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.transaction.TransactionalEditingDomain;
 import org.eclipse.sirius.business.api.session.Session;
-import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.model.ModelSummary;
+import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 
 /** Generic EMF operations (rename/delete) using the active Capella session. */
 public final class ModelOps {
+
     private ModelOps() {}
 
     /** Rename an element by uuid/id if it has a 'name' feature. */
@@ -20,14 +21,21 @@ public final class ModelOps {
         return renameByUuid(session, uuid, newName);
     }
 
-    public static boolean renameByUuid(Session session, String uuid, String newName) {
+    public static boolean renameByUuid(
+        Session session,
+        String uuid,
+        String newName
+    ) {
         if (session == null) return false;
         return SessionSafeguards.runWrite(session, "Rename element", () -> {
-            TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
+            TransactionalEditingDomain domain =
+                session.getTransactionalEditingDomain();
             if (domain == null) return false;
             EObject target = findById(domain.getResourceSet(), uuid);
             if (target == null) return false;
-            EStructuralFeature nameFeat = target.eClass().getEStructuralFeature("name");
+            EStructuralFeature nameFeat = target
+                .eClass()
+                .getEStructuralFeature("name");
             if (nameFeat == null || !nameFeat.isChangeable()) return false;
             target.eSet(nameFeat, newName);
             ModelSummary.invalidate(session);
@@ -46,7 +54,8 @@ public final class ModelOps {
     public static boolean deleteByUuid(Session session, String uuid) {
         if (session == null) return false;
         return SessionSafeguards.runWrite(session, "Delete element", () -> {
-            TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
+            TransactionalEditingDomain domain =
+                session.getTransactionalEditingDomain();
             if (domain == null) return false;
             EObject target = findById(domain.getResourceSet(), uuid);
             if (target == null) return false;
@@ -55,7 +64,9 @@ public final class ModelOps {
                 EStructuralFeature feat = target.eContainingFeature();
                 if (feat.isMany()) {
                     @SuppressWarnings("unchecked")
-                    java.util.List<EObject> list = (java.util.List<EObject>) container.eGet(feat);
+                    java.util.List<EObject> list = (java.util.List<
+                        EObject
+                    >) container.eGet(feat);
                     list.remove(target);
                 } else {
                     container.eSet(feat, null);
@@ -70,7 +81,13 @@ public final class ModelOps {
     }
 
     /** Resolve an EObject by id/uuid/fragment. */
-    public static EObject findById(org.eclipse.emf.ecore.resource.ResourceSet rs, String id) {
+    public static EObject findById(
+        org.eclipse.emf.ecore.resource.ResourceSet rs,
+        String id
+    ) {
+        if (rs == null || id == null) {
+            return null;
+        }
         try {
             for (Resource res : rs.getResources()) {
                 if (res == null) continue;
@@ -80,15 +97,38 @@ public final class ModelOps {
                     try {
                         var cls = eo.eClass();
                         var idFeat = cls.getEStructuralFeature("id");
-                        if (idFeat != null) { Object v = eo.eGet(idFeat); if (id.equals(v)) return eo; }
+                        if (idFeat != null) {
+                            Object v = eo.eGet(idFeat);
+                            if (id.equals(v)) return eo;
+                        }
                         var uuidFeat = cls.getEStructuralFeature("uuid");
-                        if (uuidFeat != null) { Object v = eo.eGet(uuidFeat); if (id.equals(v)) return eo; }
-                        var uri = org.eclipse.emf.ecore.util.EcoreUtil.getURI(eo);
+                        if (uuidFeat != null) {
+                            Object v = eo.eGet(uuidFeat);
+                            if (id.equals(v)) return eo;
+                        }
+                        var uri = org.eclipse.emf.ecore.util.EcoreUtil.getURI(
+                            eo
+                        );
                         if (uri != null && id.equals(uri.fragment())) return eo;
-                    } catch (Exception ignore) {}
+                    } catch (Exception ex) {
+                        // Log per-element errors but keep searching
+                        System.err.println(
+                            "[ModelOps] Error checking element for id '" +
+                                id +
+                                "': " +
+                                ex.getMessage()
+                        );
+                    }
                 }
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) {
+            System.err.println(
+                "[ModelOps] Error searching for id '" +
+                    id +
+                    "': " +
+                    ex.getMessage()
+            );
+        }
         return null;
     }
 }

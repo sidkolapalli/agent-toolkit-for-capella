@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -29,6 +28,7 @@ import org.eclipse.ui.part.ViewPart;
  * Simple inspector for ~/.capella-ai/logs JSONL telemetry files.
  */
 public class LogInspectorView extends ViewPart {
+
     public static final String ID = "org.polarsys.capella.ai.logs";
 
     private Text filterId;
@@ -46,10 +46,14 @@ public class LogInspectorView extends ViewPart {
         filterId.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         new Label(root, SWT.NONE).setText("Event:");
         filterEvent = new Text(root, SWT.BORDER);
-        filterEvent.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        filterEvent.setLayoutData(
+            new GridData(SWT.FILL, SWT.CENTER, true, false)
+        );
         new Label(root, SWT.NONE).setText("Text contains:");
         filterText = new Text(root, SWT.BORDER);
-        filterText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        filterText.setLayoutData(
+            new GridData(SWT.FILL, SWT.CENTER, true, false)
+        );
 
         Button refresh = new Button(root, SWT.PUSH);
         refresh.setText("Refresh");
@@ -58,14 +62,17 @@ public class LogInspectorView extends ViewPart {
         refresh.setLayoutData(gd);
         refresh.addListener(SWT.Selection, e -> reload());
 
-        table = new Table(root, SWT.BORDER | SWT.FULL_SELECTION | SWT.V_SCROLL | SWT.H_SCROLL);
+        table = new Table(
+            root,
+            SWT.BORDER | SWT.FULL_SELECTION | SWT.V_SCROLL | SWT.H_SCROLL
+        );
         table.setHeaderVisible(true);
         table.setLinesVisible(true);
         GridData td = new GridData(SWT.FILL, SWT.FILL, true, true);
         td.horizontalSpan = 6;
         table.setLayoutData(td);
 
-        String[] cols = {"ts", "id", "event", "desc", "details"};
+        String[] cols = { "ts", "id", "event", "desc", "details" };
         for (String c : cols) {
             TableColumn col = new TableColumn(table, SWT.LEFT);
             col.setText(c);
@@ -78,8 +85,12 @@ public class LogInspectorView extends ViewPart {
     private void reload() {
         table.removeAll();
         String id = filterId.getText() != null ? filterId.getText().trim() : "";
-        String ev = filterEvent.getText() != null ? filterEvent.getText().trim() : "";
-        String tx = filterText.getText() != null ? filterText.getText().trim() : "";
+        String ev = filterEvent.getText() != null
+            ? filterEvent.getText().trim()
+            : "";
+        String tx = filterText.getText() != null
+            ? filterText.getText().trim()
+            : "";
         for (Path p : listLatestLogs()) {
             readJsonl(p, id, ev, tx).forEach(this::addRow);
         }
@@ -99,46 +110,88 @@ public class LogInspectorView extends ViewPart {
         String v = m.get(k);
         if (v != null) return v;
         // fallback to common keys
-        if ("desc".equals(k)) return m.getOrDefault("actions", m.getOrDefault("context", ""));
+        if ("desc".equals(k)) return m.getOrDefault(
+            "actions",
+            m.getOrDefault("context", "")
+        );
         return "";
     }
 
     private List<Path> listLatestLogs() {
         List<Path> out = new ArrayList<>();
         try {
-            Path dir = Paths.get(System.getProperty("user.home"), ".capella-ai", "logs");
+            Path dir = Paths.get(
+                System.getProperty("user.home"),
+                ".capella-ai",
+                "logs"
+            );
             if (!Files.exists(dir)) return out;
             try (var s = Files.list(dir)) {
-                s.filter(p -> p.getFileName().toString().endsWith(".jsonl"))
-                 .sorted((a,b) -> b.getFileName().toString().compareTo(a.getFileName().toString()))
-                 .limit(5)
-                 .forEach(out::add);
+                s
+                    .filter(p -> p.getFileName().toString().endsWith(".jsonl"))
+                    .sorted((a, b) ->
+                        b
+                            .getFileName()
+                            .toString()
+                            .compareTo(a.getFileName().toString())
+                    )
+                    .limit(5)
+                    .forEach(out::add);
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) {
+            System.err.println(
+                "[LogInspectorView] Error listing log files: " + ex.getMessage()
+            );
+        }
         return out;
     }
 
-    private List<Map<String,String>> readJsonl(Path p, String idFilter, String eventFilter, String textFilter) {
-        List<Map<String,String>> rows = new ArrayList<>();
-        try (BufferedReader br = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
+    private List<Map<String, String>> readJsonl(
+        Path p,
+        String idFilter,
+        String eventFilter,
+        String textFilter
+    ) {
+        List<Map<String, String>> rows = new ArrayList<>();
+        try (
+            BufferedReader br = Files.newBufferedReader(
+                p,
+                StandardCharsets.UTF_8
+            )
+        ) {
             String line;
             while ((line = br.readLine()) != null) {
-                Map<String,String> m = parse(line);
+                Map<String, String> m = parse(line);
                 if (m == null) continue;
-                if (!idFilter.isBlank() && !m.getOrDefault("id", "").contains(idFilter)) continue;
-                if (!eventFilter.isBlank() && !m.getOrDefault("event", "").contains(eventFilter)) continue;
-                if (!textFilter.isBlank() && !line.contains(textFilter)) continue;
+                if (
+                    !idFilter.isBlank() &&
+                    !m.getOrDefault("id", "").contains(idFilter)
+                ) continue;
+                if (
+                    !eventFilter.isBlank() &&
+                    !m.getOrDefault("event", "").contains(eventFilter)
+                ) continue;
+                if (
+                    !textFilter.isBlank() && !line.contains(textFilter)
+                ) continue;
                 rows.add(m);
             }
-        } catch (IOException ignore) {}
+        } catch (IOException ex) {
+            System.err.println(
+                "[LogInspectorView] Error reading log file: " + ex.getMessage()
+            );
+        }
         return rows;
     }
 
     // Minimal JSON field extractor for flat {"k":"v",...}; tolerates escaped quotes
-    private static final Pattern FIELD = Pattern.compile("\\\"([^\\\\\"]+)\\\":\\\"([^\\\\\"]*)\\\"");
-    private Map<String,String> parse(String json) {
+    private static final Pattern FIELD = Pattern.compile(
+        "\\\"([^\\\\\"]+)\\\":\\\"([^\\\\\"]*)\\\""
+    );
+
+    private Map<String, String> parse(String json) {
         try {
-            java.util.HashMap<String,String> m = new java.util.HashMap<>();
+            java.util.HashMap<String, String> m = new java.util.HashMap<>();
             Matcher matcher = FIELD.matcher(json);
             while (matcher.find()) {
                 String k = matcher.group(1);
@@ -155,8 +208,12 @@ public class LogInspectorView extends ViewPart {
     }
 
     private String unescape(String s) {
-        return s.replace("\\\"", "\"").replace("\\n", " ").replace("\\r", " ").replace("\\t", " ")
-                .replace("\\\\", "\\");
+        return s
+            .replace("\\\"", "\"")
+            .replace("\\n", " ")
+            .replace("\\r", " ")
+            .replace("\\t", " ")
+            .replace("\\\\", "\\");
     }
 
     @Override
@@ -164,4 +221,3 @@ public class LogInspectorView extends ViewPart {
         if (table != null && !table.isDisposed()) table.setFocus();
     }
 }
-

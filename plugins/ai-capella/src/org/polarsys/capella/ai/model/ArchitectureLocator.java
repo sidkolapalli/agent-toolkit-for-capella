@@ -27,6 +27,9 @@ public final class ArchitectureLocator {
     );
 
     public static EObject findTargetElement(Session session, String layer) {
+        if (session == null) {
+            return null;
+        }
         try {
             for (Resource res : session.getSemanticResources()) {
                 if (res.getContents().isEmpty()) continue;
@@ -36,7 +39,15 @@ public final class ArchitectureLocator {
                     return found;
                 }
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) {
+            // Log but don't throw - caller will handle null result with diagnostic
+            System.err.println(
+                "[ArchitectureLocator] Error searching for layer '" +
+                    layer +
+                    "': " +
+                    ex.getMessage()
+            );
+        }
         return null;
     }
 
@@ -58,7 +69,15 @@ public final class ArchitectureLocator {
                     return found;
                 }
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ex) {
+            // Log but don't throw - caller will handle null result with diagnostic
+            System.err.println(
+                "[ArchitectureLocator] Error searching ResourceSet for layer '" +
+                    layer +
+                    "': " +
+                    ex.getMessage()
+            );
+        }
         return null;
     }
 
