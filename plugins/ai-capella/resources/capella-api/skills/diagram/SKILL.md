@@ -51,7 +51,7 @@ components.each { comp ->
 }
 
 // Layout for readability
-api.diagram.layout(diagram, "hierarchical")
+api.diagram.layout(diagram, "layered")
 
 log.info("Created diagram with ${components.size()} components")
 ```
@@ -120,3 +120,53 @@ try {
     log.error("Failed to create diagram: " + e.message)
 }
 ```
+
+## Troubleshooting
+
+### Diagram Creation Fails or Returns Null
+
+If `api.diagram.create()` fails:
+
+1. **Check available diagram types:**
+```groovy
+// List all available types for a layer
+log.info(api.diagram.listAvailableFormatted("SA"))
+
+// Get just the abbreviations
+def types = api.diagram.listAvailable("SA")
+log.info("Available: " + types)
+```
+
+2. **Verify viewpoint activation:**
+   - In Capella UI: Right-click project → Viewpoints Selection
+   - Ensure the relevant analysis viewpoint is checked
+
+3. **Use the correct target element:**
+   - Architecture Blank (SAB, LAB, PAB): Use the layer root or component package
+   - Data Flow Blank (SDFB, LDFB, PDFB): Use the function package or a function
+
+4. **Try the full descriptor name:**
+```groovy
+// If abbreviation doesn't work, try full name
+api.diagram.create("System Data Flow Blank", "My Diagram", target)
+```
+
+### Common Error Messages
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| "Diagram description 'X' not found" | Descriptor name mismatch | Use `listAvailable()` to find correct name |
+| "Did you mean: ..." | Similar descriptor found | Try the suggested name |
+| "viewpoints not activated" | Missing viewpoint | Enable viewpoint in Capella UI |
+| "Target element cannot be null" | Invalid target | Pass a valid model element |
+| Returns `null` silently | Various | Check Capella console for detailed errors |
+
+### Data Flow Diagrams (SDFB, LDFB, PDFB)
+
+These may fail if the viewpoint isn't activated. The API now provides:
+- Fuzzy matching (case-insensitive, partial match)
+- Suggestions for similar descriptor names
+- List of all available descriptors in error messages
+
+If SDFB/LDFB/PDFB fail, use `listAvailableFormatted()` to see what Sirius descriptors
+are actually registered, then try using the full name directly.

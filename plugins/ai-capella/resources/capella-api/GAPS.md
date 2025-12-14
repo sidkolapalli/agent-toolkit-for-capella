@@ -2,8 +2,8 @@
 
 This document tracks known limitations in the Capella API.
 
-> **Last Updated**: 2024-12-13
-> **Status**: Most cross-layer issues resolved in Issue #36
+> **Last Updated**: 2025-12-14
+> **Status**: Most cross-layer issues resolved in Issue #36, diagram errors improved in Issue #59
 
 ---
 
@@ -15,7 +15,7 @@ This document tracks known limitations in the Capella API.
 | ComponentRealization | ✅ Fixed | Works in RelationFactory |
 | FunctionRealization | ✅ Working | Always worked |
 | Architecture Blank diagrams | ✅ Fixed | SAB, LAB, PAB work |
-| Data Flow Blank diagrams | ❌ Not Working | SDFB, LDFB, PDFB fail (Issue #57) |
+| Data Flow Blank diagrams | ⚠️ Improved | Better errors, fuzzy matching (Issue #59) |
 | OAB diagram | ⚠️ Viewpoint | Requires viewpoint activation |
 
 ---
@@ -67,16 +67,28 @@ api.diagram.create("PAB", "Physical View", paLayer)  // ✅ Works
 
 ## Known Limitations
 
-### 1. Data Flow Blank Diagrams (Issue #57)
+### 1. Data Flow Blank Diagrams (Issue #57, #59)
 
-SDFB, LDFB, and PDFB diagram types return null:
+SDFB, LDFB, and PDFB diagram types may fail if:
+- The Sirius descriptor name doesn't exactly match our mapping
+- The required viewpoint isn't activated in Capella
 
+**Improved in Issue #59:**
+- Better error messages showing available descriptors
+- Fuzzy matching (case-insensitive, partial match)
+- `api.diagram.listAvailable(layer)` to discover available types
+- `api.diagram.listAvailableFormatted()` for detailed descriptions
+
+**Troubleshooting:**
 ```groovy
-def saLayer = api.layer("SA")
-api.diagram.create("SDFB", "Data Flow", saLayer)  // ❌ Returns null
+// Check what's actually available
+log.info(api.diagram.listAvailableFormatted("SA"))
+
+// Try creating with full descriptor name if abbreviation fails
+api.diagram.create("System Data Flow Blank", "My SDFB", saLayer)
 ```
 
-**Workaround**: Use Architecture Blank diagrams instead, or create Data Flow diagrams manually in Capella UI.
+**Workaround if still failing**: Use Architecture Blank diagrams (SAB, LAB, PAB) which reliably work, or create Data Flow diagrams manually in Capella UI.
 
 ### 2. OAB Diagram Viewpoint
 

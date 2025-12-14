@@ -70,11 +70,25 @@ public final class DiagramCommands {
                 descriptionName
             );
             if (desc == null) {
-                errorMsg[0] =
-                    "Diagram description '" +
-                    descriptionName +
-                    "' not found in selected viewpoints. " +
-                    "Ensure the correct Capella viewpoints are activated.";
+                // Build helpful error message with available descriptors
+                java.util.List<String> available = getAvailableDiagramDescriptions(session);
+                java.util.List<String> similar = findSimilarDescriptors(available, descriptionName);
+
+                StringBuilder sb = new StringBuilder();
+                sb.append("Diagram description '").append(descriptionName).append("' not found.\n");
+
+                if (!similar.isEmpty()) {
+                    sb.append("Did you mean: ").append(String.join(", ", similar)).append("?\n");
+                }
+
+                sb.append("Available descriptors (").append(available.size()).append("): ");
+                sb.append(available.isEmpty() ? "[none - check viewpoint activation]" : String.join(", ", available));
+                sb.append("\n\nTroubleshooting:\n");
+                sb.append("1. Ensure the correct Capella viewpoints are activated\n");
+                sb.append("2. Use api.diagram.listAvailable() to see available types\n");
+                sb.append("3. Try using the full descriptor name directly");
+
+                errorMsg[0] = sb.toString();
                 return null;
             }
             DRepresentation created =
@@ -1595,32 +1609,138 @@ public final class DiagramCommands {
         }
     }
 
+    /**
+     * Find a diagram description by name with fuzzy matching support.
+     * Tries exact match first, then case-insensitive, then partial match.
+     */
     private static RepresentationDescription findDiagramDescription(
         Session session,
         String name
     ) {
         java.util.List<String> available = new java.util.ArrayList<>();
+        RepresentationDescription fuzzyMatch = null;
+        String fuzzyMatchName = null;
+
         for (Viewpoint vp : session.getSelectedViewpoints(false)) {
             for (RepresentationDescription rd : vp.getOwnedRepresentations()) {
                 if (rd instanceof DiagramDescription) {
-                    available.add(rd.getName());
-                    if (
-                        name.equals(rd.getName()) || name.equals(rd.getLabel())
-                    ) {
+                    String rdName = rd.getName();
+                    String rdLabel = rd.getLabel();
+                    available.add(rdName);
+
+                    // Exact match on name or label
+                    if (name.equals(rdName) || name.equals(rdLabel)) {
+                        LOG.fine("[DiagramCommands] Exact match found: " + rdName);
                         return rd;
+                    }
+
+                    // Case-insensitive match
+                    if (name.equalsIgnoreCase(rdName) ||
+                        (rdLabel != null && name.equalsIgnoreCase(rdLabel))) {
+                        LOG.fine("[DiagramCommands] Case-insensitive match: " + rdName);
+                        return rd;
+                    }
+
+                    // Partial match (contains) - save as fallback
+                    String nameLower = name.toLowerCase();
+                    String rdNameLower = rdName.toLowerCase();
+                    if (rdNameLower.contains(nameLower) || nameLower.contains(rdNameLower)) {
+                        if (fuzzyMatch == null) {
+                            fuzzyMatch = rd;
+                            fuzzyMatchName = rdName;
+                        }
                     }
                 }
             }
         }
-        // Log available descriptions to help diagnose issues
-        System.err.println(
-            "[DiagramCommands] Description '" +
-                name +
-                "' not found. " +
-                "Available: " +
-                available
-        );
+
+        // Return fuzzy match if found (warn user about non-exact match)
+        if (fuzzyMatch != null) {
+            LOG.warning("[DiagramCommands] No exact match for '" + name +
+                "'. Using fuzzy match: '" + fuzzyMatchName + "'");
+            return fuzzyMatch;
+        }
+
+        // Not found - log helpful message
+        LOG.warning("[DiagramCommands] Description '" + name + "' not found. Available: " + available);
         return null;
+    }
+
+    /**
+     * Get list of available diagram description names from selected viewpoints.
+     * Only returns descriptions from viewpoints that are currently activated.
+     * If viewpoints are not activated, fewer descriptions will be available.
+     *
+     * @param session the Sirius session (must not be null for useful results)
+     * @return sorted list of available diagram description names, empty if session
+     *         is null or no viewpoints are selected
+     */
+    public static java.util.List<String> getAvailableDiagramDescriptions(Session session) {
+        java.util.List<String> available = new java.util.ArrayList<>();
+        if (session == null) {
+            LOG.warning("[DiagramCommands] getAvailableDiagramDescriptions called with null session");
+            return available;
+        }
+
+        for (Viewpoint vp : session.getSelectedViewpoints(false)) {
+            for (RepresentationDescription rd : vp.getOwnedRepresentations()) {
+                if (rd instanceof DiagramDescription) {
+                    available.add(rd.getName());
+                }
+            }
+        }
+
+        java.util.Collections.sort(available);
+        return available;
+    }
+
+    /**
+     * Find similar descriptor names for error suggestions.
+     *
+     * @param available list of available descriptor names
+     * @param target the name that wasn't found
+     * @return list of similar names (max 3)
+     */
+    public static java.util.List<String> findSimilarDescriptors(
+        java.util.List<String> available,
+        String target
+    ) {
+        java.util.List<String> similar = new java.util.ArrayList<>();
+        if (target == null || available == null) {
+            return similar;
+        }
+
+        String targetLower = target.toLowerCase();
+        final int maxSuggestions = 3;
+
+        for (String name : available) {
+            if (similar.size() >= maxSuggestions) break;
+
+            String nameLower = name.toLowerCase();
+
+            // Substring containment
+            if (nameLower.contains(targetLower) || targetLower.contains(nameLower)) {
+                similar.add(name);
+                continue;
+            }
+
+            // Check if significant words match
+            // Use ceiling division to require at least half the words to match
+            String[] targetWords = targetLower.split("\\s+");
+            int matchedWords = 0;
+            for (String word : targetWords) {
+                if (word.length() > 2 && nameLower.contains(word)) {
+                    matchedWords++;
+                }
+            }
+            // Ceiling division: (length + 1) / 2 ensures single-word requires 1 match
+            int threshold = (targetWords.length + 1) / 2;
+            if (matchedWords >= threshold && similar.size() < maxSuggestions) {
+                similar.add(name);
+            }
+        }
+
+        return similar;
     }
 
     private static EObject findById(

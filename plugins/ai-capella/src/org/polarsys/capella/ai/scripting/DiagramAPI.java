@@ -40,12 +40,18 @@ public final class DiagramAPI {
     /**
      * Create and open a new diagram.
      *
-     * @param diagramType the diagram type (e.g., "SAB", "LAB", "PAB", "OAB")
+     * <p>Supports abbreviations (SAB, LAB, PAB, etc.) and full Sirius descriptor names.
+     * Use {@link #listAvailable(String)} to see all supported diagram types for a layer.
+     *
+     * @param diagramType the diagram type abbreviation (e.g., "SAB", "SDFB") or full
+     *                    Sirius descriptor name (e.g., "System Architecture Blank")
      * @param name the diagram name
-     * @param target the semantic element to create the diagram for
+     * @param target the semantic element to create the diagram for (layer root or package)
      * @return the created diagram representation
      * @throws IllegalStateException if no active session
      * @throws IllegalArgumentException if target is null or diagram type is unknown
+     * @see #listAvailable(String)
+     * @see #listAvailableFormatted(String)
      */
     public DRepresentation create(
         String diagramType,
@@ -58,13 +64,24 @@ public final class DiagramAPI {
         if (target == null) {
             throw new IllegalArgumentException("Target element cannot be null");
         }
+
         String descriptionName = resolveDiagramDescription(diagramType);
+
+        // If abbreviation not found, check if it might be a full descriptor name
         if (descriptionName == null) {
-            throw new IllegalArgumentException(
-                "Unknown diagram type: " +
-                    diagramType +
-                    ". Valid types: OAB, SAB, LAB, PAB, SDFB, LDFB, PDFB, CDB, ES, FS, IS"
-            );
+            List<String> available = DiagramCommands.getAvailableDiagramDescriptions(session);
+            if (available != null && available.contains(diagramType)) {
+                // User passed a full descriptor name directly
+                descriptionName = diagramType;
+            } else {
+                // Build helpful error message
+                StringBuilder sb = new StringBuilder();
+                sb.append("Unknown diagram type: '").append(diagramType).append("'\n");
+                sb.append("Valid abbreviations: OAB, SAB, LAB, PAB, SDFB, LDFB, PDFB, CDB, ES, FS, IS\n");
+                sb.append("\nUse api.diagram.listAvailable('SA') to see available types for a layer.\n");
+                sb.append("Use api.diagram.listAvailableFormatted() for detailed descriptions.");
+                throw new IllegalArgumentException(sb.toString());
+            }
         }
 
         // Find the correct target element if the given target is a layer root
@@ -544,6 +561,113 @@ public final class DiagramAPI {
         int height
     ) {
         return setBounds(diagram, element, -1, -1, width, height);
+    }
+
+    // ========== Discovery ==========
+
+    /**
+     * List available diagram types for a given architecture layer.
+     * Combines known abbreviations with actual Sirius descriptors from the session.
+     *
+     * @param layer the architecture layer (OA, SA, LA, PA) or null for all
+     * @return list of available diagram type abbreviations
+     */
+    public List<String> listAvailable(String layer) {
+        List<String> result = new ArrayList<>();
+
+        // Add known abbreviations for the layer
+        if (layer == null || "OA".equalsIgnoreCase(layer)) {
+            result.add("OAB");
+            result.add("OAIB");
+            result.add("OCB");
+            result.add("OES");
+        }
+        if (layer == null || "SA".equalsIgnoreCase(layer)) {
+            result.add("SAB");
+            result.add("SDFB");
+            result.add("SFB");
+            result.add("ES");
+            result.add("FS");
+            result.add("IS");
+        }
+        if (layer == null || "LA".equalsIgnoreCase(layer)) {
+            result.add("LAB");
+            result.add("LDFB");
+            result.add("LFB");
+        }
+        if (layer == null || "PA".equalsIgnoreCase(layer)) {
+            result.add("PAB");
+            result.add("PDFB");
+            result.add("PFB");
+        }
+        if (layer == null) {
+            result.add("CDB");
+        }
+
+        return result;
+    }
+
+    /**
+     * List available diagram types with their full Sirius descriptor names.
+     * Returns a formatted string for LLM consumption.
+     *
+     * @param layer the architecture layer (OA, SA, LA, PA) or null for all
+     * @return formatted string of available diagram types
+     */
+    public String listAvailableFormatted(String layer) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Available diagram types");
+        if (layer != null) {
+            sb.append(" for ").append(layer.toUpperCase());
+        }
+        sb.append(":\n\n");
+
+        // List abbreviations with their full names
+        if (layer == null || "OA".equalsIgnoreCase(layer)) {
+            sb.append("Operational Analysis (OA):\n");
+            sb.append("  OAB  - Operational Activity Blank\n");
+            sb.append("  OAIB - Operational Interaction Blank\n");
+            sb.append("  OCB  - Operational Capabilities Blank\n");
+            sb.append("  OES  - Operational Entity Blank\n");
+        }
+        if (layer == null || "SA".equalsIgnoreCase(layer)) {
+            sb.append("System Analysis (SA):\n");
+            sb.append("  SAB  - System Architecture Blank\n");
+            sb.append("  SDFB - System Data Flow Blank\n");
+            sb.append("  SFB  - System Function Breakdown\n");
+            sb.append("  ES   - Exchange Scenario\n");
+            sb.append("  FS   - Functional Scenario\n");
+            sb.append("  IS   - Interface Scenario\n");
+        }
+        if (layer == null || "LA".equalsIgnoreCase(layer)) {
+            sb.append("Logical Architecture (LA):\n");
+            sb.append("  LAB  - Logical Architecture Blank\n");
+            sb.append("  LDFB - Logical Data Flow Blank\n");
+            sb.append("  LFB  - Logical Function Breakdown\n");
+        }
+        if (layer == null || "PA".equalsIgnoreCase(layer)) {
+            sb.append("Physical Architecture (PA):\n");
+            sb.append("  PAB  - Physical Architecture Blank\n");
+            sb.append("  PDFB - Physical Data Flow Blank\n");
+            sb.append("  PFB  - Physical Function Breakdown\n");
+        }
+        if (layer == null) {
+            sb.append("Cross-cutting:\n");
+            sb.append("  CDB  - Class Diagram Blank\n");
+        }
+
+        // Also show actual Sirius descriptors from session
+        if (session != null) {
+            List<String> actual = DiagramCommands.getAvailableDiagramDescriptions(session);
+            if (actual != null && !actual.isEmpty()) {
+                sb.append("\nActual Sirius descriptors in session (").append(actual.size()).append("):\n");
+                for (String desc : actual) {
+                    sb.append("  - ").append(desc).append("\n");
+                }
+            }
+        }
+
+        return sb.toString();
     }
 
     // ========== Helper Methods ==========
