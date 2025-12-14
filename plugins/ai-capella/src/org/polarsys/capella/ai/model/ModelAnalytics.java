@@ -96,6 +96,17 @@ public final class ModelAnalytics {
         return analysis;
     }
 
+    /**
+     * Clears cached analysis for a session.
+     * Call this after model mutations to ensure fresh data.
+     * @param session the session to invalidate
+     */
+    public static void invalidate(Session session) {
+        if (session != null) {
+            CACHE.remove(session);
+        }
+    }
+
     private static Analysis computeAnalysis(
         Session session,
         ResourceSet resourceSet
