@@ -79,6 +79,9 @@ public final class SessionSafeguards {
 
     /** Execute the supplier while deferring session saves until completion. */
     public static <T> T deferSaves(Session session, Supplier<T> supplier) {
+        if (session == null) {
+            throw new IllegalArgumentException("Session cannot be null");
+        }
         DEFER_SAVE_DEPTH.set(DEFER_SAVE_DEPTH.get() + 1);
         try {
             return supplier.get();
@@ -87,13 +90,19 @@ public final class SessionSafeguards {
             DEFER_SAVE_DEPTH.set(depth);
             if (depth == 0 && Boolean.TRUE.equals(SAVE_DIRTY.get())) {
                 SAVE_DIRTY.set(Boolean.FALSE);
-                saveNow(session);
+                try {
+                    saveNow(session);
+                } catch (Exception e) {
+                    // Wrap in RuntimeException to preserve stack trace without changing signature
+                    // If supplier also failed, its exception takes precedence (this becomes suppressed)
+                    throw new RuntimeException("Session save failed after batch operation", e);
+                }
             }
         }
     }
 
     /** Request a save; if currently deferring, mark the session dirty instead. */
-    public static void requestSave(Session session) {
+    public static void requestSave(Session session) throws Exception {
         if (session == null) {
             return;
         }
@@ -104,15 +113,13 @@ public final class SessionSafeguards {
         saveNow(session);
     }
 
-    private static void saveNow(Session session) {
-        try {
-            session.save(new NullProgressMonitor());
-        } catch (Exception e) {
-            LOG.log(Level.WARNING, "Session save failed", e);
-            if (Activator.getDefault() != null) {
-                Activator.getDefault().getLog().log(new Status(IStatus.WARNING, Activator.PLUGIN_ID, e.getMessage(), e));
-            }
-        }
+    /**
+     * Save the session immediately.
+     * @throws Exception if save fails
+     */
+    private static void saveNow(Session session) throws Exception {
+        session.save(new NullProgressMonitor());
+        LOG.info("Session saved successfully");
     }
 
     /** Ensure the runnable executes on the SWT UI thread. */

@@ -55,7 +55,11 @@ public final class ElementFactory {
             list.add(obj);
 
             ModelSummary.invalidate(session);
-            SessionSafeguards.requestSave(session);
+            try {
+                SessionSafeguards.requestSave(session);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to save after creating " + simpleEClassName, e);
+            }
             return obj;
         });
     }

@@ -19,6 +19,7 @@ import org.polarsys.capella.ai.model.ModelAnalytics;
 import org.polarsys.capella.ai.model.ModelOps;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.model.index.ModelIndex;
+import org.polarsys.capella.ai.session.OperationInferencer;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 
 /**
@@ -325,6 +326,8 @@ public final class CapellaAPI {
         if (isActor) {
             set(created, "actor", true);
         }
+        // Record operation for undo label inference (use user-provided type, not resolved)
+        OperationInferencer.recordCreate(type, name);
         invalidate();
         return created;
     }
@@ -372,6 +375,8 @@ public final class CapellaAPI {
                     "This type may not be valid as a child of this parent element."
             );
         }
+        // Record operation for undo label inference
+        OperationInferencer.recordCreate(type, name);
         invalidate();
         return created;
     }
@@ -448,6 +453,8 @@ public final class CapellaAPI {
                 );
             }
             element.eSet(feature, value);
+            // Record operation for undo label inference
+            OperationInferencer.recordSet(element.eClass().getName(), property);
             invalidate();
             return true;
         });
@@ -501,12 +508,17 @@ public final class CapellaAPI {
         if (session == null || element == null) {
             return false;
         }
+        // Capture element info before deletion for undo label inference
+        String typeName = element.eClass().getName();
+        String elemName = name(element);
         String uuid = getUuid(element);
         if (uuid == null) {
             return false;
         }
         boolean deleted = ModelOps.deleteByUuid(session, uuid);
         if (deleted) {
+            // Record operation for undo label inference
+            OperationInferencer.recordDelete(typeName, elemName != null ? elemName : "unnamed");
             invalidate();
         }
         return deleted;
@@ -533,6 +545,12 @@ public final class CapellaAPI {
             relationType
         );
         if (result != null) {
+            // Record operation for undo label inference
+            OperationInferencer.recordLink(
+                source.eClass().getName(),
+                target.eClass().getName(),
+                relationType
+            );
             invalidate();
         }
         return result;
@@ -610,6 +628,11 @@ public final class CapellaAPI {
                     allocRef
                 );
                 allocList.add(allocation);
+                // Record operation for undo label inference
+                OperationInferencer.recordAllocate(
+                    function.eClass().getName(),
+                    component.eClass().getName()
+                );
                 invalidate();
                 return true;
             } catch (ClassCastException e) {
@@ -788,6 +811,59 @@ public final class CapellaAPI {
         });
     }
 
+    /**
+     * Execute multiple operations as a single undoable batch.
+     * All operations within the closure will appear as a single entry
+     * in the undo/redo stack.
+     *
+     * <p>Use this when an LLM generates multiple related operations that
+     * should be undone together, such as creating a component with its
+     * functions and exchanges.
+     *
+     * <p>Example:
+     * <pre>{@code
+     * api.batch("Create Aircraft System") {
+     *     def aircraft = api.create("SA", "SystemComponent", "Aircraft")
+     *     def navigate = api.create("SA", "SystemFunction", "Navigate")
+     *     def control = api.create("SA", "SystemFunction", "Control Flight")
+     *     api.allocate(navigate, aircraft)
+     *     api.allocate(control, aircraft)
+     *     api.link(navigate, control, "FunctionalExchange")
+     * }
+     * }</pre>
+     *
+     * @param label the label to show in the undo/redo menu
+     * @param closure the Groovy closure containing operations to batch
+     * @return the result of the closure (typically the last created element)
+     */
+    public Object batch(String label, Closure<?> closure) {
+        if (session == null) {
+            throw new IllegalStateException("No active Capella session");
+        }
+        if (label == null || label.isBlank()) {
+            label = "LLM batch operation";
+        }
+
+        final String finalLabel = label;
+
+        // Use deferSaves to prevent intermediate saves
+        return SessionSafeguards.deferSaves(session, () -> {
+            // Execute everything in a single transaction with explicit label
+            return SessionSafeguards.runWrite(session, finalLabel, () -> {
+                try {
+                    Object result = closure.call();
+                    invalidate();
+                    return result;
+                } catch (Exception e) {
+                    throw new RuntimeException(
+                        finalLabel + " failed: " + e.getMessage(),
+                        e
+                    );
+                }
+            });
+        });
+    }
+
     // ========== VALIDATION Operations ==========
 
     /**
@@ -865,7 +941,13 @@ public final class CapellaAPI {
             ModelSummary.invalidate(session);
             ModelIndex.invalidate(session);
             ModelAnalytics.invalidate(session);
-            SessionSafeguards.requestSave(session);
+            try {
+                SessionSafeguards.requestSave(session);
+            } catch (Exception e) {
+                // Wrap in RuntimeException to propagate without changing method signatures
+                // This ensures save failures are visible and not silently ignored
+                throw new RuntimeException("Failed to save model after operation", e);
+            }
         }
     }
 

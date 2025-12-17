@@ -20,6 +20,7 @@ import org.codehaus.groovy.control.CompilerConfiguration;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.codehaus.groovy.control.customizers.SecureASTCustomizer;
 import org.eclipse.sirius.business.api.session.Session;
+import org.polarsys.capella.ai.session.SessionSafeguards;
 
 /**
  * Sandboxed Groovy executor for LLM-generated scripts.
@@ -175,7 +176,21 @@ public final class GroovyExecutor {
                 return ExecutionResult.timeout(timeoutMs, logger.getMessages());
             }
 
+            // Ensure model is saved after successful script execution
             long duration = System.currentTimeMillis() - startTime;
+            try {
+                SessionSafeguards.requestSave(session);
+            } catch (Exception e) {
+                LOG.log(Level.SEVERE, "Post-script save failed - changes not persisted", e);
+                return ExecutionResult.fail(
+                    ExecutionResult.ErrorCode.API_ERROR,
+                    "Script executed successfully but model save failed: " + e.getMessage(),
+                    getStackTrace(e),
+                    logger.getMessages(),
+                    duration
+                );
+            }
+
             return ExecutionResult.success(
                 result,
                 logger.getMessages(),
