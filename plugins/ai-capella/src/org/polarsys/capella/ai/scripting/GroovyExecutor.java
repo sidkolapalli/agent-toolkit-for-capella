@@ -177,13 +177,20 @@ public final class GroovyExecutor {
             }
 
             // Ensure model is saved after successful script execution
+            long duration = System.currentTimeMillis() - startTime;
             try {
                 SessionSafeguards.requestSave(session);
             } catch (Exception e) {
-                LOG.log(Level.WARNING, "Post-script save failed", e);
+                LOG.log(Level.SEVERE, "Post-script save failed - changes not persisted", e);
+                return ExecutionResult.fail(
+                    ExecutionResult.ErrorCode.API_ERROR,
+                    "Script executed successfully but model save failed: " + e.getMessage(),
+                    getStackTrace(e),
+                    logger.getMessages(),
+                    duration
+                );
             }
 
-            long duration = System.currentTimeMillis() - startTime;
             return ExecutionResult.success(
                 result,
                 logger.getMessages(),

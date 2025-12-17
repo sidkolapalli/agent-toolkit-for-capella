@@ -326,8 +326,8 @@ public final class CapellaAPI {
         if (isActor) {
             set(created, "actor", true);
         }
-        // Record operation for undo label inference
-        OperationInferencer.recordCreate(resolvedType, name);
+        // Record operation for undo label inference (use user-provided type, not resolved)
+        OperationInferencer.recordCreate(type, name);
         invalidate();
         return created;
     }
@@ -864,61 +864,6 @@ public final class CapellaAPI {
         });
     }
 
-    /**
-     * Execute multiple operations as a single undoable batch with auto-inferred label.
-     * The label will be automatically generated based on the operations performed.
-     *
-     * <p>Example:
-     * <pre>{@code
-     * api.batch {
-     *     api.create("SA", "SystemFunction", "Navigate")
-     *     api.create("SA", "SystemFunction", "Control")
-     * }
-     * // Undo menu shows: "Create 2 SystemFunctions"
-     * }</pre>
-     *
-     * @param closure the Groovy closure containing operations to batch
-     * @return the result of the closure
-     */
-    public Object batch(Closure<?> closure) {
-        if (session == null) {
-            throw new IllegalStateException("No active Capella session");
-        }
-
-        // Start tracking for label inference
-        OperationInferencer.begin();
-
-        try {
-            return SessionSafeguards.deferSaves(session, () -> {
-                Object result;
-                try {
-                    result = closure.call();
-                    invalidate();
-                } catch (Exception e) {
-                    OperationInferencer.clear();  // Clean up on error
-                    throw new RuntimeException(
-                        "Batch operation failed: " + e.getMessage(),
-                        e
-                    );
-                }
-
-                // Generate label from tracked operations
-                String inferredLabel = OperationInferencer.endAndGenerateLabel();
-                if (inferredLabel == null || inferredLabel.isBlank()) {
-                    inferredLabel = "LLM batch operation";
-                }
-
-                // Execute in a transaction with the inferred label
-                // Note: Operations already executed, this just wraps for undo
-                final String label = inferredLabel;
-                final Object finalResult = result;
-                return SessionSafeguards.runWrite(session, label, () -> finalResult);
-            });
-        } finally {
-            OperationInferencer.clear();  // Ensure cleanup
-        }
-    }
-
     // ========== VALIDATION Operations ==========
 
     /**
@@ -996,7 +941,13 @@ public final class CapellaAPI {
             ModelSummary.invalidate(session);
             ModelIndex.invalidate(session);
             ModelAnalytics.invalidate(session);
-            SessionSafeguards.requestSave(session);
+            try {
+                SessionSafeguards.requestSave(session);
+            } catch (Exception e) {
+                // Wrap in RuntimeException to propagate without changing method signatures
+                // This ensures save failures are visible and not silently ignored
+                throw new RuntimeException("Failed to save model after operation", e);
+            }
         }
     }
 

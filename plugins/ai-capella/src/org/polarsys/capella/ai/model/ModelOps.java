@@ -39,7 +39,11 @@ public final class ModelOps {
             if (nameFeat == null || !nameFeat.isChangeable()) return false;
             target.eSet(nameFeat, newName);
             ModelSummary.invalidate(session);
-            SessionSafeguards.requestSave(session);
+            try {
+                SessionSafeguards.requestSave(session);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to save after rename", e);
+            }
             return true;
         });
     }
@@ -75,7 +79,11 @@ public final class ModelOps {
                 target.eResource().getContents().remove(target);
             }
             ModelSummary.invalidate(session);
-            SessionSafeguards.requestSave(session);
+            try {
+                SessionSafeguards.requestSave(session);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to save after delete", e);
+            }
             return true;
         });
     }

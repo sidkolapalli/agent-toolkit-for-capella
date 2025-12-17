@@ -32,6 +32,8 @@ import java.util.Map;
 public final class OperationInferencer {
 
     private static final int MAX_LABEL_LENGTH = 60;
+    private static final int MAX_TRACKED_OPERATIONS = 1000;
+    private static final int MAX_TRACKING_DEPTH = 100;
 
     private static final ThreadLocal<OperationTracker> TRACKER =
         ThreadLocal.withInitial(OperationTracker::new);
@@ -74,6 +76,14 @@ public final class OperationInferencer {
      */
     public static boolean begin() {
         OperationTracker tracker = TRACKER.get();
+
+        // Prevent unbounded depth (protects against infinite recursion bugs)
+        if (tracker.depth >= MAX_TRACKING_DEPTH) {
+            System.err.println("OperationInferencer: Max tracking depth (" + MAX_TRACKING_DEPTH +
+                ") reached. Possible infinite recursion or missing endAndGenerateLabel() calls.");
+            return false;
+        }
+
         tracker.depth++;
         if (tracker.depth == 1) {
             tracker.operations.clear();
@@ -98,8 +108,17 @@ public final class OperationInferencer {
      * @param name the element name
      */
     public static void recordCreate(String type, String name) {
-        if (isTracking()) {
-            TRACKER.get().operations.add(new Operation(OpType.CREATE, type, name));
+        try {
+            if (!tryAddOperation()) {
+                return;
+            }
+            // Defensive null handling - never let tracking break operations
+            String safeType = type != null ? type : "Unknown";
+            String safeName = name != null ? name : "unnamed";
+            TRACKER.get().operations.add(new Operation(OpType.CREATE, safeType, safeName));
+        } catch (Exception e) {
+            // Never let tracking failures break the actual operation
+            System.err.println("OperationInferencer.recordCreate failed (non-fatal): " + e.getMessage());
         }
     }
 
@@ -110,8 +129,15 @@ public final class OperationInferencer {
      * @param name the element name
      */
     public static void recordDelete(String type, String name) {
-        if (isTracking()) {
-            TRACKER.get().operations.add(new Operation(OpType.DELETE, type, name));
+        try {
+            if (!tryAddOperation()) {
+                return;
+            }
+            String safeType = type != null ? type : "Unknown";
+            String safeName = name != null ? name : "unnamed";
+            TRACKER.get().operations.add(new Operation(OpType.DELETE, safeType, safeName));
+        } catch (Exception e) {
+            System.err.println("OperationInferencer.recordDelete failed (non-fatal): " + e.getMessage());
         }
     }
 
@@ -123,9 +149,17 @@ public final class OperationInferencer {
      * @param relationType the relationship type (e.g., "FunctionalExchange")
      */
     public static void recordLink(String sourceType, String targetType, String relationType) {
-        if (isTracking()) {
+        try {
+            if (!tryAddOperation()) {
+                return;
+            }
+            String safeSource = sourceType != null ? sourceType : "Unknown";
+            String safeTarget = targetType != null ? targetType : "Unknown";
+            String safeRelation = relationType != null ? relationType : "relationship";
             TRACKER.get().operations.add(new Operation(
-                OpType.LINK, relationType, sourceType + " -> " + targetType));
+                OpType.LINK, safeRelation, safeSource + " -> " + safeTarget));
+        } catch (Exception e) {
+            System.err.println("OperationInferencer.recordLink failed (non-fatal): " + e.getMessage());
         }
     }
 
@@ -136,8 +170,15 @@ public final class OperationInferencer {
      * @param property the property name
      */
     public static void recordSet(String type, String property) {
-        if (isTracking()) {
-            TRACKER.get().operations.add(new Operation(OpType.SET, type, property));
+        try {
+            if (!tryAddOperation()) {
+                return;
+            }
+            String safeType = type != null ? type : "Unknown";
+            String safeProperty = property != null ? property : "property";
+            TRACKER.get().operations.add(new Operation(OpType.SET, safeType, safeProperty));
+        } catch (Exception e) {
+            System.err.println("OperationInferencer.recordSet failed (non-fatal): " + e.getMessage());
         }
     }
 
@@ -148,9 +189,16 @@ public final class OperationInferencer {
      * @param componentType the component type
      */
     public static void recordAllocate(String functionType, String componentType) {
-        if (isTracking()) {
+        try {
+            if (!tryAddOperation()) {
+                return;
+            }
+            String safeFunction = functionType != null ? functionType : "function";
+            String safeComponent = componentType != null ? componentType : "component";
             TRACKER.get().operations.add(new Operation(
-                OpType.ALLOCATE, functionType, componentType));
+                OpType.ALLOCATE, safeFunction, safeComponent));
+        } catch (Exception e) {
+            System.err.println("OperationInferencer.recordAllocate failed (non-fatal): " + e.getMessage());
         }
     }
 
@@ -161,9 +209,45 @@ public final class OperationInferencer {
      * @param diagramName the diagram name
      */
     public static void recordDiagram(String diagramType, String diagramName) {
-        if (isTracking()) {
-            TRACKER.get().operations.add(new Operation(OpType.DIAGRAM, diagramType, diagramName));
+        try {
+            if (!tryAddOperation()) {
+                return;
+            }
+            String safeType = diagramType != null ? diagramType : "diagram";
+            String safeName = diagramName != null ? diagramName : "unnamed";
+            TRACKER.get().operations.add(new Operation(OpType.DIAGRAM, safeType, safeName));
+        } catch (Exception e) {
+            System.err.println("OperationInferencer.recordDiagram failed (non-fatal): " + e.getMessage());
         }
+    }
+
+    /**
+     * Check if we should add an operation to the tracker.
+     * Returns false if not tracking or if we've hit the size limit.
+     */
+    private static boolean tryAddOperation() {
+        if (!isTracking()) {
+            return false;
+        }
+
+        OperationTracker tracker = TRACKER.get();
+        int currentSize = tracker.operations.size();
+
+        // Prevent unbounded growth
+        if (currentSize >= MAX_TRACKED_OPERATIONS) {
+            // Add overflow marker once when we hit the limit
+            if (currentSize == MAX_TRACKED_OPERATIONS) {
+                tracker.operations.add(new Operation(
+                    OpType.CREATE,
+                    "OVERFLOW",
+                    "(" + (MAX_TRACKED_OPERATIONS - 1) + "+ operations)"));
+                System.err.println("OperationInferencer: Tracking limit reached (" +
+                    MAX_TRACKED_OPERATIONS + "). Further operations not individually tracked.");
+            }
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -199,6 +283,14 @@ public final class OperationInferencer {
      */
     public static void clear() {
         TRACKER.get().reset();
+    }
+
+    /**
+     * Clear ThreadLocal state to avoid leaks when the plugin stops.
+     * This should be called from the plugin's Activator.stop() method.
+     */
+    public static void cleanup() {
+        TRACKER.remove();
     }
 
     /**
