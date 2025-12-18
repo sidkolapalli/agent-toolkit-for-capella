@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+import org.eclipse.emf.common.command.CommandStack;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.resource.Resource;
@@ -326,8 +327,6 @@ public final class CapellaAPI {
         if (isActor) {
             set(created, "actor", true);
         }
-        // Record operation for undo label inference (use user-provided type, not resolved)
-        OperationInferencer.recordCreate(type, name);
         invalidate();
         return created;
     }
@@ -375,8 +374,6 @@ public final class CapellaAPI {
                     "This type may not be valid as a child of this parent element."
             );
         }
-        // Record operation for undo label inference
-        OperationInferencer.recordCreate(type, name);
         invalidate();
         return created;
     }
@@ -545,12 +542,6 @@ public final class CapellaAPI {
             relationType
         );
         if (result != null) {
-            // Record operation for undo label inference
-            OperationInferencer.recordLink(
-                source.eClass().getName(),
-                target.eClass().getName(),
-                relationType
-            );
             invalidate();
         }
         return result;
@@ -872,6 +863,54 @@ public final class CapellaAPI {
     public List<String> validate() {
         // TODO: Integrate with Capella validation framework
         return List.of();
+    }
+
+    // ========== UNDO/REDO Operations ==========
+
+    /**
+     * Undo the last operation.
+     * @return true if successful
+     */
+    public boolean undo() {
+        if (session == null) return false;
+        var domain = session.getTransactionalEditingDomain();
+        if (domain == null) return false;
+        CommandStack stack = domain.getCommandStack();
+        if (stack.canUndo()) {
+            stack.undo();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Redo the last undone operation.
+     * @return true if successful
+     */
+    public boolean redo() {
+        if (session == null) return false;
+        var domain = session.getTransactionalEditingDomain();
+        if (domain == null) return false;
+        CommandStack stack = domain.getCommandStack();
+        if (stack.canRedo()) {
+            stack.redo();
+            return true;
+        }
+        return false;
+    }
+
+    /** Check if undo is available. */
+    public boolean canUndo() {
+        if (session == null) return false;
+        var domain = session.getTransactionalEditingDomain();
+        return domain != null && domain.getCommandStack().canUndo();
+    }
+
+    /** Check if redo is available. */
+    public boolean canRedo() {
+        if (session == null) return false;
+        var domain = session.getTransactionalEditingDomain();
+        return domain != null && domain.getCommandStack().canRedo();
     }
 
     // ========== TRANSFORMATION Operations ==========
