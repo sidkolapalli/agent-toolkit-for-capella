@@ -302,10 +302,11 @@ public final class GroovyExecutor {
             org.polarsys.capella.core.data.information.InformationFactory.eINSTANCE
         );
         try {
-            binding.setVariable(
-                "RequirementFactory",
-                org.polarsys.capella.core.data.requirement.RequirementFactory.eINSTANCE
+            Class<?> requirementFactory = Class.forName(
+                "org.polarsys.capella.core.data.requirement.RequirementFactory"
             );
+            Object instance = requirementFactory.getField("eINSTANCE").get(null);
+            binding.setVariable("RequirementFactory", instance);
         } catch (Throwable t) {
             LOG.log(Level.FINE, "RequirementFactory unavailable", t);
         }
@@ -343,7 +344,6 @@ public final class GroovyExecutor {
             "org.polarsys.capella.core.data.fa",
             "org.polarsys.capella.core.data.cs",
             "org.polarsys.capella.core.data.information",
-            "org.polarsys.capella.core.data.requirement",
             "org.polarsys.capella.core.data.capellacore",
             "org.polarsys.capella.core.data.capellamodeller"
         );
