@@ -492,7 +492,7 @@ public final class FileSystemAPI {
     public List<SkillMetadata> listSkillMetadata() {
         List<SkillMetadata> results = new ArrayList<>();
         results.addAll(listSkillMetadataFromDir("skills/"));
-        results.addAll(listSkillMetadataFromDir("user-skills/"));
+        results.addAll(listUserSkillMetadata());
         return results;
     }
 
@@ -592,8 +592,40 @@ public final class FileSystemAPI {
         return results;
     }
 
+    private List<SkillMetadata> listUserSkillMetadata() {
+        File skillsDir = new File(USER_SKILLS_DIR);
+        if (!skillsDir.exists() || !skillsDir.isDirectory()) {
+            return List.of();
+        }
+
+        File[] mdFiles = skillsDir.listFiles((dir, filename) -> filename.endsWith(".md"));
+        if (mdFiles == null || mdFiles.length == 0) {
+            return List.of();
+        }
+
+        List<SkillMetadata> results = new ArrayList<>();
+        for (File mdFile : mdFiles) {
+            try {
+                String content = Files.readString(mdFile.toPath(), StandardCharsets.UTF_8);
+                String path = "user-skills/" + mdFile.getName();
+                SkillMetadata meta = parseSkillMetadata(path, content);
+                if (meta != null) {
+                    results.add(meta);
+                }
+            } catch (IOException e) {
+                LOG.log(Level.WARNING, "Failed to read user skill metadata: " + mdFile.getName(), e);
+            }
+        }
+
+        return results;
+    }
+
     private SkillMetadata parseSkillMetadata(String path) {
         String content = read(path);
+        return parseSkillMetadata(path, content);
+    }
+
+    private SkillMetadata parseSkillMetadata(String path, String content) {
         if (content == null || content.isBlank() || content.contains("File not found")) {
             return null;
         }
