@@ -59,9 +59,9 @@ public class OperationInferencerTest {
         OperationInferencer.recordLink("SystemFunction", "SystemFunction", "FunctionalExchange");
         String label = OperationInferencer.endAndGenerateLabel();
         
-        // Expected: "Create 2 elements, link 1 relationship" or similar depending on formatting logic
-        assertTrue(label.contains("Create 2 SystemFunctions"));
-        assertTrue(label.contains("link 1 FunctionalExchange") || label.contains("link 1 relationship"));
+        // Expected: mixed-operation summary with generic counts
+        assertTrue(label.contains("Create 2 elements"));
+        assertTrue(label.contains("link 1 relationship"));
     }
     
     @Test

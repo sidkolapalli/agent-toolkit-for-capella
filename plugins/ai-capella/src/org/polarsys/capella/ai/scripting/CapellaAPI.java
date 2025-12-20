@@ -873,14 +873,18 @@ public final class CapellaAPI {
      */
     public boolean undo() {
         if (session == null) return false;
-        var domain = session.getTransactionalEditingDomain();
-        if (domain == null) return false;
-        CommandStack stack = domain.getCommandStack();
-        if (stack.canUndo()) {
-            stack.undo();
-            return true;
-        }
-        return false;
+        java.util.concurrent.atomic.AtomicBoolean success =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+        SessionSafeguards.runOnUiThread(() -> {
+            var domain = session.getTransactionalEditingDomain();
+            if (domain == null) return;
+            CommandStack stack = domain.getCommandStack();
+            if (stack.canUndo()) {
+                stack.undo();
+                success.set(true);
+            }
+        });
+        return success.get();
     }
 
     /**
@@ -889,14 +893,18 @@ public final class CapellaAPI {
      */
     public boolean redo() {
         if (session == null) return false;
-        var domain = session.getTransactionalEditingDomain();
-        if (domain == null) return false;
-        CommandStack stack = domain.getCommandStack();
-        if (stack.canRedo()) {
-            stack.redo();
-            return true;
-        }
-        return false;
+        java.util.concurrent.atomic.AtomicBoolean success =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+        SessionSafeguards.runOnUiThread(() -> {
+            var domain = session.getTransactionalEditingDomain();
+            if (domain == null) return;
+            CommandStack stack = domain.getCommandStack();
+            if (stack.canRedo()) {
+                stack.redo();
+                success.set(true);
+            }
+        });
+        return success.get();
     }
 
     /** Check if undo is available. */
