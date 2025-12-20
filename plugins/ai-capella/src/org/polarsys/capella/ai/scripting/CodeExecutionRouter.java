@@ -265,9 +265,9 @@ public final class CodeExecutionRouter {
             "// Allocate function to component (use api.allocate, NOT api.link)\n"
         );
         sb.append("api.allocate(func, comp)\n\n");
-        sb.append("// Create diagram: create(type, name, target)\n");
+        sb.append("// Create diagram: createSafe(type, name, target)\n");
         sb.append(
-            "def diagram = api.diagram.create(\"SAB\", \"My Diagram\", saLayer)\n\n"
+            "def diagram = api.diagram.createSafe(\"SAB\", \"My Diagram\", saLayer)\n\n"
         );
         sb.append("// Always log results\n");
         sb.append("log.info(\"Created: ${api.name(newFunc)}\")\n");
@@ -310,7 +310,7 @@ public final class CodeExecutionRouter {
         // Diagram creation pattern with examples (Anthropic multishot pattern)
         sb.append("### Diagram Creation\n\n");
         sb.append(
-            "To create diagrams, use this EXACT signature: `create(type, name, target)`\n\n"
+            "To create diagrams, use: `createSafe(type, name, target)` and validate types with `api.diagram.listAvailableFormatted()`\n\n"
         );
         sb.append("<example>\n");
         sb.append("User request: Create a System Architecture Blank diagram\n");
@@ -318,7 +318,7 @@ public final class CodeExecutionRouter {
         sb.append("```groovy\n");
         sb.append("def saLayer = api.layer(\"SA\")\n");
         sb.append(
-            "def diagram = api.diagram.create(\"SAB\", \"System Overview\", saLayer)\n"
+            "def diagram = api.diagram.createSafe(\"SAB\", \"System Overview\", saLayer)\n"
         );
         sb.append("log.info(\"Created diagram: \" + diagram.name)\n");
         sb.append("```\n");
@@ -331,7 +331,21 @@ public final class CodeExecutionRouter {
         sb.append("```groovy\n");
         sb.append("def laLayer = api.layer(\"LA\")\n");
         sb.append(
-            "def diagram = api.diagram.create(\"LAB\", \"My Logical View\", laLayer)\n"
+            "def diagram = api.diagram.createSafe(\"LAB\", \"My Logical View\", laLayer)\n"
+        );
+        sb.append("log.info(\"Created diagram: \" + diagram.name)\n");
+        sb.append("```\n");
+        sb.append("</example>\n\n");
+        sb.append("<example>\n");
+        sb.append(
+            "User request: Create an Operational Activity Breakdown diagram\n"
+        );
+        sb.append("Correct code:\n");
+        sb.append("```groovy\n");
+        sb.append("def parent = api.find(\"OperationalActivity\", \"Monitor System\")\n");
+        sb.append("if (!parent) parent = api.create(\"OA\", \"OperationalActivity\", \"Monitor System\")\n");
+        sb.append(
+            "def diagram = api.diagram.createSafe(\"Operational Activity Breakdown\", \"Monitor Breakdown\", parent)\n"
         );
         sb.append("log.info(\"Created diagram: \" + diagram.name)\n");
         sb.append("```\n");

@@ -11,6 +11,9 @@ def diagram = api.diagram.create("SAB", "System Overview")
 // Create under specific element
 def saRoot = api.layer("SA")
 def diagram = api.diagram.create("SAB", "My Diagram", saRoot)
+
+// Safer creation with target validation
+def diagram = api.diagram.createSafe("SAB", "My Diagram", saRoot)
 ```
 
 ## Diagram Types
@@ -34,6 +37,19 @@ def comp = api.find("SystemComponent", "Main Controller")
 
 // Add element to diagram
 api.diagram.add(diagram, comp)
+```
+
+## Target Rules (important)
+
+- **Operational Activity Breakdown** diagrams must target an **OperationalActivity**
+- **Operational Entity** diagrams target **EntityPkg** (or an **Entity**)
+- **Operational Capability** diagrams target **OperationalCapabilityPkg** (or a capability)
+- Architecture blanks (SAB/LAB/PAB) should target the **ComponentPkg** under the layer
+
+If diagram creation fails, use:
+
+```groovy
+api.diagram.listAvailableFormatted()
 ```
 
 ## Adding Functions/Activities to Diagrams
@@ -91,6 +107,23 @@ api.diagram.refresh(oab)
 api.diagram.layout(oab, "flow")
 
 log.info("Added activity to OAB")
+```
+
+## Safer Example: Operational Activity Breakdown
+
+```groovy
+// Create or reuse an OperationalActivity
+def parent = api.find("OperationalActivity", "Monitor System")
+if (!parent) { parent = api.create("OA", "OperationalActivity", "Monitor System") }
+
+// Child activity
+def child = api.create("OperationalActivity", "Collect Status", parent)
+
+// Use full descriptor + safe creation
+def diagram = api.diagram.createSafe("Operational Activity Breakdown", "Monitor Breakdown", parent)
+api.diagram.add(diagram, child)
+api.diagram.refresh(diagram)
+api.diagram.layout(diagram, "flow")
 ```
 
 ## Complete Example: SAB
