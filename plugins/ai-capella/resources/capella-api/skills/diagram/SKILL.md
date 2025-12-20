@@ -16,6 +16,8 @@ Create and populate Capella diagrams.
 | Abbrev | Full Name | Layer |
 |--------|-----------|-------|
 | OAB | Operational Activity Blank | OA |
+| OES | Operational Entity Blank | OA |
+| OCB | Operational Capabilities Blank | OA |
 | SAB | System Architecture Blank | SA |
 | SDFB | System Data Flow Blank | SA |
 | LAB | Logical Architecture Blank | LA |
@@ -31,7 +33,7 @@ User: Create a System Architecture Blank diagram
 Correct code:
 ```groovy
 def saLayer = api.layer("SA")
-def diagram = api.diagram.create("SAB", "System Overview", saLayer)
+def diagram = api.diagram.createSafe("SAB", "System Overview", saLayer)
 log.info("Created diagram: " + diagram.name)
 ```
 </example>
@@ -41,7 +43,7 @@ User: Create an LAB diagram for the logical architecture
 Correct code:
 ```groovy
 def laLayer = api.layer("LA")
-def diagram = api.diagram.create("LAB", "Logical View", laLayer)
+def diagram = api.diagram.createSafe("LAB", "Logical View", laLayer)
 log.info("Created diagram: " + diagram.name)
 ```
 </example>
@@ -51,7 +53,7 @@ User: Create a diagram and add all system components to it
 Correct code:
 ```groovy
 def saLayer = api.layer("SA")
-def diagram = api.diagram.create("SAB", "All Components", saLayer)
+def diagram = api.diagram.createSafe("SAB", "All Components", saLayer)
 
 // Add all components to diagram
 def components = api.findAll("SystemComponent")
@@ -71,7 +73,7 @@ User: Create a diagram showing a specific component and its functions
 Correct code:
 ```groovy
 def comp = api.find("SystemComponent", "Flight Controller")
-def diagram = api.diagram.create("SAB", "Flight Controller View", comp)
+def diagram = api.diagram.createSafe("SAB", "Flight Controller View", comp)
 
 // Add the component
 api.diagram.add(diagram, comp)
@@ -111,10 +113,12 @@ log.info("Added ${funcs.size()} functions")
 
 ## Important Notes
 
-1. **Target element**: The third parameter to `create()` is the semantic target element
+1. **Prefer createSafe**: `createSafe()` validates descriptors and targets before creation
+2. **Target element**: The third parameter to `create()`/`createSafe()` is the semantic target element
 2. **Functions need allocation**: Functions/activities only appear inside components if allocated with `api.allocate(func, comp)`
 3. **Layout after adding**: Always call `layout()` after adding multiple elements
 4. **Refresh after changes**: Call `refresh()` to sync diagram with model changes
+5. **OABD target**: Operational Activity Breakdown diagrams must target an **OperationalActivity**
 
 ## Error Handling
 
@@ -124,7 +128,7 @@ The `api.diagram.create()` method throws descriptive exceptions:
 
 ```groovy
 try {
-    def diagram = api.diagram.create("SAB", "My Diagram", saLayer)
+    def diagram = api.diagram.createSafe("SAB", "My Diagram", saLayer)
 } catch (IllegalArgumentException e) {
     log.error("Failed to create diagram: " + e.message)
 }

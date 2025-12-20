@@ -98,6 +98,58 @@ public final class DiagramAPI {
     }
 
     /**
+     * Create a diagram with safety checks for descriptor and target.
+     *
+     * <p>This method validates the diagram descriptor against the active session and
+     * attempts to resolve a valid target element if the provided target is unsuitable.
+     * It throws a descriptive error when it cannot create the diagram.
+     */
+    public DRepresentation createSafe(
+        String diagramType,
+        String name,
+        EObject target
+    ) {
+        if (session == null) {
+            throw new IllegalStateException("No active session");
+        }
+        if (target == null) {
+            throw new IllegalArgumentException("Target element cannot be null");
+        }
+
+        List<String> available = DiagramCommands.getAvailableDiagramDescriptions(session);
+        String descriptionName = resolveDiagramDescription(diagramType);
+
+        if (descriptionName == null) {
+            if (available != null && available.contains(diagramType)) {
+                descriptionName = diagramType;
+            } else {
+                throw new IllegalArgumentException(
+                    buildUnknownDiagramMessage(diagramType, available)
+                );
+            }
+        }
+
+        EObject resolvedTarget = resolveTargetForDescription(descriptionName, target);
+        if (resolvedTarget == null) {
+            throw new IllegalArgumentException(
+                buildTargetError(descriptionName, target)
+            );
+        }
+
+        DRepresentation created = DiagramCommands.createAndOpenDiagram(
+            resolvedTarget,
+            descriptionName,
+            name
+        );
+        if (created == null) {
+            throw new IllegalArgumentException(
+                buildTargetError(descriptionName, resolvedTarget)
+            );
+        }
+        return created;
+    }
+
+    /**
      * Find the correct target element for a diagram type.
      * Architecture blank diagrams need ComponentPkg, not the layer root.
      */
@@ -134,6 +186,114 @@ public final class DiagramAPI {
         }
 
         return target;
+    }
+
+    private EObject resolveTargetForDescription(
+        String descriptionName,
+        EObject preferredTarget
+    ) {
+        if (preferredTarget == null) {
+            return null;
+        }
+
+        if (descriptionName == null) {
+            return preferredTarget;
+        }
+
+        String desc = descriptionName.toLowerCase();
+
+        // Architecture blanks use ComponentPkg/EntityPkg targets.
+        if (desc.contains("architecture blank") || desc.contains("data flow blank") ||
+            desc.contains("function breakdown")) {
+            return findDiagramTarget(preferredTarget, descriptionName);
+        }
+
+        if (desc.contains("operational activity")) {
+            if (classNameContains(preferredTarget, "OperationalActivity")) {
+                return preferredTarget;
+            }
+            EObject found = findFirstByClassName(preferredTarget, "OperationalActivity");
+            if (found != null) return found;
+        }
+
+        if (desc.contains("operational entity")) {
+            if (classNameContains(preferredTarget, "EntityPkg") ||
+                classNameContains(preferredTarget, "Entity")) {
+                return preferredTarget;
+            }
+            EObject found = findFirstByClassName(preferredTarget, "EntityPkg");
+            if (found != null) return found;
+            found = findFirstByClassName(preferredTarget, "Entity");
+            if (found != null) return found;
+        }
+
+        if (desc.contains("operational capabilities")) {
+            if (classNameContains(preferredTarget, "OperationalCapabilityPkg") ||
+                classNameContains(preferredTarget, "OperationalCapability")) {
+                return preferredTarget;
+            }
+            EObject found = findFirstByClassName(preferredTarget, "OperationalCapabilityPkg");
+            if (found != null) return found;
+            found = findFirstByClassName(preferredTarget, "OperationalCapability");
+            if (found != null) return found;
+        }
+
+        if (desc.contains("operational role")) {
+            if (classNameContains(preferredTarget, "RolePkg") ||
+                classNameContains(preferredTarget, "Role")) {
+                return preferredTarget;
+            }
+            EObject found = findFirstByClassName(preferredTarget, "RolePkg");
+            if (found != null) return found;
+            found = findFirstByClassName(preferredTarget, "Role");
+            if (found != null) return found;
+        }
+
+        return preferredTarget;
+    }
+
+    private static boolean classNameContains(EObject obj, String token) {
+        return obj != null && obj.eClass().getName().contains(token);
+    }
+
+    private static EObject findFirstByClassName(EObject root, String token) {
+        if (root == null) return null;
+        if (classNameContains(root, token)) return root;
+        for (java.util.Iterator<EObject> it = root.eAllContents(); it.hasNext();) {
+            EObject next = it.next();
+            if (classNameContains(next, token)) {
+                return next;
+            }
+        }
+        return null;
+    }
+
+    private String buildUnknownDiagramMessage(
+        String diagramType,
+        List<String> available
+    ) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Unknown diagram type: '").append(diagramType).append("'\n");
+        sb.append("Use api.diagram.listAvailableFormatted() for supported types.\n");
+        if (available != null && !available.isEmpty()) {
+            sb.append("Available descriptors (").append(available.size()).append("): ");
+            sb.append(String.join(", ", available));
+        }
+        return sb.toString();
+    }
+
+    private String buildTargetError(String descriptionName, EObject target) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Diagram creation failed for '").append(descriptionName).append("'.\n");
+        sb.append("Target type must match diagram requirements.\n");
+        sb.append("Provided target: ");
+        sb.append(target == null ? "null" : target.eClass().getName());
+        sb.append("\n");
+        sb.append("Use api.diagram.listAvailableFormatted() to see valid types.\n");
+        sb.append("If using Operational Activity diagrams, pass an OperationalActivity.\n");
+        sb.append("If using Operational Entity diagrams, pass an EntityPkg or Entity.\n");
+        sb.append("If using Operational Capability diagrams, pass a CapabilityPkg or Capability.\n");
+        return sb.toString();
     }
 
     /**
