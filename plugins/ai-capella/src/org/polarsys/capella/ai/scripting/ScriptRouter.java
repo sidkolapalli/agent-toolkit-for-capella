@@ -215,7 +215,11 @@ public final class ScriptRouter {
             )
         );
 
-        return LLMService.get().send(messages);
+        try {
+            return LLMService.get().send(messages);
+        } catch (Exception e) {
+            return previousResponse;
+        }
     }
 
     /**
