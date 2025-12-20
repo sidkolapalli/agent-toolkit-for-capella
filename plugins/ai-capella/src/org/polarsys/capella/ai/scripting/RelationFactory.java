@@ -11,6 +11,7 @@ import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.model.ArchitectureLocator;
 import org.polarsys.capella.ai.model.ElementFactory;
 import org.polarsys.capella.ai.model.FindResult;
+import org.polarsys.capella.ai.session.OperationInferencer;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 
 /**
@@ -166,6 +167,7 @@ public final class RelationFactory {
                 if (exchange != null) {
                     assignEndpoint(exchange, "source", source);
                     assignEndpoint(exchange, "target", target);
+                    OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "FunctionalExchange");
                 }
                 return exchange;
             }
@@ -206,6 +208,7 @@ public final class RelationFactory {
                 if (exchange != null) {
                     assignEndpoint(exchange, "source", source);
                     assignEndpoint(exchange, "target", target);
+                    OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "ComponentExchange");
                 }
                 return exchange;
             }
@@ -239,7 +242,11 @@ public final class RelationFactory {
                     "component"
                 );
             }
-            return linked ? source : null;
+            if (linked) {
+                OperationInferencer.recordAllocate(source.eClass().getName(), target.eClass().getName());
+                return source;
+            }
+            return null;
         });
     }
 
@@ -269,7 +276,11 @@ public final class RelationFactory {
                     "involvement"
                 );
             }
-            return linked ? source : null;
+            if (linked) {
+                OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "Involvement");
+                return source;
+            }
+            return null;
         });
     }
 
@@ -293,7 +304,11 @@ public final class RelationFactory {
             if (!linked) {
                 linked = addReference(target, source, "realizing", "refining");
             }
-            return linked ? source : null;
+            if (linked) {
+                OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "Realization");
+                return source;
+            }
+            return null;
         });
     }
 
@@ -332,6 +347,7 @@ public final class RelationFactory {
                             realizationsRef
                         );
                         list.add(realization);
+                        OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "FunctionRealization");
                         return realization;
                     }
                     throw new IllegalArgumentException(
@@ -394,6 +410,7 @@ public final class RelationFactory {
                             realizationsRef
                         );
                         list.add(realization);
+                        OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "ComponentRealization");
                         return realization;
                     }
                     throw new IllegalArgumentException(
@@ -444,7 +461,11 @@ public final class RelationFactory {
                 if (!linked) {
                     linked = addReference(target, source, "element", "satisfy");
                 }
-                return linked ? source : null;
+                if (linked) {
+                    OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "Requirement");
+                    return source;
+                }
+                return null;
             }
         );
     }
@@ -467,6 +488,7 @@ public final class RelationFactory {
                     hintName.toLowerCase(Locale.ROOT)
                 );
                 if (linked) {
+                    OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "Reference");
                     return source;
                 }
             }
@@ -493,6 +515,7 @@ public final class RelationFactory {
                     } else {
                         continue; // Already set, try next
                     }
+                    OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "Reference");
                     return source;
                 }
             }

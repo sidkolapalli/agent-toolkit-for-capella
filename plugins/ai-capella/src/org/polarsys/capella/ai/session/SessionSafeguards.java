@@ -55,12 +55,31 @@ public final class SessionSafeguards {
                     @Override
                     protected void doExecute() {
                         IN_WRITE.set(Boolean.TRUE);
+                        boolean isRoot = OperationInferencer.begin();
                         try {
                             result.set(supplier.get());
+
+                            if (isRoot) {
+                                String inferred = OperationInferencer.endAndGenerateLabel();
+                                if (inferred != null && !inferred.isBlank()) {
+                                    // Use inferred label if it's more descriptive
+                                    // Always override generic labels
+                                    // For specific labels, only override if inferred adds value (e.g. name)
+                                    if (label.equals("Execute Script") || 
+                                        label.equals("LLM batch operation") ||
+                                        label.startsWith("Create ")) {
+                                        setLabel(inferred);
+                                    }
+                                }
+                            }
                         } catch (RuntimeException ex) {
                             failure.set(ex);
                             throw ex;
                         } finally {
+                            if (isRoot) {
+                                // Ensure cleanup if we didn't end normally
+                                OperationInferencer.clear();
+                            }
                             IN_WRITE.set(Boolean.FALSE);
                         }
                     }

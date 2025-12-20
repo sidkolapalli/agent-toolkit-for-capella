@@ -10,6 +10,7 @@ import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.transaction.TransactionalEditingDomain;
+import org.polarsys.capella.ai.session.OperationInferencer;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.session.SessionBridge;
@@ -53,6 +54,9 @@ public final class ElementFactory {
             @SuppressWarnings("unchecked")
             java.util.List<EObject> list = (java.util.List<EObject>) container.eGet(containment);
             list.add(obj);
+
+            // Record operation for label inference
+            OperationInferencer.recordCreate(simpleEClassName, name);
 
             ModelSummary.invalidate(session);
             try {

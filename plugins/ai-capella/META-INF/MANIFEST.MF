@@ -27,4 +27,5 @@ Bundle-ClassPath: .,
 Export-Package: org.polarsys.capella.ai.llm,
  org.polarsys.capella.ai.scripting;x-friends:="org.polarsys.capella.ai.tests",
  org.polarsys.capella.ai.preferences;x-friends:="org.polarsys.capella.ai.tests",
- org.polarsys.capella.ai.model;x-friends:="org.polarsys.capella.ai.tests"
+ org.polarsys.capella.ai.model;x-friends:="org.polarsys.capella.ai.tests",
+ org.polarsys.capella.ai.session;x-friends:="org.polarsys.capella.ai.tests"
