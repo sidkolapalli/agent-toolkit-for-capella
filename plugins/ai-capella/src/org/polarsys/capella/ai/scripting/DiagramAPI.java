@@ -498,7 +498,7 @@ public final class DiagramAPI {
         if (diagram == null || element == null) {
             return false;
         }
-        return DiagramCommands.supportsElement(diagram, element);
+        return DiagramCommands.isDisplayable(session, diagram, element);
     }
 
     /**

@@ -1345,6 +1345,65 @@ public final class DiagramCommands {
         return null;
     }
 
+    private static java.util.List<AbstractNodeMapping> findNodeMappings(
+        DiagramDescription desc,
+        EObject semantic
+    ) {
+        java.util.List<AbstractNodeMapping> results =
+            new java.util.ArrayList<>();
+        if (desc == null || semantic == null) {
+            return results;
+        }
+        String targetClass = semantic.eClass().getName();
+        String targetPackage = semantic.eClass().getEPackage().getName();
+
+        if (desc.getDefaultLayer() != null) {
+            collectNodeMappings(
+                desc.getDefaultLayer(),
+                targetClass,
+                targetPackage,
+                results
+            );
+        }
+
+        for (var layer : desc.getAdditionalLayers()) {
+            collectNodeMappings(layer, targetClass, targetPackage, results);
+        }
+
+        return results;
+    }
+
+    private static void collectNodeMappings(
+        org.eclipse.sirius.diagram.description.Layer layer,
+        String targetClass,
+        String targetPackage,
+        java.util.List<AbstractNodeMapping> results
+    ) {
+        if (layer == null) {
+            return;
+        }
+        for (ContainerMapping cm : layer.getContainerMappings()) {
+            if (mappingMatchesClass(cm, targetClass, targetPackage)) {
+                results.add(cm);
+            }
+            for (NodeMapping subNm : cm.getSubNodeMappings()) {
+                if (mappingMatchesClass(subNm, targetClass, targetPackage)) {
+                    results.add(subNm);
+                }
+            }
+            for (ContainerMapping subCm : cm.getSubContainerMappings()) {
+                if (mappingMatchesClass(subCm, targetClass, targetPackage)) {
+                    results.add(subCm);
+                }
+            }
+        }
+        for (NodeMapping nm : layer.getNodeMappings()) {
+            if (mappingMatchesClass(nm, targetClass, targetPackage)) {
+                results.add(nm);
+            }
+        }
+    }
+
     /**
      * Return the list of domain classes supported by the diagram's node/container mappings.
      */
@@ -1381,6 +1440,40 @@ public final class DiagramCommands {
             return false;
         }
         return findNodeMapping(desc, semantic) != null;
+    }
+
+    /**
+     * Check whether an element is displayable on a diagram, evaluating mapping preconditions.
+     */
+    public static boolean isDisplayable(
+        Session session,
+        DRepresentation rep,
+        EObject semantic
+    ) {
+        if (!(rep instanceof DDiagram) || semantic == null) {
+            return false;
+        }
+        DDiagram diagram = (DDiagram) rep;
+        DiagramDescription desc = diagram.getDescription();
+        if (desc == null) {
+            return false;
+        }
+        java.util.List<AbstractNodeMapping> mappings =
+            findNodeMappings(desc, semantic);
+        if (mappings.isEmpty()) {
+            return false;
+        }
+        Object interpreter = getInterpreter(session);
+        for (AbstractNodeMapping mapping : mappings) {
+            if (!preconditionSatisfied(interpreter, semantic, mapping)) {
+                continue;
+            }
+            if (!candidatesSatisfied(interpreter, diagram, mapping, semantic)) {
+                continue;
+            }
+            return true;
+        }
+        return false;
     }
 
     private static void collectMappingDomains(
@@ -1425,6 +1518,133 @@ public final class DiagramCommands {
         if (domainClass != null && !domainClass.isBlank()) {
             results.add(domainClass);
         }
+    }
+
+    private static Object getInterpreter(Session session) {
+        if (session == null) {
+            return null;
+        }
+        try {
+            var method = session.getClass().getMethod("getInterpreter");
+            return method.invoke(session);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static boolean preconditionSatisfied(
+        Object interpreter,
+        EObject semantic,
+        AbstractNodeMapping mapping
+    ) {
+        String expr = getExpression(mapping, "getPreconditionExpression");
+        if (expr == null || expr.isBlank()) {
+            return true;
+        }
+        if (interpreter == null) {
+            return true; // best-effort when interpreter unavailable
+        }
+        Object result = evaluate(interpreter, semantic, expr);
+        if (result instanceof Boolean) {
+            return (Boolean) result;
+        }
+        return false;
+    }
+
+    private static boolean candidatesSatisfied(
+        Object interpreter,
+        DDiagram diagram,
+        AbstractNodeMapping mapping,
+        EObject semantic
+    ) {
+        String expr = getExpression(mapping, "getSemanticCandidatesExpression");
+        if (expr == null || expr.isBlank()) {
+            return true;
+        }
+        EObject target = getDiagramTarget(diagram);
+        if (interpreter == null || target == null) {
+            return true;
+        }
+        Object result = evaluate(interpreter, target, expr);
+        if (result == null) {
+            return false;
+        }
+        if (result instanceof java.util.Collection<?>) {
+            return ((java.util.Collection<?>) result).contains(semantic);
+        }
+        return result.equals(semantic);
+    }
+
+    private static String getExpression(
+        Object mapping,
+        String methodName
+    ) {
+        if (mapping == null) {
+            return null;
+        }
+        try {
+            var method = mapping.getClass().getMethod(methodName);
+            Object value = method.invoke(mapping);
+            return value != null ? value.toString() : null;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static Object evaluate(
+        Object interpreter,
+        EObject context,
+        String expression
+    ) {
+        if (interpreter == null || context == null || expression == null) {
+            return null;
+        }
+        try {
+            var method = interpreter.getClass().getMethod(
+                "evaluateBoolean",
+                EObject.class,
+                String.class
+            );
+            return method.invoke(interpreter, context, expression);
+        } catch (Exception ignored) {
+            // fallback to evaluateExpression if available
+        }
+        try {
+            var method = interpreter.getClass().getMethod(
+                "evaluateExpression",
+                EObject.class,
+                String.class
+            );
+            return method.invoke(interpreter, context, expression);
+        } catch (Exception ignored) {
+            // fallback to evaluate
+        }
+        try {
+            var method = interpreter.getClass().getMethod(
+                "evaluate",
+                EObject.class,
+                String.class
+            );
+            return method.invoke(interpreter, context, expression);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static EObject getDiagramTarget(DDiagram diagram) {
+        if (diagram == null) {
+            return null;
+        }
+        try {
+            var method = diagram.getClass().getMethod("getTarget");
+            Object value = method.invoke(diagram);
+            if (value instanceof EObject) {
+                return (EObject) value;
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+        return null;
     }
 
     /**
