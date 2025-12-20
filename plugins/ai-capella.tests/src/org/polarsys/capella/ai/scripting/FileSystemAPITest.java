@@ -125,4 +125,17 @@ public class FileSystemAPITest {
         String content = fs.read(null);
         assertNotNull(content);
     }
+
+    @Test
+    public void testListSkillMetadata() {
+        List<FileSystemAPI.SkillMetadata> skills = fs.listSkillMetadata();
+        assertNotNull(skills);
+        // Should include at least one skill with name/summary when resources are present
+        if (!skills.isEmpty()) {
+            FileSystemAPI.SkillMetadata first = skills.get(0);
+            assertNotNull(first.name);
+            assertNotNull(first.summary);
+            assertNotNull(first.path);
+        }
+    }
 }

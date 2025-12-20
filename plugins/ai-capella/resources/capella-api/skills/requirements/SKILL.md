@@ -1,3 +1,12 @@
+---
+name: Requirements Viewpoint
+summary: Create and manage requirements using the Requirements Viewpoint add-on.
+keywords: [requirements, reqif, viewpoint, requirement]
+layer: [OA, SA, LA, PA]
+when_to_use: User requests requirements creation or linkage.
+difficulty: advanced
+---
+
 # Requirements Viewpoint Skill
 
 Create and manage requirements using the Capella Requirements Viewpoint add-on.

@@ -1,5 +1,6 @@
 package org.polarsys.capella.ai.scripting;
 
+import java.util.List;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.model.ModelSummary;
 
@@ -192,6 +193,30 @@ public final class CodeExecutionRouter {
         );
         sb.append("- `api.diagram` - Diagram operations\n");
         sb.append("- `log` - Logger (log.info, log.warn, log.error)\n\n");
+
+        // Skill metadata (lightweight discovery)
+        FileSystemAPI fs = new FileSystemAPI();
+        List<FileSystemAPI.SkillMetadata> skills = fs.listSkillMetadata();
+        if (!skills.isEmpty()) {
+            sb.append("### Available Skills (metadata)\n\n");
+            for (FileSystemAPI.SkillMetadata skill : skills) {
+                sb.append("- ")
+                    .append(skill.name)
+                    .append(": ")
+                    .append(skill.summary != null ? skill.summary : "")
+                    .append("\n");
+                if (skill.whenToUse != null && !skill.whenToUse.isBlank()) {
+                    sb.append("  - When: ").append(skill.whenToUse).append("\n");
+                }
+                if (!skill.keywords.isEmpty()) {
+                    sb.append("  - Keywords: ").append(String.join(", ", skill.keywords)).append("\n");
+                }
+                sb.append("  - Load: `api.fs.read(\"")
+                    .append(skill.path)
+                    .append("\")`\n");
+            }
+            sb.append("\n");
+        }
 
         sb.append("### Discovering Capabilities\n\n");
         sb.append("Use `api.fs.*` to explore available APIs on-demand:\n\n");
