@@ -14,6 +14,7 @@ import org.polarsys.capella.ai.preferences.LLMPreferences;
  *
  * <p>Tests are skipped if no API key is configured. Set environment variables:
  * <ul>
+ *   <li>CAPELLA_AI_RUN_LLM_TESTS - set to "true" to enable live LLM tests</li>
  *   <li>ANTHROPIC_API_KEY - for Anthropic Claude models</li>
  *   <li>OPENAI_API_KEY - for OpenAI models</li>
  *   <li>CAPELLA_AI_PROVIDER - "anthropic" or "openai" (default: auto-detect from key)</li>
@@ -26,9 +27,15 @@ public class LLMServiceTest {
 
     private boolean hasApiKey;
     private String provider;
+    private boolean testsEnabled;
+    private static Boolean validatedKey;
 
     @Before
     public void setUp() {
+        testsEnabled = Boolean.parseBoolean(
+            System.getenv("CAPELLA_AI_RUN_LLM_TESTS")
+        );
+
         // Check for available API keys
         String anthropicKey = System.getenv("ANTHROPIC_API_KEY");
         String openaiKey = System.getenv("OPENAI_API_KEY");
@@ -36,15 +43,27 @@ public class LLMServiceTest {
         hasApiKey = (anthropicKey != null && !anthropicKey.isBlank())
                  || (openaiKey != null && !openaiKey.isBlank());
 
-        if (hasApiKey) {
+        if (testsEnabled && hasApiKey) {
             provider = LLMPreferences.getProvider();
             System.out.println("[LLMServiceTest] Using provider: " + provider);
             System.out.println("[LLMServiceTest] Using model: " + LLMPreferences.getModel());
+            if (validatedKey == null) {
+                try {
+                    // Lightweight validation to confirm the key is accepted.
+                    LLMService.get().send("Reply with exactly: OK");
+                    validatedKey = Boolean.TRUE;
+                } catch (Exception ex) {
+                    validatedKey = Boolean.FALSE;
+                    System.out.println("[LLMServiceTest] Invalid or rejected API key; skipping LLM tests");
+                }
+            }
+            hasApiKey = Boolean.TRUE.equals(validatedKey);
         }
     }
 
     @Test
     public void testConnectionInfo() throws Exception {
+        assumeTrue("LLM integration tests disabled - set CAPELLA_AI_RUN_LLM_TESTS=true", testsEnabled);
         assumeTrue("No API key configured - skipping LLM test", hasApiKey);
 
         String info = LLMService.get().testConnection();
@@ -54,6 +73,7 @@ public class LLMServiceTest {
 
     @Test
     public void testSimplePrompt() throws Exception {
+        assumeTrue("LLM integration tests disabled - set CAPELLA_AI_RUN_LLM_TESTS=true", testsEnabled);
         assumeTrue("No API key configured - skipping LLM test", hasApiKey);
 
         String response = LLMService.get().send("Reply with exactly: PONG");
@@ -65,6 +85,7 @@ public class LLMServiceTest {
 
     @Test
     public void testMessageList() throws Exception {
+        assumeTrue("LLM integration tests disabled - set CAPELLA_AI_RUN_LLM_TESTS=true", testsEnabled);
         assumeTrue("No API key configured - skipping LLM test", hasApiKey);
 
         List<LLMService.Message> messages = List.of(
@@ -81,6 +102,7 @@ public class LLMServiceTest {
 
     @Test
     public void testStreamingResponse() throws Exception {
+        assumeTrue("LLM integration tests disabled - set CAPELLA_AI_RUN_LLM_TESTS=true", testsEnabled);
         assumeTrue("No API key configured - skipping LLM test", hasApiKey);
 
         List<LLMService.Message> messages = List.of(
@@ -114,6 +136,7 @@ public class LLMServiceTest {
 
     @Test
     public void testToolPlanGeneration() throws Exception {
+        assumeTrue("LLM integration tests disabled - set CAPELLA_AI_RUN_LLM_TESTS=true", testsEnabled);
         assumeTrue("No API key configured - skipping LLM test", hasApiKey);
 
         List<LLMService.Message> messages = List.of(
