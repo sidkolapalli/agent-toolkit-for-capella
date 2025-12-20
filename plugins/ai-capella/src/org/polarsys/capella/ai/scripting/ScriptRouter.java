@@ -211,7 +211,11 @@ public final class ScriptRouter {
                 errorFeedback +
                 "\n\n" +
                 "Fix the code and return ONLY the corrected Groovy code inside a ```groovy``` block. " +
-                "Do not include explanations."
+                "Do not include explanations.\n\n" +
+                "Important API constraints:\n" +
+                "- Diagram methods are: create, createSafe, find, add, addAll, addByUuids, refresh, layout, list, listAvailable, listAvailableFormatted\n" +
+                "- Do NOT use addElement() or show() (they do not exist)\n" +
+                "- If add() fails for diagram elements, use addByUuids() with element UUIDs\n"
             )
         );
 
