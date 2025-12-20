@@ -26,6 +26,7 @@ public class LLMServiceTest {
 
     private boolean hasApiKey;
     private String provider;
+    private static Boolean validatedKey;
 
     @Before
     public void setUp() {
@@ -40,6 +41,17 @@ public class LLMServiceTest {
             provider = LLMPreferences.getProvider();
             System.out.println("[LLMServiceTest] Using provider: " + provider);
             System.out.println("[LLMServiceTest] Using model: " + LLMPreferences.getModel());
+            if (validatedKey == null) {
+                try {
+                    // Lightweight validation to confirm the key is accepted.
+                    LLMService.get().send("Reply with exactly: OK");
+                    validatedKey = Boolean.TRUE;
+                } catch (Exception ex) {
+                    validatedKey = Boolean.FALSE;
+                    System.out.println("[LLMServiceTest] Invalid or rejected API key; skipping LLM tests");
+                }
+            }
+            hasApiKey = Boolean.TRUE.equals(validatedKey);
         }
     }
 

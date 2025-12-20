@@ -61,7 +61,7 @@ public class FindersTest {
         // Common typos should have small distance
         assertEquals(1, levenshtein("sensor", "sensr"));      // missing 'o'
         assertEquals(1, levenshtein("component", "coponent")); // missing 'm'
-        assertEquals(2, levenshtein("function", "funcion"));   // missing 't', wrong 'i'
+        assertEquals(1, levenshtein("function", "funcion"));   // missing 't'
         assertEquals(2, levenshtein("logical", "logcial"));    // transposition-like
     }
 
@@ -69,7 +69,8 @@ public class FindersTest {
     public void testCaseSensitivity() throws Exception {
         // Case differences count as substitutions
         assertEquals(1, levenshtein("Sensor", "sensor"));
-        assertEquals(5, levenshtein("HELLO", "hello"));
+        // Distance exceeds MAX_EDIT_DISTANCE so it is capped at MAX_EDIT_DISTANCE + 1
+        assertEquals(4, levenshtein("HELLO", "hello"));
     }
 
     @Test
