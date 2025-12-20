@@ -112,6 +112,18 @@ api.diagram.layout(oab, "flow")
 log.info("Added activity to OAB")
 ```
 
+## Displayability Check
+
+```groovy
+def diagram = api.diagram.find("Cabin Media LA")
+def comp = api.find("LogicalComponent", "Media Server")
+if (api.diagram.isDisplayable(diagram, comp)) {
+    api.diagram.addSafe(diagram, comp)
+} else {
+    log.info("Component is not displayable on this diagram type")
+}
+```
+
 ## Safer Example: Operational Activity Breakdown
 
 ```groovy

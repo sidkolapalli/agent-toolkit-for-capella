@@ -120,6 +120,7 @@ log.info("Added ${funcs.size()} functions")
 3. **Layout after adding**: Always call `layout()` after adding multiple elements
 4. **Refresh after changes**: Call `refresh()` to sync diagram with model changes
 5. **OABD target**: Operational Activity Breakdown diagrams must target an **OperationalActivity**
+6. **Displayability check**: Use `api.diagram.isDisplayable(diagram, element)` before add for clarity
 
 ## Error Handling
 

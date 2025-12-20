@@ -328,6 +328,7 @@ public final class CodeExecutionRouter {
             "To create diagrams, use: `createSafe(type, name, target)` and validate types with `api.diagram.listAvailableFormatted()`\n\n"
         );
         sb.append(
+            "Before adding elements, you can check `api.diagram.isDisplayable(diagram, element)`.\n" +
             "When adding elements, prefer `api.diagram.addSafe()`; if needed, fall back to `addByUuids()`.\n\n"
         );
         sb.append("<example>\n");
