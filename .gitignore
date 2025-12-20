@@ -29,3 +29,6 @@ docs/log.txt
 # OS files
 Thumbs.db
 .DS_Store
+
+# build outputs
+plugins/ai-capella.tests/target/
