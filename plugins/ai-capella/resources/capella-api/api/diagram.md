@@ -157,4 +157,5 @@ log.info("Created diagram with ${components.size()} components")
 - **Functions/Activities** must be allocated first with `api.allocate(func, comp)`
 - Use `api.diagram.refresh()` after model changes
 - Use `layout()` after adding multiple elements
+- Use `api.help("diagram")` to see valid diagram methods in the current build
 - Diagram types must match the layer (SAB for SA, LAB for LA)

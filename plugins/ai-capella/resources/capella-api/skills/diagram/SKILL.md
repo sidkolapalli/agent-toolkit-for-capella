@@ -150,6 +150,8 @@ def types = api.diagram.listAvailable("SA")
 log.info("Available: " + types)
 ```
 
+Use `api.help("diagram")` to see the exact diagram methods available in this build.
+
 2. **Verify viewpoint activation:**
    - In Capella UI: Right-click project → Viewpoints Selection
    - Ensure the relevant analysis viewpoint is checked

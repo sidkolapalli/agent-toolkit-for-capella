@@ -85,6 +85,15 @@ public final class CodeExecutionRouter {
             return Result.noCode("No executable code found in response");
         }
 
+        String validationError = ApiCatalog.validateCode(code);
+        if (validationError != null) {
+            ExecutionResult execResult = ExecutionResult.fail(
+                ExecutionResult.ErrorCode.INVALID_RESULT,
+                validationError
+            );
+            return Result.failure(execResult.formatForLLM(), execResult);
+        }
+
         // Execute the code
         ExecutionResult execResult = GroovyExecutor.execute(session, code);
 
@@ -192,6 +201,7 @@ public final class CodeExecutionRouter {
             "- `api.fs` - Documentation discovery (list, read, search)\n"
         );
         sb.append("- `api.diagram` - Diagram operations\n");
+        sb.append("- `api.help(\"diagram\")` - JSON method catalog for a module\n");
         sb.append("- `log` - Logger (log.info, log.warn, log.error)\n\n");
 
         // Skill metadata (lightweight discovery)
@@ -272,6 +282,11 @@ public final class CodeExecutionRouter {
         sb.append("// Always log results\n");
         sb.append("log.info(\"Created: ${api.name(newFunc)}\")\n");
         sb.append("```\n\n");
+
+        sb.append("### API Discovery\n\n");
+        sb.append(
+            "Before using diagram APIs, call `api.help(\"diagram\")` and only use listed methods.\n\n"
+        );
 
         sb.append(
             "**For complex tasks**: First explore the documentation with `api.fs.read(\"SKILL.md\")` "

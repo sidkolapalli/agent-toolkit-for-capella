@@ -86,6 +86,20 @@ public final class CapellaAPI {
         this.fs = new FileSystemAPI();
     }
 
+    /**
+     * Get a structured JSON catalog of available API methods.
+     */
+    public String help() {
+        return ApiCatalog.help();
+    }
+
+    /**
+     * Get a structured JSON catalog for a specific module (e.g., "diagram", "fs").
+     */
+    public String help(String module) {
+        return ApiCatalog.help(module);
+    }
+
     // ========== FIND Operations ==========
 
     /**
