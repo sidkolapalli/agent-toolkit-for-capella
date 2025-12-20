@@ -44,7 +44,7 @@ public final class ApiCatalog {
         MODULE_NOTES.put(
             "api.diagram",
             List.of(
-                "Valid methods include: create, createSafe, add, addAll, addByUuids, refresh, layout, list, listAvailable, listAvailableFormatted.",
+                "Valid methods include: create, createSafe, add, addSafe, addAll, addByUuids, refresh, layout, list, listAvailable, listAvailableFormatted.",
                 "Do NOT use addElement() or show() (they do not exist).",
                 "If add() fails, use addByUuids() with element UUIDs."
             )

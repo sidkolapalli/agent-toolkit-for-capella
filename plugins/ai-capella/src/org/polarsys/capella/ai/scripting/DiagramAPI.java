@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.sirius.business.api.dialect.DialectManager;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.viewpoint.DRepresentation;
@@ -425,6 +426,46 @@ public final class DiagramAPI {
     }
 
     /**
+     * Add a semantic element to a diagram with fallbacks.
+     *
+     * <p>Tries {@link #add(DRepresentation, EObject)} first, then falls back to
+     * {@link #addByUuids(DRepresentation, List)} when mappings vary across models.
+     */
+    public boolean addSafe(DRepresentation diagram, EObject element) {
+        if (session == null) {
+            throw new IllegalStateException("No active session");
+        }
+        if (diagram == null) {
+            throw new IllegalArgumentException("Diagram cannot be null");
+        }
+        if (element == null) {
+            throw new IllegalArgumentException("Element to add cannot be null");
+        }
+
+        try {
+            return add(diagram, element);
+        } catch (IllegalArgumentException ex) {
+            String id = getElementId(element);
+            if (id != null) {
+                int added = addByUuids(diagram, List.of(id));
+                if (added > 0) {
+                    return true;
+                }
+            }
+            List<String> supported = supportedNodeTypes(diagram);
+            throw new IllegalArgumentException(
+                "Failed to add " +
+                    element.eClass().getName() +
+                    " to diagram '" +
+                    diagram.getName() +
+                    "'. Supported types: " +
+                    supported,
+                ex
+            );
+        }
+    }
+
+    /**
      * Add multiple elements to a diagram.
      */
     public int addAll(DRepresentation diagram, List<EObject> elements) {
@@ -438,6 +479,26 @@ public final class DiagramAPI {
             }
         }
         return count;
+    }
+
+    /**
+     * Return supported node types for the diagram mappings.
+     */
+    public List<String> supportedNodeTypes(DRepresentation diagram) {
+        if (diagram == null) {
+            return List.of();
+        }
+        return DiagramCommands.getSupportedDomainClasses(diagram);
+    }
+
+    /**
+     * Check whether the diagram has a mapping for this element.
+     */
+    public boolean isDisplayable(DRepresentation diagram, EObject element) {
+        if (diagram == null || element == null) {
+            return false;
+        }
+        return DiagramCommands.supportsElement(diagram, element);
     }
 
     /**
@@ -505,6 +566,25 @@ public final class DiagramAPI {
             );
         }
         return true;
+    }
+
+    private String getElementId(EObject element) {
+        if (element == null) {
+            return null;
+        }
+        String[] features = {"id", "uid", "sid"};
+        for (String featureName : features) {
+            EStructuralFeature feature = element
+                .eClass()
+                .getEStructuralFeature(featureName);
+            if (feature != null) {
+                Object value = element.eGet(feature);
+                if (value != null) {
+                    return value.toString();
+                }
+            }
+        }
+        return null;
     }
 
     // ========== Layout ==========

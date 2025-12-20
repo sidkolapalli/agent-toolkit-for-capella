@@ -327,6 +327,9 @@ public final class CodeExecutionRouter {
         sb.append(
             "To create diagrams, use: `createSafe(type, name, target)` and validate types with `api.diagram.listAvailableFormatted()`\n\n"
         );
+        sb.append(
+            "When adding elements, prefer `api.diagram.addSafe()`; if needed, fall back to `addByUuids()`.\n\n"
+        );
         sb.append("<example>\n");
         sb.append("User request: Create a System Architecture Blank diagram\n");
         sb.append("Correct code:\n");

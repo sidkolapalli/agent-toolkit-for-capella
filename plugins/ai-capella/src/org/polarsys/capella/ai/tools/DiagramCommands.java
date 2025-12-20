@@ -1346,6 +1346,88 @@ public final class DiagramCommands {
     }
 
     /**
+     * Return the list of domain classes supported by the diagram's node/container mappings.
+     */
+    public static java.util.List<String> getSupportedDomainClasses(
+        DRepresentation rep
+    ) {
+        if (!(rep instanceof DDiagram)) {
+            return java.util.List.of();
+        }
+        DDiagram diagram = (DDiagram) rep;
+        DiagramDescription desc = diagram.getDescription();
+        if (desc == null) {
+            return java.util.List.of();
+        }
+
+        java.util.Set<String> results = new java.util.LinkedHashSet<>();
+        collectMappingDomains(desc.getDefaultLayer(), results);
+        for (var layer : desc.getAdditionalLayers()) {
+            collectMappingDomains(layer, results);
+        }
+        return new java.util.ArrayList<>(results);
+    }
+
+    /**
+     * Check whether a diagram has a mapping for the given semantic element.
+     */
+    public static boolean supportsElement(DRepresentation rep, EObject semantic) {
+        if (!(rep instanceof DDiagram) || semantic == null) {
+            return false;
+        }
+        DDiagram diagram = (DDiagram) rep;
+        DiagramDescription desc = diagram.getDescription();
+        if (desc == null) {
+            return false;
+        }
+        return findNodeMapping(desc, semantic) != null;
+    }
+
+    private static void collectMappingDomains(
+        org.eclipse.sirius.diagram.description.Layer layer,
+        java.util.Set<String> results
+    ) {
+        if (layer == null) {
+            return;
+        }
+        for (ContainerMapping cm : layer.getContainerMappings()) {
+            collectMappingDomains(cm, results);
+        }
+        for (NodeMapping nm : layer.getNodeMappings()) {
+            addDomainClass(nm, results);
+        }
+    }
+
+    private static void collectMappingDomains(
+        ContainerMapping mapping,
+        java.util.Set<String> results
+    ) {
+        if (mapping == null) {
+            return;
+        }
+        addDomainClass(mapping, results);
+        for (NodeMapping sub : mapping.getSubNodeMappings()) {
+            addDomainClass(sub, results);
+        }
+        for (ContainerMapping sub : mapping.getSubContainerMappings()) {
+            collectMappingDomains(sub, results);
+        }
+    }
+
+    private static void addDomainClass(
+        AbstractNodeMapping mapping,
+        java.util.Set<String> results
+    ) {
+        if (mapping == null) {
+            return;
+        }
+        String domainClass = mapping.getDomainClass();
+        if (domainClass != null && !domainClass.isBlank()) {
+            results.add(domainClass);
+        }
+    }
+
+    /**
      * Check if a mapping's domain class matches the element's class.
      */
     private static boolean mappingMatchesClass(

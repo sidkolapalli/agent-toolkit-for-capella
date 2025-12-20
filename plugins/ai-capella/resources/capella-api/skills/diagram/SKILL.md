@@ -58,7 +58,7 @@ def diagram = api.diagram.createSafe("SAB", "All Components", saLayer)
 // Add all components to diagram
 def components = api.findAll("SystemComponent")
 components.each { comp ->
-    api.diagram.add(diagram, comp)
+    api.diagram.addSafe(diagram, comp)
 }
 
 // Layout for readability
@@ -76,14 +76,14 @@ def comp = api.find("SystemComponent", "Flight Controller")
 def diagram = api.diagram.createSafe("SAB", "Flight Controller View", comp)
 
 // Add the component
-api.diagram.add(diagram, comp)
+api.diagram.addSafe(diagram, comp)
 
 // Add allocated functions (must be allocated first)
 def functions = api.findAll("SystemFunction").findAll { func ->
     api.isAllocatedTo(func, comp)
 }
 functions.each { func ->
-    api.diagram.add(diagram, func)
+    api.diagram.addSafe(diagram, func)
 }
 
 api.diagram.layout(diagram)
@@ -101,7 +101,7 @@ def diagram = api.diagram.find("System Overview")
 // Find functions to add
 def funcs = api.findAll("SystemFunction")
 funcs.each { func ->
-    api.diagram.add(diagram, func)
+    api.diagram.addSafe(diagram, func)
 }
 
 api.diagram.refresh(diagram)
@@ -114,7 +114,8 @@ log.info("Added ${funcs.size()} functions")
 ## Important Notes
 
 1. **Prefer createSafe**: `createSafe()` validates descriptors and targets before creation
-2. **Target element**: The third parameter to `create()`/`createSafe()` is the semantic target element
+2. **Prefer addSafe**: `addSafe()` falls back to UUID reveal when `add()` fails
+3. **Target element**: The third parameter to `create()`/`createSafe()` is the semantic target element
 2. **Functions need allocation**: Functions/activities only appear inside components if allocated with `api.allocate(func, comp)`
 3. **Layout after adding**: Always call `layout()` after adding multiple elements
 4. **Refresh after changes**: Call `refresh()` to sync diagram with model changes

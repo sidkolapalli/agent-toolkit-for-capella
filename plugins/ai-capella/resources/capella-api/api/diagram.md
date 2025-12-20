@@ -37,6 +37,9 @@ def comp = api.find("SystemComponent", "Main Controller")
 
 // Add element to diagram
 api.diagram.add(diagram, comp)
+
+// Safer add with fallback
+api.diagram.addSafe(diagram, comp)
 ```
 
 ## Target Rules (important)
@@ -158,4 +161,5 @@ log.info("Created diagram with ${components.size()} components")
 - Use `api.diagram.refresh()` after model changes
 - Use `layout()` after adding multiple elements
 - Use `api.help("diagram")` to see valid diagram methods in the current build
+- Use `api.diagram.addSafe()` to handle models where `add()` fails
 - Diagram types must match the layer (SAB for SA, LAB for LA)

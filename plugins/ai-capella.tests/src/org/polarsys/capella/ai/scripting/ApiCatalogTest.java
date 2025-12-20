@@ -12,6 +12,7 @@ public class ApiCatalogTest {
         assertNotNull(json);
         assertTrue(json.contains("\"api.diagram\""));
         assertTrue(json.contains("createSafe"));
+        assertTrue(json.contains("addSafe"));
         assertTrue(json.contains("addByUuids"));
     }
 
