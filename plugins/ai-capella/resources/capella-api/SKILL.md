@@ -9,6 +9,7 @@ You can manipulate Capella models using Groovy code.
 3. **Search**: `api.fs.search("component")` - find relevant documentation
 4. **Search with detail**: `api.fs.search("component", "name")` - name only, "description", or "full"
 5. **Skills**: `api.fs.list("skills/")` - see reusable patterns
+6. **Skill metadata**: `api.fs.listSkillMetadata()` - view skill summaries without loading full files
 
 ### Saving Your Own Skills
 

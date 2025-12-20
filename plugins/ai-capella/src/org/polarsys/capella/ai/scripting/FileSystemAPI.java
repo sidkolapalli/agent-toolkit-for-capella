@@ -85,6 +85,35 @@ public final class FileSystemAPI {
         FULL,
     }
 
+    /** Parsed metadata for a skill entry. */
+    public static final class SkillMetadata {
+        public final String name;
+        public final String summary;
+        public final List<String> keywords;
+        public final List<String> layers;
+        public final String whenToUse;
+        public final String difficulty;
+        public final String path;
+
+        private SkillMetadata(
+            String name,
+            String summary,
+            List<String> keywords,
+            List<String> layers,
+            String whenToUse,
+            String difficulty,
+            String path
+        ) {
+            this.name = name;
+            this.summary = summary;
+            this.keywords = keywords != null ? List.copyOf(keywords) : List.of();
+            this.layers = layers != null ? List.copyOf(layers) : List.of();
+            this.whenToUse = whenToUse;
+            this.difficulty = difficulty;
+            this.path = path;
+        }
+    }
+
     // Static directory index for OSGi bundle compatibility
     private static final java.util.Map<String, List<String>> DIRECTORY_INDEX =
         new java.util.HashMap<>();
@@ -118,12 +147,16 @@ public final class FileSystemAPI {
             List.of(
                 "SKILL.md",
                 "arcadia-workflow/",
+                "diagram/",
                 "interface/",
+                "requirements/",
                 "state-machine/"
             )
         );
         DIRECTORY_INDEX.put("skills/arcadia-workflow/", List.of("SKILL.md"));
+        DIRECTORY_INDEX.put("skills/diagram/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("skills/interface/", List.of("SKILL.md"));
+        DIRECTORY_INDEX.put("skills/requirements/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("skills/state-machine/", List.of("SKILL.md"));
     }
 
@@ -141,30 +174,23 @@ public final class FileSystemAPI {
             normalizedPath = normalizedPath + "/";
         }
 
-        // Use static index for OSGi bundle compatibility
-        List<String> entries = DIRECTORY_INDEX.get(normalizedPath);
-        if (entries != null) {
-            return new ArrayList<>(entries);
+        List<String> entries = listFromResources(normalizedPath);
+        if (!entries.isEmpty()) {
+            return mergeWithUserSkills(normalizedPath, entries);
         }
 
-        // Also check user skills directory
-        if (normalizedPath.equals("user-skills/") || normalizedPath.isEmpty()) {
-            List<String> result = new ArrayList<>();
-            if (normalizedPath.isEmpty()) {
-                result.addAll(DIRECTORY_INDEX.getOrDefault("", List.of()));
-                List<String> userSkills = listSkills();
-                if (!userSkills.isEmpty()) {
-                    result.add("user-skills/");
-                }
-            } else {
-                result.addAll(
-                    listSkills()
-                        .stream()
-                        .map(s -> s + ".groovy")
-                        .toList()
-                );
-            }
-            return result;
+        // Use static index for OSGi bundle compatibility
+        entries = DIRECTORY_INDEX.get(normalizedPath);
+        if (entries != null) {
+            return mergeWithUserSkills(normalizedPath, new ArrayList<>(entries));
+        }
+
+        if (normalizedPath.equals("user-skills/")) {
+            return listUserSkillsEntries();
+        }
+
+        if (normalizedPath.isEmpty()) {
+            return mergeWithUserSkills(normalizedPath, new ArrayList<>());
         }
 
         return new ArrayList<>();
@@ -458,6 +484,18 @@ public final class FileSystemAPI {
         return deleted;
     }
 
+    /**
+     * List metadata for all built-in skills (metadata only).
+     *
+     * @return list of skill metadata entries
+     */
+    public List<SkillMetadata> listSkillMetadata() {
+        List<SkillMetadata> results = new ArrayList<>();
+        results.addAll(listSkillMetadataFromDir("skills/"));
+        results.addAll(listUserSkillMetadata());
+        return results;
+    }
+
     // ========== Private Helpers ==========
 
     private String normalizePath(String path) {
@@ -469,6 +507,256 @@ public final class FileSystemAPI {
         // Prevent path traversal
         normalized = normalized.replace("..", "");
         return normalized;
+    }
+
+    private List<String> listFromResources(String normalizedPath) {
+        String basePath = normalizedPath;
+        String resourcePath = DOCS_ROOT + (basePath.isEmpty() ? "" : "/" + basePath);
+        try {
+            URL url = getClass().getClassLoader().getResource(resourcePath);
+            if (url == null) {
+                return new ArrayList<>();
+            }
+            if ("file".equalsIgnoreCase(url.getProtocol())) {
+                Path dir = Paths.get(url.toURI());
+                return listFromFileSystem(dir, basePath);
+            }
+            if ("jar".equalsIgnoreCase(url.getProtocol())) {
+                return listFromJar(url.toURI(), basePath);
+            }
+            return listFromClasspathResources(basePath);
+        } catch (Exception e) {
+            LOG.log(Level.FINE, "Error listing resources: " + normalizedPath, e);
+            return new ArrayList<>();
+        }
+    }
+
+    private List<String> mergeWithUserSkills(String normalizedPath, List<String> entries) {
+        if (!normalizedPath.isEmpty()) {
+            return entries;
+        }
+        List<String> result = new ArrayList<>(entries);
+        List<String> userSkills = listUserSkillsEntries();
+        if (!userSkills.isEmpty() && !result.contains("user-skills/")) {
+            result.add("user-skills/");
+        }
+        return result;
+    }
+
+    private List<String> listUserSkillsEntries() {
+        List<String> result = new ArrayList<>();
+        List<String> skills = listSkills();
+        for (String name : skills) {
+            result.add(name + ".groovy");
+        }
+        File skillsDir = new File(USER_SKILLS_DIR);
+        if (skillsDir.exists()) {
+            File[] mdFiles = skillsDir.listFiles((dir, filename) -> filename.endsWith(".md"));
+            if (mdFiles != null) {
+                for (File mdFile : mdFiles) {
+                    if (!result.contains(mdFile.getName())) {
+                        result.add(mdFile.getName());
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private List<SkillMetadata> listSkillMetadataFromDir(String baseDir) {
+        List<String> entries = list(baseDir);
+        if (entries.isEmpty()) {
+            return List.of();
+        }
+
+        List<SkillMetadata> results = new ArrayList<>();
+        for (String entry : entries) {
+            if ("SKILL.md".equals(entry)) {
+                continue;
+            }
+            if (entry.endsWith("/")) {
+                String path = baseDir + entry + "SKILL.md";
+                SkillMetadata meta = parseSkillMetadata(path);
+                if (meta != null) {
+                    results.add(meta);
+                }
+            } else if (entry.endsWith(".md")) {
+                String path = baseDir + entry;
+                SkillMetadata meta = parseSkillMetadata(path);
+                if (meta != null) {
+                    results.add(meta);
+                }
+            }
+        }
+
+        return results;
+    }
+
+    private List<SkillMetadata> listUserSkillMetadata() {
+        File skillsDir = new File(USER_SKILLS_DIR);
+        if (!skillsDir.exists() || !skillsDir.isDirectory()) {
+            return List.of();
+        }
+
+        File[] mdFiles = skillsDir.listFiles((dir, filename) -> filename.endsWith(".md"));
+        if (mdFiles == null || mdFiles.length == 0) {
+            return List.of();
+        }
+
+        List<SkillMetadata> results = new ArrayList<>();
+        for (File mdFile : mdFiles) {
+            try {
+                String content = Files.readString(mdFile.toPath(), StandardCharsets.UTF_8);
+                String path = "user-skills/" + mdFile.getName();
+                SkillMetadata meta = parseSkillMetadata(path, content);
+                if (meta != null) {
+                    results.add(meta);
+                }
+            } catch (IOException e) {
+                LOG.log(Level.WARNING, "Failed to read user skill metadata: " + mdFile.getName(), e);
+            }
+        }
+
+        return results;
+    }
+
+    private SkillMetadata parseSkillMetadata(String path) {
+        String content = read(path);
+        return parseSkillMetadata(path, content);
+    }
+
+    private SkillMetadata parseSkillMetadata(String path, String content) {
+        if (content == null || content.isBlank() || content.contains("File not found")) {
+            return null;
+        }
+
+        Frontmatter fm = parseFrontmatter(content);
+        String name = fm.get("name");
+        String summary = fm.get("summary");
+        if (summary == null || summary.isBlank()) {
+            summary = fm.get("description");
+        }
+        List<String> keywords = fm.getList("keywords");
+        List<String> layers = fm.getList("layer");
+        String whenToUse = fm.get("when_to_use");
+        String difficulty = fm.get("difficulty");
+
+        if (name == null || name.isBlank()) {
+            name = path;
+        }
+        if (summary == null || summary.isBlank()) {
+            summary = extractFirstLine(content);
+        }
+
+        return new SkillMetadata(
+            name.trim(),
+            summary != null ? summary.trim() : "",
+            keywords,
+            layers,
+            whenToUse,
+            difficulty,
+            path
+        );
+    }
+
+    private static final class Frontmatter {
+        private final java.util.Map<String, String> values = new java.util.HashMap<>();
+
+        String get(String key) {
+            return values.get(key);
+        }
+
+        List<String> getList(String key) {
+            String value = values.get(key);
+            if (value == null || value.isBlank()) {
+                return List.of();
+            }
+            return parseList(value);
+        }
+    }
+
+    private Frontmatter parseFrontmatter(String content) {
+        Frontmatter fm = new Frontmatter();
+        if (content == null || !content.startsWith("---")) {
+            return fm;
+        }
+
+        String[] lines = content.split("\n");
+        int i = 1;
+        String pendingListKey = null;
+        for (; i < lines.length; i++) {
+            String line = lines[i].trim();
+            if (line.equals("---")) {
+                break;
+            }
+            if (line.isEmpty() || line.startsWith("#")) {
+                continue;
+            }
+            if (line.startsWith("- ") && pendingListKey != null) {
+                String item = stripQuotes(line.substring(2).trim());
+                String existing = fm.values.getOrDefault(pendingListKey, "");
+                String merged = existing.isBlank() ? item : existing + ", " + item;
+                fm.values.put(pendingListKey, merged);
+                continue;
+            }
+            int idx = line.indexOf(':');
+            if (idx <= 0) {
+                continue;
+            }
+            String key = line.substring(0, idx).trim();
+            String value = line.substring(idx + 1).trim();
+            if (value.isEmpty()) {
+                pendingListKey = key;
+                fm.values.put(key, "");
+                continue;
+            }
+            pendingListKey = null;
+            fm.values.put(key, stripQuotes(value));
+        }
+
+        return fm;
+    }
+
+    private static String stripQuotes(String value) {
+        if (value == null || value.length() < 2) {
+            return value;
+        }
+        if ((value.startsWith("\"") && value.endsWith("\"")) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
+    }
+
+    private static List<String> parseList(String value) {
+        String trimmed = value.trim();
+        String listBody = trimmed;
+        if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+            listBody = trimmed.substring(1, trimmed.length() - 1);
+        }
+        if (listBody.isBlank()) {
+            return List.of();
+        }
+        String[] parts = listBody.split(",");
+        List<String> result = new ArrayList<>();
+        for (String part : parts) {
+            String item = stripQuotes(part.trim());
+            if (!item.isEmpty()) {
+                result.add(item);
+            }
+        }
+        return result;
+    }
+
+    private static String extractFirstLine(String content) {
+        if (content == null) {
+            return "";
+        }
+        return content.lines()
+            .filter(l -> !l.isBlank() && !l.startsWith("#") && !l.startsWith("---"))
+            .findFirst()
+            .orElse("")
+            .trim();
     }
 
     private List<String> listFromJar(URI jarUri, String basePath)

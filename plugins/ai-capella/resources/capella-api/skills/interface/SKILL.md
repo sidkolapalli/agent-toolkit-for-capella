@@ -1,3 +1,12 @@
+---
+name: Interface Definition
+summary: Define interfaces between components with exchanges and ports.
+keywords: [interface, port, exchange, component exchange, functional exchange]
+layer: [SA, LA, PA]
+when_to_use: User requests component interfaces or exchanges.
+difficulty: intermediate
+---
+
 # Interface Definition Pattern
 
 Define interfaces between components with exchanges and ports.
