@@ -19,6 +19,7 @@ import org.polarsys.capella.ai.telemetry.Telemetry;
 public final class ScriptRouter {
 
     private ScriptRouter() {}
+    private static final int MAX_EXECUTION_RETRIES = 1;
 
     /**
      * Result of a chat interaction.
@@ -119,9 +120,21 @@ public final class ScriptRouter {
 
             // Check if response contains executable code
             if (CodeExecutionRouter.containsCode(reply)) {
-                // Execute the code
+                // Execute the code (with one correction attempt on error)
                 CodeExecutionRouter.Result execResult =
-                    CodeExecutionRouter.execute(session, reply);
+                    CodeExecutionRouter.executeWithRetry(
+                        session,
+                        reply,
+                        MAX_EXECUTION_RETRIES,
+                        (previousResponse, errorFeedback) ->
+                            requestCorrection(
+                                session,
+                                userMessage,
+                                history,
+                                previousResponse,
+                                errorFeedback
+                            )
+                    );
 
                 if (execResult.success) {
                     return Result.executed(reply, execResult.executionResult);
@@ -170,6 +183,39 @@ public final class ScriptRouter {
         messages.add(LLMService.Message.user(userMessage));
 
         return messages;
+    }
+
+    private static String requestCorrection(
+        Session session,
+        String userMessage,
+        List<LLMService.Message> history,
+        String previousResponse,
+        String errorFeedback
+    ) {
+        List<LLMService.Message> messages = new ArrayList<>();
+        String systemPrompt = buildSystemPrompt(session);
+        messages.add(LLMService.Message.system(systemPrompt));
+
+        int historyLimit = 10;
+        int startIdx = Math.max(0, history.size() - historyLimit);
+        for (int i = startIdx; i < history.size(); i++) {
+            messages.add(history.get(i));
+        }
+
+        messages.add(LLMService.Message.user(userMessage));
+        messages.add(LLMService.Message.assistant(previousResponse));
+        messages.add(
+            LLMService.Message.user(
+                "The previous code failed to execute.\n\n" +
+                "Error:\n" +
+                errorFeedback +
+                "\n\n" +
+                "Fix the code and return ONLY the corrected Groovy code inside a ```groovy``` block. " +
+                "Do not include explanations."
+            )
+        );
+
+        return LLMService.get().send(messages);
     }
 
     /**
