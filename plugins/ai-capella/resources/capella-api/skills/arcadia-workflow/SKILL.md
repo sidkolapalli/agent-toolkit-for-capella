@@ -1,3 +1,12 @@
+---
+name: ARCADIA Workflow
+summary: Create a complete model across OA to SA to LA to PA.
+keywords: [arcadia, workflow, oa, sa, la, pa]
+layer: [OA, SA, LA, PA]
+when_to_use: User wants a full end-to-end model or multi-layer setup.
+difficulty: advanced
+---
+
 # Full ARCADIA Workflow
 
 Create a complete model across all architecture layers (OA→SA→LA→PA).

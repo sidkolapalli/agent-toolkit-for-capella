@@ -1,3 +1,12 @@
+---
+name: State Machine Creation
+summary: Create state machines with modes and transitions.
+keywords: [state machine, state, mode, transition, fsm]
+layer: [LA, PA]
+when_to_use: User requests state-based behavior modeling.
+difficulty: intermediate
+---
+
 # State Machine Pattern
 
 Create a complete state machine with modes and transitions.

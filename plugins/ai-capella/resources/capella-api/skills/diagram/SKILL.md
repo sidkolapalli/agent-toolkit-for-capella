@@ -1,3 +1,12 @@
+---
+name: Diagram Creation
+summary: Create and populate Capella diagrams.
+keywords: [diagram, sab, lab, pab, layout, view]
+layer: [OA, SA, LA, PA]
+when_to_use: User asks to create or modify diagrams.
+difficulty: beginner
+---
+
 # Diagram Creation Skill
 
 Create and populate Capella diagrams.
