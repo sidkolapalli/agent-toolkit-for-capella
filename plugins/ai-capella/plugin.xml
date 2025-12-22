@@ -72,4 +72,8 @@
             class="org.polarsys.capella.ai.preferences.AdvancedPreferencePage"
             category="org.polarsys.capella.preferences"/>
     </extension>
+
+    <extension point="org.eclipse.ui.startup">
+        <startup class="org.polarsys.capella.ai.dev.DevServerStartup"/>
+    </extension>
 </plugin>
