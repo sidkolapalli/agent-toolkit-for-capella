@@ -13,6 +13,14 @@ import org.polarsys.capella.ai.model.ElementFactory;
 import org.polarsys.capella.ai.model.FindResult;
 import org.polarsys.capella.ai.session.OperationInferencer;
 import org.polarsys.capella.ai.session.SessionSafeguards;
+import org.polarsys.capella.core.data.capellacore.CapellaElement;
+import org.polarsys.capella.core.data.cs.BlockArchitecture;
+import org.polarsys.capella.core.data.fa.AbstractFunction;
+import org.polarsys.capella.core.data.fa.ComponentExchange;
+import org.polarsys.capella.core.data.fa.FunctionalExchange;
+import org.polarsys.capella.core.model.helpers.BlockArchitectureExt;
+import org.polarsys.capella.core.model.helpers.ComponentExchangeExt;
+import org.polarsys.capella.core.model.helpers.FunctionalExchangeExt;
 
 /**
  * Factory for creating relationships between Capella model elements.
@@ -149,6 +157,7 @@ public final class RelationFactory {
                 EObject container = findExchangeContainer(
                     session,
                     source,
+                    target,
                     "FunctionalExchange"
                 );
                 if (container == null) {
@@ -167,6 +176,15 @@ public final class RelationFactory {
                 if (exchange != null) {
                     assignEndpoint(exchange, "source", source);
                     assignEndpoint(exchange, "target", target);
+                    try {
+                        if (exchange instanceof FunctionalExchange) {
+                            FunctionalExchangeExt.attachToDefaultContainer(
+                                (FunctionalExchange) exchange
+                            );
+                        }
+                    } catch (Throwable ignored) {
+                        // Best effort: fall back to existing container
+                    }
                     OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "FunctionalExchange");
                 }
                 return exchange;
@@ -190,6 +208,7 @@ public final class RelationFactory {
                 EObject container = findExchangeContainer(
                     session,
                     source,
+                    target,
                     "ComponentExchange"
                 );
                 if (container == null) {
@@ -208,6 +227,15 @@ public final class RelationFactory {
                 if (exchange != null) {
                     assignEndpoint(exchange, "source", source);
                     assignEndpoint(exchange, "target", target);
+                    try {
+                        if (exchange instanceof ComponentExchange) {
+                            ComponentExchangeExt.attachToDefaultContainer(
+                                (ComponentExchange) exchange
+                            );
+                        }
+                    } catch (Throwable ignored) {
+                        // Best effort: fall back to existing container
+                    }
                     OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "ComponentExchange");
                 }
                 return exchange;
@@ -530,9 +558,99 @@ public final class RelationFactory {
      */
     private static EObject findExchangeContainer(
         Session session,
+        EObject source,
+        EObject target,
+        String exchangeType
+    ) {
+        EObject container = findExchangeContainerByHelpers(
+            source,
+            target,
+            exchangeType
+        );
+        if (container != null) {
+            return container;
+        }
+        container = findExchangeContainerFallback(session, source, exchangeType);
+        if (container != null) {
+            return container;
+        }
+        return findExchangeContainerFallback(session, target, exchangeType);
+    }
+
+    private static EObject findExchangeContainerByHelpers(
+        EObject source,
+        EObject target,
+        String exchangeType
+    ) {
+        if (source == null || exchangeType == null) {
+            return null;
+        }
+        String normalized = exchangeType.trim().toLowerCase(Locale.ROOT);
+        try {
+            if ("functionalexchange".equals(normalized)) {
+                if (
+                    source instanceof AbstractFunction &&
+                    target instanceof AbstractFunction
+                ) {
+                    AbstractFunction container =
+                        FunctionalExchangeExt.getDefaultContainer(
+                            (AbstractFunction) source,
+                            (AbstractFunction) target
+                        );
+                    if (container != null) {
+                        return container;
+                    }
+                }
+                BlockArchitecture arch =
+                    BlockArchitectureExt.getRootBlockArchitecture(source);
+                if (arch != null) {
+                    AbstractFunction rootFunction =
+                        BlockArchitectureExt.getRootFunction(arch, false);
+                    if (rootFunction != null) {
+                        return rootFunction;
+                    }
+                }
+            }
+            if ("componentexchange".equals(normalized)) {
+                if (
+                    source instanceof CapellaElement &&
+                    target instanceof CapellaElement
+                ) {
+                    CapellaElement container =
+                        ComponentExchangeExt.getDefaultContainer(
+                            (CapellaElement) source,
+                            (CapellaElement) target
+                        );
+                    if (container != null) {
+                        return container;
+                    }
+                }
+                BlockArchitecture arch =
+                    BlockArchitectureExt.getRootBlockArchitecture(source);
+                if (arch != null) {
+                    EObject pkg = BlockArchitectureExt.getComponentPkg(
+                        arch,
+                        false
+                    );
+                    if (pkg != null) {
+                        return pkg;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+            return null;
+        }
+        return null;
+    }
+
+    private static EObject findExchangeContainerFallback(
+        Session session,
         EObject nearElement,
         String exchangeType
     ) {
+        if (nearElement == null) {
+            return null;
+        }
         // Navigate up to find a suitable container
         EObject current = nearElement;
         while (current != null) {

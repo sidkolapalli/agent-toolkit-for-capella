@@ -5,10 +5,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 import org.eclipse.emf.common.command.CommandStack;
+import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.sirius.business.api.session.Session;
@@ -22,6 +25,16 @@ import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.model.index.ModelIndex;
 import org.polarsys.capella.ai.session.OperationInferencer;
 import org.polarsys.capella.ai.session.SessionSafeguards;
+import org.polarsys.capella.core.data.capellamodeller.Project;
+import org.polarsys.capella.core.data.cs.CsFactory;
+import org.polarsys.capella.core.data.cs.BlockArchitecture;
+import org.polarsys.capella.core.data.cs.Part;
+import org.polarsys.capella.core.data.fa.ComponentExchange;
+import org.polarsys.capella.core.data.fa.FunctionalExchange;
+import org.polarsys.capella.core.model.helpers.BlockArchitectureExt;
+import org.polarsys.capella.core.model.helpers.ComponentExchangeExt;
+import org.polarsys.capella.core.model.helpers.FunctionalExchangeExt;
+import org.polarsys.capella.core.model.helpers.SystemEngineeringExt;
 
 /**
  * Main API facade for Groovy scripts in Capella AI.
@@ -98,6 +111,35 @@ public final class CapellaAPI {
      */
     public String help(String module) {
         return ApiCatalog.help(module);
+    }
+
+    /**
+     * Report runtime capabilities so scripts can adapt safely.
+     */
+    public String capabilities() {
+        boolean systemEngineeringHelper = isClassPresent(
+            "org.polarsys.capella.core.model.helpers.SystemEngineeringExt"
+        );
+        boolean blockArchitectureHelper = isClassPresent(
+            "org.polarsys.capella.core.model.helpers.BlockArchitectureExt"
+        );
+        boolean interpreterAvailable = getInterpreter(session) != null;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        sb.append("\"helpers\":{");
+        sb.append("\"systemEngineering\":").append(systemEngineeringHelper).append(",");
+        sb.append("\"blockArchitecture\":").append(blockArchitectureHelper);
+        sb.append("},");
+        sb.append("\"interpreter\":{");
+        sb.append("\"available\":").append(interpreterAvailable);
+        sb.append("},");
+        sb.append("\"fallbacks\":{");
+        sb.append("\"semanticServices\":")
+            .append(!(systemEngineeringHelper && blockArchitectureHelper));
+        sb.append("}");
+        sb.append("}");
+        return sb.toString();
     }
 
     // ========== FIND Operations ==========
@@ -392,6 +434,60 @@ public final class CapellaAPI {
         return created;
     }
 
+    /**
+     * Ensure a Part exists for the given component (useful for architecture diagrams).
+     *
+     * @param component the component to create a Part for
+     * @return the existing or newly created Part, or null if unavailable
+     */
+    public EObject ensurePart(EObject component) {
+        return ensurePart(component, null);
+    }
+
+    /**
+     * Ensure a Part exists for the given component, optionally scoped to a root component.
+     *
+     * @param component the component to create a Part for
+     * @param preferredRoot the preferred root component/container for the Part
+     * @return the existing or newly created Part, or null if unavailable
+     */
+    public EObject ensurePart(EObject component, EObject preferredRoot) {
+        if (session == null || component == null) {
+            return null;
+        }
+        if (isPart(component)) {
+            return component;
+        }
+        if (!isComponentLike(component)) {
+            return null;
+        }
+        EObject existing = findPartForComponent(component);
+        if (existing != null) {
+            return existing;
+        }
+        EObject container = resolvePartContainer(component, preferredRoot);
+        if (container == null) {
+            return null;
+        }
+        String partName = getName(component);
+        if (partName == null || partName.isBlank()) {
+            partName = component.eClass().getName();
+        }
+        String finalPartName = partName;
+        return SessionSafeguards.runWrite(session, "Create Part", () -> {
+            Part part = CsFactory.eINSTANCE.createPart();
+            part.setName(finalPartName);
+            setFeatureIfPresent(part, "abstractType", component);
+            setFeatureIfPresent(part, "type", component);
+            if (!addToContainment(container, part)) {
+                return null;
+            }
+            OperationInferencer.recordCreate("Part", finalPartName);
+            invalidate();
+            return part;
+        });
+    }
+
     // ========== MODIFY Operations ==========
 
     /**
@@ -669,6 +765,54 @@ public final class CapellaAPI {
     // ========== NAVIGATION Operations ==========
 
     /**
+     * Get the SystemEngineering root (semantic services).
+     */
+    public EObject systemEngineering() {
+        if (session == null) {
+            return null;
+        }
+        try {
+            for (Resource res : session.getSemanticResources()) {
+                if (res == null || res.getContents().isEmpty()) {
+                    continue;
+                }
+                EObject root = res.getContents().get(0);
+                if (root instanceof Project) {
+                    EObject se =
+                        SystemEngineeringExt.getSystemEngineering(
+                            (Project) root
+                        );
+                    if (se != null) {
+                        return se;
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            // Best effort
+        }
+        // Fallback: pure EMF traversal
+        try {
+            for (Resource res : session.getSemanticResources()) {
+                if (res == null || res.getContents().isEmpty()) {
+                    continue;
+                }
+                EObject root = res.getContents().get(0);
+                if (!(root instanceof Project)) {
+                    continue;
+                }
+                for (EObject child : root.eContents()) {
+                    if ("SystemEngineering".equals(child.eClass().getName())) {
+                        return child;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+            // Best effort
+        }
+        return null;
+    }
+
+    /**
      * Get an architecture layer root.
      *
      * @param name the layer name (OA, SA, LA, PA, or full names like "operational", "logical")
@@ -692,6 +836,144 @@ public final class CapellaAPI {
             layerCache.put(canonical, result);
         }
         return result;
+    }
+
+    /**
+     * Alias for {@link #layer(String)} for clarity in scripts.
+     */
+    public EObject root(String layer) {
+        return layer(layer);
+    }
+
+    /**
+     * Get a standard container (package/root) for a given layer and kind.
+     *
+     * <p>Examples:
+     * <pre>{@code
+     * def compPkg = api.container("SA", "component")
+     * def funcPkg = api.container("LA", "function")
+     * def rootFn = api.container("PA", "root-function")
+     * }</pre>
+     */
+    public EObject container(String layer, String kind) {
+        if (session == null || kind == null || kind.isBlank()) {
+            return null;
+        }
+        EObject root = layer(layer);
+        if (!(root instanceof BlockArchitecture)) {
+            return null;
+        }
+        try {
+            BlockArchitecture architecture = (BlockArchitecture) root;
+            String normalized = kind.trim().toLowerCase(Locale.ROOT);
+            switch (normalized) {
+                case "component":
+                case "components":
+                case "componentpkg":
+                case "component-pkg":
+                case "component package":
+                    return BlockArchitectureExt.getComponentPkg(
+                        architecture,
+                        false
+                    );
+                case "function":
+                case "functions":
+                case "functionpkg":
+                case "function-pkg":
+                case "function package":
+                    return BlockArchitectureExt.getFunctionPkg(
+                        architecture,
+                        false
+                    );
+                case "root-function":
+                case "root function":
+                case "rootfunction":
+                    return BlockArchitectureExt.getRootFunction(
+                        architecture,
+                        false
+                    );
+                case "data":
+                case "datapkg":
+                case "data-pkg":
+                case "data package":
+                    return BlockArchitectureExt.getDataPkg(architecture, false);
+                case "interface":
+                case "interfacepkg":
+                case "interface-pkg":
+                case "interface package":
+                    return BlockArchitectureExt.getInterfacePkg(
+                        architecture,
+                        false
+                    );
+                case "capability":
+                case "capabilitypkg":
+                case "capability-pkg":
+                case "capability package":
+                case "abstract capability":
+                case "abstractcapability":
+                    return BlockArchitectureExt.getAbstractCapabilityPkg(
+                        architecture,
+                        false
+                    );
+                case "actor":
+                case "actorpkg":
+                case "actor-pkg":
+                case "actor package":
+                    return BlockArchitectureExt.getActorPkg(architecture, false);
+                case "context":
+                case "contextpkg":
+                case "context-pkg":
+                case "context package":
+                    return BlockArchitectureExt.getContext(architecture, false);
+                default:
+                    return null;
+            }
+        } catch (Throwable ignored) {
+            // Fall through to EMF-based resolution
+        }
+        return findContainerFallback(root, kind);
+    }
+
+    /**
+     * Get a standard container for the given element using Capella semantic helpers.
+     *
+     * <p>Useful when you have a reference element and want the canonical package/root
+     * for similar elements in the same layer.
+     */
+    public EObject containerFor(EObject element) {
+        if (element == null) {
+            return null;
+        }
+        try {
+            if (element instanceof FunctionalExchange) {
+                EObject container =
+                    FunctionalExchangeExt.getDefaultContainer(
+                        (FunctionalExchange) element
+                    );
+                if (container != null) {
+                    return container;
+                }
+            }
+            if (element instanceof ComponentExchange) {
+                EObject container =
+                    ComponentExchangeExt.getDefaultContainer(
+                        (ComponentExchange) element
+                    );
+                if (container != null) {
+                    return container;
+                }
+            }
+        } catch (Throwable ignored) {
+            // Fall back to kind-based resolution
+        }
+
+        String kind = guessContainerKind(element);
+        if (kind == null) {
+            return element.eContainer();
+        }
+        String layer = guessLayerFromType(element.eClass().getName());
+        EObject container = container(layer, kind);
+        return container != null ? container : element.eContainer();
     }
 
     /**
@@ -745,6 +1027,101 @@ public final class CapellaAPI {
      */
     public String id(EObject element) {
         return getUuid(element);
+    }
+
+    /**
+     * Summarize a value for compact logging/LLM output.
+     */
+    public String summarize(Object value) {
+        return summarize(value, 5);
+    }
+
+    /**
+     * Summarize a value with a maximum number of items.
+     */
+    public String summarize(Object value, int maxItems) {
+        int limit = maxItems > 0 ? maxItems : 5;
+        if (value == null) {
+            return "null";
+        }
+        if (value instanceof EObject) {
+            EObject element = (EObject) value;
+            String name = getName(element);
+            return name != null
+                ? name + " (" + element.eClass().getName() + ")"
+                : element.eClass().getName();
+        }
+        if (value instanceof java.util.Map<?, ?> map) {
+            java.util.List<String> keys = new java.util.ArrayList<>();
+            for (Object key : map.keySet()) {
+                if (key == null) continue;
+                keys.add(key.toString());
+                if (keys.size() >= limit) break;
+            }
+            return "map(size=" +
+                map.size() +
+                ", keys=" +
+                keys +
+                ")";
+        }
+        if (value instanceof java.util.Collection<?> collection) {
+            java.util.List<String> items = new java.util.ArrayList<>();
+            for (Object item : collection) {
+                if (items.size() >= limit) break;
+                items.add(formatSummaryItem(item));
+            }
+            return "list(size=" +
+                collection.size() +
+                ", items=" +
+                items +
+                ")";
+        }
+        if (value.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(value);
+            java.util.List<String> items = new java.util.ArrayList<>();
+            for (int i = 0; i < length && i < limit; i++) {
+                Object item = java.lang.reflect.Array.get(value, i);
+                items.add(formatSummaryItem(item));
+            }
+            return "array(size=" + length + ", items=" + items + ")";
+        }
+        if (value instanceof String) {
+            String str = (String) value;
+            if (str.length() > 200) {
+                return str.substring(0, 200) + "...";
+            }
+            return str;
+        }
+        return String.valueOf(value);
+    }
+
+    /**
+     * Evaluate an AQL expression using the Sirius interpreter.
+     *
+     * @param expression AQL expression (e.g., "aql:self.name")
+     * @return the evaluation result, or null if unavailable
+     */
+    public Object aql(String expression) {
+        return aql(expression, null);
+    }
+
+    /**
+     * Evaluate an AQL expression using the Sirius interpreter with a context element.
+     *
+     * @param expression AQL expression (e.g., "aql:self.name")
+     * @param context context EObject (defaults to SystemEngineering/root if null)
+     * @return the evaluation result, or null if unavailable
+     */
+    public Object aql(String expression, EObject context) {
+        if (session == null || expression == null || expression.isBlank()) {
+            return null;
+        }
+        EObject ctx = context != null ? context : defaultAqlContext();
+        if (ctx == null) {
+            return null;
+        }
+        Object interpreter = getInterpreter(session);
+        return evaluate(interpreter, ctx, expression);
     }
 
     // ========== RAW API ACCESS ==========
@@ -850,12 +1227,16 @@ public final class CapellaAPI {
         }
 
         final String finalLabel = label;
+        if (SessionSafeguards.isInWriteContext()) {
+            OperationInferencer.hintLabel(finalLabel);
+        }
 
         // Use deferSaves to prevent intermediate saves
         return SessionSafeguards.deferSaves(session, () -> {
             // Execute everything in a single transaction with explicit label
             return SessionSafeguards.runWrite(session, finalLabel, () -> {
                 try {
+                    OperationInferencer.hintLabel(finalLabel);
                     Object result = closure.call();
                     invalidate();
                     return result;
@@ -1069,6 +1450,594 @@ public final class CapellaAPI {
             var uri = org.eclipse.emf.ecore.util.EcoreUtil.getURI(element);
             return uri != null ? uri.fragment() : null;
         } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static boolean isClassPresent(String className) {
+        if (className == null || className.isBlank()) {
+            return false;
+        }
+        try {
+            Class.forName(className, false, CapellaAPI.class.getClassLoader());
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private EObject findContainerFallback(EObject root, String kind) {
+        if (root == null || kind == null || kind.isBlank()) {
+            return null;
+        }
+        String normalized = kind.trim().toLowerCase(Locale.ROOT);
+
+        if (
+            normalized.equals("root-function") ||
+            normalized.equals("root function") ||
+            normalized.equals("rootfunction")
+        ) {
+            EObject functionPkg = findContainerFallback(root, "function");
+            EObject rootFunction = findFirstChildByClassName(
+                functionPkg != null ? functionPkg : root,
+                List.of("SystemFunction", "LogicalFunction", "PhysicalFunction", "OperationalActivity")
+            );
+            if (rootFunction != null) {
+                return rootFunction;
+            }
+        }
+
+        List<String> classHints = switch (normalized) {
+            case "component", "components", "componentpkg", "component-pkg", "component package",
+                "actor", "actorpkg", "actor-pkg", "actor package",
+                "context", "contextpkg", "context-pkg", "context package" -> List.of(
+                "ComponentPkg",
+                "SystemComponentPkg",
+                "LogicalComponentPkg",
+                "PhysicalComponentPkg",
+                "EntityPkg"
+            );
+            case "function", "functions", "functionpkg", "function-pkg", "function package" -> List.of(
+                "FunctionPkg",
+                "SystemFunctionPkg",
+                "LogicalFunctionPkg",
+                "PhysicalFunctionPkg",
+                "OperationalActivityPkg"
+            );
+            case "data", "datapkg", "data-pkg", "data package" -> List.of("DataPkg");
+            case "interface", "interfacepkg", "interface-pkg", "interface package" -> List.of("InterfacePkg");
+            case "capability", "capabilitypkg", "capability-pkg", "capability package",
+                "abstract capability", "abstractcapability" -> List.of(
+                "CapabilityPkg",
+                "AbstractCapabilityPkg"
+            );
+            default -> List.of();
+        };
+
+        EObject direct = findContainedByTypeName(root, classHints);
+        if (direct != null) {
+            return direct;
+        }
+        return findFirstChildByClassName(root, classHints);
+    }
+
+    private boolean isPart(EObject element) {
+        return element != null && "Part".equals(element.eClass().getName());
+    }
+
+    private boolean isComponentLike(EObject element) {
+        if (element == null) {
+            return false;
+        }
+        String name = element.eClass().getName();
+        if (name == null) {
+            return false;
+        }
+        return name.endsWith("Component") || name.equals("Entity");
+    }
+
+    private String guessContainerKind(EObject element) {
+        if (element == null) {
+            return null;
+        }
+        String name = element.eClass().getName();
+        if (name == null) {
+            return null;
+        }
+        if (isFunctionType(element, name)) {
+            return "root-function";
+        }
+        if (isFunctionPkgType(name)) {
+            return "function";
+        }
+        if (isComponentLike(element) || isComponentPkgType(name)) {
+            return "component";
+        }
+        if (isInterfaceType(name) || isInterfacePkgType(name)) {
+            return "interface";
+        }
+        if (isDataType(name) || isDataPkgType(name)) {
+            return "data";
+        }
+        if (isCapabilityType(name)) {
+            return "capability";
+        }
+        return null;
+    }
+
+    private boolean isFunctionType(EObject element, String name) {
+        if (name.endsWith("Function") || name.equals("OperationalActivity")) {
+            return true;
+        }
+        if (element == null) {
+            return false;
+        }
+        for (EClass superType : element.eClass().getEAllSuperTypes()) {
+            if ("AbstractFunction".equals(superType.getName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isFunctionPkgType(String name) {
+        return name.endsWith("FunctionPkg") || "FunctionPkg".equals(name) ||
+            "OperationalActivityPkg".equals(name);
+    }
+
+    private boolean isComponentPkgType(String name) {
+        return name.endsWith("ComponentPkg") || name.endsWith("EntityPkg");
+    }
+
+    private boolean isInterfacePkgType(String name) {
+        return name.endsWith("InterfacePkg") || "InterfacePkg".equals(name);
+    }
+
+    private boolean isInterfaceType(String name) {
+        return name.endsWith("Interface") && !name.endsWith("InterfacePkg");
+    }
+
+    private boolean isDataPkgType(String name) {
+        return name.endsWith("DataPkg") || "DataPkg".equals(name);
+    }
+
+    private boolean isDataType(String name) {
+        return name.endsWith("DataType") ||
+            name.equals("Class") ||
+            name.equals("Enumeration") ||
+            name.equals("ExchangeItem");
+    }
+
+    private boolean isCapabilityType(String name) {
+        return name.endsWith("Capability") ||
+            name.endsWith("CapabilityRealization") ||
+            name.endsWith("AbstractCapability");
+    }
+
+    private EObject findPartForComponent(EObject component) {
+        if (session == null || component == null) {
+            return null;
+        }
+        try {
+            for (Resource res : session.getSemanticResources()) {
+                if (res == null) {
+                    continue;
+                }
+                var it = res.getAllContents();
+                while (it.hasNext()) {
+                    EObject eo = it.next();
+                    if (!isPart(eo)) {
+                        continue;
+                    }
+                    Object abstractType = get(eo, "abstractType");
+                    if (component.equals(abstractType)) {
+                        return eo;
+                    }
+                    Object type = get(eo, "type");
+                    if (component.equals(type)) {
+                        return eo;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Best effort
+        }
+        return null;
+    }
+
+    private EObject resolvePartContainer(
+        EObject component,
+        EObject preferredRoot
+    ) {
+        EObject normalized = normalizePartContainer(preferredRoot, component);
+        if (normalized != null) {
+            return normalized;
+        }
+        EObject componentPkg = findComponentPackage(component);
+        if (componentPkg == null) {
+            componentPkg = findComponentPackageFromLayer(component);
+        }
+        if (componentPkg != null) {
+            if (canContainPart(componentPkg)) {
+                return componentPkg;
+            }
+            EObject rootComponent = findRootComponentCandidate(componentPkg);
+            if (rootComponent != null) {
+                return rootComponent;
+            }
+        }
+        EObject layerRoot = findLayerRootForComponent(component);
+        if (layerRoot != null) {
+            EObject rootComponent = findRootComponentCandidate(layerRoot);
+            if (rootComponent != null) {
+                return rootComponent;
+            }
+        }
+        EObject container = component != null ? component.eContainer() : null;
+        if (canContainPart(container)) {
+            return container;
+        }
+        return null;
+    }
+
+    private EObject normalizePartContainer(
+        EObject preferredRoot,
+        EObject component
+    ) {
+        if (preferredRoot == null) {
+            return null;
+        }
+        String name = preferredRoot.eClass().getName();
+        if (isComponentLike(preferredRoot)) {
+            EObject pkg = findComponentPackage(component);
+            if (pkg == null) {
+                pkg = findComponentPackageFromLayer(component);
+            }
+            if (pkg != null && canContainPart(pkg)) {
+                return pkg;
+            }
+            return preferredRoot;
+        }
+        if (name.contains("ComponentPkg") || name.contains("EntityPkg")) {
+            EObject rootComponent = findRootComponentCandidate(preferredRoot);
+            if (canContainPart(preferredRoot)) {
+                return preferredRoot;
+            }
+            if (rootComponent != null) {
+                return rootComponent;
+            }
+        }
+        if (name.endsWith("Analysis") || name.endsWith("Architecture")) {
+            EObject pkg = findComponentPackage(component);
+            if (pkg == null) {
+                pkg = findComponentPackageFromLayer(component);
+            }
+            if (pkg != null && canContainPart(pkg)) {
+                return pkg;
+            }
+            EObject rootComponent = findRootComponentCandidate(preferredRoot);
+            if (rootComponent != null) {
+                return rootComponent;
+            }
+        }
+        return null;
+    }
+
+    private EObject findComponentPackage(EObject element) {
+        EObject current = element;
+        while (current != null) {
+            String name = current.eClass().getName();
+            if (name.contains("ComponentPkg") || name.contains("EntityPkg")) {
+                return current;
+            }
+            current = current.eContainer();
+        }
+        return null;
+    }
+
+    private EObject findComponentPackageFromLayer(EObject element) {
+        if (element == null) {
+            return null;
+        }
+        String layer = guessLayerFromType(element.eClass().getName());
+        if (layer == null) {
+            return null;
+        }
+        EObject root = layer(layer);
+        if (root == null) {
+            return null;
+        }
+        return findContainerFallback(root, "component");
+    }
+
+    private EObject findRootComponentCandidate(EObject root) {
+        return findFirstChildByClassName(
+            root,
+            List.of("SystemComponent", "LogicalComponent", "PhysicalComponent", "Entity")
+        );
+    }
+
+    private EObject findLayerRootForComponent(EObject component) {
+        if (component == null) {
+            return null;
+        }
+        String layer = guessLayerFromType(component.eClass().getName());
+        if (layer == null) {
+            return null;
+        }
+        return layer(layer);
+    }
+
+    private boolean canContainPart(EObject container) {
+        if (container == null) {
+            return false;
+        }
+        EClass partClass = CsFactory.eINSTANCE.createPart().eClass();
+        for (EStructuralFeature feature : container
+            .eClass()
+            .getEAllStructuralFeatures()) {
+            if (!(feature instanceof EReference)) {
+                continue;
+            }
+            EReference ref = (EReference) feature;
+            if (!ref.isContainment()) {
+                continue;
+            }
+            if (!(ref.getEType() instanceof EClass)) {
+                continue;
+            }
+            EClass type = (EClass) ref.getEType();
+            if (type == partClass || type.isSuperTypeOf(partClass)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean addToContainment(EObject container, EObject child) {
+        if (container == null || child == null) {
+            return false;
+        }
+        EReference preferred = findContainmentByName(
+            container,
+            List.of("ownedFeatures", "ownedParts")
+        );
+        if (preferred != null) {
+            return addToReference(container, preferred, child);
+        }
+        EClass childClass = child.eClass();
+        for (EStructuralFeature feature : container
+            .eClass()
+            .getEAllStructuralFeatures()) {
+            if (!(feature instanceof EReference)) {
+                continue;
+            }
+            EReference ref = (EReference) feature;
+            if (!ref.isContainment()) {
+                continue;
+            }
+            if (!(ref.getEType() instanceof EClass)) {
+                continue;
+            }
+            EClass type = (EClass) ref.getEType();
+            if (type == childClass || type.isSuperTypeOf(childClass)) {
+                return addToReference(container, ref, child);
+            }
+        }
+        return false;
+    }
+
+    private EReference findContainmentByName(
+        EObject container,
+        List<String> names
+    ) {
+        if (container == null || names == null || names.isEmpty()) {
+            return null;
+        }
+        for (EStructuralFeature feature : container
+            .eClass()
+            .getEAllStructuralFeatures()) {
+            if (!(feature instanceof EReference)) {
+                continue;
+            }
+            EReference ref = (EReference) feature;
+            if (!ref.isContainment()) {
+                continue;
+            }
+            for (String name : names) {
+                if (name.equalsIgnoreCase(ref.getName())) {
+                    return ref;
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean addToReference(
+        EObject container,
+        EReference ref,
+        EObject child
+    ) {
+        try {
+            if (ref.isMany()) {
+                @SuppressWarnings("unchecked")
+                java.util.List<EObject> list =
+                    (java.util.List<EObject>) container.eGet(ref);
+                list.add(child);
+                return true;
+            }
+            container.eSet(ref, child);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean setFeatureIfPresent(
+        EObject target,
+        String featureName,
+        Object value
+    ) {
+        if (target == null || featureName == null) {
+            return false;
+        }
+        EStructuralFeature feature = target
+            .eClass()
+            .getEStructuralFeature(featureName);
+        if (feature == null || !feature.isChangeable()) {
+            return false;
+        }
+        try {
+            target.eSet(feature, value);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private EObject findContainedByTypeName(
+        EObject root,
+        List<String> classNames
+    ) {
+        if (root == null || classNames == null || classNames.isEmpty()) {
+            return null;
+        }
+        for (EStructuralFeature feature : root
+            .eClass()
+            .getEAllStructuralFeatures()) {
+            if (!(feature instanceof org.eclipse.emf.ecore.EReference)) {
+                continue;
+            }
+            var ref = (org.eclipse.emf.ecore.EReference) feature;
+            if (!ref.isContainment()) {
+                continue;
+            }
+            if (ref.getEType() instanceof org.eclipse.emf.ecore.EClass) {
+                String typeName = ref.getEType().getName();
+                if (typeName != null && classNames.contains(typeName)) {
+                    Object value = root.eGet(ref);
+                    if (value instanceof java.util.List<?>) {
+                        java.util.List<?> list = (java.util.List<?>) value;
+                        for (Object item : list) {
+                            if (item instanceof EObject) {
+                                return (EObject) item;
+                            }
+                        }
+                    } else if (value instanceof EObject) {
+                        return (EObject) value;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private EObject findFirstChildByClassName(
+        EObject root,
+        List<String> classNames
+    ) {
+        if (root == null || classNames == null || classNames.isEmpty()) {
+            return null;
+        }
+        java.util.ArrayDeque<EObject> queue = new java.util.ArrayDeque<>();
+        queue.add(root);
+        while (!queue.isEmpty()) {
+            EObject current = queue.removeFirst();
+            String name = current.eClass().getName();
+            if (name != null && classNames.contains(name)) {
+                return current;
+            }
+            for (EObject child : current.eContents()) {
+                queue.addLast(child);
+            }
+        }
+        return null;
+    }
+
+    private String formatSummaryItem(Object item) {
+        if (item == null) {
+            return "null";
+        }
+        if (item instanceof EObject) {
+            EObject eo = (EObject) item;
+            String name = getName(eo);
+            return name != null
+                ? name + " (" + eo.eClass().getName() + ")"
+                : eo.eClass().getName();
+        }
+        return item.toString();
+    }
+
+    private EObject defaultAqlContext() {
+        EObject se = systemEngineering();
+        if (se != null) {
+            return se;
+        }
+        EObject sa = layer("SA");
+        if (sa != null) {
+            return sa;
+        }
+        try {
+            for (Resource res : session.getSemanticResources()) {
+                if (res == null || res.getContents().isEmpty()) {
+                    continue;
+                }
+                return res.getContents().get(0);
+            }
+        } catch (Exception e) {
+            // Best effort
+        }
+        return null;
+    }
+
+    private static Object getInterpreter(Session session) {
+        if (session == null) {
+            return null;
+        }
+        try {
+            var method = session.getClass().getMethod("getInterpreter");
+            return method.invoke(session);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static Object evaluate(
+        Object interpreter,
+        EObject context,
+        String expression
+    ) {
+        if (interpreter == null || context == null || expression == null) {
+            return null;
+        }
+        try {
+            var method = interpreter.getClass().getMethod(
+                "evaluateExpression",
+                EObject.class,
+                String.class
+            );
+            return method.invoke(interpreter, context, expression);
+        } catch (Exception ignored) {
+            // fallback to evaluate
+        }
+        try {
+            var method = interpreter.getClass().getMethod(
+                "evaluate",
+                EObject.class,
+                String.class
+            );
+            return method.invoke(interpreter, context, expression);
+        } catch (Exception ignored) {
+            // fallback to evaluateBoolean
+        }
+        try {
+            var method = interpreter.getClass().getMethod(
+                "evaluateBoolean",
+                EObject.class,
+                String.class
+            );
+            return method.invoke(interpreter, context, expression);
+        } catch (Exception ignored) {
             return null;
         }
     }

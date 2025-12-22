@@ -7,8 +7,13 @@ import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.sirius.business.api.dialect.DialectManager;
 import org.eclipse.sirius.business.api.session.Session;
+import org.eclipse.sirius.diagram.DDiagram;
 import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.polarsys.capella.ai.tools.DiagramCommands;
+import org.polarsys.capella.core.data.cs.BlockArchitecture;
+import org.polarsys.capella.core.data.cs.Component;
+import org.polarsys.capella.core.data.fa.AbstractFunction;
+import org.polarsys.capella.core.model.helpers.BlockArchitectureExt;
 
 /**
  * Diagram operations API for Groovy scripts.
@@ -85,8 +90,11 @@ public final class DiagramAPI {
             }
         }
 
-        // Find the correct target element if the given target is a layer root
-        EObject actualTarget = findDiagramTarget(target, descriptionName);
+        // Find the correct target element for this diagram description.
+        EObject actualTarget = resolveTargetForDescription(
+            descriptionName,
+            target
+        );
         if (actualTarget == null) {
             actualTarget = target;
         }
@@ -157,6 +165,30 @@ public final class DiagramAPI {
     private EObject findDiagramTarget(EObject target, String descriptionName) {
         if (target == null) return null;
 
+        String description =
+            descriptionName != null ? descriptionName.toLowerCase() : "";
+
+        if (description.contains("function breakdown")) {
+            EObject rootFunction = findRootFunctionTarget(target);
+            if (rootFunction != null) return rootFunction;
+            EObject functionPkg = findFunctionPkgTarget(target);
+            if (functionPkg != null) return functionPkg;
+        }
+
+        if (description.contains("data flow blank")) {
+            EObject functionPkg = findFunctionPkgTarget(target);
+            if (functionPkg != null) return functionPkg;
+            EObject rootFunction = findRootFunctionTarget(target);
+            if (rootFunction != null) return rootFunction;
+        }
+
+        if (description.contains("architecture blank")) {
+            EObject rootComponent = findRootComponentTarget(target);
+            if (rootComponent != null) return rootComponent;
+            EObject componentPkg = findComponentPkgTarget(target);
+            if (componentPkg != null) return componentPkg;
+        }
+
         String targetClass = target.eClass().getName();
 
         // If target is already a valid type, use it
@@ -174,7 +206,17 @@ public final class DiagramAPI {
             targetClass.equals("LogicalArchitecture") ||
             targetClass.equals("PhysicalArchitecture")
         ) {
-            // Look for ComponentPkg or EntityPkg
+            BlockArchitecture architecture = resolveArchitecture(target);
+            if (architecture != null) {
+                EObject componentPkg = BlockArchitectureExt.getComponentPkg(
+                    architecture,
+                    false
+                );
+                if (componentPkg != null) {
+                    return componentPkg;
+                }
+            }
+            // Fallback: look for ComponentPkg or EntityPkg
             for (EObject child : target.eContents()) {
                 String childClass = child.eClass().getName();
                 if (
@@ -187,6 +229,103 @@ public final class DiagramAPI {
         }
 
         return target;
+    }
+
+    private EObject findRootComponentTarget(EObject target) {
+        BlockArchitecture architecture = resolveArchitecture(target);
+        if (architecture != null) {
+            Collection<Component> roots =
+                BlockArchitectureExt.getRootComponents(architecture);
+            if (roots != null && !roots.isEmpty()) {
+                return roots.iterator().next();
+            }
+        }
+        return findFirstByClassName(
+            target,
+            List.of("SystemComponent", "LogicalComponent", "PhysicalComponent", "Entity")
+        );
+    }
+
+    private EObject findComponentPkgTarget(EObject target) {
+        BlockArchitecture architecture = resolveArchitecture(target);
+        if (architecture != null) {
+            EObject pkg = BlockArchitectureExt.getComponentPkg(
+                architecture,
+                false
+            );
+            if (pkg != null) {
+                return pkg;
+            }
+        }
+        return findFirstByClassName(
+            target,
+            List.of(
+                "SystemComponentPkg",
+                "LogicalComponentPkg",
+                "PhysicalComponentPkg",
+                "EntityPkg",
+                "ComponentPkg"
+            )
+        );
+    }
+
+    private EObject findRootFunctionTarget(EObject target) {
+        BlockArchitecture architecture = resolveArchitecture(target);
+        if (architecture != null) {
+            AbstractFunction rootFunction = BlockArchitectureExt.getRootFunction(
+                architecture,
+                false
+            );
+            if (rootFunction != null) {
+                return rootFunction;
+            }
+        }
+        return findFirstByClassName(
+            target,
+            List.of(
+                "SystemFunction",
+                "LogicalFunction",
+                "PhysicalFunction",
+                "OperationalActivity"
+            )
+        );
+    }
+
+    private EObject findFunctionPkgTarget(EObject target) {
+        BlockArchitecture architecture = resolveArchitecture(target);
+        if (architecture != null) {
+            EObject pkg = BlockArchitectureExt.getFunctionPkg(
+                architecture,
+                false
+            );
+            if (pkg != null) {
+                return pkg;
+            }
+        }
+        return findFirstByClassName(
+            target,
+            List.of(
+                "SystemFunctionPkg",
+                "LogicalFunctionPkg",
+                "PhysicalFunctionPkg",
+                "OperationalActivityPkg",
+                "FunctionPkg"
+            )
+        );
+    }
+
+    private static BlockArchitecture resolveArchitecture(EObject target) {
+        if (target == null) {
+            return null;
+        }
+        if (target instanceof BlockArchitecture) {
+            return (BlockArchitecture) target;
+        }
+        try {
+            return BlockArchitectureExt.getRootBlockArchitecture(target);
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     private EObject resolveTargetForDescription(
@@ -255,6 +394,22 @@ public final class DiagramAPI {
 
     private static boolean classNameContains(EObject obj, String token) {
         return obj != null && obj.eClass().getName().contains(token);
+    }
+
+    private static EObject findFirstByClassName(
+        EObject root,
+        List<String> tokens
+    ) {
+        if (root == null || tokens == null || tokens.isEmpty()) {
+            return null;
+        }
+        for (String token : tokens) {
+            EObject found = findFirstByClassName(root, token);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
     private static EObject findFirstByClassName(EObject root, String token) {
@@ -414,12 +569,15 @@ public final class DiagramAPI {
         }
         boolean success = DiagramCommands.createNode(session, diagram, element);
         if (!success) {
+            List<String> supported = supportedNodeTypes(diagram);
+            String context = describeDiagramContext(diagram, supported);
             throw new IllegalArgumentException(
                 "Failed to add " +
                     element.eClass().getName() +
                     " to diagram '" +
                     diagram.getName() +
-                    "'. Element may not be displayable in this diagram type."
+                    "'. " +
+                    context
             );
         }
         return true;
@@ -445,24 +603,85 @@ public final class DiagramAPI {
         try {
             return add(diagram, element);
         } catch (IllegalArgumentException ex) {
-            String id = getElementId(element);
-            if (id != null) {
-                int added = addByUuids(diagram, List.of(id));
-                if (added > 0) {
-                    return true;
+            List<String> supported = supportedNodeTypes(diagram);
+            EObject adapted = adaptElementForDiagram(
+                diagram,
+                element,
+                supported
+            );
+            if (adapted != null && adapted != element) {
+                try {
+                    return add(diagram, adapted);
+                } catch (IllegalArgumentException adaptEx) {
+                    String adaptedId = getElementId(adapted);
+                    if (adaptedId != null) {
+                        int added = addByUuids(diagram, List.of(adaptedId));
+                        if (added > 0) {
+                            return true;
+                        }
+                    }
+                    ex = adaptEx;
                 }
             }
-            List<String> supported = supportedNodeTypes(diagram);
+
+            if (!expectsPart(supported) || !isComponentLike(element)) {
+                String id = getElementId(element);
+                if (id != null) {
+                    int added = addByUuids(diagram, List.of(id));
+                    if (added > 0) {
+                        return true;
+                    }
+                }
+            }
             throw new IllegalArgumentException(
                 "Failed to add " +
                     element.eClass().getName() +
                     " to diagram '" +
                     diagram.getName() +
-                    "'. Supported types: " +
-                    supported,
+                    "'. " +
+                    describeDiagramContext(diagram, supported),
                 ex
             );
         }
+    }
+
+    private EObject adaptElementForDiagram(
+        DRepresentation diagram,
+        EObject element,
+        List<String> supported
+    ) {
+        if (!expectsPart(supported) || !isComponentLike(element)) {
+            return null;
+        }
+        EObject target = DiagramCommands.getDiagramTarget(diagram);
+        CapellaAPI api = new CapellaAPI(session);
+        return api.ensurePart(element, target);
+    }
+
+    private boolean expectsPart(List<String> supported) {
+        if (supported == null || supported.isEmpty()) {
+            return false;
+        }
+        for (String entry : supported) {
+            if (entry == null) {
+                continue;
+            }
+            if (entry.equals("Part") || entry.endsWith(".Part")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isComponentLike(EObject element) {
+        if (element == null) {
+            return false;
+        }
+        String name = element.eClass().getName();
+        if (name == null) {
+            return false;
+        }
+        return name.endsWith("Component") || name.equals("Entity");
     }
 
     /**
@@ -509,6 +728,33 @@ public final class DiagramAPI {
             return 0;
         }
         return DiagramCommands.addElementsByUuid(session, diagram, uuids);
+    }
+
+    private String describeDiagramContext(
+        DRepresentation diagram,
+        List<String> supported
+    ) {
+        StringBuilder sb = new StringBuilder();
+        String descriptor = getDescriptorName(diagram);
+        if (descriptor != null && !descriptor.isBlank()) {
+            sb.append("Descriptor: ").append(descriptor).append(". ");
+        }
+        if (supported != null && !supported.isEmpty()) {
+            sb.append("Supported types: ").append(supported);
+        } else if (sb.length() == 0) {
+            sb.append("Element may not be displayable in this diagram type.");
+        }
+        return sb.toString().trim();
+    }
+
+    private String getDescriptorName(DRepresentation diagram) {
+        if (diagram instanceof DDiagram) {
+            var desc = ((DDiagram) diagram).getDescription();
+            if (desc != null) {
+                return desc.getName();
+            }
+        }
+        return null;
     }
 
     /**

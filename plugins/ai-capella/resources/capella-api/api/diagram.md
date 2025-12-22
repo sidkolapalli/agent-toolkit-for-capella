@@ -39,7 +39,7 @@ def comp = api.find("SystemComponent", "Main Controller")
 api.diagram.add(diagram, comp)
 
 // Safer add with fallback
-api.diagram.addSafe(diagram, comp)
+api.diagram.addSafe(diagram, comp)  // Auto-adapts to Parts when required
 ```
 
 ## Target Rules (important)
@@ -47,7 +47,7 @@ api.diagram.addSafe(diagram, comp)
 - **Operational Activity Breakdown** diagrams must target an **OperationalActivity**
 - **Operational Entity** diagrams target **EntityPkg** (or an **Entity**)
 - **Operational Capability** diagrams target **OperationalCapabilityPkg** (or a capability)
-- Architecture blanks (SAB/LAB/PAB) should target the **ComponentPkg** under the layer
+- Architecture blanks (SAB/LAB/PAB) should target the **root component** (System/Logical/Physical)
 
 If diagram creation fails, use:
 
@@ -124,6 +124,14 @@ if (api.diagram.isDisplayable(diagram, comp)) {
 }
 ```
 
+## Supported Node Types
+
+```groovy
+def diagram = api.diagram.find("System Architecture Blank")
+def supported = api.diagram.supportedNodeTypes(diagram)
+log.info("Supported types: ${supported}")
+```
+
 ## Safer Example: Operational Activity Breakdown
 
 ```groovy
@@ -144,14 +152,14 @@ api.diagram.layout(diagram, "flow")
 ## Complete Example: SAB
 
 ```groovy
-// Create a system overview diagram
-def saRoot = api.layer("SA")
-def diagram = api.diagram.create("SAB", "Drone System Overview", saRoot)
+// Create a system overview diagram (target the root component)
+def rootComp = api.find("SystemComponent", "System")
+def diagram = api.diagram.createSafe("System Architecture Blank", "Drone System Overview", rootComp)
 
-// Add components (containers - no allocation needed)
+// Add components (addSafe will create Parts when required)
 def components = api.findAll("SystemComponent")
 components.each { comp ->
-    api.diagram.add(diagram, comp)
+    api.diagram.addSafe(diagram, comp)
 }
 
 // Add functions (must be allocated to appear inside components)
@@ -168,7 +176,7 @@ log.info("Created diagram with ${components.size()} components")
 
 ## Tips
 
-- **Components/Entities** can be added directly to diagrams
+- **Components/Entities** may require Parts; `addSafe()` will auto-create Parts for architecture blanks
 - **Functions/Activities** must be allocated first with `api.allocate(func, comp)`
 - Use `api.diagram.refresh()` after model changes
 - Use `layout()` after adding multiple elements

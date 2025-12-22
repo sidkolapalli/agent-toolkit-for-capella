@@ -1,6 +1,7 @@
 package org.polarsys.capella.ai.tools;
 
 import java.util.logging.Logger;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
@@ -17,6 +18,7 @@ import org.eclipse.sirius.diagram.DDiagram;
 import org.eclipse.sirius.diagram.DDiagramElement;
 import org.eclipse.sirius.diagram.DNode;
 import org.eclipse.sirius.diagram.DNodeContainer;
+import org.eclipse.sirius.diagram.DSemanticDiagram;
 import org.eclipse.sirius.diagram.DiagramFactory;
 import org.eclipse.sirius.diagram.description.AbstractNodeMapping;
 import org.eclipse.sirius.diagram.description.ContainerMapping;
@@ -24,6 +26,7 @@ import org.eclipse.sirius.diagram.description.DiagramDescription;
 import org.eclipse.sirius.diagram.description.NodeMapping;
 import org.eclipse.sirius.ui.business.api.dialect.DialectUIManager;
 import org.eclipse.sirius.viewpoint.DRepresentation;
+import org.eclipse.sirius.viewpoint.DSemanticDecorator;
 import org.eclipse.sirius.viewpoint.RGBValues;
 import org.eclipse.sirius.viewpoint.description.RepresentationDescription;
 import org.eclipse.sirius.viewpoint.description.Viewpoint;
@@ -31,6 +34,11 @@ import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
+import org.osgi.framework.Bundle;
+import org.polarsys.capella.core.data.cs.Part;
+import org.polarsys.capella.core.data.cs.Component;
+import org.polarsys.capella.core.data.fa.AbstractFunction;
+import org.polarsys.capella.core.model.helpers.AbstractFunctionExt;
 import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 import org.polarsys.capella.ai.telemetry.Telemetry;
@@ -1029,11 +1037,23 @@ public final class DiagramCommands {
 
         try {
             // Check if already on diagram
-            for (DDiagramElement elem : diagram.getDiagramElements()) {
-                if (semantic.equals(elem.getTarget())) {
-                    LOG.info("Element already on diagram: " + semantic);
-                    return true;
-                }
+            if (isOnDiagram(diagram, semantic)) {
+                LOG.info("Element already on diagram: " + semantic);
+                return true;
+            }
+
+            DSemanticDecorator containerView =
+                resolveContainerView(diagram, semantic);
+            if (
+                containerView != null &&
+                tryCreateViewTask(
+                    session,
+                    diagram,
+                    containerView,
+                    semantic
+                )
+            ) {
+                return true;
             }
 
             // Use Sirius's proper element creation via DDiagramElementSynchronizer
@@ -1171,7 +1191,7 @@ public final class DiagramCommands {
                             diagram,
                             new NullProgressMonitor()
                         );
-                        return true;
+                        return isOnDiagram(diagram, semantic);
                     } catch (Exception e) {
                         LOG.warning(
                             "Synchronizer approach failed: " + e.getMessage()
@@ -1211,7 +1231,7 @@ public final class DiagramCommands {
                                     diagram,
                                     new NullProgressMonitor()
                                 );
-                                return true;
+                                return isOnDiagram(diagram, semantic);
                             }
                         }
                         return false;
@@ -1222,6 +1242,86 @@ public final class DiagramCommands {
             LOG.warning("createNode failed: " + e.getMessage());
             return false;
         }
+    }
+
+    private static boolean tryCreateViewTask(
+        Session session,
+        DDiagram diagram,
+        DSemanticDecorator containerView,
+        EObject semantic
+    ) {
+        Bundle bundle = Platform.getBundle(
+            "org.polarsys.capella.core.sirius.analysis"
+        );
+        if (bundle == null) {
+            return false;
+        }
+        try {
+            Class<?> taskClass = bundle.loadClass(
+                "org.polarsys.capella.core.sirius.analysis.task.CreateViewTask"
+            );
+            return SessionSafeguards.runWrite(
+                session,
+                "Add element to diagram",
+                () -> {
+                    try {
+                        var ctor = taskClass.getConstructor(
+                            EObject.class,
+                            DSemanticDecorator.class,
+                            EObject.class,
+                            String.class,
+                            String.class
+                        );
+                        Object task = ctor.newInstance(
+                            semantic,
+                            containerView,
+                            semantic,
+                            null,
+                            "view"
+                        );
+                        taskClass.getMethod("execute").invoke(task);
+                    } catch (Exception ex) {
+                        LOG.fine(
+                            "CreateViewTask failed: " + ex.getMessage()
+                        );
+                        return false;
+                    }
+                    return isOnDiagram(diagram, semantic);
+                }
+            );
+        } catch (Exception ex) {
+            LOG.fine("CreateViewTask not available: " + ex.getMessage());
+            return false;
+        }
+    }
+
+    private static DSemanticDecorator resolveContainerView(
+        DDiagram diagram,
+        EObject semantic
+    ) {
+        if (diagram == null || semantic == null) {
+            return null;
+        }
+        DNodeContainer parent = findParentContainer(diagram, semantic);
+        if (parent != null) {
+            return parent;
+        }
+        if (diagram instanceof DSemanticDiagram) {
+            return (DSemanticDiagram) diagram;
+        }
+        return null;
+    }
+
+    private static boolean isOnDiagram(DDiagram diagram, EObject semantic) {
+        if (diagram == null || semantic == null) {
+            return false;
+        }
+        for (DDiagramElement elem : diagram.getDiagramElements()) {
+            if (semantic.equals(elem.getTarget())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1236,11 +1336,18 @@ public final class DiagramCommands {
 
         if (semanticParent != null) {
             for (DDiagramElement elem : diagram.getDiagramElements()) {
-                if (
-                    semanticParent.equals(elem.getTarget()) &&
-                    elem instanceof DNodeContainer
-                ) {
+                if (!(elem instanceof DNodeContainer)) {
+                    continue;
+                }
+                EObject target = elem.getTarget();
+                if (semanticParent.equals(target)) {
                     return (DNodeContainer) elem;
+                }
+                if (target instanceof Part) {
+                    EObject abstractType = ((Part) target).getAbstractType();
+                    if (semanticParent.equals(abstractType)) {
+                        return (DNodeContainer) elem;
+                    }
                 }
             }
         }
@@ -1252,6 +1359,27 @@ public final class DiagramCommands {
      */
     private static EObject findSemanticParent(EObject semantic) {
         try {
+            try {
+                if (semantic instanceof AbstractFunction) {
+                    java.util.List<Component> components =
+                        AbstractFunctionExt.getAllocatingComponents(
+                            (AbstractFunction) semantic
+                        );
+                    if (components != null && !components.isEmpty()) {
+                        return components.get(0);
+                    }
+                    java.util.List<Component> parents =
+                        AbstractFunctionExt.getMotherAllFunctionAllocation(
+                            (AbstractFunction) semantic
+                        );
+                    if (parents != null && !parents.isEmpty()) {
+                        return parents.get(0);
+                    }
+                }
+            } catch (Throwable ignored) {
+                // Fall through to generic allocation lookup
+            }
+
             var eClass = semantic.eClass();
 
             // Check componentFunctionalAllocations and get source
@@ -1425,6 +1553,33 @@ public final class DiagramCommands {
             collectMappingDomains(layer, results);
         }
         return new java.util.ArrayList<>(results);
+    }
+
+    /** Best-effort: return the semantic target for a diagram representation. */
+    public static EObject getDiagramTarget(DRepresentation rep) {
+        if (rep == null) {
+            return null;
+        }
+        try {
+            java.lang.reflect.Method m = DialectManager.class.getMethod(
+                "getRepresentationDescriptor",
+                DRepresentation.class
+            );
+            Object descriptor = m.invoke(DialectManager.INSTANCE, rep);
+            if (descriptor == null) {
+                return null;
+            }
+            java.lang.reflect.Method getTarget = descriptor
+                .getClass()
+                .getMethod("getTarget");
+            Object target = getTarget.invoke(descriptor);
+            return target instanceof EObject ? (EObject) target : null;
+        } catch (Throwable ex) {
+            LOG.fine(
+                "[DiagramCommands] getDiagramTarget failed: " + ex.getMessage()
+            );
+            return null;
+        }
     }
 
     /**
