@@ -91,7 +91,7 @@ public final class ApiCatalog {
         String apiError = validateUnknownMethods(
             code,
             "api",
-            "\\bapi\\s*\\.\\s*(\\w+)\\s*\\(",
+            "api",
             methodNames("api")
         );
         if (apiError != null) {
@@ -101,7 +101,7 @@ public final class ApiCatalog {
         String diagramError = validateUnknownMethods(
             code,
             "api.diagram",
-            "\\bapi\\s*\\.\\s*diagram\\s*\\.\\s*(\\w+)\\s*\\(",
+            "api\\s*\\.\\s*diagram",
             methodNames("api.diagram")
         );
         if (diagramError != null) {
@@ -111,7 +111,7 @@ public final class ApiCatalog {
         String fsError = validateUnknownMethods(
             code,
             "api.fs",
-            "\\bapi\\s*\\.\\s*fs\\s*\\.\\s*(\\w+)\\s*\\(",
+            "api\\s*\\.\\s*fs",
             methodNames("api.fs")
         );
         if (fsError != null) {

@@ -154,6 +154,10 @@ resources/capella-api/
     │   └── SKILL.md           # Complete state machine pattern
     ├── interface/
     │   └── SKILL.md           # Interface definition pattern
+    ├── diagram/
+    │   └── SKILL.md           # Diagram creation + population patterns
+    ├── requirements/
+    │   └── SKILL.md           # Requirements viewpoint pattern
     └── arcadia-workflow/
         └── SKILL.md           # Full OA→SA→LA→PA workflow
 ```
@@ -209,47 +213,28 @@ You can execute Groovy code to manipulate Capella models.
 
 ### Discovering Capabilities
 Use `api.fs.*` to explore available APIs on-demand:
-```groovy
-api.fs.list("")           // Root directories
-api.fs.read("SKILL.md")   // Root documentation
+// Example:
+api.fs.list("")            // Root directories
+api.fs.read("SKILL.md")    // Root documentation
 api.fs.search("component") // Find relevant docs
-```
 
 ### Quick Start
 [Minimal examples for common operations]
-
-### Current Model State
-[Dynamic ModelSummary]
+ 
+### Recipes (Load On Demand)
+[Read `skills/**/SKILL.md` for worked examples]
 ```
 
-### Pattern 3: Multishot Examples
+### Pattern 3: Worked Examples as Skills
 
-For complex patterns (diagrams, requirements), we include worked examples that the LLM can follow exactly:
+For complex patterns (diagrams, requirements, interfaces, state machines), we store worked examples in skill files and load them on-demand via `api.fs.read(...)`.
 
 ```java
-// From CodeExecutionRouter.java
-
-### Diagram Creation
-
-<example>
-User request: Create a System Architecture Blank diagram
-Correct code:
-```groovy
-def saLayer = api.layer("SA")
-def diagram = api.diagram.create("SAB", "System Overview", saLayer)
-log.info("Created diagram: " + diagram.name)
-```
-</example>
-
-<example>
-User request: Create an LAB diagram called My Logical View
-Correct code:
-```groovy
-def laLayer = api.layer("LA")
-def diagram = api.diagram.create("LAB", "My Logical View", laLayer)
-log.info("Created diagram: " + diagram.name)
-```
-</example>
+// From CodeExecutionRouter.buildCodeExecutionPrompt()
+//
+// Prompt stays short and points to skill docs, e.g.:
+// - api.fs.read("skills/diagram/SKILL.md")
+// - api.fs.read("skills/requirements/SKILL.md")
 ```
 
 ### Pattern 4: Error Feedback Loop
