@@ -24,29 +24,51 @@ public final class CodeExecutionRouter {
         public final String output;
         public final String error;
         public final ExecutionResult executionResult;
+        /** The LLM response that was actually executed (after retries, if any). */
+        public final String responseUsed;
+        /** Number of execution attempts made (1 = initial attempt only). */
+        public final int attempts;
 
         private Result(
             boolean success,
             String output,
             String error,
-            ExecutionResult executionResult
+            ExecutionResult executionResult,
+            String responseUsed,
+            int attempts
         ) {
             this.success = success;
             this.output = output;
             this.error = error;
             this.executionResult = executionResult;
+            this.responseUsed = responseUsed;
+            this.attempts = attempts;
         }
 
-        public static Result success(String output, ExecutionResult result) {
-            return new Result(true, output, null, result);
+        public static Result success(
+            String output,
+            ExecutionResult result,
+            String responseUsed,
+            int attempts
+        ) {
+            return new Result(true, output, null, result, responseUsed, attempts);
         }
 
-        public static Result failure(String error, ExecutionResult result) {
-            return new Result(false, null, error, result);
+        public static Result failure(
+            String error,
+            ExecutionResult result,
+            String responseUsed,
+            int attempts
+        ) {
+            return new Result(false, null, error, result, responseUsed, attempts);
         }
 
-        public static Result noCode(String message) {
-            return new Result(false, null, message, null);
+        public static Result noCode(
+            String message,
+            String responseUsed,
+            int attempts
+        ) {
+            return new Result(false, null, message, null, responseUsed, attempts);
         }
     }
 
@@ -72,17 +94,33 @@ public final class CodeExecutionRouter {
      * @return execution result
      */
     public static Result execute(Session session, String llmResponse) {
+        return executeAttempt(session, llmResponse, 1);
+    }
+
+    private static Result executeAttempt(
+        Session session,
+        String llmResponse,
+        int attempts
+    ) {
         if (session == null) {
-            return Result.noCode("No active Capella session");
+            return Result.noCode(
+                "No active Capella session",
+                llmResponse,
+                attempts
+            );
         }
         if (llmResponse == null || llmResponse.isBlank()) {
-            return Result.noCode("Empty response");
+            return Result.noCode("Empty response", llmResponse, attempts);
         }
 
         // Extract code from the response
         String code = GroovyExecutor.extractCode(llmResponse);
         if (code.isBlank()) {
-            return Result.noCode("No executable code found in response");
+            return Result.noCode(
+                "No executable code found in response",
+                llmResponse,
+                attempts
+            );
         }
 
         String validationError = ApiCatalog.validateCode(code);
@@ -91,7 +129,12 @@ public final class CodeExecutionRouter {
                 ExecutionResult.ErrorCode.INVALID_RESULT,
                 validationError
             );
-            return Result.failure(execResult.formatForLLM(), execResult);
+            return Result.failure(
+                execResult.formatForLLM(),
+                execResult,
+                llmResponse,
+                attempts
+            );
         }
 
         // Execute the code
@@ -120,9 +163,19 @@ public final class CodeExecutionRouter {
                 .append(execResult.durationMs())
                 .append("ms");
 
-            return Result.success(output.toString(), execResult);
+            return Result.success(
+                output.toString(),
+                execResult,
+                llmResponse,
+                attempts
+            );
         } else {
-            return Result.failure(execResult.formatForLLM(), execResult);
+            return Result.failure(
+                execResult.formatForLLM(),
+                execResult,
+                llmResponse,
+                attempts
+            );
         }
     }
 
@@ -141,12 +194,14 @@ public final class CodeExecutionRouter {
         int maxRetries,
         java.util.function.BiFunction<String, String, String> llmCallback
     ) {
-        Result result = execute(session, llmResponse);
+        String currentResponse = llmResponse;
+        int attemptCount = 1;
+        Result result = executeAttempt(session, currentResponse, attemptCount);
 
-        int attempts = 0;
+        int retriesUsed = 0;
         while (
             !result.success &&
-            attempts < maxRetries &&
+            retriesUsed < maxRetries &&
             result.executionResult != null
         ) {
             // Get error feedback for LLM
@@ -154,20 +209,21 @@ public final class CodeExecutionRouter {
 
             // Ask LLM to fix the code
             String correctedResponse = llmCallback.apply(
-                llmResponse,
+                currentResponse,
                 errorFeedback
             );
             if (
                 correctedResponse == null ||
-                correctedResponse.equals(llmResponse)
+                correctedResponse.equals(currentResponse)
             ) {
                 break; // LLM couldn't fix it
             }
 
             // Try again with corrected code
-            result = execute(session, correctedResponse);
-            llmResponse = correctedResponse;
-            attempts++;
+            retriesUsed++;
+            attemptCount++;
+            currentResponse = correctedResponse;
+            result = executeAttempt(session, currentResponse, attemptCount);
         }
 
         return result;
