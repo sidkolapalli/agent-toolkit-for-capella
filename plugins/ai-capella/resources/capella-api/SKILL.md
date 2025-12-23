@@ -108,16 +108,14 @@ Capella follows the ARCADIA methodology with these layers:
 
 When standard API methods don't support your use case, use `api.tx {}` to access Capella's internal APIs directly:
 
+**Sandbox note**: `ClassLoader` and Java reflection are blocked in code execution. Use the pre-bound factory instances instead:
+`CapellacoreFactory`, `OaFactory`, `CtxFactory`, `LaFactory`, `PaFactory`, `FaFactory`, `CsFactory`, `InformationFactory`.
+
 ```groovy
 api.tx {
-    // Load factory via classloader (works in OSGi)
-    def CoreFactory = api.class.classLoader.loadClass(
-        "org.polarsys.capella.core.data.capellacore.CapellacoreFactory"
-    ).eINSTANCE
-    
     // Create a Constraint on a function
     def func = api.findAll("SystemFunction")[0]
-    def constraint = CoreFactory.createConstraint()
+    def constraint = CapellacoreFactory.createConstraint()
     constraint.name = "Timing Constraint"
     func.ownedConstraints.add(constraint)
     
@@ -128,18 +126,18 @@ api.tx {
 
 ### Loading Factories
 
-Use `api.class.classLoader.loadClass("...").eINSTANCE`:
+Use the pre-bound factory variables (no classloading needed):
 
 | Purpose | Factory Class |
 |---------|---------------|
-| OA elements | `org.polarsys.capella.core.data.oa.OaFactory` |
-| SA elements | `org.polarsys.capella.core.data.ctx.CtxFactory` |
-| LA elements | `org.polarsys.capella.core.data.la.LaFactory` |
-| PA elements | `org.polarsys.capella.core.data.pa.PaFactory` |
-| Functions | `org.polarsys.capella.core.data.fa.FaFactory` |
-| Components | `org.polarsys.capella.core.data.cs.CsFactory` |
-| Core (Constraints) | `org.polarsys.capella.core.data.capellacore.CapellacoreFactory` |
-| Data types | `org.polarsys.capella.core.data.information.InformationFactory` |
+| OA elements | `OaFactory` |
+| SA elements | `CtxFactory` |
+| LA elements | `LaFactory` |
+| PA elements | `PaFactory` |
+| Functions | `FaFactory` |
+| Components | `CsFactory` |
+| Core (Constraints) | `CapellacoreFactory` |
+| Data types | `InformationFactory` |
 
 **Note**: Requirements require the Capella Requirements Viewpoint add-on to be installed.
 

@@ -298,22 +298,17 @@ public final class CodeExecutionRouter {
         sb.append(
             "When standard API methods don't support your use case, use `api.tx {}` to access Capella internals:\n\n"
         );
+        sb.append(
+            "**Sandbox note**: `ClassLoader` and Java reflection are blocked in code execution. " +
+            "Use the pre-bound factory instances (e.g., `CapellacoreFactory`, `OaFactory`, `CtxFactory`, `LaFactory`, `PaFactory`, `FaFactory`, `CsFactory`, `InformationFactory`).\n\n"
+        );
         sb.append("```groovy\n");
         sb.append("api.tx {\n");
-        sb.append(
-            "    // Load factory via api.class.classLoader (required for OSGi)\n"
-        );
-        sb.append("    def factory = api.class.classLoader.loadClass(\n");
-        sb.append(
-            "        \"org.polarsys.capella.core.data.capellacore.CapellacoreFactory\"\n"
-        );
-        sb.append("    ).eINSTANCE\n");
-        sb.append("    \n");
         sb.append("    // Create element and add to parent\n");
         sb.append(
             "    def func = api.find(\"SystemFunction\", \"My Function\")\n"
         );
-        sb.append("    def constraint = factory.createConstraint()\n");
+        sb.append("    def constraint = CapellacoreFactory.createConstraint()\n");
         sb.append("    constraint.name = \"My Constraint\"\n");
         sb.append("    func.ownedConstraints.add(constraint)\n");
         sb.append("}\n");

@@ -83,6 +83,11 @@ public final class ApiCatalog {
         }
         List<String> errors = new ArrayList<>();
 
+        String blocked = detectBlockedSandboxOperations(code);
+        if (blocked != null) {
+            errors.add(blocked);
+        }
+
         String apiError = validateUnknownMethods(
             code,
             "api",
@@ -119,6 +124,33 @@ public final class ApiCatalog {
         }
 
         return errors.isEmpty() ? null : String.join("\n", errors);
+    }
+
+    private static String detectBlockedSandboxOperations(String code) {
+        if (code == null || code.isBlank()) {
+            return null;
+        }
+        String lower = code.toLowerCase(Locale.ROOT);
+
+        // ClassLoader usage is blocked by the Groovy sandbox.
+        if (lower.contains(".classloader")) {
+            return "Sandbox blocks ClassLoader usage. Avoid `api.class.classLoader.loadClass(...)`. " +
+                "Use pre-bound factories (CapellacoreFactory, OaFactory, CtxFactory, LaFactory, PaFactory, FaFactory, CsFactory, InformationFactory) " +
+                "or use OSGi bundle loading (FrameworkUtil.getBundle(api.class).bundleContext.getBundle(...).loadClass(...)) when needed.";
+        }
+
+        // Java reflection is blocked / unreliable (Method/Field/Constructor receivers are blocked).
+        if (lower.contains("java.lang.reflect.") ||
+            lower.contains(".getmethod(") ||
+            lower.contains(".getdeclaredmethod(") ||
+            lower.contains(".getconstructor(") ||
+            lower.contains(".getdeclaredconstructor(") ||
+            lower.contains(".invoke(")) {
+            return "Sandbox blocks Java reflection (Method/Constructor/Field). " +
+                "Avoid getMethod()/invoke()/constructors via reflection; use CapellaAPI methods or pre-bound factories instead.";
+        }
+
+        return null;
     }
 
     private static String validateUnknownMethods(
