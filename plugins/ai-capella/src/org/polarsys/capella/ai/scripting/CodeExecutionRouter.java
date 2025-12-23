@@ -254,7 +254,7 @@ public final class CodeExecutionRouter {
             "- `api` - Capella API (find, create, link, diagram, etc.)\n"
         );
         sb.append(
-            "- `api.fs` - Documentation discovery (list, read, search)\n"
+            "- `api.fs` - Documentation discovery + safe workspace I/O (list, read, search, write)\n"
         );
         sb.append("- `api.diagram` - Diagram operations\n");
         sb.append("- `api.help(\"diagram\")` - JSON method catalog for a module\n");
@@ -289,12 +289,15 @@ public final class CodeExecutionRouter {
         sb.append("```groovy\n");
         sb.append("// List available documentation\n");
         sb.append(
-            "api.fs.list(\"\")                    // Root: [\"api/\", \"metamodel/\", \"skills/\", \"SKILL.md\"]\n"
+            "api.fs.list(\"\")                    // Root: [\"api/\", \"metamodel/\", \"skills/\", \"workspace/\", \"SKILL.md\"]\n"
         );
         sb.append("api.fs.list(\"api/\")               // API methods\n");
         sb.append(
             "api.fs.list(\"skills/\")            // Reusable patterns\n\n"
         );
+        sb.append("// Persist small state between steps (safe workspace)\n");
+        sb.append("api.fs.write(\"state/run-1.json\", \"{\\\"ok\\\":true}\")\n");
+        sb.append("api.fs.read(\"workspace/state/run-1.json\")\n\n");
         sb.append("// Read specific documentation\n");
         sb.append(
             "api.fs.read(\"SKILL.md\")           // Root documentation\n"
