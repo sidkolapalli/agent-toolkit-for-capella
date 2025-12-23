@@ -2,7 +2,10 @@ package org.polarsys.capella.ai.scripting;
 
 import static org.junit.Assert.*;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import org.polarsys.capella.ai.model.ActionResult;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -136,6 +139,127 @@ public class FileSystemAPITest {
             assertNotNull(first.name);
             assertNotNull(first.summary);
             assertNotNull(first.path);
+        }
+    }
+
+    @Test
+    public void testWorkspaceWriteReadRoundTrip() throws Exception {
+        Path workspace = Files.createTempDirectory("capella-ai-workspace-");
+
+        String prevDir = System.getProperty("capella.ai.workspace.dir");
+        try {
+            System.setProperty("capella.ai.workspace.dir", workspace.toString());
+            FileSystemAPI localFs = new FileSystemAPI();
+
+            ActionResult write = localFs.write(
+                "state/run-1.json",
+                "{\"ok\":true}"
+            );
+            assertTrue("write should succeed: " + write, write.success());
+
+            assertTrue(localFs.exists("workspace/state/run-1.json"));
+            String content = localFs.read("workspace/state/run-1.json");
+            assertEquals("{\"ok\":true}", content);
+
+            List<String> root = localFs.list("workspace/");
+            assertTrue("workspace root should include state/: " + root, root.contains("state/"));
+
+            List<String> state = localFs.list("workspace/state/");
+            assertTrue("workspace/state should include run-1.json: " + state, state.contains("run-1.json"));
+        } finally {
+            if (prevDir != null) {
+                System.setProperty("capella.ai.workspace.dir", prevDir);
+            } else {
+                System.clearProperty("capella.ai.workspace.dir");
+            }
+        }
+    }
+
+    @Test
+    public void testWorkspaceWriteBlocksTraversal() throws Exception {
+        Path workspace = Files.createTempDirectory("capella-ai-workspace-");
+
+        String prevDir = System.getProperty("capella.ai.workspace.dir");
+        try {
+            System.setProperty("capella.ai.workspace.dir", workspace.toString());
+            FileSystemAPI localFs = new FileSystemAPI();
+
+            ActionResult write = localFs.write("../escape.json", "nope");
+            assertFalse("write should be rejected: " + write, write.success());
+        } finally {
+            if (prevDir != null) {
+                System.setProperty("capella.ai.workspace.dir", prevDir);
+            } else {
+                System.clearProperty("capella.ai.workspace.dir");
+            }
+        }
+    }
+
+    @Test
+    public void testWorkspaceWriteBlocksHiddenFiles() throws Exception {
+        Path workspace = Files.createTempDirectory("capella-ai-workspace-");
+
+        String prevDir = System.getProperty("capella.ai.workspace.dir");
+        try {
+            System.setProperty("capella.ai.workspace.dir", workspace.toString());
+            FileSystemAPI localFs = new FileSystemAPI();
+
+            ActionResult write = localFs.write(".secret.json", "nope");
+            assertFalse("write should be rejected: " + write, write.success());
+        } finally {
+            if (prevDir != null) {
+                System.setProperty("capella.ai.workspace.dir", prevDir);
+            } else {
+                System.clearProperty("capella.ai.workspace.dir");
+            }
+        }
+    }
+
+    @Test
+    public void testWorkspaceWriteBlocksExtension() throws Exception {
+        Path workspace = Files.createTempDirectory("capella-ai-workspace-");
+
+        String prevDir = System.getProperty("capella.ai.workspace.dir");
+        try {
+            System.setProperty("capella.ai.workspace.dir", workspace.toString());
+            FileSystemAPI localFs = new FileSystemAPI();
+
+            ActionResult write = localFs.write("run.exe", "nope");
+            assertFalse("write should be rejected: " + write, write.success());
+        } finally {
+            if (prevDir != null) {
+                System.setProperty("capella.ai.workspace.dir", prevDir);
+            } else {
+                System.clearProperty("capella.ai.workspace.dir");
+            }
+        }
+    }
+
+    @Test
+    public void testWorkspaceQuotaEnforced() throws Exception {
+        Path workspace = Files.createTempDirectory("capella-ai-workspace-");
+
+        String prevDir = System.getProperty("capella.ai.workspace.dir");
+        String prevMaxTotal = System.getProperty("capella.ai.workspace.maxTotalBytes");
+        String prevMaxFile = System.getProperty("capella.ai.workspace.maxFileBytes");
+        try {
+            System.setProperty("capella.ai.workspace.dir", workspace.toString());
+            System.setProperty("capella.ai.workspace.maxTotalBytes", "100");
+            System.setProperty("capella.ai.workspace.maxFileBytes", "100");
+
+            FileSystemAPI localFs = new FileSystemAPI();
+            ActionResult a = localFs.write("a.txt", "x".repeat(60));
+            assertTrue("first write should succeed: " + a, a.success());
+
+            ActionResult b = localFs.write("b.txt", "x".repeat(60));
+            assertFalse("second write should exceed quota: " + b, b.success());
+        } finally {
+            if (prevDir != null) System.setProperty("capella.ai.workspace.dir", prevDir);
+            else System.clearProperty("capella.ai.workspace.dir");
+            if (prevMaxTotal != null) System.setProperty("capella.ai.workspace.maxTotalBytes", prevMaxTotal);
+            else System.clearProperty("capella.ai.workspace.maxTotalBytes");
+            if (prevMaxFile != null) System.setProperty("capella.ai.workspace.maxFileBytes", prevMaxFile);
+            else System.clearProperty("capella.ai.workspace.maxFileBytes");
         }
     }
 }

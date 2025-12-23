@@ -28,13 +28,20 @@ public final class ApiCatalog {
         "toString"
     );
 
-    private static final Map<String, Class<?>> MODULES = Map.of(
+    /**
+     * Module -> class name mapping.
+     *
+     * <p>Use class names (not class literals) so ApiCatalog can still load even
+     * when optional dependencies (e.g., Groovy) are not present in the runtime
+     * classpath.
+     */
+    private static final Map<String, String> MODULES = Map.of(
         "api",
-        CapellaAPI.class,
+        "org.polarsys.capella.ai.scripting.CapellaAPI",
         "api.diagram",
-        DiagramAPI.class,
+        "org.polarsys.capella.ai.scripting.DiagramAPI",
         "api.fs",
-        FileSystemAPI.class
+        "org.polarsys.capella.ai.scripting.FileSystemAPI"
     );
 
     private static final Map<String, List<String>> MODULE_NOTES =
@@ -73,8 +80,12 @@ public final class ApiCatalog {
         if (normalized == null) {
             return Set.of();
         }
-        List<ApiMethod> methods = collectMethods(MODULES.get(normalized));
-        return methods.stream().map(m -> m.name).collect(java.util.stream.Collectors.toSet());
+        Class<?> cls = loadModuleClass(normalized);
+        List<ApiMethod> methods = collectMethods(cls);
+        return methods
+            .stream()
+            .map(m -> m.name)
+            .collect(java.util.stream.Collectors.toSet());
     }
 
     public static String validateCode(String code) {
@@ -217,10 +228,13 @@ public final class ApiCatalog {
         Map<String, List<ApiMethod>> modules = new LinkedHashMap<>();
 
         if (normalized != null) {
-            modules.put(normalized, collectMethods(MODULES.get(normalized)));
+            modules.put(normalized, collectMethods(loadModuleClass(normalized)));
         } else {
-            for (Map.Entry<String, Class<?>> entry : MODULES.entrySet()) {
-                modules.put(entry.getKey(), collectMethods(entry.getValue()));
+            for (Map.Entry<String, String> entry : MODULES.entrySet()) {
+                modules.put(
+                    entry.getKey(),
+                    collectMethods(loadModuleClass(entry.getKey()))
+                );
             }
         }
 
@@ -271,6 +285,22 @@ public final class ApiCatalog {
         return sb.toString();
     }
 
+    private static Class<?> loadModuleClass(String moduleKey) {
+        String className = MODULES.get(moduleKey);
+        if (className == null || className.isBlank()) {
+            return null;
+        }
+        try {
+            return Class.forName(
+                className,
+                false,
+                ApiCatalog.class.getClassLoader()
+            );
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     private static String normalizeModule(String module) {
         if (module == null || module.isBlank()) {
             return null;
@@ -290,7 +320,14 @@ public final class ApiCatalog {
             return List.of();
         }
         List<ApiMethod> methods = new ArrayList<>();
-        for (Method method : cls.getMethods()) {
+        Method[] all;
+        try {
+            all = cls.getMethods();
+        } catch (Throwable t) {
+            // Optional dependency missing (e.g., signature types not resolvable).
+            return List.of();
+        }
+        for (Method method : all) {
             if (!Modifier.isPublic(method.getModifiers())) {
                 continue;
             }
@@ -303,13 +340,17 @@ public final class ApiCatalog {
             if (OBJECT_METHODS.contains(method.getName())) {
                 continue;
             }
-            methods.add(
-                new ApiMethod(
-                    method.getName(),
-                    paramTypes(method),
-                    simpleName(method.getReturnType())
-                )
-            );
+            try {
+                methods.add(
+                    new ApiMethod(
+                        method.getName(),
+                        paramTypes(method),
+                        simpleName(method.getReturnType())
+                    )
+                );
+            } catch (Throwable t) {
+                // Skip methods whose signatures are not resolvable in this runtime.
+            }
         }
         methods.sort(
             Comparator.comparing((ApiMethod m) -> m.name.toLowerCase(Locale.ROOT))

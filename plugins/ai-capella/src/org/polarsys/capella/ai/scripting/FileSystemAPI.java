@@ -23,6 +23,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.polarsys.capella.ai.model.ActionResult;
 
 /**
  * Filesystem API for on-demand documentation discovery.
@@ -75,6 +76,33 @@ public final class FileSystemAPI {
         File.separator +
         "skills";
 
+    /**
+     * Safe workspace root for agent persistence.
+     *
+     * <p>Override for tests or custom installs via:
+     * <ul>
+     *   <li>capella.ai.workspace.dir</li>
+     *   <li>capella.ai.workspace.maxFileBytes</li>
+     *   <li>capella.ai.workspace.maxTotalBytes</li>
+     * </ul>
+     */
+    private static final String WORKSPACE_DIR_PROP = "capella.ai.workspace.dir";
+    private static final String WORKSPACE_MAX_FILE_BYTES_PROP =
+        "capella.ai.workspace.maxFileBytes";
+    private static final String WORKSPACE_MAX_TOTAL_BYTES_PROP =
+        "capella.ai.workspace.maxTotalBytes";
+
+    private static final String WORKSPACE_PREFIX = "workspace/";
+    private static final String WORKSPACE_AUDIT_LOG = ".audit.log";
+    private static final String WORKSPACE_QUOTA_FILE = ".quota.json";
+
+    private static final List<String> WORKSPACE_ALLOWED_EXT = List.of(
+        ".json",
+        ".md",
+        ".txt",
+        ".csv"
+    );
+
     /** Search detail levels */
     public enum DetailLevel {
         /** Return only file names */
@@ -121,7 +149,7 @@ public final class FileSystemAPI {
     static {
         DIRECTORY_INDEX.put(
             "",
-            List.of("SKILL.md", "api/", "metamodel/", "skills/")
+            List.of("SKILL.md", "api/", "metamodel/", "skills/", "workspace/")
         );
         DIRECTORY_INDEX.put(
             "api/",
@@ -174,6 +202,15 @@ public final class FileSystemAPI {
             normalizedPath = normalizedPath + "/";
         }
 
+        if (normalizedPath.equals(WORKSPACE_PREFIX)) {
+            return listWorkspaceEntries("");
+        }
+        if (normalizedPath.startsWith(WORKSPACE_PREFIX)) {
+            return listWorkspaceEntries(
+                normalizedPath.substring(WORKSPACE_PREFIX.length())
+            );
+        }
+
         List<String> entries = listFromResources(normalizedPath);
         if (!entries.isEmpty()) {
             return mergeWithUserSkills(normalizedPath, entries);
@@ -204,6 +241,11 @@ public final class FileSystemAPI {
      */
     public String read(String path) {
         String normalizedPath = normalizePath(path);
+        if (normalizedPath.startsWith(WORKSPACE_PREFIX)) {
+            return readWorkspaceFile(
+                normalizedPath.substring(WORKSPACE_PREFIX.length())
+            );
+        }
         String resourcePath = DOCS_ROOT + "/" + normalizedPath;
 
         try (
@@ -271,8 +313,112 @@ public final class FileSystemAPI {
      */
     public boolean exists(String path) {
         String normalizedPath = normalizePath(path);
+        if (normalizedPath.startsWith(WORKSPACE_PREFIX)) {
+            Path p = resolveWorkspacePath(
+                normalizedPath.substring(WORKSPACE_PREFIX.length())
+            );
+            return p != null && Files.exists(p);
+        }
         String resourcePath = DOCS_ROOT + "/" + normalizedPath;
         return getClass().getClassLoader().getResource(resourcePath) != null;
+    }
+
+    /**
+     * Write content into the safe workspace directory.
+     *
+     * <p>All writes are restricted to {@code ~/.capella-ai/workspace/} (or the
+     * override path from {@code capella.ai.workspace.dir}). Only small text
+     * files are permitted, and path traversal / hidden files are blocked.
+     *
+     * @param path relative path under the workspace (e.g., "state/run-1.json" or "workspace/state/run-1.json")
+     * @param contents file contents (UTF-8)
+     * @return ActionResult describing success or rejection reason
+     */
+    public ActionResult write(String path, String contents) {
+        if (path == null || path.isBlank()) {
+            return ActionResult.fail(
+                ActionResult.ErrorCode.INVALID_INPUT,
+                "Path is required",
+                "Use a relative path like 'state/run-1.json' under workspace/"
+            );
+        }
+
+        String normalized = normalizePath(path);
+        if (normalized.startsWith(WORKSPACE_PREFIX)) {
+            normalized = normalized.substring(WORKSPACE_PREFIX.length());
+        }
+
+        Path target = resolveWorkspacePath(normalized);
+        if (target == null) {
+            return ActionResult.fail(
+                ActionResult.ErrorCode.INVALID_INPUT,
+                "Invalid workspace path",
+                "Avoid '..', absolute paths, and hidden files; write only under workspace/"
+            );
+        }
+
+        String fileName = target.getFileName() != null
+            ? target.getFileName().toString().toLowerCase()
+            : "";
+        if (!isAllowedWorkspaceExtension(fileName)) {
+            return ActionResult.fail(
+                ActionResult.ErrorCode.INVALID_INPUT,
+                "Blocked file extension for workspace write: " + fileName,
+                "Allowed extensions: " + String.join(", ", WORKSPACE_ALLOWED_EXT)
+            );
+        }
+
+        byte[] bytes = (contents != null ? contents : "").getBytes(
+            StandardCharsets.UTF_8
+        );
+        long maxFileBytes = maxWorkspaceFileBytes();
+        if (bytes.length > maxFileBytes) {
+            return ActionResult.fail(
+                ActionResult.ErrorCode.INVALID_INPUT,
+                "File too large (" +
+                bytes.length +
+                " bytes). Max is " +
+                maxFileBytes +
+                " bytes.",
+                "Write a smaller file (e.g., summarize or split into multiple files)."
+            );
+        }
+
+        try {
+            Files.createDirectories(workspaceRoot());
+            if (target.getParent() != null) {
+                Files.createDirectories(target.getParent());
+            }
+
+            long existingSize = Files.exists(target) ? Files.size(target) : 0L;
+            long totalBytes = workspaceTotalBytes();
+            long maxTotalBytes = maxWorkspaceTotalBytes();
+            long projected = totalBytes - existingSize + bytes.length;
+            if (projected > maxTotalBytes) {
+                return ActionResult.fail(
+                    ActionResult.ErrorCode.INVALID_INPUT,
+                    "Workspace quota exceeded (" +
+                    projected +
+                    " bytes). Max is " +
+                    maxTotalBytes +
+                    " bytes.",
+                    "Delete unused workspace files or reduce output size."
+                );
+            }
+
+            Files.write(target, bytes);
+            writeWorkspaceAudit("WRITE", normalized, bytes.length);
+            writeWorkspaceQuota(projected);
+            return ActionResult.ok(
+                "Wrote workspace/" + normalized + " (" + bytes.length + " bytes)"
+            );
+        } catch (IOException e) {
+            LOG.log(Level.WARNING, "Workspace write failed: " + normalized, e);
+            return ActionResult.fail(
+                ActionResult.ErrorCode.INVALID_INPUT,
+                "Workspace write failed: " + e.getMessage()
+            );
+        }
     }
 
     /**
@@ -502,11 +648,213 @@ public final class FileSystemAPI {
         if (path == null) {
             return "";
         }
-        // Remove leading slash
-        String normalized = path.startsWith("/") ? path.substring(1) : path;
-        // Prevent path traversal
-        normalized = normalized.replace("..", "");
+        String normalized = path.replace("\\", "/");
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
         return normalized;
+    }
+
+    private static Path workspaceRoot() {
+        String override = System.getProperty(WORKSPACE_DIR_PROP);
+        String base = (override != null && !override.isBlank())
+            ? override
+            : System.getProperty("user.home") +
+            File.separator +
+            ".capella-ai" +
+            File.separator +
+            "workspace";
+        return Paths.get(base).toAbsolutePath().normalize();
+    }
+
+    private static long maxWorkspaceFileBytes() {
+        return Long.getLong(WORKSPACE_MAX_FILE_BYTES_PROP, 256L * 1024L);
+    }
+
+    private static long maxWorkspaceTotalBytes() {
+        return Long.getLong(WORKSPACE_MAX_TOTAL_BYTES_PROP, 10L * 1024L * 1024L);
+    }
+
+    private static boolean isAllowedWorkspaceExtension(String fileNameLower) {
+        if (fileNameLower == null || fileNameLower.isBlank()) {
+            return false;
+        }
+        for (String ext : WORKSPACE_ALLOWED_EXT) {
+            if (fileNameLower.endsWith(ext)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Path resolveWorkspacePath(String relative) {
+        if (relative == null) {
+            return null;
+        }
+        String trimmed = relative.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+
+        // Reject absolute paths early.
+        Path rel;
+        try {
+            rel = Paths.get(trimmed);
+        } catch (Exception e) {
+            return null;
+        }
+        if (rel.isAbsolute()) {
+            return null;
+        }
+
+        // Reject hidden segments.
+        for (Path part : rel) {
+            String s = part.toString();
+            if (s.startsWith(".")) {
+                return null;
+            }
+        }
+
+        Path root = workspaceRoot();
+        Path resolved = root.resolve(rel).normalize();
+        if (!resolved.startsWith(root)) {
+            return null;
+        }
+        return resolved;
+    }
+
+    private String readWorkspaceFile(String relative) {
+        Path p = resolveWorkspacePath(relative);
+        if (p == null) {
+            return (
+                "Invalid workspace path: " +
+                relative +
+                "\n\nUse api.fs.read('workspace/<path>') with a safe relative path."
+            );
+        }
+        if (!Files.exists(p) || Files.isDirectory(p)) {
+            return (
+                "Workspace file not found: workspace/" +
+                relative +
+                "\n\nUse api.fs.list('workspace/') to browse saved files."
+            );
+        }
+
+        try {
+            long size = Files.size(p);
+            long max = maxWorkspaceFileBytes();
+            if (size > max) {
+                return (
+                    "Workspace file too large to read safely: workspace/" +
+                    relative +
+                    " (" +
+                    size +
+                    " bytes, max " +
+                    max +
+                    ")\n"
+                );
+            }
+            return Files.readString(p, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            LOG.log(Level.WARNING, "Error reading workspace file: " + relative, e);
+            return "Error reading workspace file: " + e.getMessage();
+        }
+    }
+
+    private static List<String> listWorkspaceEntries(String relativeDir) {
+        Path dir = (relativeDir == null || relativeDir.isBlank())
+            ? workspaceRoot()
+            : resolveWorkspacePath(relativeDir);
+        if (dir == null) {
+            return List.of();
+        }
+        if (!Files.exists(dir)) {
+            return List.of();
+        }
+        if (!Files.isDirectory(dir)) {
+            return List.of();
+        }
+
+        try (Stream<Path> stream = Files.list(dir)) {
+            return stream
+                .filter(p -> {
+                    String name = p.getFileName() != null ? p.getFileName().toString() : "";
+                    if (name.isBlank()) return false;
+                    if (name.startsWith(".")) return false;
+                    return true;
+                })
+                .sorted()
+                .map(p -> {
+                    String name = p.getFileName().toString();
+                    return Files.isDirectory(p) ? name + "/" : name;
+                })
+                .collect(Collectors.toList());
+        } catch (IOException e) {
+            return List.of();
+        }
+    }
+
+    private static long workspaceTotalBytes() throws IOException {
+        Path root = workspaceRoot();
+        if (!Files.exists(root)) {
+            return 0L;
+        }
+        try (Stream<Path> stream = Files.walk(root)) {
+            return stream
+                .filter(Files::isRegularFile)
+                .filter(p -> {
+                    String name = p.getFileName() != null ? p.getFileName().toString() : "";
+                    if (name.equals(WORKSPACE_AUDIT_LOG) || name.equals(WORKSPACE_QUOTA_FILE)) {
+                        return false;
+                    }
+                    return true;
+                })
+                .mapToLong(p -> {
+                    try {
+                        return Files.size(p);
+                    } catch (IOException e) {
+                        return 0L;
+                    }
+                })
+                .sum();
+        }
+    }
+
+    private static void writeWorkspaceAudit(String op, String relative, long bytes) {
+        try {
+            Path logFile = workspaceRoot().resolve(WORKSPACE_AUDIT_LOG);
+            String line = java.time.Instant.now() +
+                " " +
+                op +
+                " workspace/" +
+                relative +
+                " bytes=" +
+                bytes +
+                "\n";
+            Files.writeString(
+                logFile,
+                line,
+                StandardCharsets.UTF_8,
+                java.nio.file.StandardOpenOption.CREATE,
+                java.nio.file.StandardOpenOption.APPEND
+            );
+        } catch (Exception e) {
+            // Best effort only.
+        }
+    }
+
+    private static void writeWorkspaceQuota(long totalBytes) {
+        try {
+            Path quotaFile = workspaceRoot().resolve(WORKSPACE_QUOTA_FILE);
+            String json = "{\n" +
+                "  \"totalBytes\": " + totalBytes + ",\n" +
+                "  \"maxTotalBytes\": " + maxWorkspaceTotalBytes() + ",\n" +
+                "  \"maxFileBytes\": " + maxWorkspaceFileBytes() + "\n" +
+                "}\n";
+            Files.writeString(quotaFile, json, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            // Best effort only.
+        }
     }
 
     private List<String> listFromResources(String normalizedPath) {
