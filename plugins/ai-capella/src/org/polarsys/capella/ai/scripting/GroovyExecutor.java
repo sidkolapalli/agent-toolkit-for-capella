@@ -201,9 +201,10 @@ public final class GroovyExecutor {
             long duration = System.currentTimeMillis() - startTime;
 
             if (cause instanceof SecurityException) {
+                String message = withSecurityHint(cause.getMessage());
                 return ExecutionResult.fail(
                     ExecutionResult.ErrorCode.SECURITY_VIOLATION,
-                    cause.getMessage(),
+                    message,
                     getStackTrace(cause),
                     logger.getMessages(),
                     duration
@@ -214,6 +215,22 @@ public final class GroovyExecutor {
                 cause instanceof
                     org.codehaus.groovy.control.MultipleCompilationErrorsException
             ) {
+                String msg = cause.getMessage();
+                if (msg != null) {
+                    String lower = msg.toLowerCase();
+                    if (
+                        lower.contains("securityexception") ||
+                        lower.contains("method calls not allowed on")
+                    ) {
+                        return ExecutionResult.fail(
+                            ExecutionResult.ErrorCode.SECURITY_VIOLATION,
+                            withSecurityHint(msg),
+                            getStackTrace(cause),
+                            logger.getMessages(),
+                            duration
+                        );
+                    }
+                }
                 return ExecutionResult.fail(
                     ExecutionResult.ErrorCode.COMPILATION_ERROR,
                     "Script compilation failed: " + cause.getMessage(),
@@ -247,6 +264,26 @@ public final class GroovyExecutor {
                 duration
             );
         }
+    }
+
+    private static String withSecurityHint(String message) {
+        String safe = message != null ? message : "Security violation";
+        String lower = safe.toLowerCase();
+        if (
+            lower.contains(".classloader") ||
+            lower.contains("api.class.classloader") ||
+            lower.contains("loadclass(") ||
+            lower.contains("[java.lang.classloader]")
+        ) {
+            return safe + "\nHint: ClassLoader is blocked in the Groovy sandbox. " +
+                "Use pre-bound factories (CapellacoreFactory, OaFactory, CtxFactory, LaFactory, PaFactory, FaFactory, CsFactory, InformationFactory) " +
+                "or OSGi bundle loading via FrameworkUtil.getBundle(api.class).";
+        }
+        if (lower.contains("java.lang.reflect") || lower.contains("reflect")) {
+            return safe + "\nHint: Java reflection (Method/Constructor/Field) is blocked. " +
+                "Prefer CapellaAPI methods or factory-based creation inside api.tx {}.";
+        }
+        return safe + "\nHint: The Groovy sandbox blocked an unsafe operation (reflection/ClassLoader/file I/O/network are restricted).";
     }
 
     /**
