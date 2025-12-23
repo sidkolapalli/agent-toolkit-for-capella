@@ -213,9 +213,10 @@ public final class ScriptRouter {
                 "Fix the code and return ONLY the corrected Groovy code inside a ```groovy``` block. " +
                 "Do not include explanations.\n\n" +
                 "Important API constraints:\n" +
-                "- Diagram methods are: create, createSafe, find, add, addSafe, addAll, addByUuids, refresh, layout, list, listAvailable, listAvailableFormatted\n" +
+                "- Diagram methods are: " + diagramMethodList() + "\n" +
                 "- Do NOT use addElement() or show() (they do not exist)\n" +
-                "- If add() fails for diagram elements, use addByUuids() with element UUIDs\n"
+                "- If add() fails for diagram elements, use addByUuids() with element UUIDs\n" +
+                "- Use api.diagram.find(...) to locate diagrams (not api.find with DRepresentationDescriptor)\n"
             )
         );
 
@@ -224,6 +225,14 @@ public final class ScriptRouter {
         } catch (Exception e) {
             return previousResponse;
         }
+    }
+
+    private static String diagramMethodList() {
+        return ApiCatalog.methodNames("diagram")
+            .stream()
+            .sorted(String::compareToIgnoreCase)
+            .reduce((a, b) -> a + ", " + b)
+            .orElse("create, createSafe, find, add, addSafe, addAll, addByUuids, refresh, layout, list, listAvailable, listAvailableFormatted");
     }
 
     /**

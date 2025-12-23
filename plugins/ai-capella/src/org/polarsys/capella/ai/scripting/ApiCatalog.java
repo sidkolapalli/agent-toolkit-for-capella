@@ -42,6 +42,13 @@ public final class ApiCatalog {
 
     static {
         MODULE_NOTES.put(
+            "api",
+            List.of(
+                "Use api.diagram.find(...) to locate diagrams by name; do NOT use api.find(\"DRepresentationDescriptor\", ...).",
+                "Use api.help(\"diagram\") to inspect diagram methods before calling them."
+            )
+        );
+        MODULE_NOTES.put(
             "api.diagram",
             List.of(
                 "Valid methods include: create, createSafe, add, addSafe, addAll, addByUuids, refresh, layout, list, listAvailable, listAvailableFormatted.",
@@ -74,21 +81,68 @@ public final class ApiCatalog {
         if (code == null || code.isBlank()) {
             return null;
         }
+        List<String> errors = new ArrayList<>();
 
-        List<String> unknownDiagram = findUnknownMethods(
+        String apiError = validateUnknownMethods(
             code,
-            "api\\.diagram",
-            methodNames("api.diagram")
+            "api",
+            "\\bapi\\s*\\.\\s*(\\w+)\\s*\\(",
+            methodNames("api")
         );
-
-        if (!unknownDiagram.isEmpty()) {
-            return buildUnknownMethodMessage(
-                "api.diagram",
-                unknownDiagram,
-                methodNames("api.diagram")
-            );
+        if (apiError != null) {
+            errors.add(apiError);
         }
 
+        String diagramError = validateUnknownMethods(
+            code,
+            "api.diagram",
+            "\\bapi\\s*\\.\\s*diagram\\s*\\.\\s*(\\w+)\\s*\\(",
+            methodNames("api.diagram")
+        );
+        if (diagramError != null) {
+            errors.add(diagramError);
+        }
+
+        String fsError = validateUnknownMethods(
+            code,
+            "api.fs",
+            "\\bapi\\s*\\.\\s*fs\\s*\\.\\s*(\\w+)\\s*\\(",
+            methodNames("api.fs")
+        );
+        if (fsError != null) {
+            errors.add(fsError);
+        }
+
+        String diagramFindMisuse = detectDiagramFindMisuse(code);
+        if (diagramFindMisuse != null) {
+            errors.add(diagramFindMisuse);
+        }
+
+        return errors.isEmpty() ? null : String.join("\n", errors);
+    }
+
+    private static String validateUnknownMethods(
+        String code,
+        String module,
+        String modulePattern,
+        Set<String> allowed
+    ) {
+        List<String> unknown = findUnknownMethods(code, modulePattern, allowed);
+        if (unknown.isEmpty()) {
+            return null;
+        }
+        return buildUnknownMethodMessage(module, unknown, allowed);
+    }
+
+    private static String detectDiagramFindMisuse(String code) {
+        Pattern pattern = Pattern.compile(
+            "\\bapi\\s*\\.\\s*find(All)?\\s*\\(\\s*\"(DRepresentationDescriptor|DRepresentation)\""
+        );
+        Matcher matcher = pattern.matcher(code);
+        if (matcher.find()) {
+            return "Diagram lookup should use api.diagram.find(\"<diagram name>\") or api.diagram.findByUid(\"<uid>\"). " +
+                "Do NOT use api.find(\"DRepresentationDescriptor\", ...).";
+        }
         return null;
     }
 
