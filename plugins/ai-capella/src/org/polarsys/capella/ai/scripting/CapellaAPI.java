@@ -77,6 +77,9 @@ public final class CapellaAPI {
     /** Filesystem API for documentation discovery (Anthropic pattern) */
     public final FileSystemAPI fs;
 
+    /** Skills runtime API (trust-gated) */
+    public final SkillsAPI skills;
+
     // ========== Instance-Level Script Cache ==========
     /** Cache for find(type, name) results. Key: "type:name" */
     private final Map<String, EObject> findCache = new HashMap<>();
@@ -97,6 +100,7 @@ public final class CapellaAPI {
         this.session = session;
         this.diagram = new DiagramAPI(session);
         this.fs = new FileSystemAPI();
+        this.skills = new SkillsAPI(session);
     }
 
     /**

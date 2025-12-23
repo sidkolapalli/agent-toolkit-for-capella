@@ -175,7 +175,8 @@ public final class FileSystemAPI {
                 "diagram/",
                 "interface/",
                 "requirements/",
-                "state-machine/"
+                "state-machine/",
+                "runtime-demo/"
             )
         );
         DIRECTORY_INDEX.put("skills/arcadia-workflow/", List.of("SKILL.md"));
@@ -183,6 +184,10 @@ public final class FileSystemAPI {
         DIRECTORY_INDEX.put("skills/interface/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("skills/requirements/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("skills/state-machine/", List.of("SKILL.md"));
+        DIRECTORY_INDEX.put(
+            "skills/runtime-demo/",
+            List.of("SKILL.md", "skill.groovy")
+        );
     }
 
     /**

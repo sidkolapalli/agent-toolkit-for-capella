@@ -101,6 +101,14 @@ public final class GroovyExecutor {
         return execute(session, script, DEFAULT_TIMEOUT_MS);
     }
 
+    public static ExecutionResult execute(
+        Session session,
+        String script,
+        java.util.Map<String, Object> extraBindings
+    ) {
+        return execute(session, script, DEFAULT_TIMEOUT_MS, extraBindings);
+    }
+
     /**
      * Execute a Groovy script with custom timeout.
      *
@@ -113,6 +121,15 @@ public final class GroovyExecutor {
         Session session,
         String script,
         long timeoutMs
+    ) {
+        return execute(session, script, timeoutMs, null);
+    }
+
+    public static ExecutionResult execute(
+        Session session,
+        String script,
+        long timeoutMs,
+        java.util.Map<String, Object> extraBindings
     ) {
         long startTime = System.currentTimeMillis();
 
@@ -142,7 +159,7 @@ public final class GroovyExecutor {
         ScriptLogger logger = new ScriptLogger();
 
         // Create bindings
-        Binding binding = createBinding(session, logger);
+        Binding binding = createBinding(session, logger, extraBindings);
 
         // Create compiler configuration with security
         CompilerConfiguration config = createSecureConfig();
@@ -289,7 +306,11 @@ public final class GroovyExecutor {
     /**
      * Create the script binding with API, session, and logger.
      */
-    private static Binding createBinding(Session session, ScriptLogger logger) {
+    private static Binding createBinding(
+        Session session,
+        ScriptLogger logger,
+        java.util.Map<String, Object> extraBindings
+    ) {
         Binding binding = new Binding();
 
         // Main API facade
@@ -351,6 +372,15 @@ public final class GroovyExecutor {
             "CapellacoreFactory",
             org.polarsys.capella.core.data.capellacore.CapellacoreFactory.eINSTANCE
         );
+
+        if (extraBindings != null && !extraBindings.isEmpty()) {
+            for (java.util.Map.Entry<String, Object> e : extraBindings.entrySet()) {
+                if (e.getKey() == null || e.getKey().isBlank()) {
+                    continue;
+                }
+                binding.setVariable(e.getKey(), e.getValue());
+            }
+        }
 
         return binding;
     }
