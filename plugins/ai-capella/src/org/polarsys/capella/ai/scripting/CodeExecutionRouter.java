@@ -94,12 +94,13 @@ public final class CodeExecutionRouter {
      * @return execution result
      */
     public static Result execute(Session session, String llmResponse) {
-        return executeAttempt(session, llmResponse, 1);
+        return executeAttempt(session, llmResponse, null, 1);
     }
 
     private static Result executeAttempt(
         Session session,
         String llmResponse,
+        String labelHint,
         int attempts
     ) {
         if (session == null) {
@@ -137,8 +138,10 @@ public final class CodeExecutionRouter {
             );
         }
 
+        String wrapped = wrapInBatchIfNeeded(code, labelHint);
+
         // Execute the code
-        ExecutionResult execResult = GroovyExecutor.execute(session, code);
+        ExecutionResult execResult = GroovyExecutor.execute(session, wrapped);
 
         if (execResult.success()) {
             StringBuilder output = new StringBuilder();
@@ -194,9 +197,24 @@ public final class CodeExecutionRouter {
         int maxRetries,
         java.util.function.BiFunction<String, String, String> llmCallback
     ) {
+        return executeWithRetry(session, llmResponse, maxRetries, llmCallback, null);
+    }
+
+    public static Result executeWithRetry(
+        Session session,
+        String llmResponse,
+        int maxRetries,
+        java.util.function.BiFunction<String, String, String> llmCallback,
+        String labelHint
+    ) {
         String currentResponse = llmResponse;
         int attemptCount = 1;
-        Result result = executeAttempt(session, currentResponse, attemptCount);
+        Result result = executeAttempt(
+            session,
+            currentResponse,
+            labelHint,
+            attemptCount
+        );
 
         int retriesUsed = 0;
         while (
@@ -223,10 +241,95 @@ public final class CodeExecutionRouter {
             retriesUsed++;
             attemptCount++;
             currentResponse = correctedResponse;
-            result = executeAttempt(session, currentResponse, attemptCount);
+            result = executeAttempt(
+                session,
+                currentResponse,
+                labelHint,
+                attemptCount
+            );
         }
 
         return result;
+    }
+
+    public static String wrapInBatchIfNeeded(String code, String labelHint) {
+        if (code == null || code.isBlank()) {
+            return code;
+        }
+
+        // If the script already batches itself, don't interfere.
+        if (
+            code.matches("(?s).*\\bapi\\s*\\.\\s*batch\\s*\\(.*") ||
+            code.matches("(?s).*\\bapi\\s*\\.\\s*tx\\s*\\(\\s*['\"].*")
+        ) {
+            return code;
+        }
+
+        String label = normalizeLabel(labelHint);
+        String escapedLabel = escapeGroovyString(label);
+
+        StringBuilder prefix = new StringBuilder();
+        StringBuilder body = new StringBuilder();
+        splitImports(code, prefix, body);
+
+        StringBuilder out = new StringBuilder(code.length() + 128);
+        out.append(prefix);
+        if (prefix.length() > 0 && !prefix.toString().endsWith("\n")) {
+            out.append("\n");
+        }
+        out.append("api.batch(\"").append(escapedLabel).append("\") {\n");
+        out.append(body);
+        if (body.length() > 0 && !body.toString().endsWith("\n")) {
+            out.append("\n");
+        }
+        out.append("}\n");
+        return out.toString();
+    }
+
+    private static void splitImports(
+        String code,
+        StringBuilder prefix,
+        StringBuilder body
+    ) {
+        boolean inPrefix = true;
+        for (String line : code.split("\\R", -1)) {
+            String trimmed = line.trim();
+            boolean isPrefixLine =
+                trimmed.isEmpty() ||
+                trimmed.startsWith("//") ||
+                trimmed.startsWith("/*") ||
+                trimmed.startsWith("*") ||
+                trimmed.startsWith("*/") ||
+                trimmed.startsWith("import ");
+
+            if (inPrefix && isPrefixLine) {
+                prefix.append(line).append("\n");
+            } else {
+                inPrefix = false;
+                body.append(line).append("\n");
+            }
+        }
+    }
+
+    private static String normalizeLabel(String labelHint) {
+        String base = labelHint != null ? labelHint.trim() : "";
+        if (base.isBlank()) {
+            return "LLM script";
+        }
+        // Keep undo labels short and stable.
+        String cleaned = base.replaceAll("\\s+", " ");
+        int max = 60;
+        if (cleaned.length() <= max) {
+            return cleaned;
+        }
+        return cleaned.substring(0, max - 3) + "...";
+    }
+
+    private static String escapeGroovyString(String s) {
+        if (s == null) {
+            return "";
+        }
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     /**
