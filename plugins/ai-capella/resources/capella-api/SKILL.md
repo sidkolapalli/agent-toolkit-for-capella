@@ -30,14 +30,18 @@ comp
 // List saved skills
 api.fs.listSkills()  // ["my-pattern"]
 
-// Load and use a skill
+// Read the saved SKILL.md (Anthropic folder format)
+api.fs.list("user-skills/")                     // ["my-pattern/"]
+api.fs.read("user-skills/my-pattern/SKILL.md")  // contains YAML frontmatter + code
+
+// Load and use the Groovy code (extracted from SKILL.md)
 def code = api.fs.loadSkill("my-pattern")
 
 // Delete a skill
 api.fs.deleteSkill("my-pattern")
 ```
 
-Skills are saved to `~/.capella-ai/skills/` and persist across sessions.
+Skills are saved to `~/.capella-ai/skills/<skill-name>/SKILL.md` and persist across sessions.
 
 ## Quick Start
 

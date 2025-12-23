@@ -68,13 +68,10 @@ public final class FileSystemAPI {
     /** Maximum file size to read (100KB) */
     private static final int MAX_FILE_SIZE = 100_000;
 
-    /** User skills directory (writable) */
-    private static final String USER_SKILLS_DIR =
-        System.getProperty("user.home") +
-        File.separator +
-        ".capella-ai" +
-        File.separator +
-        "skills";
+    /** User skills directory override (default: ~/.capella-ai/skills/) */
+    private static final String USER_SKILLS_DIR_PROP = "capella.ai.skills.dir";
+
+    private static final String USER_SKILLS_PREFIX = "user-skills/";
 
     /**
      * Safe workspace root for agent persistence.
@@ -211,6 +208,15 @@ public final class FileSystemAPI {
             );
         }
 
+        if (normalizedPath.equals(USER_SKILLS_PREFIX)) {
+            return listUserSkillsPath("");
+        }
+        if (normalizedPath.startsWith(USER_SKILLS_PREFIX)) {
+            return listUserSkillsPath(
+                normalizedPath.substring(USER_SKILLS_PREFIX.length())
+            );
+        }
+
         List<String> entries = listFromResources(normalizedPath);
         if (!entries.isEmpty()) {
             return mergeWithUserSkills(normalizedPath, entries);
@@ -220,10 +226,6 @@ public final class FileSystemAPI {
         entries = DIRECTORY_INDEX.get(normalizedPath);
         if (entries != null) {
             return mergeWithUserSkills(normalizedPath, new ArrayList<>(entries));
-        }
-
-        if (normalizedPath.equals("user-skills/")) {
-            return listUserSkillsEntries();
         }
 
         if (normalizedPath.isEmpty()) {
@@ -244,6 +246,11 @@ public final class FileSystemAPI {
         if (normalizedPath.startsWith(WORKSPACE_PREFIX)) {
             return readWorkspaceFile(
                 normalizedPath.substring(WORKSPACE_PREFIX.length())
+            );
+        }
+        if (normalizedPath.startsWith(USER_SKILLS_PREFIX)) {
+            return readUserSkillFile(
+                normalizedPath.substring(USER_SKILLS_PREFIX.length())
             );
         }
         String resourcePath = DOCS_ROOT + "/" + normalizedPath;
@@ -316,6 +323,12 @@ public final class FileSystemAPI {
         if (normalizedPath.startsWith(WORKSPACE_PREFIX)) {
             Path p = resolveWorkspacePath(
                 normalizedPath.substring(WORKSPACE_PREFIX.length())
+            );
+            return p != null && Files.exists(p);
+        }
+        if (normalizedPath.startsWith(USER_SKILLS_PREFIX)) {
+            Path p = resolveUserSkillsPath(
+                normalizedPath.substring(USER_SKILLS_PREFIX.length())
             );
             return p != null && Files.exists(p);
         }
@@ -476,11 +489,11 @@ public final class FileSystemAPI {
     /**
      * Save a new skill for future reuse.
      *
-     * <p>Skills are saved to ~/.capella-ai/skills/ and can be loaded in future sessions.
-     * Each skill should have a descriptive name and include documentation.
+     * <p>Skills are saved as folders under {@code ~/.capella-ai/skills/<skill>/SKILL.md}
+     * (Anthropic skill format) and can be loaded in future sessions.
      *
-     * @param name the skill name (will be used as filename, e.g., "create-state-machine")
-     * @param content the skill content (Groovy code with comments)
+     * @param name the skill name (e.g., "create-state-machine")
+     * @param content the skill content (Groovy code)
      * @return true if saved successfully
      */
     public boolean saveSkill(String name, String content) {
@@ -495,42 +508,24 @@ public final class FileSystemAPI {
             .toLowerCase();
 
         try {
-            // Ensure directory exists
-            File skillsDir = new File(USER_SKILLS_DIR);
-            if (!skillsDir.exists()) {
-                skillsDir.mkdirs();
-            }
+            Path root = userSkillsRoot();
+            Files.createDirectories(root);
 
-            // Write skill file
-            File skillFile = new File(skillsDir, safeName + ".groovy");
-            try (
-                FileWriter writer = new FileWriter(
-                    skillFile,
-                    StandardCharsets.UTF_8
-                )
-            ) {
-                writer.write(content);
-            }
+            Path skillDir = root.resolve(safeName).normalize();
+            Files.createDirectories(skillDir);
 
-            // Also create a SKILL.md if content has documentation
-            if (content.contains("/**") || content.contains("//")) {
-                String doc = extractDocumentation(content, safeName);
-                File docFile = new File(skillsDir, safeName + ".md");
-                try (
-                    FileWriter writer = new FileWriter(
-                        docFile,
-                        StandardCharsets.UTF_8
-                    )
-                ) {
-                    writer.write(doc);
-                }
-            }
+            Path skillMd = skillDir.resolve("SKILL.md");
+            Files.writeString(
+                skillMd,
+                buildUserSkillSkillMd(safeName, content),
+                StandardCharsets.UTF_8
+            );
 
             LOG.info(
                 "Saved skill: " +
                     safeName +
                     " to " +
-                    skillFile.getAbsolutePath()
+                    skillMd.toAbsolutePath()
             );
             return true;
         } catch (IOException e) {
@@ -555,20 +550,29 @@ public final class FileSystemAPI {
             .replaceAll("-+", "-")
             .toLowerCase();
 
-        File skillFile = new File(USER_SKILLS_DIR, safeName + ".groovy");
-        if (!skillFile.exists()) {
-            // Try without extension
-            skillFile = new File(USER_SKILLS_DIR, safeName);
-        }
-
-        if (skillFile.exists()) {
+        // New format: ~/.capella-ai/skills/<skill>/SKILL.md
+        Path md = userSkillsRoot().resolve(safeName).resolve("SKILL.md");
+        if (Files.exists(md)) {
             try {
-                return Files.readString(
-                    skillFile.toPath(),
-                    StandardCharsets.UTF_8
-                );
+                String content = Files.readString(md, StandardCharsets.UTF_8);
+                String code = GroovyExecutor.extractCode(content);
+                return code.isBlank() ? content : code;
             } catch (IOException e) {
                 LOG.log(Level.WARNING, "Failed to load skill: " + name, e);
+                return null;
+            }
+        }
+
+        // Legacy fallback: ~/.capella-ai/skills/<skill>.groovy
+        Path legacy = userSkillsRoot().resolve(safeName + ".groovy");
+        if (Files.exists(legacy)) {
+            try {
+                String code = Files.readString(legacy, StandardCharsets.UTF_8);
+                // Best-effort migration (non-destructive)
+                tryMigrateLegacySkill(safeName, code);
+                return code;
+            } catch (IOException e) {
+                LOG.log(Level.WARNING, "Failed to load legacy skill: " + name, e);
             }
         }
 
@@ -582,17 +586,51 @@ public final class FileSystemAPI {
      */
     public List<String> listSkills() {
         List<String> skills = new ArrayList<>();
-        File skillsDir = new File(USER_SKILLS_DIR);
+        Path root = userSkillsRoot();
+        if (Files.exists(root) && Files.isDirectory(root)) {
+            try (Stream<Path> stream = Files.list(root)) {
+                stream
+                    .filter(Files::isDirectory)
+                    .forEach(dir -> {
+                        Path md = dir.resolve("SKILL.md");
+                        if (Files.exists(md)) {
+                            String name = dir.getFileName().toString();
+                            if (!skills.contains(name)) {
+                                skills.add(name);
+                            }
+                        }
+                    });
+            } catch (IOException e) {
+                // ignore
+            }
 
-        if (skillsDir.exists() && skillsDir.isDirectory()) {
-            File[] files = skillsDir.listFiles((dir, name) ->
-                name.endsWith(".groovy")
-            );
-            if (files != null) {
-                for (File f : files) {
-                    String name = f.getName();
-                    skills.add(name.substring(0, name.length() - 7)); // Remove .groovy
-                }
+            // Best-effort migration: legacy .groovy -> folder/SKILL.md (non-destructive)
+            try (Stream<Path> stream = Files.list(root)) {
+                stream
+                    .filter(p ->
+                        Files.isRegularFile(p) &&
+                        p.getFileName().toString().endsWith(".groovy")
+                    )
+                    .forEach(p -> {
+                        String file = p.getFileName().toString();
+                        String base = file.substring(0, file.length() - 7);
+                        Path md = root.resolve(base).resolve("SKILL.md");
+                        if (Files.exists(md)) {
+                            return;
+                        }
+                        try {
+                            String code = Files.readString(p, StandardCharsets.UTF_8);
+                            if (tryMigrateLegacySkill(base, code)) {
+                                if (!skills.contains(base)) {
+                                    skills.add(base);
+                                }
+                            }
+                        } catch (IOException e) {
+                            // ignore
+                        }
+                    });
+            } catch (IOException e) {
+                // ignore
             }
         }
 
@@ -616,18 +654,37 @@ public final class FileSystemAPI {
             .replaceAll("-+", "-")
             .toLowerCase();
 
-        File skillFile = new File(USER_SKILLS_DIR, safeName + ".groovy");
-        File docFile = new File(USER_SKILLS_DIR, safeName + ".md");
+        boolean deletedAny = false;
 
-        boolean deleted = false;
-        if (skillFile.exists()) {
-            deleted = skillFile.delete();
-        }
-        if (docFile.exists()) {
-            docFile.delete();
+        Path root = userSkillsRoot();
+        Path skillDir = root.resolve(safeName);
+        if (Files.exists(skillDir) && Files.isDirectory(skillDir)) {
+            try (Stream<Path> stream = Files.walk(skillDir)) {
+                stream
+                    .sorted((a, b) -> b.getNameCount() - a.getNameCount())
+                    .forEach(p -> {
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (IOException e) {
+                            // ignore
+                        }
+                    });
+                deletedAny = true;
+            } catch (IOException e) {
+                // ignore
+            }
         }
 
-        return deleted;
+        Path legacyGroovy = root.resolve(safeName + ".groovy");
+        Path legacyMd = root.resolve(safeName + ".md");
+        try {
+            deletedAny |= Files.deleteIfExists(legacyGroovy);
+            deletedAny |= Files.deleteIfExists(legacyMd);
+        } catch (IOException e) {
+            // ignore
+        }
+
+        return deletedAny;
     }
 
     /**
@@ -664,6 +721,18 @@ public final class FileSystemAPI {
             ".capella-ai" +
             File.separator +
             "workspace";
+        return Paths.get(base).toAbsolutePath().normalize();
+    }
+
+    private static Path userSkillsRoot() {
+        String override = System.getProperty(USER_SKILLS_DIR_PROP);
+        String base = (override != null && !override.isBlank())
+            ? override
+            : System.getProperty("user.home") +
+            File.separator +
+            ".capella-ai" +
+            File.separator +
+            "skills";
         return Paths.get(base).toAbsolutePath().normalize();
     }
 
@@ -721,6 +790,107 @@ public final class FileSystemAPI {
             return null;
         }
         return resolved;
+    }
+
+    private static Path resolveUserSkillsPath(String relative) {
+        if (relative == null) {
+            return null;
+        }
+        String trimmed = relative.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+
+        Path rel;
+        try {
+            rel = Paths.get(trimmed);
+        } catch (Exception e) {
+            return null;
+        }
+        if (rel.isAbsolute()) {
+            return null;
+        }
+
+        for (Path part : rel) {
+            String s = part.toString();
+            if (s.startsWith(".")) {
+                return null;
+            }
+        }
+
+        Path root = userSkillsRoot();
+        Path resolved = root.resolve(rel).normalize();
+        if (!resolved.startsWith(root)) {
+            return null;
+        }
+        return resolved;
+    }
+
+    private String readUserSkillFile(String relative) {
+        Path p = resolveUserSkillsPath(relative);
+        if (p == null) {
+            return (
+                "Invalid user skill path: " +
+                relative +
+                "\n\nUse api.fs.list('user-skills/') to browse skills."
+            );
+        }
+        if (!Files.exists(p) || Files.isDirectory(p)) {
+            return (
+                "User skill file not found: user-skills/" +
+                relative +
+                "\n\nUse api.fs.list('user-skills/') to browse skills."
+            );
+        }
+        try {
+            long size = Files.size(p);
+            if (size > MAX_FILE_SIZE) {
+                return (
+                    "User skill file too large to read safely: user-skills/" +
+                    relative +
+                    " (" +
+                    size +
+                    " bytes, max " +
+                    MAX_FILE_SIZE +
+                    ")\n"
+                );
+            }
+            return Files.readString(p, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            LOG.log(Level.WARNING, "Error reading user skill file: " + relative, e);
+            return "Error reading user skill file: " + e.getMessage();
+        }
+    }
+
+    private static List<String> listUserSkillsPath(String relativeDir) {
+        boolean isRoot = relativeDir == null || relativeDir.isBlank();
+        Path dir = (relativeDir == null || relativeDir.isBlank())
+            ? userSkillsRoot()
+            : resolveUserSkillsPath(relativeDir);
+        if (dir == null) {
+            return List.of();
+        }
+        if (!Files.exists(dir) || !Files.isDirectory(dir)) {
+            return List.of();
+        }
+
+        try (Stream<Path> stream = Files.list(dir)) {
+            return stream
+                .filter(p -> {
+                    String name = p.getFileName() != null ? p.getFileName().toString() : "";
+                    if (name.isBlank() || name.startsWith(".")) return false;
+                    if (isRoot && !Files.isDirectory(p)) return false;
+                    return true;
+                })
+                .sorted()
+                .map(p -> {
+                    String name = p.getFileName().toString();
+                    return Files.isDirectory(p) ? name + "/" : name;
+                })
+                .collect(Collectors.toList());
+        } catch (IOException e) {
+            return List.of();
+        }
     }
 
     private String readWorkspaceFile(String relative) {
@@ -895,18 +1065,7 @@ public final class FileSystemAPI {
         List<String> result = new ArrayList<>();
         List<String> skills = listSkills();
         for (String name : skills) {
-            result.add(name + ".groovy");
-        }
-        File skillsDir = new File(USER_SKILLS_DIR);
-        if (skillsDir.exists()) {
-            File[] mdFiles = skillsDir.listFiles((dir, filename) -> filename.endsWith(".md"));
-            if (mdFiles != null) {
-                for (File mdFile : mdFiles) {
-                    if (!result.contains(mdFile.getName())) {
-                        result.add(mdFile.getName());
-                    }
-                }
-            }
+            result.add(name + "/");
         }
         return result;
     }
@@ -941,28 +1100,41 @@ public final class FileSystemAPI {
     }
 
     private List<SkillMetadata> listUserSkillMetadata() {
-        File skillsDir = new File(USER_SKILLS_DIR);
-        if (!skillsDir.exists() || !skillsDir.isDirectory()) {
-            return List.of();
-        }
+        // Ensure legacy skills are migrated so metadata discovery matches Anthropic folder format.
+        listSkills();
 
-        File[] mdFiles = skillsDir.listFiles((dir, filename) -> filename.endsWith(".md"));
-        if (mdFiles == null || mdFiles.length == 0) {
+        Path skillsDir = userSkillsRoot();
+        if (!Files.exists(skillsDir) || !Files.isDirectory(skillsDir)) {
             return List.of();
         }
 
         List<SkillMetadata> results = new ArrayList<>();
-        for (File mdFile : mdFiles) {
+        try (Stream<Path> stream = Files.list(skillsDir)) {
+            for (Path dir : stream.filter(Files::isDirectory).toList()) {
+                Path md = dir.resolve("SKILL.md");
+                if (!Files.exists(md)) {
+                    continue;
+                }
             try {
-                String content = Files.readString(mdFile.toPath(), StandardCharsets.UTF_8);
-                String path = "user-skills/" + mdFile.getName();
+                String content = Files.readString(md, StandardCharsets.UTF_8);
+                String path =
+                    USER_SKILLS_PREFIX +
+                    dir.getFileName().toString() +
+                    "/SKILL.md";
                 SkillMetadata meta = parseSkillMetadata(path, content);
                 if (meta != null) {
                     results.add(meta);
                 }
             } catch (IOException e) {
-                LOG.log(Level.WARNING, "Failed to read user skill metadata: " + mdFile.getName(), e);
+                LOG.log(
+                    Level.WARNING,
+                    "Failed to read user skill metadata: " + md,
+                    e
+                );
             }
+        }
+        } catch (IOException e) {
+            return List.of();
         }
 
         return results;
@@ -1311,26 +1483,100 @@ public final class FileSystemAPI {
         return s.substring(0, maxLen - 3) + "...";
     }
 
-    private String extractDocumentation(String code, String name) {
+    private boolean tryMigrateLegacySkill(String safeName, String code) {
+        if (safeName == null || safeName.isBlank() || code == null) {
+            return false;
+        }
+        Path root = userSkillsRoot();
+        Path md = root.resolve(safeName).resolve("SKILL.md");
+        if (Files.exists(md)) {
+            return true;
+        }
+        try {
+            Files.createDirectories(md.getParent());
+            Files.writeString(
+                md,
+                buildUserSkillSkillMd(safeName, code),
+                StandardCharsets.UTF_8
+            );
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static String buildUserSkillSkillMd(String name, String code) {
         StringBuilder doc = new StringBuilder();
-        doc.append("# ").append(name).append("\n\n");
-        doc.append("User-saved skill.\n\n");
+        String description = extractOneLineDescription(code);
+        if (description == null || description.isBlank()) {
+            description = "User-saved skill.";
+        }
+        String fmName = name != null ? name.trim() : "user-skill";
+        String fmDesc = description.replaceAll("\\R", " ").trim();
+
+        doc.append("---\n");
+        doc.append("name: ").append(fmName).append("\n");
+        doc.append("description: ").append(fmDesc).append("\n");
+        doc.append("---\n\n");
+
+        doc.append("# ").append(fmName).append("\n\n");
+        doc.append(description).append("\n\n");
 
         // Extract Javadoc or leading comments
-        if (code.contains("/**")) {
-            int start = code.indexOf("/**");
-            int end = code.indexOf("*/", start);
-            if (end > start) {
-                String javadoc = code
-                    .substring(start + 3, end)
-                    .lines()
-                    .map(l -> l.replaceFirst("^\\s*\\*\\s?", ""))
-                    .collect(Collectors.joining("\n"));
-                doc.append("## Description\n\n").append(javadoc).append("\n\n");
-            }
+        String javadoc = extractJavadocBlock(code);
+        if (javadoc != null && !javadoc.isBlank()) {
+            doc.append("## Notes\n\n").append(javadoc).append("\n\n");
         }
 
         doc.append("## Code\n\n```groovy\n").append(code).append("\n```\n");
         return doc.toString();
+    }
+
+    private static String extractJavadocBlock(String code) {
+        if (code == null) {
+            return null;
+        }
+        int start = code.indexOf("/**");
+        if (start < 0) {
+            return null;
+        }
+        int end = code.indexOf("*/", start);
+        if (end <= start) {
+            return null;
+        }
+        return code
+            .substring(start + 3, end)
+            .lines()
+            .map(l -> l.replaceFirst("^\\s*\\*\\s?", ""))
+            .collect(Collectors.joining("\n"))
+            .trim();
+    }
+
+    private static String extractOneLineDescription(String code) {
+        if (code == null || code.isBlank()) {
+            return null;
+        }
+        String javadoc = extractJavadocBlock(code);
+        if (javadoc != null && !javadoc.isBlank()) {
+            for (String line : javadoc.split("\\R")) {
+                String trimmed = line.trim();
+                if (!trimmed.isEmpty()) {
+                    return trimmed;
+                }
+            }
+        }
+        for (String line : code.split("\\R")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("//")) {
+                String msg = trimmed.replaceFirst("^//\\s*", "").trim();
+                if (!msg.isEmpty()) {
+                    return msg;
+                }
+            }
+            if (!trimmed.isEmpty() && !trimmed.startsWith("//")) {
+                break;
+            }
+        }
+        return null;
     }
 }
