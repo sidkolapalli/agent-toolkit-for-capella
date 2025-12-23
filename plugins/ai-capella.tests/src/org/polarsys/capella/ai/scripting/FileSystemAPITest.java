@@ -262,4 +262,53 @@ public class FileSystemAPITest {
             else System.clearProperty("capella.ai.workspace.maxFileBytes");
         }
     }
+
+    @Test
+    public void testSaveSkillCreatesFolderSkillMd() throws Exception {
+        Path skillsDir = Files.createTempDirectory("capella-ai-skills-");
+
+        String prev = System.getProperty("capella.ai.skills.dir");
+        try {
+            System.setProperty("capella.ai.skills.dir", skillsDir.toString());
+            FileSystemAPI localFs = new FileSystemAPI();
+
+            boolean ok = localFs.saveSkill("My Pattern", "// Does something\nlog.info(\"hi\")\n");
+            assertTrue(ok);
+
+            List<String> entries = localFs.list("user-skills/");
+            assertTrue("should list folder entry: " + entries, entries.contains("my-pattern/"));
+
+            String skillMd = localFs.read("user-skills/my-pattern/SKILL.md");
+            assertTrue(skillMd.startsWith("---"));
+            assertTrue(skillMd.contains("name: my-pattern"));
+            assertTrue(skillMd.contains("description: Does something"));
+            assertTrue(skillMd.contains("```groovy"));
+            assertTrue(skillMd.contains("log.info(\"hi\")"));
+        } finally {
+            if (prev != null) System.setProperty("capella.ai.skills.dir", prev);
+            else System.clearProperty("capella.ai.skills.dir");
+        }
+    }
+
+    @Test
+    public void testLoadSkillExtractsGroovyCodeFromSkillMd() throws Exception {
+        Path skillsDir = Files.createTempDirectory("capella-ai-skills-");
+
+        String prev = System.getProperty("capella.ai.skills.dir");
+        try {
+            System.setProperty("capella.ai.skills.dir", skillsDir.toString());
+            FileSystemAPI localFs = new FileSystemAPI();
+
+            boolean ok = localFs.saveSkill("my-pattern", "log.info(\"hi\")\n");
+            assertTrue(ok);
+
+            String code = localFs.loadSkill("my-pattern");
+            assertNotNull(code);
+            assertTrue(code.contains("log.info(\"hi\")"));
+            assertFalse(code.contains("name: my-pattern"));
+        } finally {
+            if (prev != null) System.setProperty("capella.ai.skills.dir", prev);
+            else System.clearProperty("capella.ai.skills.dir");
+        }
+    }
 }
