@@ -184,6 +184,9 @@ public final class DevServer {
                 .append(escapeJson(result.reply))
                 .append("\",");
             json.append("\"codeExecuted\": ").append(result.codeExecuted);
+            if (result.codeExecuted) {
+                json.append(",\"attempts\": ").append(result.attempts);
+            }
 
             if (result.executionResult != null) {
                 json

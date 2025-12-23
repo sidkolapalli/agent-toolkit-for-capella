@@ -30,6 +30,8 @@ public final class ScriptRouter {
         public final String reply;
         /** Whether code was executed */
         public final boolean codeExecuted;
+        /** Number of execution attempts made (0 when no code executed). */
+        public final int attempts;
         /** The execution result (if code was executed) */
         public final ExecutionResult executionResult;
         /** Error message (if any) */
@@ -38,11 +40,13 @@ public final class ScriptRouter {
         private Result(
             String reply,
             boolean codeExecuted,
+            int attempts,
             ExecutionResult executionResult,
             String error
         ) {
             this.reply = reply;
             this.codeExecuted = codeExecuted;
+            this.attempts = attempts;
             this.executionResult = executionResult;
             this.error = error;
         }
@@ -59,20 +63,25 @@ public final class ScriptRouter {
         }
 
         public static Result chat(String reply) {
-            return new Result(reply, false, null, null);
+            return new Result(reply, false, 0, null, null);
         }
 
-        public static Result executed(String reply, ExecutionResult result) {
+        public static Result executed(
+            String reply,
+            ExecutionResult result,
+            int attempts
+        ) {
             return new Result(
                 reply,
                 true,
+                attempts,
                 result,
                 result.failed() ? result.message() : null
             );
         }
 
         public static Result error(String error) {
-            return new Result(null, false, null, error);
+            return new Result(null, false, 0, null, error);
         }
     }
 
@@ -137,12 +146,17 @@ public final class ScriptRouter {
                     );
 
                 if (execResult.success) {
-                    return Result.executed(reply, execResult.executionResult);
+                    return Result.executed(
+                        execResult.responseUsed,
+                        execResult.executionResult,
+                        execResult.attempts
+                    );
                 } else {
                     // Return error but include the reply for context
                     return new Result(
-                        reply,
+                        execResult.responseUsed,
                         true,
+                        execResult.attempts,
                         execResult.executionResult,
                         execResult.error
                     );

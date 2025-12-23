@@ -20,6 +20,8 @@ build2.log
 build.out
 docs/log.txt
 .serena/
+.m2-tmp/
+.workspace-capella/
 
 # IDE files
 .vscode/
