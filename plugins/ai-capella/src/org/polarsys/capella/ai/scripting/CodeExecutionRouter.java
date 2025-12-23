@@ -256,6 +256,7 @@ public final class CodeExecutionRouter {
         sb.append(
             "- `api.fs` - Documentation discovery + safe workspace I/O (list, read, search, write)\n"
         );
+        sb.append("- `api.skills` - Reusable skill runtime (list, metadata, run)\n");
         sb.append("- `api.diagram` - Diagram operations\n");
         sb.append("- `api.help(\"diagram\")` - JSON method catalog for a module\n");
         sb.append("- `log` - Logger (log.info, log.warn, log.error)\n\n");
@@ -333,6 +334,7 @@ public final class CodeExecutionRouter {
 
         sb.append("### Guidance\n\n");
         sb.append("- Prefer discovery over guessing. Use `api.help(\"diagram\")` before diagram operations.\n");
+        sb.append("- Prefer skills for reusable tasks: `api.skills.list()` + `api.skills.run(name, args)`.\n");
         sb.append("- For complex tasks, load documentation first: `api.fs.read(\"SKILL.md\")`.\n");
         sb.append("- Use worked examples from skill files instead of inventing APIs.\n\n");
 

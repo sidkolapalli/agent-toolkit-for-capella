@@ -41,7 +41,9 @@ public final class ApiCatalog {
         "api.diagram",
         "org.polarsys.capella.ai.scripting.DiagramAPI",
         "api.fs",
-        "org.polarsys.capella.ai.scripting.FileSystemAPI"
+        "org.polarsys.capella.ai.scripting.FileSystemAPI",
+        "api.skills",
+        "org.polarsys.capella.ai.scripting.SkillsAPI"
     );
 
     private static final Map<String, List<String>> MODULE_NOTES =
@@ -61,6 +63,13 @@ public final class ApiCatalog {
                 "Valid methods include: create, createSafe, add, addSafe, addAll, addByUuids, refresh, layout, list, listAvailable, listAvailableFormatted.",
                 "Do NOT use addElement() or show() (they do not exist).",
                 "If add() fails, use addByUuids() with element UUIDs."
+            )
+        );
+        MODULE_NOTES.put(
+            "api.skills",
+            List.of(
+                "Prefer api.skills.run(name, args) for reusable patterns instead of re-implementing the same code.",
+                "User-defined skills are trust-gated and may be disabled by default."
             )
         );
     }
@@ -127,6 +136,16 @@ public final class ApiCatalog {
         );
         if (fsError != null) {
             errors.add(fsError);
+        }
+
+        String skillsError = validateUnknownMethods(
+            code,
+            "api.skills",
+            "api\\s*\\.\\s*skills",
+            methodNames("api.skills")
+        );
+        if (skillsError != null) {
+            errors.add(skillsError);
         }
 
         String diagramFindMisuse = detectDiagramFindMisuse(code);
