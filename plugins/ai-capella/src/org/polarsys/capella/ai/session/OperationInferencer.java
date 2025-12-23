@@ -37,6 +37,8 @@ public final class OperationInferencer {
 
     private static final ThreadLocal<OperationTracker> TRACKER =
         ThreadLocal.withInitial(OperationTracker::new);
+    private static final ThreadLocal<String> LABEL_HINT =
+        ThreadLocal.withInitial(() -> null);
 
     private OperationInferencer() {}
 
@@ -87,6 +89,7 @@ public final class OperationInferencer {
         tracker.depth++;
         if (tracker.depth == 1) {
             tracker.operations.clear();
+            LABEL_HINT.set(null);
             return true;
         }
         return false;
@@ -269,8 +272,16 @@ public final class OperationInferencer {
             return null;
         }
 
+        String hint = LABEL_HINT.get();
+        LABEL_HINT.set(null);
+
         if (tracker.operations.isEmpty()) {
             return null;
+        }
+
+        if (hint != null && !hint.isBlank()) {
+            tracker.operations.clear();
+            return truncate(hint);
         }
 
         String label = generateLabel(tracker.operations);
@@ -283,6 +294,7 @@ public final class OperationInferencer {
      */
     public static void clear() {
         TRACKER.get().reset();
+        LABEL_HINT.set(null);
     }
 
     /**
@@ -291,6 +303,18 @@ public final class OperationInferencer {
      */
     public static void cleanup() {
         TRACKER.remove();
+        LABEL_HINT.remove();
+    }
+
+    /**
+     * Provide a label hint for the current tracking context.
+     * Useful when a caller wants to enforce a specific undo label.
+     */
+    public static void hintLabel(String label) {
+        if (label == null || label.isBlank()) {
+            return;
+        }
+        LABEL_HINT.set(label);
     }
 
     /**

@@ -14,17 +14,22 @@ import org.eclipse.gmf.runtime.notation.NotationFactory;
 import org.eclipse.gmf.runtime.notation.View;
 import org.eclipse.sirius.business.api.dialect.DialectManager;
 import org.eclipse.sirius.business.api.session.Session;
+import org.eclipse.sirius.common.tools.api.interpreter.IInterpreter;
 import org.eclipse.sirius.diagram.DDiagram;
 import org.eclipse.sirius.diagram.DDiagramElement;
+import org.eclipse.sirius.diagram.DragAndDropTarget;
 import org.eclipse.sirius.diagram.DNode;
 import org.eclipse.sirius.diagram.DNodeContainer;
 import org.eclipse.sirius.diagram.DSemanticDiagram;
 import org.eclipse.sirius.diagram.DiagramFactory;
+import org.eclipse.sirius.diagram.business.api.query.DiagramElementMappingQuery;
 import org.eclipse.sirius.diagram.description.AbstractNodeMapping;
 import org.eclipse.sirius.diagram.description.ContainerMapping;
 import org.eclipse.sirius.diagram.description.DiagramDescription;
+import org.eclipse.sirius.diagram.description.DiagramElementMapping;
 import org.eclipse.sirius.diagram.description.NodeMapping;
 import org.eclipse.sirius.ui.business.api.dialect.DialectUIManager;
+import org.eclipse.sirius.tools.api.interpreter.InterpreterUtil;
 import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.eclipse.sirius.viewpoint.DSemanticDecorator;
 import org.eclipse.sirius.viewpoint.RGBValues;
@@ -1613,22 +1618,152 @@ public final class DiagramCommands {
         if (desc == null) {
             return false;
         }
+        DSemanticDecorator containerView =
+            resolveContainerView(diagram, semantic);
         java.util.List<AbstractNodeMapping> mappings =
             findNodeMappings(desc, semantic);
         if (mappings.isEmpty()) {
             return false;
         }
         Object interpreter = getInterpreter(session);
+        IInterpreter siriusInterpreter = getSiriusInterpreter(semantic);
         for (AbstractNodeMapping mapping : mappings) {
-            if (!preconditionSatisfied(interpreter, semantic, mapping)) {
+            if (
+                !preconditionSatisfiedWithViewpointServices(
+                    mapping,
+                    semantic,
+                    containerView,
+                    interpreter
+                )
+            ) {
                 continue;
             }
-            if (!candidatesSatisfied(interpreter, diagram, mapping, semantic)) {
+            if (
+                !candidatesSatisfiedWithViewpointServices(
+                    diagram,
+                    mapping,
+                    semantic,
+                    containerView,
+                    siriusInterpreter,
+                    interpreter
+                )
+            ) {
                 continue;
             }
             return true;
         }
         return false;
+    }
+
+    private static IInterpreter getSiriusInterpreter(EObject semantic) {
+        if (semantic == null) {
+            return null;
+        }
+        try {
+            return InterpreterUtil.getInterpreter(semantic);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static boolean preconditionSatisfiedWithViewpointServices(
+        AbstractNodeMapping mapping,
+        EObject semantic,
+        DSemanticDecorator containerView,
+        Object legacyInterpreter
+    ) {
+        if (mapping == null || semantic == null) {
+            return false;
+        }
+        Boolean evaluated = invokeSiriusPrecondition(
+            mapping,
+            semantic,
+            containerView
+        );
+        if (evaluated != null) {
+            return evaluated.booleanValue();
+        }
+        return preconditionSatisfied(legacyInterpreter, semantic, mapping);
+    }
+
+    private static Boolean invokeSiriusPrecondition(
+        AbstractNodeMapping mapping,
+        EObject semantic,
+        DSemanticDecorator containerView
+    ) {
+        try {
+            Class<?> ops = Class.forName(
+                "org.eclipse.sirius.diagram.business.internal.metamodel.description.operations.SiriusElementMappingSpecOperations"
+            );
+            var method = ops.getMethod(
+                "checkPrecondition",
+                DiagramElementMapping.class,
+                EObject.class,
+                EObject.class,
+                EObject.class
+            );
+            EObject containerSemantic = null;
+            if (containerView != null) {
+                containerSemantic = containerView.getTarget();
+            }
+            Object result = method.invoke(
+                null,
+                mapping,
+                semantic,
+                containerSemantic,
+                containerView
+            );
+            if (result instanceof Boolean) {
+                return (Boolean) result;
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+        return null;
+    }
+
+    private static boolean candidatesSatisfiedWithViewpointServices(
+        DDiagram diagram,
+        AbstractNodeMapping mapping,
+        EObject semantic,
+        DSemanticDecorator containerView,
+        IInterpreter siriusInterpreter,
+        Object legacyInterpreter
+    ) {
+        if (diagram instanceof DSemanticDiagram &&
+            mapping instanceof DiagramElementMapping &&
+            siriusInterpreter != null) {
+            DiagramElementMappingQuery query =
+                new DiagramElementMappingQuery(
+                    (DiagramElementMapping) mapping
+                );
+            if (!query.hasCandidatesExpression()) {
+                return true;
+            }
+            DragAndDropTarget target =
+                containerView instanceof DragAndDropTarget
+                    ? (DragAndDropTarget) containerView
+                    : diagram instanceof DragAndDropTarget
+                        ? (DragAndDropTarget) diagram
+                        : null;
+            if (target != null) {
+                try {
+                    java.util.Collection<EObject> candidates =
+                        query.evaluateCandidateExpression(
+                            (DSemanticDiagram) diagram,
+                            siriusInterpreter,
+                            target
+                        );
+                    if (candidates == null) {
+                        return false;
+                    }
+                    return candidates.contains(semantic);
+                } catch (Exception ignored) {
+                    // fallback below
+                }
+            }
+        }
+        return candidatesSatisfied(legacyInterpreter, diagram, mapping, semantic);
     }
 
     private static void collectMappingDomains(

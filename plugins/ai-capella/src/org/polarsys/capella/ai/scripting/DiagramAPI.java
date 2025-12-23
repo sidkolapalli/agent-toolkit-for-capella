@@ -600,15 +600,23 @@ public final class DiagramAPI {
             throw new IllegalArgumentException("Element to add cannot be null");
         }
 
-        try {
-            return add(diagram, element);
-        } catch (IllegalArgumentException ex) {
-            List<String> supported = supportedNodeTypes(diagram);
-            EObject adapted = adaptElementForDiagram(
-                diagram,
-                element,
-                supported
+        List<String> supported = supportedNodeTypes(diagram);
+        EObject adapted = adaptElementForDiagram(diagram, element, supported);
+        EObject candidate = adapted != null ? adapted : element;
+        if (!DiagramCommands.isDisplayable(session, diagram, candidate)) {
+            throw new IllegalArgumentException(
+                "Element " +
+                    candidate.eClass().getName() +
+                    " is not displayable per viewpoint rules in diagram '" +
+                    diagram.getName() +
+                    "'. " +
+                    describeDiagramContext(diagram, supported)
             );
+        }
+
+        try {
+            return add(diagram, candidate);
+        } catch (IllegalArgumentException ex) {
             if (adapted != null && adapted != element) {
                 try {
                     return add(diagram, adapted);
