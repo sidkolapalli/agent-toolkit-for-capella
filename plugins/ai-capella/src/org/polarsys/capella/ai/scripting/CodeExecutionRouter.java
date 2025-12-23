@@ -259,154 +259,36 @@ public final class CodeExecutionRouter {
         sb.append("```groovy\n");
         sb.append("// Get architecture layer root\n");
         sb.append("def saLayer = api.layer(\"SA\")  // OA, SA, LA, PA\n\n");
-        sb.append("// Find an element\n");
-        sb.append(
-            "def func = api.find(\"SystemFunction\", \"Process Data\")\n\n"
-        );
+        sb.append("// Optional: summarize current model (on-demand)\n");
+        sb.append("log.info(api.summary())\n\n");
+        sb.append("// Find an element (type + name)\n");
+        sb.append("def func = api.find(\"SystemFunction\", \"Process Data\")\n");
+        sb.append("log.info(\"Found func: \" + (func != null ? api.name(func) : \"<none>\"))\n\n");
         sb.append("// Create an element\n");
-        sb.append(
-            "def newFunc = api.create(\"SA\", \"SystemFunction\", \"New Function\")\n\n"
-        );
-        sb.append("// Link elements (exchanges, realizations)\n");
-        sb.append("api.link(func, newFunc, \"FunctionalExchange\")\n");
-        sb.append("api.link(laFunc, saFunc, \"FunctionRealization\")\n");
-        sb.append("api.link(laComp, saComp, \"ComponentRealization\")\n\n");
-        sb.append(
-            "// Allocate function to component (use api.allocate, NOT api.link)\n"
-        );
-        sb.append("api.allocate(func, comp)\n\n");
-        sb.append("// Create diagram: createSafe(type, name, target)\n");
-        sb.append(
-            "def diagram = api.diagram.createSafe(\"SAB\", \"My Diagram\", saLayer)\n\n"
-        );
-        sb.append("// Always log results\n");
-        sb.append("log.info(\"Created: ${api.name(newFunc)}\")\n");
+        sb.append("def newFunc = api.create(\"SA\", \"SystemFunction\", \"New Function\")\n");
+        sb.append("log.info(\"Created func: \" + api.name(newFunc))\n\n");
+        sb.append("// Create a diagram\n");
+        sb.append("def diagram = api.diagram.createSafe(\"SAB\", \"My Diagram\", saLayer)\n");
+        sb.append("log.info(\"Created diagram: \" + diagram.name)\n");
         sb.append("```\n\n");
 
-        sb.append("### API Discovery\n\n");
-        sb.append(
-            "Before using diagram APIs, call `api.help(\"diagram\")` and only use listed methods.\n\n"
-        );
+        sb.append("### Guidance\n\n");
+        sb.append("- Prefer discovery over guessing. Use `api.help(\"diagram\")` before diagram operations.\n");
+        sb.append("- For complex tasks, load documentation first: `api.fs.read(\"SKILL.md\")`.\n");
+        sb.append("- Use worked examples from skill files instead of inventing APIs.\n\n");
 
-        sb.append(
-            "**For complex tasks**: First explore the documentation with `api.fs.read(\"SKILL.md\")` "
-        );
-        sb.append("to discover the full API, then write your code.\n\n");
+        sb.append("### Recipes (Load On Demand)\n\n");
+        sb.append("Load the relevant skill file for complete patterns:\n\n");
+        sb.append("- Diagrams: `api.fs.read(\"skills/diagram/SKILL.md\")`\n");
+        sb.append("- Requirements: `api.fs.read(\"skills/requirements/SKILL.md\")`\n");
+        sb.append("- Interfaces: `api.fs.read(\"skills/interface/SKILL.md\")`\n");
+        sb.append("- State machines: `api.fs.read(\"skills/state-machine/SKILL.md\")`\n");
+        sb.append("- Arcadia workflow: `api.fs.read(\"skills/arcadia-workflow/SKILL.md\")`\n\n");
 
-        // Raw API access for dynamic capabilities
-        sb.append("### Raw API Access (api.tx)\n\n");
+        sb.append("### Sandbox Constraints\n\n");
         sb.append(
-            "When standard API methods don't support your use case, use `api.tx {}` to access Capella internals:\n\n"
+            "If you hit a `SECURITY_VIOLATION`, the sandbox blocked an unsafe operation. Follow the hint in the error.\n"
         );
-        sb.append(
-            "**Sandbox note**: `ClassLoader` and Java reflection are blocked in code execution. " +
-            "Use the pre-bound factory instances (e.g., `CapellacoreFactory`, `OaFactory`, `CtxFactory`, `LaFactory`, `PaFactory`, `FaFactory`, `CsFactory`, `InformationFactory`).\n\n"
-        );
-        sb.append("```groovy\n");
-        sb.append("api.tx {\n");
-        sb.append("    // Create element and add to parent\n");
-        sb.append(
-            "    def func = api.find(\"SystemFunction\", \"My Function\")\n"
-        );
-        sb.append("    def constraint = CapellacoreFactory.createConstraint()\n");
-        sb.append("    constraint.name = \"My Constraint\"\n");
-        sb.append("    func.ownedConstraints.add(constraint)\n");
-        sb.append("}\n");
-        sb.append("```\n\n");
-        sb.append(
-            "**Factories**: CapellacoreFactory (Constraints), OaFactory, CtxFactory, LaFactory, PaFactory, FaFactory, CsFactory, InformationFactory\n\n"
-        );
-
-        // Diagram creation pattern with examples (Anthropic multishot pattern)
-        sb.append("### Diagram Creation\n\n");
-        sb.append(
-            "To create diagrams, use: `createSafe(type, name, target)` and validate types with `api.diagram.listAvailableFormatted()`\n\n"
-        );
-        sb.append(
-            "To locate diagrams, use `api.diagram.find(\"<diagram name>\")` (do NOT use `api.find` for diagrams).\n" +
-            "Before adding elements, you can check `api.diagram.isDisplayable(diagram, element)`.\n" +
-            "When adding elements, prefer `api.diagram.addSafe()`; if needed, fall back to `addByUuids()`.\n\n"
-        );
-        sb.append("<example>\n");
-        sb.append("User request: Create a System Architecture Blank diagram\n");
-        sb.append("Correct code:\n");
-        sb.append("```groovy\n");
-        sb.append("def saLayer = api.layer(\"SA\")\n");
-        sb.append(
-            "def diagram = api.diagram.createSafe(\"SAB\", \"System Overview\", saLayer)\n"
-        );
-        sb.append("log.info(\"Created diagram: \" + diagram.name)\n");
-        sb.append("```\n");
-        sb.append("</example>\n\n");
-        sb.append("<example>\n");
-        sb.append(
-            "User request: Create an LAB diagram called My Logical View\n"
-        );
-        sb.append("Correct code:\n");
-        sb.append("```groovy\n");
-        sb.append("def laLayer = api.layer(\"LA\")\n");
-        sb.append(
-            "def diagram = api.diagram.createSafe(\"LAB\", \"My Logical View\", laLayer)\n"
-        );
-        sb.append("log.info(\"Created diagram: \" + diagram.name)\n");
-        sb.append("```\n");
-        sb.append("</example>\n\n");
-        sb.append("<example>\n");
-        sb.append(
-            "User request: Create an Operational Activity Breakdown diagram\n"
-        );
-        sb.append("Correct code:\n");
-        sb.append("```groovy\n");
-        sb.append("def parent = api.find(\"OperationalActivity\", \"Monitor System\")\n");
-        sb.append("if (!parent) parent = api.create(\"OA\", \"OperationalActivity\", \"Monitor System\")\n");
-        sb.append(
-            "def diagram = api.diagram.createSafe(\"Operational Activity Breakdown\", \"Monitor Breakdown\", parent)\n"
-        );
-        sb.append("log.info(\"Created diagram: \" + diagram.name)\n");
-        sb.append("```\n");
-        sb.append("</example>\n\n");
-
-        // Requirements Viewpoint pattern with examples (Anthropic multishot pattern)
-        sb.append("### Requirements Viewpoint\n\n");
-        sb.append(
-            "To create Requirements, use this EXACT pattern (do not modify):\n\n"
-        );
-        sb.append("<example>\n");
-        sb.append("User request: Create a requirement\n");
-        sb.append("Correct code:\n");
-        sb.append("```groovy\n");
-        sb.append("import org.osgi.framework.FrameworkUtil\n");
-        sb.append(
-            "def ctx = FrameworkUtil.getBundle(api.class).bundleContext\n"
-        );
-        sb.append(
-            "def reqBundle = ctx.bundles.find { it.symbolicName == \"org.polarsys.kitalpha.vp.requirements.model\" }\n"
-        );
-        sb.append(
-            "def factory = reqBundle.loadClass(\"org.polarsys.kitalpha.vp.requirements.Requirements.RequirementsFactory\").eINSTANCE\n"
-        );
-        sb.append("def req = factory.createRequirement()\n");
-        sb.append("req.reqIFLongName = \"My Requirement\"\n");
-        sb.append("log.info(\"Created: \" + req.reqIFLongName)\n");
-        sb.append("req\n");
-        sb.append("```\n");
-        sb.append("</example>\n\n");
-        sb.append("**CRITICAL rules for Requirements**:\n");
-        sb.append(
-            "- Use `FrameworkUtil.getBundle(api.class)` - NOT `this.class`\n"
-        );
-        sb.append("- Use `req.reqIFLongName` - NOT `req.name`\n");
-        sb.append(
-            "- Bundle name is exactly `org.polarsys.kitalpha.vp.requirements.model`\n\n"
-        );
-
-        // Add current model context
-        if (session != null) {
-            sb.append("### Current Model State\n\n");
-            sb.append("```\n");
-            sb.append(ModelSummary.summarize(session));
-            sb.append("```\n");
-        }
 
         return sb.toString();
     }
