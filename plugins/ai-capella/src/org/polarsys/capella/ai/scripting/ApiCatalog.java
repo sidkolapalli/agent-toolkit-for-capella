@@ -135,8 +135,10 @@ public final class ApiCatalog {
     }
 
     private static String detectDiagramFindMisuse(String code) {
+        // Guardrail: diagrams are not semantic elements, so they should be located via api.diagram.*,
+        // not via the generic semantic search methods.
         Pattern pattern = Pattern.compile(
-            "\\bapi\\s*\\.\\s*find(All)?\\s*\\(\\s*\"(DRepresentationDescriptor|DRepresentation)\""
+            "\\bapi\\s*\\.\\s*find(All)?\\s*\\(\\s*(['\"])\\s*(DRepresentationDescriptor|DRepresentation)\\s*\\2"
         );
         Matcher matcher = pattern.matcher(code);
         if (matcher.find()) {
