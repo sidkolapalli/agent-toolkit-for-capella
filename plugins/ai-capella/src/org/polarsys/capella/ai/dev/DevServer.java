@@ -289,25 +289,28 @@ public final class DevServer {
         StringBuilder json = new StringBuilder();
         json.append("{");
         json.append("\"success\": ").append(result.success()).append(",");
-        if (result.value() != null) {
+        String valueOut = result.valueForOutput();
+        if (valueOut != null) {
             json
                 .append("\"value\": \"")
-                .append(escapeJson(String.valueOf(result.value())))
+                .append(escapeJson(valueOut))
                 .append("\",");
         }
-        if (result.message() != null) {
+        String messageOut = result.messageForOutput();
+        if (messageOut != null) {
             json
                 .append("\"message\": \"")
-                .append(escapeJson(result.message()))
+                .append(escapeJson(messageOut))
                 .append("\",");
         }
-        if (result.logs() != null && !result.logs().isEmpty()) {
+        java.util.List<String> logsOut = result.logsForOutput();
+        if (!logsOut.isEmpty()) {
             json.append("\"logs\": [");
-            for (int i = 0; i < result.logs().size(); i++) {
+            for (int i = 0; i < logsOut.size(); i++) {
                 if (i > 0) json.append(",");
                 json
                     .append("\"")
-                    .append(escapeJson(result.logs().get(i)))
+                    .append(escapeJson(logsOut.get(i)))
                     .append("\"");
             }
             json.append("],");
