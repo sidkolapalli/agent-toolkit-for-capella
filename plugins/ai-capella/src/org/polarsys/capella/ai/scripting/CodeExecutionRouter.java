@@ -94,14 +94,23 @@ public final class CodeExecutionRouter {
      * @return execution result
      */
     public static Result execute(Session session, String llmResponse) {
-        return executeAttempt(session, llmResponse, null, 1);
+        return execute(session, llmResponse, null);
+    }
+
+    public static Result execute(
+        Session session,
+        String llmResponse,
+        String sessionId
+    ) {
+        return executeAttempt(session, llmResponse, null, 1, sessionId);
     }
 
     private static Result executeAttempt(
         Session session,
         String llmResponse,
         String labelHint,
-        int attempts
+        int attempts,
+        String sessionId
     ) {
         if (session == null) {
             return Result.noCode(
@@ -141,7 +150,11 @@ public final class CodeExecutionRouter {
         String wrapped = wrapInBatchIfNeeded(code, labelHint);
 
         // Execute the code
-        ExecutionResult execResult = GroovyExecutor.execute(session, wrapped);
+        ExecutionResult execResult = GroovyExecutor.execute(
+            session,
+            wrapped,
+            sessionId
+        );
 
         if (execResult.success()) {
             StringBuilder output = new StringBuilder();
@@ -197,7 +210,14 @@ public final class CodeExecutionRouter {
         int maxRetries,
         java.util.function.BiFunction<String, String, String> llmCallback
     ) {
-        return executeWithRetry(session, llmResponse, maxRetries, llmCallback, null);
+        return executeWithRetry(
+            session,
+            llmResponse,
+            maxRetries,
+            llmCallback,
+            null,
+            null
+        );
     }
 
     public static Result executeWithRetry(
@@ -207,13 +227,32 @@ public final class CodeExecutionRouter {
         java.util.function.BiFunction<String, String, String> llmCallback,
         String labelHint
     ) {
+        return executeWithRetry(
+            session,
+            llmResponse,
+            maxRetries,
+            llmCallback,
+            labelHint,
+            null
+        );
+    }
+
+    public static Result executeWithRetry(
+        Session session,
+        String llmResponse,
+        int maxRetries,
+        java.util.function.BiFunction<String, String, String> llmCallback,
+        String labelHint,
+        String sessionId
+    ) {
         String currentResponse = llmResponse;
         int attemptCount = 1;
         Result result = executeAttempt(
             session,
             currentResponse,
             labelHint,
-            attemptCount
+            attemptCount,
+            sessionId
         );
 
         int retriesUsed = 0;
@@ -245,7 +284,8 @@ public final class CodeExecutionRouter {
                 session,
                 currentResponse,
                 labelHint,
-                attemptCount
+                attemptCount,
+                sessionId
             );
         }
 
@@ -442,6 +482,7 @@ public final class CodeExecutionRouter {
         sb.append("- Use `api.create(\"LA\", \"LogicalFunction\", \"Name\")` or `api.createIn(\"LA\", \"LogicalFunction\", \"Name\")` to create in a layer.\n");
         sb.append("- Do NOT create allocation objects directly; use `api.allocate(function, component)`.\n\n");
         sb.append("- After changes, use `api.validate()` to surface model issues early.\n\n");
+        sb.append("- Execution context is stateful; call `api.reset()` to clear remembered variables.\n\n");
         sb.append("- Use worked examples from skill files instead of inventing APIs.\n\n");
 
         sb.append("### Recipes (Load On Demand)\n\n");

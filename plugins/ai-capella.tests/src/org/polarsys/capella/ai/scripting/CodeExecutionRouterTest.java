@@ -67,5 +67,8 @@ public class CodeExecutionRouterTest {
         assertTrue(
             prompt.contains("api.validate()")
         );
+        assertTrue(
+            prompt.contains("api.reset()")
+        );
     }
 }

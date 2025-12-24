@@ -2,6 +2,7 @@ package org.polarsys.capella.ai;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.IToolBarManager;
@@ -53,6 +54,7 @@ public class ChatView extends ViewPart {
     private Color userColor;
 
     private List<LLMService.Message> conversationHistory = new ArrayList<>();
+    private final String conversationId = UUID.randomUUID().toString();
 
     @Override
     public void createPartControl(Composite parent) {
@@ -208,7 +210,15 @@ public class ChatView extends ViewPart {
             });
 
             // Execute
-            ExecutionResult result = GroovyExecutor.execute(session, code);
+            String sessionKey = GroovyExecutor.buildSessionKey(
+                session,
+                conversationId
+            );
+            ExecutionResult result = GroovyExecutor.execute(
+                session,
+                code,
+                sessionKey
+            );
 
             Display.getDefault().asyncExec(() -> {
                 if (result.success()) {

@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.Executors;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.business.api.session.SessionManager;
@@ -131,7 +132,16 @@ public final class DevServer {
         }
 
         try {
-            ExecutionResult result = GroovyExecutor.execute(session, code);
+            String conversationId = getConversationId(exchange);
+            String sessionKey = GroovyExecutor.buildSessionKey(
+                session,
+                conversationId
+            );
+            ExecutionResult result = GroovyExecutor.execute(
+                session,
+                code,
+                sessionKey
+            );
             String json = formatResult(result);
             sendResponse(exchange, result.success() ? 200 : 400, json);
         } catch (Exception e) {
@@ -171,9 +181,12 @@ public final class DevServer {
         }
 
         try {
+            String conversationId = getConversationId(exchange);
             ScriptRouter.Result result = ScriptRouter.handleChat(
                 session,
-                prompt
+                prompt,
+                List.of(),
+                conversationId
             );
 
             StringBuilder json = new StringBuilder();
@@ -269,6 +282,37 @@ public final class DevServer {
         try (InputStream is = exchange.getRequestBody()) {
             return new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
+    }
+
+    private static String getConversationId(HttpExchange exchange) {
+        String header = exchange
+            .getRequestHeaders()
+            .getFirst("X-Conversation-Id");
+        if (header != null && !header.isBlank()) {
+            return header.trim();
+        }
+        String query = exchange.getRequestURI().getQuery();
+        return extractQueryParam(query, "conversationId");
+    }
+
+    private static String extractQueryParam(String query, String key) {
+        if (query == null || query.isBlank() || key == null || key.isBlank()) {
+            return null;
+        }
+        String[] parts = query.split("&");
+        for (String part : parts) {
+            int idx = part.indexOf('=');
+            if (idx <= 0) {
+                continue;
+            }
+            String k = part.substring(0, idx);
+            if (!k.equals(key)) {
+                continue;
+            }
+            String value = part.substring(idx + 1);
+            return value.isBlank() ? null : value;
+        }
+        return null;
     }
 
     private static void sendResponse(

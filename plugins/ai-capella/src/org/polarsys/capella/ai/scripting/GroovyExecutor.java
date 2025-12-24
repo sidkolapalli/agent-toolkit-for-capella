@@ -7,8 +7,10 @@ import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -52,6 +54,17 @@ public final class GroovyExecutor {
 
     /** Maximum script length to prevent memory issues */
     private static final int MAX_SCRIPT_LENGTH = 100_000;
+
+    /** Stateful session TTL in milliseconds */
+    private static final long SESSION_TTL_MS = 60 * 60 * 1000L;
+
+    /** Cleanup cadence for session eviction */
+    private static final long CLEANUP_INTERVAL_MS = 5 * 60 * 1000L;
+
+    private static final Map<String, SessionContext> CONTEXTS =
+        new ConcurrentHashMap<>();
+
+    private static volatile long lastCleanupMs = 0L;
 
     /** Executor for running scripts with timeout */
     private static final ExecutorService EXECUTOR =
@@ -98,7 +111,7 @@ public final class GroovyExecutor {
      * @return ExecutionResult with return value, logs, and any errors
      */
     public static ExecutionResult execute(Session session, String script) {
-        return execute(session, script, DEFAULT_TIMEOUT_MS);
+        return execute(session, script, DEFAULT_TIMEOUT_MS, null, null);
     }
 
     public static ExecutionResult execute(
@@ -106,7 +119,7 @@ public final class GroovyExecutor {
         String script,
         java.util.Map<String, Object> extraBindings
     ) {
-        return execute(session, script, DEFAULT_TIMEOUT_MS, extraBindings);
+        return execute(session, script, DEFAULT_TIMEOUT_MS, extraBindings, null);
     }
 
     /**
@@ -122,7 +135,7 @@ public final class GroovyExecutor {
         String script,
         long timeoutMs
     ) {
-        return execute(session, script, timeoutMs, null);
+        return execute(session, script, timeoutMs, null, null);
     }
 
     public static ExecutionResult execute(
@@ -130,6 +143,24 @@ public final class GroovyExecutor {
         String script,
         long timeoutMs,
         java.util.Map<String, Object> extraBindings
+    ) {
+        return execute(session, script, timeoutMs, extraBindings, null);
+    }
+
+    public static ExecutionResult execute(
+        Session session,
+        String script,
+        String sessionId
+    ) {
+        return execute(session, script, DEFAULT_TIMEOUT_MS, null, sessionId);
+    }
+
+    public static ExecutionResult execute(
+        Session session,
+        String script,
+        long timeoutMs,
+        java.util.Map<String, Object> extraBindings,
+        String sessionId
     ) {
         long startTime = System.currentTimeMillis();
 
@@ -158,8 +189,13 @@ public final class GroovyExecutor {
         // Create script logger for output capture
         ScriptLogger logger = new ScriptLogger();
 
-        // Create bindings
-        Binding binding = createBinding(session, logger, extraBindings);
+        // Create bindings (stateful if sessionId provided)
+        Binding binding = prepareBinding(
+            session,
+            logger,
+            extraBindings,
+            sessionId
+        );
 
         // Create compiler configuration with security
         CompilerConfiguration config = createSecureConfig();
@@ -309,21 +345,48 @@ public final class GroovyExecutor {
     private static Binding createBinding(
         Session session,
         ScriptLogger logger,
-        java.util.Map<String, Object> extraBindings
+        java.util.Map<String, Object> extraBindings,
+        Set<String> reservedKeys,
+        Runnable resetHook
     ) {
         Binding binding = new Binding();
+        applySystemBindings(
+            binding,
+            session,
+            logger,
+            extraBindings,
+            reservedKeys,
+            resetHook
+        );
+        return binding;
+    }
 
+    private static void applySystemBindings(
+        Binding binding,
+        Session session,
+        ScriptLogger logger,
+        java.util.Map<String, Object> extraBindings,
+        Set<String> reservedKeys,
+        Runnable resetHook
+    ) {
         // Main API facade
-        binding.setVariable("api", new CapellaAPI(session));
+        setBindingVar(
+            binding,
+            reservedKeys,
+            "api",
+            new CapellaAPI(session, resetHook)
+        );
 
         // Direct session access for advanced operations
-        binding.setVariable("session", session);
+        setBindingVar(binding, reservedKeys, "session", session);
 
         // Logger for script output
-        binding.setVariable("log", logger);
+        setBindingVar(binding, reservedKeys, "log", logger);
 
         // Convenience: println function
-        binding.setVariable(
+        setBindingVar(
+            binding,
+            reservedKeys,
             "println",
             (java.util.function.Consumer<Object>) obj -> {
                 logger.info(obj != null ? obj.toString() : "null");
@@ -331,31 +394,45 @@ public final class GroovyExecutor {
         );
 
         // Capella factories for raw API access via api.tx {}
-        binding.setVariable(
+        setBindingVar(
+            binding,
+            reservedKeys,
             "OaFactory",
             org.polarsys.capella.core.data.oa.OaFactory.eINSTANCE
         );
-        binding.setVariable(
+        setBindingVar(
+            binding,
+            reservedKeys,
             "CtxFactory",
             org.polarsys.capella.core.data.ctx.CtxFactory.eINSTANCE
         );
-        binding.setVariable(
+        setBindingVar(
+            binding,
+            reservedKeys,
             "LaFactory",
             org.polarsys.capella.core.data.la.LaFactory.eINSTANCE
         );
-        binding.setVariable(
+        setBindingVar(
+            binding,
+            reservedKeys,
             "PaFactory",
             org.polarsys.capella.core.data.pa.PaFactory.eINSTANCE
         );
-        binding.setVariable(
+        setBindingVar(
+            binding,
+            reservedKeys,
             "FaFactory",
             org.polarsys.capella.core.data.fa.FaFactory.eINSTANCE
         );
-        binding.setVariable(
+        setBindingVar(
+            binding,
+            reservedKeys,
             "CsFactory",
             org.polarsys.capella.core.data.cs.CsFactory.eINSTANCE
         );
-        binding.setVariable(
+        setBindingVar(
+            binding,
+            reservedKeys,
             "InformationFactory",
             org.polarsys.capella.core.data.information.InformationFactory.eINSTANCE
         );
@@ -364,11 +441,18 @@ public final class GroovyExecutor {
                 "org.polarsys.capella.core.data.requirement.RequirementFactory"
             );
             Object instance = requirementFactory.getField("eINSTANCE").get(null);
-            binding.setVariable("RequirementFactory", instance);
+            setBindingVar(
+                binding,
+                reservedKeys,
+                "RequirementFactory",
+                instance
+            );
         } catch (Throwable t) {
             LOG.log(Level.FINE, "RequirementFactory unavailable", t);
         }
-        binding.setVariable(
+        setBindingVar(
+            binding,
+            reservedKeys,
             "CapellacoreFactory",
             org.polarsys.capella.core.data.capellacore.CapellacoreFactory.eINSTANCE
         );
@@ -378,11 +462,149 @@ public final class GroovyExecutor {
                 if (e.getKey() == null || e.getKey().isBlank()) {
                     continue;
                 }
-                binding.setVariable(e.getKey(), e.getValue());
+                setBindingVar(
+                    binding,
+                    reservedKeys,
+                    e.getKey(),
+                    e.getValue()
+                );
             }
         }
+    }
 
-        return binding;
+    private static void setBindingVar(
+        Binding binding,
+        Set<String> reservedKeys,
+        String key,
+        Object value
+    ) {
+        binding.setVariable(key, value);
+        if (reservedKeys != null) {
+            reservedKeys.add(key);
+        }
+    }
+
+    public static String buildSessionKey(
+        Session session,
+        String conversationId
+    ) {
+        if (session == null) {
+            return null;
+        }
+        String base = session.getSessionResource() != null
+            ? session.getSessionResource().getURI().toString()
+            : "session-" + System.identityHashCode(session);
+        if (conversationId == null || conversationId.isBlank()) {
+            return base;
+        }
+        return base + "::" + conversationId.trim();
+    }
+
+    public static void resetSession(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return;
+        }
+        SessionContext context = CONTEXTS.get(sessionId);
+        if (context == null) {
+            return;
+        }
+        synchronized (context.lock) {
+            context.resetUserVariables();
+        }
+    }
+
+    private static Binding prepareBinding(
+        Session session,
+        ScriptLogger logger,
+        java.util.Map<String, Object> extraBindings,
+        String sessionId
+    ) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return createBinding(session, logger, extraBindings, null, null);
+        }
+
+        SessionContext context = getOrCreateContext(sessionId, session);
+        synchronized (context.lock) {
+            context.touch();
+            if (context.session != session) {
+                context.resetSession(session);
+            }
+            applySystemBindings(
+                context.binding,
+                session,
+                logger,
+                extraBindings,
+                context.reservedKeys,
+                () -> resetSession(sessionId)
+            );
+            return context.binding;
+        }
+    }
+
+    private static SessionContext getOrCreateContext(
+        String sessionId,
+        Session session
+    ) {
+        purgeExpiredContexts();
+        return CONTEXTS.compute(
+            sessionId,
+            (key, existing) -> {
+                if (existing == null) {
+                    return new SessionContext(session);
+                }
+                return existing;
+            }
+        );
+    }
+
+    private static void purgeExpiredContexts() {
+        long now = System.currentTimeMillis();
+        if (now - lastCleanupMs < CLEANUP_INTERVAL_MS) {
+            return;
+        }
+        lastCleanupMs = now;
+        for (Map.Entry<String, SessionContext> entry : CONTEXTS.entrySet()) {
+            SessionContext context = entry.getValue();
+            if (context == null) {
+                CONTEXTS.remove(entry.getKey());
+                continue;
+            }
+            if (now - context.lastAccessMs > SESSION_TTL_MS) {
+                CONTEXTS.remove(entry.getKey());
+            }
+        }
+    }
+
+    private static final class SessionContext {
+        private final Object lock = new Object();
+        private Binding binding;
+        private Session session;
+        private final Set<String> reservedKeys = new java.util.HashSet<>();
+        private volatile long lastAccessMs;
+
+        private SessionContext(Session session) {
+            this.session = session;
+            this.binding = new Binding();
+            this.lastAccessMs = System.currentTimeMillis();
+        }
+
+        private void touch() {
+            this.lastAccessMs = System.currentTimeMillis();
+        }
+
+        private void resetSession(Session newSession) {
+            this.session = newSession;
+            this.binding = new Binding();
+            this.reservedKeys.clear();
+        }
+
+        private void resetUserVariables() {
+            if (binding == null) {
+                return;
+            }
+            Map<String, Object> vars = binding.getVariables();
+            vars.keySet().removeIf(key -> !reservedKeys.contains(key));
+        }
     }
 
     /**

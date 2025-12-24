@@ -11,7 +11,7 @@ The `api` object provides all Capella model operations.
 | Modify | `set`, `get`, `rename`, `delete` | Change elements |
 | Link | `link` | Create relationships |
 | Navigate | `layer`, `root`, `container`, `containerFor`, `parent`, `children` | Traverse model |
-| Utilities | `capabilities`, `summarize`, `validate` | Runtime info and validation |
+| Utilities | `capabilities`, `summarize`, `validate`, `reset` | Runtime info, validation, and context |
 | Diagram | `api.diagram.*` | Diagram operations |
 
 ## Quick Reference
@@ -52,6 +52,7 @@ api.children(element)     // Get children
 api.capabilities()        // JSON of runtime capabilities/fallbacks
 api.summarize(list)       // Compact summary for LLM output
 api.validate()            // Quick validation scan
+api.reset()               // Clear remembered variables
 ```
 
 ## Detailed Documentation
