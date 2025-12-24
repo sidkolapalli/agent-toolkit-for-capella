@@ -153,6 +153,7 @@ public final class FileSystemAPI {
             List.of(
                 "SKILL.md",
                 "create.md",
+                "describe.md",
                 "diagram.md",
                 "find.md",
                 "link.md",
