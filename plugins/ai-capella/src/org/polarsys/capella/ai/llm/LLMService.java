@@ -1,6 +1,7 @@
 package org.polarsys.capella.ai.llm;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
@@ -22,6 +23,8 @@ import org.polarsys.capella.ai.preferences.LLMPreferences;
 public final class LLMService {
 
     private static final LLMService INSTANCE = new LLMService();
+    private static final int MAX_RETRIES = 3;
+    private static final long BASE_BACKOFF_MS = 1000L;
     private final HttpClient http;
     private final Map<String, ModelCapabilities> capabilitiesCache =
         new ConcurrentHashMap<>();
@@ -143,9 +146,11 @@ public final class LLMService {
                 )
             )
             .build();
-        HttpResponse<String> resp = http.send(
+        HttpResponse<String> resp = sendWithRetry(
             req,
-            HttpResponse.BodyHandlers.ofString()
+            provider,
+            "openai-chat",
+            model
         );
         if (resp.statusCode() >= 400) {
             tryLogConversation(
@@ -260,9 +265,11 @@ public final class LLMService {
                 )
             )
             .build();
-        HttpResponse<String> resp = http.send(
+        HttpResponse<String> resp = sendWithRetry(
             req,
-            HttpResponse.BodyHandlers.ofString()
+            provider,
+            "openai-responses",
+            model
         );
         if (resp.statusCode() >= 400) {
             tryLogConversation(
@@ -436,9 +443,11 @@ public final class LLMService {
                 )
             )
             .build();
-        HttpResponse<String> resp = http.send(
+        HttpResponse<String> resp = sendWithRetry(
             req,
-            HttpResponse.BodyHandlers.ofString()
+            provider,
+            "anthropic-messages",
+            model
         );
         if (resp.statusCode() >= 400) {
             tryLogConversation(
@@ -1027,6 +1036,96 @@ public final class LLMService {
             .replace("\t", "\\t")
             .replace("\b", "\\b")
             .replace("\f", "\\f");
+    }
+
+    private HttpResponse<String> sendWithRetry(
+        HttpRequest req,
+        String provider,
+        String api,
+        String model
+    ) throws Exception {
+        int retries = 0;
+        while (true) {
+            HttpResponse<String> resp = http.send(
+                req,
+                HttpResponse.BodyHandlers.ofString()
+            );
+            int status = resp.statusCode();
+            if (!isRetryableStatus(status) || retries >= MAX_RETRIES) {
+                return resp;
+            }
+            long delayMs = computeBackoffMillis(
+                retries,
+                resp.headers().firstValue("Retry-After").orElse(null)
+            );
+            logRetry(provider, api, model, status, delayMs, retries + 1);
+            try {
+                Thread.sleep(delayMs);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IOException(
+                    "LLM request interrupted during retry backoff",
+                    ex
+                );
+            }
+            retries++;
+        }
+    }
+
+    public static boolean isRetryableStatus(int statusCode) {
+        return statusCode == 429 ||
+            statusCode == 502 ||
+            statusCode == 503 ||
+            statusCode == 504;
+    }
+
+    public static long computeBackoffMillis(int retryIndex, String retryAfterHeader) {
+        long delayMs = BASE_BACKOFF_MS << Math.max(0, retryIndex);
+        long retryAfterMs = parseRetryAfterMillis(retryAfterHeader);
+        if (retryAfterMs > delayMs) {
+            delayMs = retryAfterMs;
+        }
+        return delayMs;
+    }
+
+    public static long parseRetryAfterMillis(String header) {
+        if (header == null || header.isBlank()) {
+            return -1;
+        }
+        try {
+            long seconds = Long.parseLong(header.trim());
+            return seconds * 1000L;
+        } catch (NumberFormatException ex) {
+            return -1;
+        }
+    }
+
+    private static void logRetry(
+        String provider,
+        String api,
+        String model,
+        int status,
+        long delayMs,
+        int attempt
+    ) {
+        long seconds = Math.max(1L, Math.round(delayMs / 1000.0));
+        System.out.println(
+            "[LLMService] " +
+                provider +
+                " " +
+                api +
+                " (" +
+                model +
+                ") returned " +
+                status +
+                ", retrying in " +
+                seconds +
+                "s (attempt " +
+                attempt +
+                "/" +
+                MAX_RETRIES +
+                ")"
+        );
     }
 
     public interface StreamListener {
