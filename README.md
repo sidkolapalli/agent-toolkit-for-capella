@@ -18,6 +18,33 @@ This repository contains only the Capella plugin and p2 update site used to inst
 2. Accept the wizard, restart Capella, then open the view:`Window → Show View → Other… → Capella AI Assistant`.
 3. If you ever uninstall/reinstall, reset the Capella perspective afterwards so the view docks properly (`Window → Perspective → Reset Perspective…`).
 
+## Dev Server (Local Testing)
+
+The plugin ships with a lightweight HTTP dev server for LLM and Groovy execution testing.
+
+**Manual start (UI):**
+1. Launch Capella and open a `.aird` model.
+2. `Window → Show View → Other… → Capella AI → AI Dev Server`, then click **Start**.
+
+**Auto‑start (headless launch):**
+```bash
+CAPELLA_AI_DEVSERVER_AUTOSTART=1 \
+CAPELLA_AI_DEVSERVER_PORT=8765 \
+CAPELLA_AI_DEVSERVER_OPEN_AIRD="/path/to/YourModel.aird" \
+/path/to/capella -clean -consoleLog -data /path/to/workspace
+```
+
+**Endpoints:**
+- `GET /status` – server + session status
+- `GET /prompt` – current system prompt
+- `POST /execute` – run Groovy code
+- `POST /chat` – LLM prompt + auto‑execute returned code
+
+Use the provided smoke test script:
+```bash
+./test-dev-server.sh 8765
+```
+
 ## Configuring the LLM
 
 - The assistant view now exposes an **LLM Connection** panel where you can set provider, model, base URL, temperature, token/timeout limits, test the connection, and securely store API keys. Changes persist immediately via `LLMPreferences`.
