@@ -2272,7 +2272,7 @@ public final class CapellaAPI {
                 EObject.class,
                 String.class
             );
-            return method.invoke(interpreter, context, expression);
+            return unwrapResult(method.invoke(interpreter, context, expression));
         } catch (Exception ignored) {
             // fallback to evaluate
         }
@@ -2282,7 +2282,7 @@ public final class CapellaAPI {
                 EObject.class,
                 String.class
             );
-            return method.invoke(interpreter, context, expression);
+            return unwrapResult(method.invoke(interpreter, context, expression));
         } catch (Exception ignored) {
             // fallback to evaluateBoolean
         }
@@ -2296,6 +2296,27 @@ public final class CapellaAPI {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private static Object unwrapResult(Object result) {
+        if (result == null) {
+            return null;
+        }
+        if (
+            "org.eclipse.sirius.common.tools.api.interpreter.EvaluationResult".equals(
+                result.getClass().getName()
+            )
+        ) {
+            try {
+                // Check status: OK, ERROR, WARNING, etc.
+                // EvaluationResult.getValue() returns the raw object.
+                var valueMethod = result.getClass().getMethod("getValue");
+                return valueMethod.invoke(result);
+            } catch (Exception e) {
+                return result; // Fallback: return wrapper
+            }
+        }
+        return result;
     }
 
     private String guessLayerFromType(String type) {
