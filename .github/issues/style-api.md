@@ -1,7 +1,7 @@
 # Visual Style API for Diagram Highlighting
 
 ## Issue Details
-- **ID**: #51 (Proposed)
+- **ID**: #114
 - **Title**: Implement `api.style` for Programmatic Diagram Formatting
 - **Description**: 
   The current `DiagramAPI` allows creating diagrams and adding nodes, but it offers zero control over their appearance. All nodes appear with default colors and styles.

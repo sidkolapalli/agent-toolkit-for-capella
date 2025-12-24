@@ -1,7 +1,7 @@
 # Operations API for Engineering Transitions & Reusability
 
 ## Issue Details
-- **ID**: #50 (Proposed)
+- **ID**: #113
 - **Title**: Implement `api.ops` for Automated Transitions and RPL Instantiation
 - **Description**: 
   The current API focuses on CRUD (Create/Read/Update/Delete) operations on model elements. However, core Capella engineering workflows rely on "Transitions" (e.g., transforming System Functions to Logical Functions) and "Replicable Elements" (REC/RPL) for pattern reuse.
