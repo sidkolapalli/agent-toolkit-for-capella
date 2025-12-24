@@ -325,10 +325,25 @@ public final class CapellaAPI {
                 "Element type cannot be null or blank"
             );
         }
+        String trimmedType = type.trim();
+        if (isLayerToken(trimmedType)) {
+            String layer = trimmedType.toUpperCase();
+            throw new IllegalArgumentException(
+                "Looks like you passed a layer code ('" +
+                    layer +
+                    "') as the element type. " +
+                    "Use create('" +
+                    layer +
+                    "', '<Type>', '<Name>') or createIn('" +
+                    layer +
+                    "', '<Type>', '<Name>'). " +
+                    "For function allocation, use api.allocate(function, component)."
+            );
+        }
         // Guess the layer from the type name
-        String layer = guessLayerFromType(type);
+        String layer = guessLayerFromType(trimmedType);
         // Resolve type aliases
-        String resolvedType = resolveTypeAlias(type, layer);
+        String resolvedType = resolveTypeAlias(trimmedType, layer);
         return create(layer, resolvedType, name);
     }
 
@@ -389,6 +404,18 @@ public final class CapellaAPI {
         }
         invalidate();
         return created;
+    }
+
+    /**
+     * Create an element in a specific architecture layer (unambiguous helper).
+     *
+     * @param layer the layer (OA, SA, LA, PA)
+     * @param type the simple class name
+     * @param name the element name
+     * @return the created element
+     */
+    public EObject createIn(String layer, String type, String name) {
+        return create(layer, type, name);
     }
 
     /**
@@ -2055,6 +2082,15 @@ public final class CapellaAPI {
         if (lower.startsWith("logical") || lower.startsWith("la")) return "LA";
         if (lower.startsWith("physical") || lower.startsWith("pa")) return "PA";
         return "SA"; // Default to System Analysis
+    }
+
+    private static boolean isLayerToken(String type) {
+        if (type == null) return false;
+        String upper = type.trim().toUpperCase();
+        return "OA".equals(upper) ||
+            "SA".equals(upper) ||
+            "LA".equals(upper) ||
+            "PA".equals(upper);
     }
 
     private String mapTypeToLayer(String type, String targetLayer) {

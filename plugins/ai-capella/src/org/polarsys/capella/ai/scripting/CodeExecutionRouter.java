@@ -439,6 +439,8 @@ public final class CodeExecutionRouter {
         sb.append("- Prefer discovery over guessing. Use `api.help(\"diagram\")` before diagram operations.\n");
         sb.append("- Prefer skills for reusable tasks: `api.skills.list()` + `api.skills.run(name, args)`.\n");
         sb.append("- For complex tasks, load documentation first: `api.fs.read(\"SKILL.md\")`.\n");
+        sb.append("- Use `api.create(\"LA\", \"LogicalFunction\", \"Name\")` or `api.createIn(\"LA\", \"LogicalFunction\", \"Name\")` to create in a layer.\n");
+        sb.append("- Do NOT create allocation objects directly; use `api.allocate(function, component)`.\n\n");
         sb.append("- Use worked examples from skill files instead of inventing APIs.\n\n");
 
         sb.append("### Recipes (Load On Demand)\n\n");

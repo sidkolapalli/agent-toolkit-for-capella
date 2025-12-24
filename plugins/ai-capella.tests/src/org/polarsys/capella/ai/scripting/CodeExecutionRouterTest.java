@@ -50,4 +50,19 @@ public class CodeExecutionRouterTest {
 
         assertTrue(wrapped.contains("api.batch(\"abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcde...\") {"));
     }
+
+    @Test
+    public void testPromptMentionsAllocationAndLayerCreate() {
+        String prompt = CodeExecutionRouter.buildCodeExecutionPrompt(null);
+
+        assertTrue(
+            prompt.contains("api.allocate(function, component)")
+        );
+        assertTrue(
+            prompt.contains("api.createIn(\"LA\", \"LogicalFunction\", \"Name\")")
+        );
+        assertTrue(
+            prompt.contains("api.create(\"LA\", \"LogicalFunction\", \"Name\")")
+        );
+    }
 }
