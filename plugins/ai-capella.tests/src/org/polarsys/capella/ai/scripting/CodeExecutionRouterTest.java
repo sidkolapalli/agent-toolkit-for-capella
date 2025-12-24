@@ -64,5 +64,8 @@ public class CodeExecutionRouterTest {
         assertTrue(
             prompt.contains("api.create(\"LA\", \"LogicalFunction\", \"Name\")")
         );
+        assertTrue(
+            prompt.contains("api.validate()")
+        );
     }
 }

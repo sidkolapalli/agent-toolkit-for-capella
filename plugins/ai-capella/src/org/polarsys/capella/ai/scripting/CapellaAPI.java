@@ -8,12 +8,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
+import org.eclipse.emf.common.util.Diagnostic;
 import org.eclipse.emf.common.command.CommandStack;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.resource.Resource;
+import org.eclipse.emf.ecore.util.Diagnostician;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.model.ArchitectureLocator;
 import org.polarsys.capella.ai.model.ElementFactory;
@@ -1287,8 +1289,54 @@ public final class CapellaAPI {
      * Validate the model and return issues.
      */
     public List<String> validate() {
-        // TODO: Integrate with Capella validation framework
-        return List.of();
+        if (session == null) {
+            return List.of("Validation unavailable: no active Capella session.");
+        }
+        var domain = session.getTransactionalEditingDomain();
+        if (domain == null) {
+            return List.of("Validation unavailable: no editing domain.");
+        }
+        ModelAnalytics.ValidationReport report =
+            ModelAnalytics.ValidationReport.fromSession(
+                domain.getResourceSet()
+            );
+        return formatValidationReport("Model validation", report);
+    }
+
+    /**
+     * Validate a specific architecture layer.
+     *
+     * @param layer the layer (OA, SA, LA, PA)
+     */
+    public List<String> validate(String layer) {
+        if (session == null) {
+            return List.of("Validation unavailable: no active Capella session.");
+        }
+        if (layer == null || layer.isBlank()) {
+            return List.of("Validation unavailable: layer cannot be blank.");
+        }
+        EObject root = layer(layer);
+        if (root == null) {
+            return List.of(
+                "Validation unavailable: architecture layer '" +
+                    layer +
+                    "' not found. Valid layers: OA, SA, LA, PA."
+            );
+        }
+        return validateRoot(
+            root,
+            "Layer validation (" + layer.trim().toUpperCase() + ")"
+        );
+    }
+
+    /**
+     * Validate a specific element (and a limited subset of its descendants).
+     */
+    public List<String> validate(EObject element) {
+        if (element == null) {
+            return List.of("Validation unavailable: element is null.");
+        }
+        return validateRoot(element, "Element validation");
     }
 
     // ========== UNDO/REDO Operations ==========
@@ -1407,6 +1455,135 @@ public final class CapellaAPI {
     }
 
     // ========== Private Helpers ==========
+
+    private static List<String> formatValidationReport(
+        String label,
+        ModelAnalytics.ValidationReport report
+    ) {
+        if (report == null || !report.isAvailable()) {
+            return List.of(label + ": validation unavailable.");
+        }
+        List<String> messages = new ArrayList<>();
+        messages.add(
+            label +
+            ": " +
+            report.errorCount() +
+            " errors, " +
+            report.warningCount() +
+            " warnings."
+        );
+        messages.addAll(report.messages());
+        return messages;
+    }
+
+    private List<String> validateRoot(EObject root, String label) {
+        List<String> messages = new ArrayList<>();
+        int errors = 0;
+        int warnings = 0;
+        int checked = 0;
+        final int MAX_CHECK = 250;
+        final int MAX_MESSAGES = 75;
+
+        Diagnostic diag = Diagnostician.INSTANCE.validate(root);
+        CountResult count = collectDiagnostics(
+            diag,
+            messages,
+            MAX_MESSAGES
+        );
+        errors += count.errors;
+        warnings += count.warnings;
+        checked++;
+
+        var it = root.eAllContents();
+        while (it.hasNext() && checked < MAX_CHECK) {
+            EObject eo = it.next();
+            Diagnostic d = Diagnostician.INSTANCE.validate(eo);
+            CountResult result = collectDiagnostics(
+                d,
+                messages,
+                MAX_MESSAGES
+            );
+            errors += result.errors;
+            warnings += result.warnings;
+            checked++;
+            if (messages.size() >= MAX_MESSAGES) {
+                break;
+            }
+        }
+
+        List<String> out = new ArrayList<>();
+        if (messages.isEmpty()) {
+            out.add(label + ": no issues found in quick scan.");
+            return out;
+        }
+        out.add(label + ": " + errors + " errors, " + warnings + " warnings.");
+        out.addAll(messages);
+        if (checked >= MAX_CHECK) {
+            out.add("Validation note: quick scan capped at " + MAX_CHECK + " elements.");
+        }
+        if (messages.size() >= MAX_MESSAGES) {
+            out.add("Validation note: message list capped at " + MAX_MESSAGES + " entries.");
+        }
+        return out;
+    }
+
+    private static CountResult collectDiagnostics(
+        Diagnostic diagnostic,
+        List<String> messages,
+        int maxMessages
+    ) {
+        if (diagnostic == null) {
+            return new CountResult(0, 0);
+        }
+        int errors = 0;
+        int warnings = 0;
+        if (diagnostic.getSeverity() != Diagnostic.OK) {
+            if (diagnostic.getSeverity() == Diagnostic.ERROR) {
+                errors++;
+            } else if (diagnostic.getSeverity() == Diagnostic.WARNING) {
+                warnings++;
+            }
+            if (messages.size() < maxMessages) {
+                messages.add(formatDiagnostic(diagnostic));
+            }
+        }
+        for (Diagnostic child : diagnostic.getChildren()) {
+            if (messages.size() >= maxMessages) {
+                break;
+            }
+            CountResult childCount = collectDiagnostics(
+                child,
+                messages,
+                maxMessages
+            );
+            errors += childCount.errors;
+            warnings += childCount.warnings;
+        }
+        return new CountResult(errors, warnings);
+    }
+
+    private static String formatDiagnostic(Diagnostic diagnostic) {
+        String source = diagnostic.getSource() != null
+            ? diagnostic.getSource()
+            : "Unknown";
+        String severity = switch (diagnostic.getSeverity()) {
+            case Diagnostic.ERROR -> "ERROR";
+            case Diagnostic.WARNING -> "WARNING";
+            case Diagnostic.INFO -> "INFO";
+            default -> "UNKNOWN";
+        };
+        return severity + " " + source + ": " + diagnostic.getMessage();
+    }
+
+    private static final class CountResult {
+        private final int errors;
+        private final int warnings;
+
+        private CountResult(int errors, int warnings) {
+            this.errors = errors;
+            this.warnings = warnings;
+        }
+    }
 
     private void invalidate() {
         cacheDirty = true;
