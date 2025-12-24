@@ -65,4 +65,5 @@ api.reset()               // Clear remembered variables
 - `api.fs.read("api/modify.md")` - Modifying elements
 - `api.fs.read("api/link.md")` - Creating relationships
 - `api.fs.read("api/diagram.md")` - Diagram operations
+- `api.fs.read("api/diagram-layout.md")` - Alignment and distribution
 - `api.fs.read("api/validate.md")` - Validation

@@ -1,0 +1,64 @@
+# api.diagram.layout(), align(), distribute()
+
+Control the visual arrangement of diagram elements.
+
+## Layout Strategies
+
+```groovy
+// Auto-layout (smart default)
+api.diagram.layout(diagram, "auto")
+
+// Grid layout (compact rows/columns)
+api.diagram.layout(diagram, "grid")
+
+// Flow layout (left-to-right)
+api.diagram.layout(diagram, "flow")
+
+// Radial layout (circular)
+api.diagram.layout(diagram, "radial")
+
+// Layered layout (Sugiyama style)
+api.diagram.layout(diagram, "layered")
+```
+
+## Alignment
+
+Aligns the **selected** elements (or passed list).
+
+```groovy
+// Align selected elements to the left
+api.diagram.align(diagram, elements, "left")
+
+// Align to top
+api.diagram.align(diagram, elements, "top")
+
+// Center horizontally
+api.diagram.align(diagram, elements, "hcenter")
+```
+
+## Distribution
+
+Distributes elements evenly.
+
+```groovy
+// Distribute horizontally (equal spacing)
+api.diagram.distribute(diagram, elements, "horizontal")
+
+// Distribute vertically
+api.diagram.distribute(diagram, elements, "vertical")
+```
+
+## Examples
+
+```groovy
+def diag = api.diagram.create("SAB", saLayer)
+def comps = api.findAll("SystemComponent")
+api.diagram.addAll(diag, comps)
+
+// Arrange in a grid
+api.diagram.layout(diag, "grid")
+
+// Later, align specific nodes
+def critical = comps.findAll { it.name.contains("Critical") }
+api.diagram.align(diag, critical, "top")
+```
