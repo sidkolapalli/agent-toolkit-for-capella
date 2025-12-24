@@ -129,6 +129,7 @@ public final class ScriptRouter {
 
             // Check if response contains executable code
             if (CodeExecutionRouter.containsCode(reply)) {
+                String labelHint = buildUndoLabelHint(userMessage);
                 // Execute the code (with one correction attempt on error)
                 CodeExecutionRouter.Result execResult =
                     CodeExecutionRouter.executeWithRetry(
@@ -142,7 +143,8 @@ public final class ScriptRouter {
                                 history,
                                 previousResponse,
                                 errorFeedback
-                            )
+                            ),
+                        labelHint
                     );
 
                 if (execResult.success) {
@@ -170,6 +172,18 @@ public final class ScriptRouter {
         } finally {
             Telemetry.clearCorrelationId();
         }
+    }
+
+    private static String buildUndoLabelHint(String userMessage) {
+        if (userMessage == null || userMessage.isBlank()) {
+            return "LLM script";
+        }
+        String cleaned = userMessage.trim().replaceAll("\\s+", " ");
+        int max = 60;
+        if (cleaned.length() <= max) {
+            return cleaned;
+        }
+        return cleaned.substring(0, max - 3) + "...";
     }
 
     /**
