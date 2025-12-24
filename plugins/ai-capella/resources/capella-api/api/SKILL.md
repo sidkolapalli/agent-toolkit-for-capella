@@ -59,6 +59,7 @@ api.reset()               // Clear remembered variables
 ## Detailed Documentation
 
 - `api.fs.read("api/find.md")` - Finding elements
+- `api.fs.read("api/aql.md")` - AQL interpreter usage
 - `api.fs.read("api/create.md")` - Creating elements
 - `api.fs.read("api/describe.md")` - Element descriptions
 - `api.fs.read("api/modify.md")` - Modifying elements
