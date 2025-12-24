@@ -82,6 +82,9 @@ public final class CapellaAPI {
     /** Skills runtime API (trust-gated) */
     public final SkillsAPI skills;
 
+    /** Optional reset hook for stateful Groovy sessions */
+    private final Runnable resetHandler;
+
     // ========== Instance-Level Script Cache ==========
     /** Cache for find(type, name) results. Key: "type:name" */
     private final Map<String, EObject> findCache = new HashMap<>();
@@ -99,10 +102,18 @@ public final class CapellaAPI {
      * Create a CapellaAPI for the given session.
      */
     public CapellaAPI(Session session) {
+        this(session, null);
+    }
+
+    /**
+     * Create a CapellaAPI with an optional reset hook for stateful scripts.
+     */
+    public CapellaAPI(Session session, Runnable resetHandler) {
         this.session = session;
         this.diagram = new DiagramAPI(session);
         this.fs = new FileSystemAPI();
         this.skills = new SkillsAPI(session);
+        this.resetHandler = resetHandler;
     }
 
     /**
@@ -1452,6 +1463,18 @@ public final class CapellaAPI {
             return "No active session";
         }
         return ModelSummary.summarize(session);
+    }
+
+    /**
+     * Reset the current Groovy execution context (clears user variables).
+     */
+    public void reset() {
+        if (resetHandler == null) {
+            throw new IllegalStateException(
+                "reset() is only available inside the code execution context."
+            );
+        }
+        resetHandler.run();
     }
 
     // ========== Private Helpers ==========

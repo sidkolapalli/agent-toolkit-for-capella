@@ -93,7 +93,7 @@ public final class ScriptRouter {
      * @return the result
      */
     public static Result handleChat(Session session, String userMessage) {
-        return handleChat(session, userMessage, List.of());
+        return handleChat(session, userMessage, List.of(), null);
     }
 
     /**
@@ -108,6 +108,18 @@ public final class ScriptRouter {
         Session session,
         String userMessage,
         List<LLMService.Message> history
+    ) {
+        return handleChat(session, userMessage, history, null);
+    }
+
+    /**
+     * Handle a chat message with conversation history and optional conversation ID.
+     */
+    public static Result handleChat(
+        Session session,
+        String userMessage,
+        List<LLMService.Message> history,
+        String conversationId
     ) {
         String correlationId = UUID.randomUUID().toString();
         Telemetry.setCorrelationId(correlationId);
@@ -130,6 +142,10 @@ public final class ScriptRouter {
             // Check if response contains executable code
             if (CodeExecutionRouter.containsCode(reply)) {
                 String labelHint = buildUndoLabelHint(userMessage);
+                String sessionKey = GroovyExecutor.buildSessionKey(
+                    session,
+                    conversationId
+                );
                 // Execute the code (with one correction attempt on error)
                 CodeExecutionRouter.Result execResult =
                     CodeExecutionRouter.executeWithRetry(
@@ -144,7 +160,8 @@ public final class ScriptRouter {
                                 previousResponse,
                                 errorFeedback
                             ),
-                        labelHint
+                        labelHint,
+                        sessionKey
                     );
 
                 if (execResult.success) {

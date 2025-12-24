@@ -67,6 +67,9 @@ def diagram = api.diagram.create("SAB", saLayer)
 
 // Always log results
 log.info("Created: ${api.name(newFunc)}")
+
+// Clear remembered variables in the current execution context
+api.reset()
 ```
 
 ## Key Methods
