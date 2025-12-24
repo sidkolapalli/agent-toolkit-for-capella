@@ -431,7 +431,7 @@ public final class ModelAnalytics {
             this.messages = messages;
         }
 
-        static ValidationReport empty() {
+        public static ValidationReport empty() {
             return new ValidationReport(
                 false,
                 0,
@@ -456,7 +456,7 @@ public final class ModelAnalytics {
             return messages;
         }
 
-        static ValidationReport fromSession(ResourceSet resourceSet) {
+        public static ValidationReport fromSession(ResourceSet resourceSet) {
             if (resourceSet == null) {
                 return empty();
             }

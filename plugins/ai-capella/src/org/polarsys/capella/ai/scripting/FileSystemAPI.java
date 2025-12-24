@@ -156,7 +156,8 @@ public final class FileSystemAPI {
                 "diagram.md",
                 "find.md",
                 "link.md",
-                "modify.md"
+                "modify.md",
+                "validate.md"
             )
         );
         DIRECTORY_INDEX.put(

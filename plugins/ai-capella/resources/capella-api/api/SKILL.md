@@ -11,7 +11,7 @@ The `api` object provides all Capella model operations.
 | Modify | `set`, `get`, `rename`, `delete` | Change elements |
 | Link | `link` | Create relationships |
 | Navigate | `layer`, `root`, `container`, `containerFor`, `parent`, `children` | Traverse model |
-| Utilities | `capabilities`, `summarize` | Runtime info and compact summaries |
+| Utilities | `capabilities`, `summarize`, `validate` | Runtime info and validation |
 | Diagram | `api.diagram.*` | Diagram operations |
 
 ## Quick Reference
@@ -26,6 +26,7 @@ api.aql("aql:self.name", api.layer("SA"))
 // Creating
 api.create("SystemFunction", "Name")           // Auto-detect layer
 api.create("SA", "SystemFunction", "Name")     // Specify layer
+api.createIn("LA", "LogicalFunction", "Name")  // Explicit layer helper
 api.create("SystemFunction", "Name", parent)   // Under parent
 api.ensurePart(component)                      // Ensure a Part exists (SAB/LAB/PAB)
 
@@ -37,6 +38,7 @@ api.delete(element)
 // Linking
 api.link(source, target, "FunctionalExchange")
 api.link(func, component, "allocation")
+api.allocate(func, component)  // Preferred allocation helper
 
 // Navigation
 api.layer("SA")           // Get layer root
@@ -49,6 +51,7 @@ api.children(element)     // Get children
 // Utilities
 api.capabilities()        // JSON of runtime capabilities/fallbacks
 api.summarize(list)       // Compact summary for LLM output
+api.validate()            // Quick validation scan
 ```
 
 ## Detailed Documentation
@@ -58,3 +61,4 @@ api.summarize(list)       // Compact summary for LLM output
 - `api.fs.read("api/modify.md")` - Modifying elements
 - `api.fs.read("api/link.md")` - Creating relationships
 - `api.fs.read("api/diagram.md")` - Diagram operations
+- `api.fs.read("api/validate.md")` - Validation
