@@ -70,5 +70,8 @@ public class CodeExecutionRouterTest {
         assertTrue(
             prompt.contains("api.reset()")
         );
+        assertTrue(
+            prompt.contains("api.describe(element)")
+        );
     }
 }

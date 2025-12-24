@@ -2,11 +2,17 @@ package org.polarsys.capella.ai.model;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.stream.Collectors;
 
+import org.eclipse.emf.ecore.EAttribute;
+import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.EReference;
+import org.eclipse.emf.ecore.EStructuralFeature;
+import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.sirius.business.api.dialect.DialectManager;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.viewpoint.DRepresentation;
@@ -72,6 +78,34 @@ public final class ModelSummary {
         String summary = sb.toString();
         CACHE.put(session, new CacheEntry(summary, now));
         return summary;
+    }
+
+    public static String describeElement(EObject element) {
+        if (element == null) {
+            return "No element provided.";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(formatElement(element));
+
+        EObject container = element.eContainer();
+        if (container != null) {
+            sb.append("\nContainer: ").append(formatElement(container));
+        }
+
+        List<String> attributes = describeAttributes(element);
+        if (!attributes.isEmpty()) {
+            sb.append("\nAttributes:");
+            attributes.forEach(attr -> sb.append("\n- ").append(attr));
+        }
+
+        List<String> references = describeReferences(element);
+        if (!references.isEmpty()) {
+            sb.append("\nReferences:");
+            references.forEach(ref -> sb.append("\n- ").append(ref));
+        }
+
+        return sb.toString().stripTrailing();
     }
 
     public static void invalidate(Session session) {
@@ -157,5 +191,179 @@ public final class ModelSummary {
                 sb.append(entry.getKey()).append("→requirements(")
                         .append(String.join(", ", entry.getValue())).append(") "));
         return sb.toString().stripTrailing();
+    }
+
+    private static final int MAX_ATTRIBUTES = 12;
+    private static final int MAX_REFERENCES = 12;
+    private static final int MAX_RELATIONS = 5;
+    private static final int MAX_VALUE_LENGTH = 160;
+
+    private static List<String> describeAttributes(EObject element) {
+        List<String> items = element.eClass()
+            .getEAllAttributes()
+            .stream()
+            .filter(attr -> !attr.isDerived() && !attr.isTransient())
+            .map(attr -> describeAttribute(element, attr))
+            .filter(value -> value != null && !value.isBlank())
+            .sorted(Comparator.naturalOrder())
+            .limit(MAX_ATTRIBUTES)
+            .collect(Collectors.toList());
+        return items;
+    }
+
+    private static String describeAttribute(EObject element, EAttribute attr) {
+        Object value = element.eGet(attr);
+        if (value == null) {
+            return null;
+        }
+        String rendered = formatValue(value, MAX_RELATIONS);
+        if (rendered == null || rendered.isBlank()) {
+            return null;
+        }
+        return attr.getName() + " = " + rendered;
+    }
+
+    private static List<String> describeReferences(EObject element) {
+        List<String> items = element.eClass()
+            .getEAllReferences()
+            .stream()
+            .filter(ref -> !ref.isDerived() && !ref.isTransient())
+            .map(ref -> describeReference(element, ref))
+            .filter(value -> value != null && !value.isBlank())
+            .sorted(Comparator.naturalOrder())
+            .limit(MAX_REFERENCES)
+            .collect(Collectors.toList());
+        return items;
+    }
+
+    private static String describeReference(EObject element, EReference ref) {
+        Object value = element.eGet(ref);
+        if (value == null) {
+            return null;
+        }
+        String label = ref.getName();
+        if (ref.isContainment()) {
+            label += " (contains)";
+        }
+        String rendered = formatReferenceValue(value);
+        if (rendered == null || rendered.isBlank()) {
+            return null;
+        }
+        return label + " -> " + rendered;
+    }
+
+    private static String formatReferenceValue(Object value) {
+        if (value instanceof Collection<?> collection) {
+            if (collection.isEmpty()) {
+                return null;
+            }
+            String joined = collection
+                .stream()
+                .filter(EObject.class::isInstance)
+                .map(eo -> formatElementShort((EObject) eo))
+                .limit(MAX_RELATIONS)
+                .collect(Collectors.joining(", "));
+            return collection.size() +
+                " [" +
+                joined +
+                (collection.size() > MAX_RELATIONS ? ", ..." : "") +
+                "]";
+        }
+        if (value instanceof EObject eo) {
+            return formatElementShort(eo);
+        }
+        return truncate(value.toString(), MAX_VALUE_LENGTH);
+    }
+
+    private static String formatValue(Object value, int maxItems) {
+        if (value instanceof Collection<?> collection) {
+            if (collection.isEmpty()) {
+                return null;
+            }
+            String joined = collection
+                .stream()
+                .limit(maxItems)
+                .map(item -> truncate(String.valueOf(item), MAX_VALUE_LENGTH))
+                .collect(Collectors.joining(", "));
+            return collection.size() +
+                " [" +
+                joined +
+                (collection.size() > maxItems ? ", ..." : "") +
+                "]";
+        }
+        return truncate(String.valueOf(value), MAX_VALUE_LENGTH);
+    }
+
+    private static String formatElement(EObject element) {
+        String type = element.eClass().getName();
+        String name = getFeatureAsString(element, "name");
+        String id = getIdentifier(element);
+        StringBuilder sb = new StringBuilder();
+        sb.append(type);
+        if (name != null && !name.isBlank()) {
+            sb.append(" \"").append(truncate(name, 80)).append("\"");
+        }
+        if (id != null && !id.isBlank()) {
+            sb.append(" (id=").append(truncate(id, 80)).append(")");
+        }
+        return sb.toString();
+    }
+
+    private static String formatElementShort(EObject element) {
+        String type = element.eClass().getName();
+        String name = getFeatureAsString(element, "name");
+        if (name != null && !name.isBlank()) {
+            return type + " \"" + truncate(name, 60) + "\"";
+        }
+        String id = getIdentifier(element);
+        if (id != null && !id.isBlank()) {
+            return type + " (" + truncate(id, 60) + ")";
+        }
+        return type;
+    }
+
+    private static String getFeatureAsString(EObject element, String name) {
+        try {
+            EStructuralFeature feature = element
+                .eClass()
+                .getEStructuralFeature(name);
+            if (feature == null) {
+                return null;
+            }
+            Object value = element.eGet(feature);
+            return value != null ? value.toString() : null;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static String getIdentifier(EObject element) {
+        String id = getFeatureAsString(element, "id");
+        if (id != null && !id.isBlank()) {
+            return id;
+        }
+        String uuid = getFeatureAsString(element, "uuid");
+        if (uuid != null && !uuid.isBlank()) {
+            return uuid;
+        }
+        try {
+            var uri = EcoreUtil.getURI(element);
+            if (uri != null && uri.fragment() != null) {
+                return uri.fragment();
+            }
+        } catch (Exception ex) {
+            return null;
+        }
+        return null;
+    }
+
+    private static String truncate(String value, int max) {
+        if (value == null) {
+            return null;
+        }
+        if (value.length() <= max) {
+            return value;
+        }
+        return value.substring(0, Math.max(0, max - 3)) + "...";
     }
 }

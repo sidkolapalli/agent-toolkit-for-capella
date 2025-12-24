@@ -56,6 +56,9 @@ def func = api.find("SystemFunction", "Process Data")
 // Create an element in a layer
 def newFunc = api.create("SA", "SystemFunction", "New Function")
 
+// Describe an existing element before edits
+log.info(api.describe(newFunc))
+
 // Link elements
 api.link(func, newFunc, "FunctionalExchange")
 

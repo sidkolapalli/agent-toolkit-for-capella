@@ -1081,6 +1081,16 @@ public final class CapellaAPI {
     }
 
     /**
+     * Describe an element with a dense, one-hop graph of attributes and references.
+     */
+    public String describe(EObject element) {
+        if (element == null) {
+            return "No element provided.";
+        }
+        return ModelSummary.describeElement(element);
+    }
+
+    /**
      * Summarize a value with a maximum number of items.
      */
     public String summarize(Object value, int maxItems) {
