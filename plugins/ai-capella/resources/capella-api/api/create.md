@@ -11,6 +11,9 @@ EObject create(String type, String name)
 // Specify architecture layer
 EObject create(String layer, String type, String name)
 
+// Unambiguous layer helper
+EObject createIn(String layer, String type, String name)
+
 // Create under specific parent
 EObject create(String type, String name, EObject parent)
 ```
@@ -23,6 +26,9 @@ def func = api.create("SystemFunction", "Process Input")
 
 // Create in specific layer
 def comp = api.create("LA", "LogicalComponent", "Controller")
+
+// Create in specific layer (explicit helper)
+def func = api.createIn("LA", "LogicalFunction", "Decode Stream")
 
 // Create under specific parent
 def subFunc = api.create("SystemFunction", "Validate Data", func)
@@ -68,3 +74,4 @@ api.create("PA", "PhysicalComponent", "Antenna")
 - Created elements are automatically saved
 - Parent is auto-detected from type if not specified
 - Use `api.layer("SA")` to get layer root for inspection
+- If you need to allocate a function to a component, use `api.allocate(function, component)` (do not create allocation objects directly)
