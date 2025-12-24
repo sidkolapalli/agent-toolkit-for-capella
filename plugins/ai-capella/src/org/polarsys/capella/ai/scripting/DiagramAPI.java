@@ -895,6 +895,63 @@ public final class DiagramAPI {
         }
     }
 
+    /**
+     * Align elements on the diagram.
+     *
+     * @param diagram the diagram
+     * @param elements list of semantic elements to align
+     * @param alignment "left", "right", "top", "bottom", "hcenter" (center horizontally), "vcenter" (center vertically)
+     * @return true if alignment was applied
+     */
+    public boolean align(
+        DRepresentation diagram,
+        List<EObject> elements,
+        String alignment
+    ) {
+        String strat = alignment != null ? alignment.toLowerCase() : "";
+        if (!List.of("left", "right", "top", "bottom", "hcenter", "vcenter").contains(strat)) {
+            throw new IllegalArgumentException("Invalid alignment: " + alignment + ". Use left, right, top, bottom, hcenter, vcenter.");
+        }
+        if (session == null || diagram == null || elements == null || elements.isEmpty()) {
+            return false;
+        }
+        // Note: DiagramCommands.arrangeSelection currently operates on the *selection* or *all nodes*.
+        // To support aligning specific elements, we would need to select them first or update DiagramCommands.
+        // For now, we assume the user has set the selection or wants to align the passed elements (if DiagramCommands supports specific list).
+        // Update: DiagramCommands.arrangeSelection logic relies on "current selection" in the editor.
+        // To make this robust for headless/scripting, we should select the elements first.
+        DiagramCommands.revealSemantics(session, diagram, elements);
+        return DiagramCommands.arrangeSelection(session, diagram, strat);
+    }
+
+    /**
+     * Distribute elements on the diagram.
+     *
+     * @param diagram the diagram
+     * @param elements list of semantic elements to distribute
+     * @param distribution "horizontal" (hspace), "vertical" (vspace)
+     * @return true if distribution was applied
+     */
+    public boolean distribute(
+        DRepresentation diagram,
+        List<EObject> elements,
+        String distribution
+    ) {
+        String strat = distribution != null ? distribution.toLowerCase() : "";
+        if (strat.startsWith("h")) strat = "hspace";
+        else if (strat.startsWith("v")) strat = "vspace";
+        
+        if (!List.of("hspace", "vspace").contains(strat)) {
+            throw new IllegalArgumentException("Invalid distribution: " + distribution + ". Use horizontal, vertical.");
+        }
+
+        if (session == null || diagram == null || elements == null || elements.isEmpty()) {
+            return false;
+        }
+        DiagramCommands.revealSemantics(session, diagram, elements);
+        return DiagramCommands.arrangeSelection(session, diagram, strat);
+    }
+
     // ========== Diagram Management ==========
 
     /**

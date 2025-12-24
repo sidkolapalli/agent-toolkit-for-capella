@@ -156,6 +156,7 @@ public final class FileSystemAPI {
                 "create.md",
                 "describe.md",
                 "diagram.md",
+                "diagram-layout.md",
                 "find.md",
                 "link.md",
                 "modify.md",
