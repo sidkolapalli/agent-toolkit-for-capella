@@ -17,6 +17,7 @@ import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.util.Diagnostician;
 import org.eclipse.sirius.business.api.session.Session;
+import org.eclipse.sirius.tools.api.interpreter.InterpreterUtil;
 import org.polarsys.capella.ai.model.ArchitectureLocator;
 import org.polarsys.capella.ai.model.ElementFactory;
 import org.polarsys.capella.ai.model.FindResult;
@@ -1175,6 +1176,9 @@ public final class CapellaAPI {
             return null;
         }
         Object interpreter = getInterpreter(session);
+        if (interpreter == null) {
+            interpreter = getInterpreter(ctx);
+        }
         return evaluate(interpreter, ctx, expression);
     }
 
@@ -2238,6 +2242,17 @@ public final class CapellaAPI {
         try {
             var method = session.getClass().getMethod("getInterpreter");
             return method.invoke(session);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static Object getInterpreter(EObject context) {
+        if (context == null) {
+            return null;
+        }
+        try {
+            return InterpreterUtil.getInterpreter(context);
         } catch (Exception ex) {
             return null;
         }
