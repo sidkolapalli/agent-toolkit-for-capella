@@ -6,6 +6,10 @@ import java.util.List;
 import java.util.logging.Logger;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.sirius.business.api.session.Session;
+import org.polarsys.capella.common.ef.ExecutionManager;
+import org.polarsys.capella.common.ef.command.ICommand;
+import org.polarsys.capella.common.helpers.TransactionHelper;
+import org.polarsys.capella.common.helpers.operations.LongRunningListenersRegistry;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 
 /**
@@ -48,37 +52,66 @@ public final class OpsAPI {
     }
 
     private boolean triggerTransition(Collection<EObject> selection, String packagePrefix) {
-        return SessionSafeguards.runWrite(session, "Transition " + packagePrefix, () -> {
-            try {
-                // Load the helper class via reflection to avoid strict dependency
-                Class<?> helperClass = Class.forName(packagePrefix + ".commands.TransitionCommandHelper");
-                
-                // Method: createCommand(Collection<EObject> selection, Session session)
-                var createMethod = helperClass.getMethod("createCommand", Collection.class, Session.class);
-                
-                // Invoke static method
-                Object command = createMethod.invoke(null, selection, session);
-                
-                if (command instanceof org.eclipse.emf.common.command.Command) {
-                    var emfCommand = (org.eclipse.emf.common.command.Command) command;
-                    if (emfCommand.canExecute()) {
-                        LOG.info("Executing transition command: " + emfCommand.getLabel());
-                        emfCommand.execute();
-                        return true;
-                    } else {
-                        LOG.warning("Transition command cannot execute (preconditions failed).");
-                    }
-                } else if (command == null) {
-                    LOG.warning("Transition helper returned null command.");
+        try {
+            Class<?> helperClass = Class.forName(packagePrefix + ".commands.TransitionCommandHelper");
+            
+            // Determine the correct method based on selection type
+            String methodName = "getSystemTransitionCommand";
+            if (!selection.isEmpty()) {
+                EObject first = selection.iterator().next();
+                String type = first.eClass().getName();
+                if (type.contains("Function") || type.contains("Activity")) {
+                    methodName = "getFunctionalTransitionCommand";
+                } else if (type.contains("Capability")) {
+                    methodName = "getCapabilityTransitionCommand";
                 }
-            } catch (ClassNotFoundException e) {
-                LOG.warning("Transition engine not found: " + packagePrefix);
-                throw new RuntimeException("Transition engine not installed: " + packagePrefix, e);
-            } catch (Exception e) {
-                LOG.warning("Failed to trigger transition: " + e.getMessage());
-                throw new RuntimeException("Transition failed: " + e.getMessage(), e);
             }
+
+            LOG.info("Using transition method: " + methodName);
+            var getInstanceMethod = helperClass.getMethod("getInstance");
+            Object helperInstance = getInstanceMethod.invoke(null);
+            
+                            var method = helperClass.getMethod(methodName, java.util.Collection.class, org.eclipse.core.runtime.IProgressMonitor.class);
+            Object command = method.invoke(
+                helperInstance,
+                selection,
+                new org.eclipse.core.runtime.NullProgressMonitor()
+            );
+            if (command instanceof ICommand) {
+                return executeCapellaCommand((ICommand) command, selection);
+            }
+            if (command instanceof org.eclipse.emf.common.command.Command) {
+                var emfCommand = (org.eclipse.emf.common.command.Command) command;
+                if (emfCommand.canExecute()) {
+                    LOG.info("Executing transition command: " + emfCommand.getLabel());
+                    session.getTransactionalEditingDomain().getCommandStack().execute(emfCommand);
+                    return true;
+                } else {
+                    LOG.warning("Transition command cannot execute (preconditions failed).");
+                }
+            }
+        } catch (Exception e) {
+            LOG.warning("Transition failed: " + e.getMessage());
+            throw new RuntimeException("Transition failed: " + e.getMessage(), e);
+        }
+        return false;
+    }
+
+    private boolean executeCapellaCommand(ICommand command, Collection<EObject> selection) {
+        Collection<EObject> semantic = selection == null
+            ? Collections.emptyList()
+            : selection;
+        ExecutionManager executionManager = TransactionHelper.getExecutionManager(semantic);
+        if (executionManager == null) {
+            LOG.warning("Transition command cannot execute (no ExecutionManager for selection).");
             return false;
-        });
+        }
+        try {
+            LongRunningListenersRegistry.getInstance().operationStarting(getClass());
+            executionManager.execute(command);
+            return true;
+        } finally {
+            LongRunningListenersRegistry.getInstance().operationEnded(getClass());
+        }
     }
 }
