@@ -160,6 +160,7 @@ public final class FileSystemAPI {
                 "find.md",
                 "link.md",
                 "modify.md",
+                "style.md",
                 "validate.md"
             )
         );
