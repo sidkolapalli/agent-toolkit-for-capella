@@ -129,11 +129,17 @@ public final class ScriptRouter {
                 return Result.error("No active Capella session");
             }
 
+            String sessionKey = GroovyExecutor.buildSessionKey(
+                session,
+                conversationId
+            );
+
             // Build messages with code execution system prompt
             List<LLMService.Message> messages = buildMessages(
                 session,
                 userMessage,
-                history
+                history,
+                sessionKey
             );
 
             // Get LLM response
@@ -142,10 +148,6 @@ public final class ScriptRouter {
             // Check if response contains executable code
             if (CodeExecutionRouter.containsCode(reply)) {
                 String labelHint = buildUndoLabelHint(userMessage);
-                String sessionKey = GroovyExecutor.buildSessionKey(
-                    session,
-                    conversationId
-                );
                 // Execute the code (with one correction attempt on error)
                 CodeExecutionRouter.Result execResult =
                     CodeExecutionRouter.executeWithRetry(
@@ -158,7 +160,8 @@ public final class ScriptRouter {
                                 userMessage,
                                 history,
                                 previousResponse,
-                                errorFeedback
+                                errorFeedback,
+                                sessionKey
                             ),
                         labelHint,
                         sessionKey
@@ -210,12 +213,13 @@ public final class ScriptRouter {
     private static List<LLMService.Message> buildMessages(
         Session session,
         String userMessage,
-        List<LLMService.Message> history
+        List<LLMService.Message> history,
+        String sessionKey
     ) {
         List<LLMService.Message> messages = new ArrayList<>();
 
         // System prompt with code execution instructions
-        String systemPrompt = buildSystemPrompt(session);
+        String systemPrompt = buildSystemPrompt(session, sessionKey);
         messages.add(LLMService.Message.system(systemPrompt));
 
         // Add conversation history (limited to recent messages)
@@ -236,10 +240,11 @@ public final class ScriptRouter {
         String userMessage,
         List<LLMService.Message> history,
         String previousResponse,
-        String errorFeedback
+        String errorFeedback,
+        String sessionKey
     ) {
         List<LLMService.Message> messages = new ArrayList<>();
-        String systemPrompt = buildSystemPrompt(session);
+        String systemPrompt = buildSystemPrompt(session, sessionKey);
         messages.add(LLMService.Message.system(systemPrompt));
 
         int historyLimit = 10;
@@ -284,7 +289,7 @@ public final class ScriptRouter {
     /**
      * Build the system prompt for code execution mode.
      */
-    private static String buildSystemPrompt(Session session) {
+    private static String buildSystemPrompt(Session session, String sessionKey) {
         StringBuilder sb = new StringBuilder();
 
         sb.append(
@@ -318,7 +323,9 @@ public final class ScriptRouter {
         );
 
         // Add API documentation
-        sb.append(CodeExecutionRouter.buildCodeExecutionPrompt(session));
+        sb.append(
+            CodeExecutionRouter.buildCodeExecutionPrompt(session, sessionKey)
+        );
 
         sb.append("\n## Guidelines\n\n");
         sb.append(
@@ -360,6 +367,6 @@ public final class ScriptRouter {
      * Get the system prompt for external tools.
      */
     public static String getSystemPrompt(Session session) {
-        return buildSystemPrompt(session);
+        return buildSystemPrompt(session, null);
     }
 }

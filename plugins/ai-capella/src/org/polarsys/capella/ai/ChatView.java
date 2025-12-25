@@ -175,11 +175,25 @@ public class ChatView extends ViewPart {
 
     private void processRequest(Session session, String userInput) {
         // Build messages
+        String sessionKey = GroovyExecutor.buildSessionKey(
+            session,
+            conversationId
+        );
+        String systemPrompt = CodeExecutionRouter.buildCodeExecutionPrompt(
+            session,
+            sessionKey
+        );
         if (conversationHistory.isEmpty()) {
-            String systemPrompt = CodeExecutionRouter.buildCodeExecutionPrompt(
-                session
-            );
             conversationHistory.add(LLMService.Message.system(systemPrompt));
+        } else if (
+            conversationHistory.get(0).getRole() == LLMService.Message.Role.SYSTEM
+        ) {
+            conversationHistory.set(
+                0,
+                LLMService.Message.system(systemPrompt)
+            );
+        } else {
+            conversationHistory.add(0, LLMService.Message.system(systemPrompt));
         }
         conversationHistory.add(LLMService.Message.user(userInput));
 
@@ -210,10 +224,6 @@ public class ChatView extends ViewPart {
             });
 
             // Execute
-            String sessionKey = GroovyExecutor.buildSessionKey(
-                session,
-                conversationId
-            );
             ExecutionResult result = GroovyExecutor.execute(
                 session,
                 code,

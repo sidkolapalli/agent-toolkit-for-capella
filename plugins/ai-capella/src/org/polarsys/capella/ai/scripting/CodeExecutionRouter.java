@@ -384,6 +384,13 @@ public final class CodeExecutionRouter {
      * This achieves 98% token reduction while enabling unlimited capability.
      */
     public static String buildCodeExecutionPrompt(Session session) {
+        return buildCodeExecutionPrompt(session, null);
+    }
+
+    public static String buildCodeExecutionPrompt(
+        Session session,
+        String sessionId
+    ) {
         StringBuilder sb = new StringBuilder();
 
         // Minimal system prompt (~20 lines instead of ~100)
@@ -407,6 +414,20 @@ public final class CodeExecutionRouter {
 
         sb.append("### Operations\n\n");
         sb.append("Use `api.ops.transition(selection, \"SA2LA\")` for system-to-logical transitions.\n\n");
+
+        java.util.List<GroovyExecutor.VariableSummary> vars =
+            GroovyExecutor.describeSessionVariables(sessionId);
+        if (!vars.isEmpty()) {
+            sb.append("## Current Session State\n\n");
+            for (GroovyExecutor.VariableSummary summary : vars) {
+                sb.append("- ")
+                    .append(summary.name)
+                    .append(": ")
+                    .append(summary.summary)
+                    .append("\n");
+            }
+            sb.append("\n");
+        }
 
         // Skill metadata (lightweight discovery)
         FileSystemAPI fs = new FileSystemAPI();

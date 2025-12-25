@@ -21,6 +21,7 @@ import java.util.logging.Logger;
 import org.codehaus.groovy.control.CompilerConfiguration;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.codehaus.groovy.control.customizers.SecureASTCustomizer;
+import org.eclipse.emf.ecore.EObject;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 
@@ -605,6 +606,150 @@ public final class GroovyExecutor {
             Map<String, Object> vars = binding.getVariables();
             vars.keySet().removeIf(key -> !reservedKeys.contains(key));
         }
+
+        private java.util.List<VariableSummary> describeUserVariables() {
+            if (binding == null) {
+                return java.util.List.of();
+            }
+            Map<String, Object> vars = binding.getVariables();
+            if (vars == null || vars.isEmpty()) {
+                return java.util.List.of();
+            }
+            java.util.List<VariableSummary> summaries =
+                new java.util.ArrayList<>();
+            for (Map.Entry<String, Object> entry : vars.entrySet()) {
+                String key = entry.getKey();
+                if (key == null || key.isBlank()) {
+                    continue;
+                }
+                if (reservedKeys.contains(key)) {
+                    continue;
+                }
+                Object value = entry.getValue();
+                String summary = summarizeVariable(value);
+                if (summary == null || summary.isBlank()) {
+                    continue;
+                }
+                summaries.add(new VariableSummary(key, summary));
+                if (summaries.size() >= MAX_VARIABLE_SUMMARIES) {
+                    break;
+                }
+            }
+            return summaries;
+        }
+    }
+
+    public static final class VariableSummary {
+        public final String name;
+        public final String summary;
+
+        private VariableSummary(String name, String summary) {
+            this.name = name;
+            this.summary = summary;
+        }
+    }
+
+    private static final int MAX_VARIABLE_SUMMARIES = 12;
+    private static final int MAX_VALUE_LENGTH = 120;
+
+    public static java.util.List<VariableSummary> describeSessionVariables(
+        String sessionId
+    ) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return java.util.List.of();
+        }
+        SessionContext context = CONTEXTS.get(sessionId);
+        if (context == null) {
+            return java.util.List.of();
+        }
+        synchronized (context.lock) {
+            return context.describeUserVariables();
+        }
+    }
+
+    private static String summarizeVariable(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof EObject) {
+            return formatEObject((EObject) value, true);
+        }
+        if (value instanceof java.util.Collection<?>) {
+            java.util.Collection<?> collection =
+                (java.util.Collection<?>) value;
+            int size = collection.size();
+            Object sample = null;
+            for (Object item : collection) {
+                if (item != null) {
+                    sample = item;
+                    break;
+                }
+            }
+            if (sample instanceof EObject) {
+                String type = formatEObject((EObject) sample, false);
+                return "List<" + type + ">(size=" + size + ")";
+            }
+            return null;
+        }
+        return null;
+    }
+
+    private static String formatEObject(EObject obj, boolean includeTarget) {
+        if (obj == null) {
+            return "null";
+        }
+        String type = obj.eClass() != null
+            ? obj.eClass().getName()
+            : obj.getClass().getSimpleName();
+        String name = extractName(obj);
+        String base = name == null || name.isBlank()
+            ? type
+            : type + " \"" + truncate(name) + "\"";
+        if (includeTarget) {
+            EObject target = extractTarget(obj);
+            if (target != null && target != obj) {
+                base += " -> " + formatEObject(target, false);
+            }
+        }
+        return base;
+    }
+
+    private static String extractName(EObject obj) {
+        try {
+            var feature = obj.eClass().getEStructuralFeature("name");
+            if (feature != null) {
+                Object value = obj.eGet(feature);
+                if (value != null) {
+                    return value.toString();
+                }
+            }
+        } catch (Exception ignored) {
+            // best-effort
+        }
+        return null;
+    }
+
+    private static EObject extractTarget(EObject obj) {
+        try {
+            var method = obj.getClass().getMethod("getTarget");
+            Object value = method.invoke(obj);
+            if (value instanceof EObject) {
+                return (EObject) value;
+            }
+        } catch (Exception ignored) {
+            // optional
+        }
+        return null;
+    }
+
+    private static String truncate(String value) {
+        if (value == null) {
+            return null;
+        }
+        if (value.length() <= MAX_VALUE_LENGTH) {
+            return value;
+        }
+        return value.substring(0, MAX_VALUE_LENGTH - 3) + "...";
     }
 
     /**
