@@ -2634,7 +2634,7 @@ public final class DiagramCommands {
                 Object o = it.next();
                 if (o instanceof org.eclipse.sirius.diagram.DDiagramElement) {
                     var el = (org.eclipse.sirius.diagram.DDiagramElement) o;
-                    if (semantic.equals(el.getTarget())) {
+                    if (isVisualFor(el, semantic)) {
                         target = el;
                         break;
                     }
@@ -2806,6 +2806,28 @@ public final class DiagramCommands {
                 );
             }
         } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+    }
+
+    private static boolean isVisualFor(DDiagramElement el, EObject semantic) {
+        if (el == null || semantic == null) return false;
+        EObject target = el.getTarget();
+        if (target == null) return false;
+
+        // 1. Direct equality
+        if (semantic.equals(target)) return true;
+
+        // 2. Part-to-Component mapping (Common in SAB/LAB/PAB)
+        if (target instanceof Part) {
+            EObject abstractType = ((Part) target).getAbstractType();
+            if (semantic.equals(abstractType)) return true;
+        }
+
+        // 3. UUID matching (Fallback for proxies/reloads)
+        String sId = tryUuid(semantic);
+        String tId = tryUuid(target);
+        if (sId != null && sId.equals(tId)) return true;
+
+        return false;
     }
 
     private static String tryUuid(EObject eo) {
