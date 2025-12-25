@@ -83,6 +83,9 @@ public final class CapellaAPI {
     /** Skills runtime API (trust-gated) */
     public final SkillsAPI skills;
 
+    /** Style API for visual formatting */
+    public final StyleAPI style;
+
     /** Optional reset hook for stateful Groovy sessions */
     private final Runnable resetHandler;
 
@@ -114,6 +117,7 @@ public final class CapellaAPI {
         this.diagram = new DiagramAPI(session);
         this.fs = new FileSystemAPI();
         this.skills = new SkillsAPI(session);
+        this.style = new StyleAPI(session, this.diagram);
         this.resetHandler = resetHandler;
     }
 
