@@ -86,6 +86,9 @@ public final class CapellaAPI {
     /** Style API for visual formatting */
     public final StyleAPI style;
 
+    /** Operations API for engineering transitions */
+    public final OpsAPI ops;
+
     /** Optional reset hook for stateful Groovy sessions */
     private final Runnable resetHandler;
 
@@ -118,6 +121,7 @@ public final class CapellaAPI {
         this.fs = new FileSystemAPI();
         this.skills = new SkillsAPI(session);
         this.style = new StyleAPI(session, this.diagram);
+        this.ops = new OpsAPI(session);
         this.resetHandler = resetHandler;
     }
 
