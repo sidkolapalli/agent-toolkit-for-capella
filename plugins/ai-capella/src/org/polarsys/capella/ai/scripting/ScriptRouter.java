@@ -165,6 +165,7 @@ public final class ScriptRouter {
                     );
 
                 if (execResult.success) {
+                    Telemetry.recordDatasetEntry(userMessage, execResult.responseUsed);
                     return Result.executed(
                         execResult.responseUsed,
                         execResult.executionResult,

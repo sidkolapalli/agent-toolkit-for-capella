@@ -188,6 +188,38 @@ public final class Telemetry {
         );
     }
 
+    /**
+     * Record a successful prompt-code pair for fine-tuning datasets.
+     * Only called when execution succeeds.
+     */
+    public static void recordDatasetEntry(String prompt, String code) {
+        if (!isEnabled()) return;
+        try {
+            Path file = Paths.get(
+                System.getProperty("user.home"),
+                ".capella-ai",
+                "dataset.jsonl"
+            );
+            if (!Files.exists(file.getParent())) Files.createDirectories(file.getParent());
+            
+            StringBuilder sb = new StringBuilder(1024);
+            sb.append('{');
+            sb.append("\"ts\":\"").append(jsonEscape(TS.format(Instant.now()))).append("\",");
+            sb.append("\"prompt\":\"").append(jsonEscape(prompt)).append("\",");
+            sb.append("\"code\":\"").append(jsonEscape(code)).append("\"");
+            sb.append('}').append('\n');
+            
+            Files.write(
+                file,
+                sb.toString().getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.APPEND
+            );
+        } catch (Exception ex) {
+            System.err.println("[Telemetry] Error writing dataset entry: " + ex.getMessage());
+        }
+    }
+
     /** Set/clear correlation id to group logs for a single interaction. */
     public static void setCorrelationId(String id) {
         CORRELATION.set(id);
