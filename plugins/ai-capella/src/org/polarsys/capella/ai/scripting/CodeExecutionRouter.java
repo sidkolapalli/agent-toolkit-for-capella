@@ -401,8 +401,12 @@ public final class CodeExecutionRouter {
         );
         sb.append("- `api.skills` - Reusable skill runtime (list, metadata, run)\n");
         sb.append("- `api.diagram` - Diagram operations\n");
+        sb.append("- `api.ops` - Engineering operations (transitions, reuse)\n");
         sb.append("- `api.help(\"diagram\")` - JSON method catalog for a module\n");
         sb.append("- `log` - Logger (log.info, log.warn, log.error)\n\n");
+
+        sb.append("### Operations\n\n");
+        sb.append("Use `api.ops.transition(selection, \"SA2LA\")` for system-to-logical transitions.\n\n");
 
         // Skill metadata (lightweight discovery)
         FileSystemAPI fs = new FileSystemAPI();
@@ -566,6 +570,11 @@ public final class CodeExecutionRouter {
         );
         sb.append(
             "api.link(func, comp, \"allocation\")            // Allocate function\n\n"
+        );
+
+        sb.append("// === OPERATIONS ===\n");
+        sb.append(
+            "api.ops.transition([component], \"SA2LA\")      // System -> Logical transition\n\n"
         );
 
         sb.append("// === NAVIGATION ===\n");

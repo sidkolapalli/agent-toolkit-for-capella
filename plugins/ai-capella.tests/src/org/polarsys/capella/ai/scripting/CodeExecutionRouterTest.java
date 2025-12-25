@@ -73,5 +73,11 @@ public class CodeExecutionRouterTest {
         assertTrue(
             prompt.contains("api.describe(element)")
         );
+        assertTrue(
+            prompt.contains("api.ops")
+        );
+        assertTrue(
+            prompt.contains("api.ops.transition")
+        );
     }
 }
