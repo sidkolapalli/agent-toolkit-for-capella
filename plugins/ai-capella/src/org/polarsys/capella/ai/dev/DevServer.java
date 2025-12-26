@@ -268,7 +268,15 @@ public final class DevServer {
         }
 
         Session session = SessionBridge.getActiveSession();
-        String prompt = CodeExecutionRouter.buildCodeExecutionPrompt(session);
+        String conversationId = getConversationId(exchange);
+        String sessionKey = GroovyExecutor.buildSessionKey(
+            session,
+            conversationId
+        );
+        String prompt = CodeExecutionRouter.buildCodeExecutionPrompt(
+            session,
+            sessionKey
+        );
 
         StringBuilder json = new StringBuilder();
         json.append("{");
