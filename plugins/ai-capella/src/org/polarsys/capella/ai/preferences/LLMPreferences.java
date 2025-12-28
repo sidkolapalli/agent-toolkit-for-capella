@@ -19,6 +19,7 @@ public final class LLMPreferences {
     private static final String KEY_ENABLE_ACTIONS = "enableActions";
     private static final String KEY_USE_LLM_MAPPING = "useLlmMapping";
     private static final String KEY_TELEMETRY = "telemetryEnabled";
+    private static final String KEY_PRIVACY_TOKENIZE = "privacyTokenize";
     private static final String SEC_NODE = Activator.PLUGIN_ID + "/secure/llm";
     private static final String SEC_APIKEY = "apiKey";
 
@@ -33,6 +34,7 @@ public final class LLMPreferences {
     public static boolean isToolActionsEnabled() { return getPrefs().getBoolean(KEY_ENABLE_ACTIONS, true); }
     public static boolean isUseLlmMapping() { return getPrefs().getBoolean(KEY_USE_LLM_MAPPING, false); }
     public static boolean isTelemetryEnabled() { return getPrefs().getBoolean(KEY_TELEMETRY, false); }
+    public static boolean isPrivacyTokenizationEnabled() { return getPrefs().getBoolean(KEY_PRIVACY_TOKENIZE, envBool("CAPELLA_AI_PRIVACY_TOKENIZE", false)); }
 
     public static void setProvider(String v) { getPrefs().put(KEY_PROVIDER, v); }
     public static void setBaseUrl(String v) { getPrefs().put(KEY_BASE, v); }
@@ -43,6 +45,7 @@ public final class LLMPreferences {
     public static void setToolActionsEnabled(boolean value) { getPrefs().putBoolean(KEY_ENABLE_ACTIONS, value); }
     public static void setUseLlmMapping(boolean value) { getPrefs().putBoolean(KEY_USE_LLM_MAPPING, value); }
     public static void setTelemetryEnabled(boolean value) { getPrefs().putBoolean(KEY_TELEMETRY, value); }
+    public static void setPrivacyTokenizationEnabled(boolean value) { getPrefs().putBoolean(KEY_PRIVACY_TOKENIZE, value); }
 
     public static String getApiKey() {
         try {
@@ -81,6 +84,14 @@ public final class LLMPreferences {
 
     private static double envDouble(String k, double def) {
         try { return Double.parseDouble(env(k, String.valueOf(def))); } catch (Exception e) { return def; }
+    }
+
+    private static boolean envBool(String k, boolean def) {
+        String v = System.getenv(k);
+        if (v == null) return def;
+        String s = v.trim().toLowerCase();
+        if (s.isEmpty()) return def;
+        return s.equals("1") || s.equals("true") || s.equals("yes") || s.equals("y") || s.equals("on");
     }
 
     private static String envAnyKey() {
