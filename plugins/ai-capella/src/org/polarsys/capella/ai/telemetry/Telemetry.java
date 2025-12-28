@@ -194,6 +194,66 @@ public final class Telemetry {
      */
     public static void recordDatasetEntry(String prompt, String code) {
         if (!isEnabled()) return;
+        writeDatasetEntry(prompt, code);
+    }
+
+    /**
+     * Record a successful prompt-code pair for fine-tuning datasets, skipping
+     * entries that contain logical failures surfaced via script logs.
+     */
+    public static void recordDatasetEntry(
+        String prompt,
+        String code,
+        ExecutionResult result
+    ) {
+        if (!isEnabled()) {
+            return;
+        }
+        if (shouldSkipDatasetEntry(result)) {
+            writeJsonLine(
+                "dataset_skip",
+                "reason",
+                "script_logs",
+                "success",
+                String.valueOf(result != null && result.success()),
+                "log_count",
+                String.valueOf(result != null ? result.logs().size() : 0)
+            );
+            return;
+        }
+        writeDatasetEntry(prompt, code);
+    }
+
+    private static boolean shouldSkipDatasetEntry(ExecutionResult result) {
+        if (result == null) {
+            return false;
+        }
+        if (!result.success()) {
+            return true;
+        }
+        boolean dropOnError = LLMPreferences.isDatasetDropOnErrorEnabled();
+        boolean dropOnWarn = LLMPreferences.isDatasetDropOnWarnEnabled();
+        if (!dropOnError && !dropOnWarn) {
+            return false;
+        }
+
+        for (String line : result.logs()) {
+            if (line == null) {
+                continue;
+            }
+            String upper = line.toUpperCase();
+            if (dropOnError && upper.contains("[ERROR]")) {
+                return true;
+            }
+            if (dropOnWarn && upper.contains("[WARN]")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void writeDatasetEntry(String prompt, String code) {
+        if (!isEnabled()) return;
         try {
             Path file = Paths.get(
                 System.getProperty("user.home"),

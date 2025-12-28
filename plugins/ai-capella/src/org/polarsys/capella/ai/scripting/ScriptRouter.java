@@ -183,12 +183,14 @@ public final class ScriptRouter {
                     if (tokenizer != null) {
                         Telemetry.recordDatasetEntry(
                             tokenizedUserMessage,
-                            execResult.responseUsed
+                            execResult.responseUsed,
+                            execResult.executionResult
                         );
                     } else {
                         Telemetry.recordDatasetEntry(
                             userMessage,
-                            execResult.responseUsed
+                            execResult.responseUsed,
+                            execResult.executionResult
                         );
                     }
                     return Result.executed(
