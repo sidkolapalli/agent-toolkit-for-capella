@@ -3,6 +3,8 @@ package org.polarsys.capella.ai.scripting;
 import java.util.List;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.model.ModelSummary;
+import org.polarsys.capella.ai.preferences.LLMPreferences;
+import org.polarsys.capella.ai.privacy.Tokenizer;
 
 /**
  * Routes LLM responses containing Groovy code to the executor.
@@ -419,11 +421,20 @@ public final class CodeExecutionRouter {
             GroovyExecutor.describeSessionVariables(sessionId);
         if (!vars.isEmpty()) {
             sb.append("## Current Session State\n\n");
+            Tokenizer tokenizer =
+                LLMPreferences.isPrivacyTokenizationEnabled() &&
+                sessionId != null &&
+                !sessionId.isBlank()
+                    ? Tokenizer.forSession(sessionId)
+                    : null;
             for (GroovyExecutor.VariableSummary summary : vars) {
+                String safeSummary = tokenizer != null
+                    ? tokenizer.tokenizeText(summary.summary)
+                    : summary.summary;
                 sb.append("- ")
                     .append(summary.name)
                     .append(": ")
-                    .append(summary.summary)
+                    .append(safeSummary)
                     .append("\n");
             }
             sb.append("\n");

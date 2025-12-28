@@ -325,17 +325,24 @@ public final class ScriptRouter {
             if (m == null) {
                 continue;
             }
-            String content = tokenizer.tokenizeText(m.getContent());
             switch (m.getRole()) {
                 case SYSTEM:
-                    out.add(LLMService.Message.system(content));
+                    out.add(LLMService.Message.system(m.getContent()));
                     break;
                 case ASSISTANT:
-                    out.add(LLMService.Message.assistant(content));
+                    out.add(
+                        LLMService.Message.assistant(
+                            tokenizer.tokenizeText(m.getContent())
+                        )
+                    );
                     break;
                 case USER:
                 default:
-                    out.add(LLMService.Message.user(content));
+                    out.add(
+                        LLMService.Message.user(
+                            tokenizer.tokenizeText(m.getContent())
+                        )
+                    );
                     break;
             }
         }
