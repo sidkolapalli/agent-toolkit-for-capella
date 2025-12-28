@@ -386,6 +386,19 @@ public final class ScriptRouter {
             "4. PA: Physical Architecture - physical components, map from Logical\n\n"
         );
 
+        if (LLMPreferences.isPrivacyTokenizationEnabled()) {
+            sb.append("## Privacy Mode\n\n");
+            sb.append(
+                "Some sensitive element names and IDs are replaced with tokens like `ELEM_0001` and `UUID_0001`.\n"
+            );
+            sb.append(
+                "Treat these tokens as exact literals: do not paraphrase, rename, or substitute them.\n"
+            );
+            sb.append(
+                "Use the tokens exactly as provided in your generated Groovy; the runtime will resolve tokens back to real values during execution.\n\n"
+            );
+        }
+
         // Add API documentation
         sb.append(
             CodeExecutionRouter.buildCodeExecutionPrompt(session, sessionKey)
