@@ -379,13 +379,26 @@ public final class GroovyExecutor {
         Set<String> reservedKeys,
         Runnable resetHook
     ) {
-        // Main API facade
-        setBindingVar(
-            binding,
-            reservedKeys,
-            "api",
-            new CapellaAPI(session, resetHook)
-        );
+        // Main API facade (reuse in stateful sessions so caches persist across turns)
+        Object existingApi = null;
+        try {
+            existingApi =
+                binding != null ? binding.getVariables().get("api") : null;
+        } catch (Exception ignored) {
+            // best effort
+        }
+        if (existingApi instanceof CapellaAPI) {
+            if (reservedKeys != null) {
+                reservedKeys.add("api");
+            }
+        } else {
+            setBindingVar(
+                binding,
+                reservedKeys,
+                "api",
+                new CapellaAPI(session, resetHook)
+            );
+        }
 
         // Direct session access for advanced operations
         setBindingVar(binding, reservedKeys, "session", session);
