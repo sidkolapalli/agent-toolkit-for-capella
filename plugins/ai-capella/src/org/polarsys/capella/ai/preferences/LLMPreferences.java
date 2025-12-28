@@ -20,6 +20,8 @@ public final class LLMPreferences {
     private static final String KEY_USE_LLM_MAPPING = "useLlmMapping";
     private static final String KEY_TELEMETRY = "telemetryEnabled";
     private static final String KEY_PRIVACY_TOKENIZE = "privacyTokenize";
+    private static final String KEY_DATASET_DROP_ON_ERROR = "datasetDropOnError";
+    private static final String KEY_DATASET_DROP_ON_WARN = "datasetDropOnWarn";
     private static final String SEC_NODE = Activator.PLUGIN_ID + "/secure/llm";
     private static final String SEC_APIKEY = "apiKey";
 
@@ -35,6 +37,8 @@ public final class LLMPreferences {
     public static boolean isUseLlmMapping() { return getPrefs().getBoolean(KEY_USE_LLM_MAPPING, false); }
     public static boolean isTelemetryEnabled() { return getPrefs().getBoolean(KEY_TELEMETRY, false); }
     public static boolean isPrivacyTokenizationEnabled() { return getPrefs().getBoolean(KEY_PRIVACY_TOKENIZE, envBool("CAPELLA_AI_PRIVACY_TOKENIZE", false)); }
+    public static boolean isDatasetDropOnErrorEnabled() { return getPrefs().getBoolean(KEY_DATASET_DROP_ON_ERROR, envBool("CAPELLA_AI_DATASET_DROP_ON_ERROR", true)); }
+    public static boolean isDatasetDropOnWarnEnabled() { return getPrefs().getBoolean(KEY_DATASET_DROP_ON_WARN, envBool("CAPELLA_AI_DATASET_DROP_ON_WARN", false)); }
 
     public static void setProvider(String v) { getPrefs().put(KEY_PROVIDER, v); }
     public static void setBaseUrl(String v) { getPrefs().put(KEY_BASE, v); }
@@ -46,6 +50,8 @@ public final class LLMPreferences {
     public static void setUseLlmMapping(boolean value) { getPrefs().putBoolean(KEY_USE_LLM_MAPPING, value); }
     public static void setTelemetryEnabled(boolean value) { getPrefs().putBoolean(KEY_TELEMETRY, value); }
     public static void setPrivacyTokenizationEnabled(boolean value) { getPrefs().putBoolean(KEY_PRIVACY_TOKENIZE, value); }
+    public static void setDatasetDropOnErrorEnabled(boolean value) { getPrefs().putBoolean(KEY_DATASET_DROP_ON_ERROR, value); }
+    public static void setDatasetDropOnWarnEnabled(boolean value) { getPrefs().putBoolean(KEY_DATASET_DROP_ON_WARN, value); }
 
     public static String getApiKey() {
         try {
