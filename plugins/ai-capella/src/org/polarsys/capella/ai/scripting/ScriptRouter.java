@@ -6,6 +6,8 @@ import java.util.UUID;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.llm.LLMService;
 import org.polarsys.capella.ai.model.ModelSummary;
+import org.polarsys.capella.ai.preferences.LLMPreferences;
+import org.polarsys.capella.ai.privacy.Tokenizer;
 import org.polarsys.capella.ai.telemetry.Telemetry;
 
 /**
@@ -142,8 +144,18 @@ public final class ScriptRouter {
                 sessionKey
             );
 
+            String tokenizedUserMessage = userMessage;
+            Tokenizer tokenizer = null;
+            if (LLMPreferences.isPrivacyTokenizationEnabled()) {
+                tokenizer = Tokenizer.forSession(sessionKey);
+                tokenizedUserMessage = tokenizer.tokenizeText(userMessage);
+                messages = tokenizeMessages(tokenizer, messages);
+            }
+
             // Get LLM response
             String reply = LLMService.get().send(messages);
+            String userVisibleReply =
+                tokenizer != null ? tokenizer.detokenizeText(reply) : reply;
 
             // Check if response contains executable code
             if (CodeExecutionRouter.containsCode(reply)) {
@@ -168,16 +180,30 @@ public final class ScriptRouter {
                     );
 
                 if (execResult.success) {
-                    Telemetry.recordDatasetEntry(userMessage, execResult.responseUsed);
+                    if (tokenizer != null) {
+                        Telemetry.recordDatasetEntry(
+                            tokenizedUserMessage,
+                            execResult.responseUsed
+                        );
+                    } else {
+                        Telemetry.recordDatasetEntry(
+                            userMessage,
+                            execResult.responseUsed
+                        );
+                    }
                     return Result.executed(
-                        execResult.responseUsed,
+                        tokenizer != null
+                            ? tokenizer.detokenizeText(execResult.responseUsed)
+                            : execResult.responseUsed,
                         execResult.executionResult,
                         execResult.attempts
                     );
                 } else {
                     // Return error but include the reply for context
                     return new Result(
-                        execResult.responseUsed,
+                        tokenizer != null
+                            ? tokenizer.detokenizeText(execResult.responseUsed)
+                            : execResult.responseUsed,
                         true,
                         execResult.attempts,
                         execResult.executionResult,
@@ -186,7 +212,7 @@ public final class ScriptRouter {
                 }
             } else {
                 // No code to execute, just a chat response
-                return Result.chat(reply);
+                return Result.chat(userVisibleReply);
             }
         } catch (Exception e) {
             return Result.error("Error: " + e.getMessage());
@@ -243,6 +269,11 @@ public final class ScriptRouter {
         String errorFeedback,
         String sessionKey
     ) {
+        Tokenizer tokenizer = null;
+        if (LLMPreferences.isPrivacyTokenizationEnabled()) {
+            tokenizer = Tokenizer.forSession(sessionKey);
+        }
+
         List<LLMService.Message> messages = new ArrayList<>();
         String systemPrompt = buildSystemPrompt(session, sessionKey);
         messages.add(LLMService.Message.system(systemPrompt));
@@ -271,11 +302,44 @@ public final class ScriptRouter {
             )
         );
 
+        if (tokenizer != null) {
+            messages = tokenizeMessages(tokenizer, messages);
+        }
+
         try {
             return LLMService.get().send(messages);
         } catch (Exception e) {
             return previousResponse;
         }
+    }
+
+    private static List<LLMService.Message> tokenizeMessages(
+        Tokenizer tokenizer,
+        List<LLMService.Message> messages
+    ) {
+        if (tokenizer == null || messages == null || messages.isEmpty()) {
+            return messages;
+        }
+        List<LLMService.Message> out = new ArrayList<>(messages.size());
+        for (LLMService.Message m : messages) {
+            if (m == null) {
+                continue;
+            }
+            String content = tokenizer.tokenizeText(m.getContent());
+            switch (m.getRole()) {
+                case SYSTEM:
+                    out.add(LLMService.Message.system(content));
+                    break;
+                case ASSISTANT:
+                    out.add(LLMService.Message.assistant(content));
+                    break;
+                case USER:
+                default:
+                    out.add(LLMService.Message.user(content));
+                    break;
+            }
+        }
+        return out;
     }
 
     private static String diagramMethodList() {

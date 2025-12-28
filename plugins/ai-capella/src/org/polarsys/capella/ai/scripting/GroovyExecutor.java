@@ -23,6 +23,8 @@ import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.codehaus.groovy.control.customizers.SecureASTCustomizer;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.sirius.business.api.session.Session;
+import org.polarsys.capella.ai.preferences.LLMPreferences;
+import org.polarsys.capella.ai.privacy.Tokenizer;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 
 /**
@@ -165,6 +167,13 @@ public final class GroovyExecutor {
     ) {
         long startTime = System.currentTimeMillis();
 
+        final String resolvedScript =
+            sessionId != null &&
+            !sessionId.isBlank() &&
+            LLMPreferences.isPrivacyTokenizationEnabled()
+                ? Tokenizer.forSession(sessionId).detokenizeText(script)
+                : script;
+
         // Validate inputs
         if (session == null) {
             return ExecutionResult.fail(
@@ -172,13 +181,13 @@ public final class GroovyExecutor {
                 "No active Capella session"
             );
         }
-        if (script == null || script.isBlank()) {
+        if (resolvedScript == null || resolvedScript.isBlank()) {
             return ExecutionResult.fail(
                 ExecutionResult.ErrorCode.INVALID_RESULT,
                 "Script is empty"
             );
         }
-        if (script.length() > MAX_SCRIPT_LENGTH) {
+        if (resolvedScript.length() > MAX_SCRIPT_LENGTH) {
             return ExecutionResult.fail(
                 ExecutionResult.ErrorCode.SECURITY_VIOLATION,
                 "Script exceeds maximum length of " +
@@ -211,7 +220,7 @@ public final class GroovyExecutor {
         // Execute with timeout
         Callable<Object> task = () -> {
             try {
-                return shell.evaluate(script);
+                return shell.evaluate(resolvedScript);
             } catch (SecurityException e) {
                 throw new SecurityException(
                     "Blocked operation: " + e.getMessage(),
