@@ -8,6 +8,7 @@ import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.sirius.business.api.dialect.DialectManager;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.diagram.DDiagram;
+import org.eclipse.sirius.diagram.DDiagramElement;
 import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.polarsys.capella.ai.tools.DiagramCommands;
 import org.polarsys.capella.core.data.cs.BlockArchitecture;
@@ -899,20 +900,21 @@ public final class DiagramAPI {
      * Align elements on the diagram.
      *
      * @param diagram the diagram
-     * @param elements list of semantic elements to align
+     * @param elements list of semantic elements (EObject) or visual elements (DDiagramElement) to align
      * @param alignment "left", "right", "top", "bottom", "hcenter" (center horizontally), "vcenter" (center vertically)
      * @return true if alignment was applied
      */
     public boolean align(
         DRepresentation diagram,
-        List<EObject> elements,
+        List<?> elements,
         String alignment
     ) {
         String strat = alignment != null ? alignment.toLowerCase() : "";
         if (!List.of("left", "right", "top", "bottom", "hcenter", "vcenter").contains(strat)) {
             throw new IllegalArgumentException("Invalid alignment: " + alignment + ". Use left, right, top, bottom, hcenter, vcenter.");
         }
-        if (session == null || diagram == null || elements == null || elements.isEmpty()) {
+        List<EObject> semantics = toSemanticTargets(elements);
+        if (session == null || diagram == null || semantics.isEmpty()) {
             return false;
         }
         // Note: DiagramCommands.arrangeSelection currently operates on the *selection* or *all nodes*.
@@ -920,7 +922,7 @@ public final class DiagramAPI {
         // For now, we assume the user has set the selection or wants to align the passed elements (if DiagramCommands supports specific list).
         // Update: DiagramCommands.arrangeSelection logic relies on "current selection" in the editor.
         // To make this robust for headless/scripting, we should select the elements first.
-        DiagramCommands.revealSemantics(session, diagram, elements);
+        DiagramCommands.revealSemantics(session, diagram, semantics);
         return DiagramCommands.arrangeSelection(session, diagram, strat);
     }
 
@@ -928,13 +930,13 @@ public final class DiagramAPI {
      * Distribute elements on the diagram.
      *
      * @param diagram the diagram
-     * @param elements list of semantic elements to distribute
+     * @param elements list of semantic elements (EObject) or visual elements (DDiagramElement) to distribute
      * @param distribution "horizontal" (hspace), "vertical" (vspace)
      * @return true if distribution was applied
      */
     public boolean distribute(
         DRepresentation diagram,
-        List<EObject> elements,
+        List<?> elements,
         String distribution
     ) {
         String strat = distribution != null ? distribution.toLowerCase() : "";
@@ -945,11 +947,41 @@ public final class DiagramAPI {
             throw new IllegalArgumentException("Invalid distribution: " + distribution + ". Use horizontal, vertical.");
         }
 
-        if (session == null || diagram == null || elements == null || elements.isEmpty()) {
+        List<EObject> semantics = toSemanticTargets(elements);
+        if (session == null || diagram == null || semantics.isEmpty()) {
             return false;
         }
-        DiagramCommands.revealSemantics(session, diagram, elements);
+        DiagramCommands.revealSemantics(session, diagram, semantics);
         return DiagramCommands.arrangeSelection(session, diagram, strat);
+    }
+
+    private static List<EObject> toSemanticTargets(List<?> elements) {
+        if (elements == null || elements.isEmpty()) {
+            return List.of();
+        }
+        List<EObject> out = new ArrayList<>();
+        for (Object element : elements) {
+            if (element == null) {
+                continue;
+            }
+            if (element instanceof DDiagramElement de) {
+                EObject target = de.getTarget();
+                if (target != null) {
+                    out.add(target);
+                }
+                continue;
+            }
+            if (element instanceof EObject eo) {
+                out.add(eo);
+                continue;
+            }
+            throw new IllegalArgumentException(
+                "Unsupported element type for diagram operation: " +
+                element.getClass().getName() +
+                ". Pass EObject or DDiagramElement."
+            );
+        }
+        return out;
     }
 
     // ========== Diagram Management ==========
