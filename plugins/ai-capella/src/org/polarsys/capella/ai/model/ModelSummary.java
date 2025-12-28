@@ -1,5 +1,6 @@
 package org.polarsys.capella.ai.model;
 
+import java.lang.ref.WeakReference;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -28,16 +29,37 @@ import org.polarsys.capella.ai.model.ModelAnalytics.ValidationReport;
 import org.polarsys.capella.ai.session.SessionBridge;
 
 public final class ModelSummary {
-    private static final long CACHE_TTL_MS = 5_000L;
     private static final Map<Session, CacheEntry> CACHE = Collections.synchronizedMap(new WeakHashMap<>());
 
     private static final class CacheEntry {
         final String summary;
-        final long timestamp;
+        final org.eclipse.emf.transaction.ResourceSetListener listener;
 
-        CacheEntry(String summary, long timestamp) {
+        CacheEntry(Session session, String summary) {
             this.summary = summary;
-            this.timestamp = timestamp;
+            WeakReference<Session> sessionRef = new WeakReference<>(session);
+            this.listener =
+                new org.eclipse.emf.transaction.ResourceSetListenerImpl() {
+                    @Override
+                    public void resourceSetChanged(
+                        org.eclipse.emf.transaction.ResourceSetChangeEvent event
+                    ) {
+                        Session s = sessionRef.get();
+                        if (s != null) {
+                            ModelSummary.invalidateSummary(s);
+                            return;
+                        }
+                        try {
+                            if (event != null && event.getEditingDomain() != null) {
+                                event
+                                    .getEditingDomain()
+                                    .removeResourceSetListener(this);
+                            }
+                        } catch (Exception ex) {
+                            // best effort
+                        }
+                    }
+                };
         }
     }
 
@@ -51,9 +73,12 @@ public final class ModelSummary {
         if (session == null) {
             return "No active model session.";
         }
-        long now = System.currentTimeMillis();
-        CacheEntry cached = CACHE.get(session);
-        if (cached != null && now - cached.timestamp < CACHE_TTL_MS) {
+
+        CacheEntry cached;
+        synchronized (ModelSummary.class) {
+            cached = CACHE.get(session);
+        }
+        if (cached != null) {
             return cached.summary;
         }
 
@@ -76,7 +101,13 @@ public final class ModelSummary {
         }
 
         String summary = sb.toString();
-        CACHE.put(session, new CacheEntry(summary, now));
+        synchronized (ModelSummary.class) {
+            if (!CACHE.containsKey(session)) {
+                CacheEntry refreshed = new CacheEntry(session, summary);
+                CACHE.put(session, refreshed);
+                attachListener(session, refreshed);
+            }
+        }
         return summary;
     }
 
@@ -109,9 +140,37 @@ public final class ModelSummary {
     }
 
     public static void invalidate(Session session) {
+        invalidateSummary(session);
+        ModelIndex.invalidate(session);
+    }
+
+    private static void invalidateSummary(Session session) {
         if (session != null) {
-            CACHE.remove(session);
-            ModelIndex.invalidate(session);
+            CacheEntry entry;
+            synchronized (ModelSummary.class) {
+                entry = CACHE.remove(session);
+            }
+            try {
+                if (entry != null) {
+                    var domain = session.getTransactionalEditingDomain();
+                    if (domain != null && entry.listener != null) {
+                        domain.removeResourceSetListener(entry.listener);
+                    }
+                }
+            } catch (Exception ex) {
+                // best effort
+            }
+        }
+    }
+
+    private static void attachListener(Session session, CacheEntry entry) {
+        try {
+            var domain = session.getTransactionalEditingDomain();
+            if (domain != null && entry != null && entry.listener != null) {
+                domain.addResourceSetListener(entry.listener);
+            }
+        } catch (Exception ex) {
+            // best effort
         }
     }
 
