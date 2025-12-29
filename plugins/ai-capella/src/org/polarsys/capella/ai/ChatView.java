@@ -1,6 +1,7 @@
 package org.polarsys.capella.ai;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -25,6 +26,7 @@ import org.polarsys.capella.ai.llm.LLMService;
 import org.polarsys.capella.ai.scripting.CodeExecutionRouter;
 import org.polarsys.capella.ai.scripting.ExecutionResult;
 import org.polarsys.capella.ai.scripting.GroovyExecutor;
+import org.polarsys.capella.ai.session.SelectionContext;
 import org.polarsys.capella.ai.session.SessionBridge;
 
 /**
@@ -179,9 +181,11 @@ public class ChatView extends ViewPart {
             session,
             conversationId
         );
+        SelectionContext selectionContext = SessionBridge.getSelectionContext();
         String systemPrompt = CodeExecutionRouter.buildCodeExecutionPrompt(
             session,
-            sessionKey
+            sessionKey,
+            selectionContext
         );
         if (conversationHistory.isEmpty()) {
             conversationHistory.add(LLMService.Message.system(systemPrompt));
@@ -224,9 +228,23 @@ public class ChatView extends ViewPart {
             });
 
             // Execute
+            HashMap<String, Object> extraBindings = new HashMap<>();
+            extraBindings.put(
+                "selection",
+                selectionContext != null
+                    ? selectionContext.getSelectedElements()
+                    : java.util.List.of()
+            );
+            extraBindings.put(
+                "activeDiagram",
+                selectionContext != null
+                    ? selectionContext.getActiveDiagram().orElse(null)
+                    : null
+            );
             ExecutionResult result = GroovyExecutor.execute(
                 session,
                 code,
+                extraBindings,
                 sessionKey
             );
 

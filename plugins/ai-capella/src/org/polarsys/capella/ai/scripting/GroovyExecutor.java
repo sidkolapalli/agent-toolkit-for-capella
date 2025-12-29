@@ -117,6 +117,15 @@ public final class GroovyExecutor {
         return execute(session, script, DEFAULT_TIMEOUT_MS, null, null);
     }
 
+    /**
+     * Execute a Groovy script with additional variable bindings.
+     *
+     * <p>Example: pass {@code selection} or {@code activeDiagram} for grounding.
+     *
+     * @param session the Capella session
+     * @param script the Groovy script to execute
+     * @param extraBindings additional variables to inject into the script binding
+     */
     public static ExecutionResult execute(
         Session session,
         String script,
@@ -156,6 +165,19 @@ public final class GroovyExecutor {
         String sessionId
     ) {
         return execute(session, script, DEFAULT_TIMEOUT_MS, null, sessionId);
+    }
+
+    /**
+     * Execute a Groovy script with additional bindings and a session id (used for
+     * privacy detokenization of the incoming script text).
+     */
+    public static ExecutionResult execute(
+        Session session,
+        String script,
+        java.util.Map<String, Object> extraBindings,
+        String sessionId
+    ) {
+        return execute(session, script, DEFAULT_TIMEOUT_MS, extraBindings, sessionId);
     }
 
     public static ExecutionResult execute(

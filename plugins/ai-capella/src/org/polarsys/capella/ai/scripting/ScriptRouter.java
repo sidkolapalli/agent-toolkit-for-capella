@@ -1,6 +1,7 @@
 package org.polarsys.capella.ai.scripting;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 import org.eclipse.sirius.business.api.session.Session;
@@ -8,6 +9,8 @@ import org.polarsys.capella.ai.llm.LLMService;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.privacy.Tokenizer;
+import org.polarsys.capella.ai.session.SelectionContext;
+import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.telemetry.Telemetry;
 
 /**
@@ -136,12 +139,16 @@ public final class ScriptRouter {
                 conversationId
             );
 
+            SelectionContext selectionContext =
+                SessionBridge.getSelectionContext();
+
             // Build messages with code execution system prompt
             List<LLMService.Message> messages = buildMessages(
                 session,
                 userMessage,
                 history,
-                sessionKey
+                sessionKey,
+                selectionContext
             );
 
             String tokenizedUserMessage = userMessage;
@@ -160,6 +167,9 @@ public final class ScriptRouter {
             // Check if response contains executable code
             if (CodeExecutionRouter.containsCode(reply)) {
                 String labelHint = buildUndoLabelHint(userMessage);
+                java.util.Map<String, Object> extraBindings = buildContextBindings(
+                    selectionContext
+                );
                 // Execute the code (with one correction attempt on error)
                 CodeExecutionRouter.Result execResult =
                     CodeExecutionRouter.executeWithRetry(
@@ -173,10 +183,12 @@ public final class ScriptRouter {
                                 history,
                                 previousResponse,
                                 errorFeedback,
-                                sessionKey
+                                sessionKey,
+                                selectionContext
                             ),
                         labelHint,
-                        sessionKey
+                        sessionKey,
+                        extraBindings
                     );
 
                 if (execResult.success) {
@@ -242,12 +254,17 @@ public final class ScriptRouter {
         Session session,
         String userMessage,
         List<LLMService.Message> history,
-        String sessionKey
+        String sessionKey,
+        SelectionContext selectionContext
     ) {
         List<LLMService.Message> messages = new ArrayList<>();
 
         // System prompt with code execution instructions
-        String systemPrompt = buildSystemPrompt(session, sessionKey);
+        String systemPrompt = buildSystemPrompt(
+            session,
+            sessionKey,
+            selectionContext
+        );
         messages.add(LLMService.Message.system(systemPrompt));
 
         // Add conversation history (limited to recent messages)
@@ -269,7 +286,8 @@ public final class ScriptRouter {
         List<LLMService.Message> history,
         String previousResponse,
         String errorFeedback,
-        String sessionKey
+        String sessionKey,
+        SelectionContext selectionContext
     ) {
         Tokenizer tokenizer = null;
         if (LLMPreferences.isPrivacyTokenizationEnabled()) {
@@ -277,7 +295,11 @@ public final class ScriptRouter {
         }
 
         List<LLMService.Message> messages = new ArrayList<>();
-        String systemPrompt = buildSystemPrompt(session, sessionKey);
+        String systemPrompt = buildSystemPrompt(
+            session,
+            sessionKey,
+            selectionContext
+        );
         messages.add(LLMService.Message.system(systemPrompt));
 
         int historyLimit = 10;
@@ -362,7 +384,11 @@ public final class ScriptRouter {
     /**
      * Build the system prompt for code execution mode.
      */
-    private static String buildSystemPrompt(Session session, String sessionKey) {
+    private static String buildSystemPrompt(
+        Session session,
+        String sessionKey,
+        SelectionContext selectionContext
+    ) {
         StringBuilder sb = new StringBuilder();
 
         sb.append(
@@ -410,7 +436,11 @@ public final class ScriptRouter {
 
         // Add API documentation
         sb.append(
-            CodeExecutionRouter.buildCodeExecutionPrompt(session, sessionKey)
+            CodeExecutionRouter.buildCodeExecutionPrompt(
+                session,
+                sessionKey,
+                selectionContext
+            )
         );
 
         sb.append("\n## Guidelines\n\n");
@@ -453,6 +483,23 @@ public final class ScriptRouter {
      * Get the system prompt for external tools.
      */
     public static String getSystemPrompt(Session session) {
-        return buildSystemPrompt(session, null);
+        return buildSystemPrompt(session, null, SessionBridge.getSelectionContext());
+    }
+
+    private static java.util.Map<String, Object> buildContextBindings(
+        SelectionContext selectionContext
+    ) {
+        HashMap<String, Object> bindings = new HashMap<>();
+        if (selectionContext != null) {
+            bindings.put("selection", selectionContext.getSelectedElements());
+            bindings.put(
+                "activeDiagram",
+                selectionContext.getActiveDiagram().orElse(null)
+            );
+        } else {
+            bindings.put("selection", java.util.List.of());
+            bindings.put("activeDiagram", null);
+        }
+        return bindings;
     }
 }
