@@ -92,8 +92,10 @@ public final class DevServer {
             System.out.println("  GET  /config  - View configuration");
             System.out.println("  GET  /debug   - View debug information");
         } catch (IOException e) {
-            System.err.println(
-                "[DevServer] Failed to start: " + e.getMessage()
+            LOG.log(
+                Level.SEVERE,
+                "DevServer failed to start on port " + port,
+                e
             );
         }
     }

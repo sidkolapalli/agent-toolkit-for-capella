@@ -148,7 +148,8 @@ public final class SessionBridge {
         if (o instanceof DSemanticDecorator) {
             try {
                 return ((DSemanticDecorator) o).getTarget();
-            } catch (Exception ignored) {
+            } catch (Exception ex) {
+                LOG.log(Level.FINE, "Failed to resolve DSemanticDecorator target", ex);
                 return null;
             }
         }
@@ -156,14 +157,22 @@ public final class SessionBridge {
             try {
                 Object adapted = ((IAdaptable) o).getAdapter(EObject.class);
                 if (adapted instanceof EObject) return (EObject) adapted;
-            } catch (Exception ignored) {}
+            } catch (Exception ex) {
+                LOG.log(Level.FINE, "Failed to adapt selection to EObject", ex);
+            }
             try {
                 Object adapted =
                     ((IAdaptable) o).getAdapter(DSemanticDecorator.class);
                 if (adapted instanceof DSemanticDecorator) {
                     return ((DSemanticDecorator) adapted).getTarget();
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ex) {
+                LOG.log(
+                    Level.FINE,
+                    "Failed to adapt selection to DSemanticDecorator",
+                    ex
+                );
+            }
         }
         return extractSemanticFromDiagramElement(o);
     }
@@ -179,10 +188,16 @@ public final class SessionBridge {
                         .getMethod("resolveSemanticElement");
                     Object eo = m.invoke(o);
                     if (eo instanceof EObject) return (EObject) eo;
-                } catch (Exception ignored) {}
+                } catch (Exception ex) {
+                    LOG.log(
+                        Level.FINE,
+                        "Failed to resolve semantic element from diagram selection",
+                        ex
+                    );
+                }
             }
-        } catch (Exception ignored) {
-            // best effort
+        } catch (Exception ex) {
+            LOG.log(Level.FINE, "Failed to inspect diagram selection element", ex);
         }
         return null;
     }
@@ -216,8 +231,12 @@ public final class SessionBridge {
                     return (DRepresentation) rep;
                 }
             }
-        } catch (Exception ignored) {
-            // best effort
+        } catch (Exception ex) {
+            LOG.log(
+                Level.FINE,
+                "Failed to adapt active editor to DRepresentation",
+                ex
+            );
         }
 
         // Fallback: last diagram opened via our tooling
@@ -225,8 +244,12 @@ public final class SessionBridge {
             if (org.polarsys.capella.ai.tools.DiagramCommands.lastOpened instanceof DRepresentation) {
                 return (DRepresentation) org.polarsys.capella.ai.tools.DiagramCommands.lastOpened;
             }
-        } catch (Exception ignored) {
-            // best effort
+        } catch (Exception ex) {
+            LOG.log(
+                Level.FINE,
+                "Failed to read DiagramCommands.lastOpened fallback",
+                ex
+            );
         }
         return null;
     }
