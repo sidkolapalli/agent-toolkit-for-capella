@@ -8,9 +8,11 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.business.api.session.SessionManager;
+import org.polarsys.capella.ai.session.SelectionContext;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.scripting.CodeExecutionRouter;
 import org.polarsys.capella.ai.scripting.ExecutionResult;
@@ -66,6 +68,7 @@ public final class DevServer {
             server.createContext("/prompt", DevServer::handlePrompt);
             server.createContext("/debug", DevServer::handleDebug);
             server.createContext("/config", DevServer::handleConfig);
+            server.createContext("/context", DevServer::handleContext);
 
             server.start();
             System.out.println(
@@ -137,9 +140,21 @@ public final class DevServer {
                 session,
                 conversationId
             );
+            SelectionContext ctx = SessionBridge.getSelectionContext();
+            java.util.HashMap<String, Object> extraBindings =
+                new java.util.HashMap<>();
+            extraBindings.put(
+                "selection",
+                ctx != null ? ctx.getSelectedElements() : java.util.List.of()
+            );
+            extraBindings.put(
+                "activeDiagram",
+                ctx != null ? ctx.getActiveDiagram().orElse(null) : null
+            );
             ExecutionResult result = GroovyExecutor.execute(
                 session,
                 code,
+                extraBindings,
                 sessionKey
             );
             String json = formatResult(result);
@@ -275,7 +290,8 @@ public final class DevServer {
         );
         String prompt = CodeExecutionRouter.buildCodeExecutionPrompt(
             session,
-            sessionKey
+            sessionKey,
+            SessionBridge.getSelectionContext()
         );
 
         StringBuilder json = new StringBuilder();
@@ -283,6 +299,77 @@ public final class DevServer {
         json.append("\"prompt\": \"").append(escapeJson(prompt)).append("\"");
         json.append("}");
 
+        sendResponse(exchange, 200, json.toString());
+    }
+
+    /**
+     * GET /context - return current UI selection + active diagram context.
+     */
+    private static void handleContext(HttpExchange exchange) throws IOException {
+        if (!"GET".equals(exchange.getRequestMethod())) {
+            sendResponse(exchange, 405, "{\"error\": \"Method not allowed\"}");
+            return;
+        }
+
+        SelectionContext ctx = SessionBridge.getSelectionContext();
+        StringBuilder json = new StringBuilder();
+        json.append("{");
+        boolean hasDiag = ctx != null && ctx.hasDiagram();
+        boolean hasSel = ctx != null && ctx.hasSelection();
+        json.append("\"hasDiagram\": ").append(hasDiag).append(",");
+        json.append("\"hasSelection\": ").append(hasSel);
+        if (hasDiag) {
+            json
+                .append(",\"activeDiagram\":{")
+                .append("\"name\":\"")
+                .append(escapeJson(ctx.getActiveDiagramName()))
+                .append("\",\"uid\":\"")
+                .append(escapeJson(ctx.getActiveDiagramUid()))
+                .append("\",\"type\":\"")
+                .append(escapeJson(ctx.getActiveDiagramType()))
+                .append("\"}");
+        }
+        if (hasSel) {
+            json.append(",\"selection\":[");
+            List<org.eclipse.emf.ecore.EObject> sel = ctx.getSelectedElements();
+            for (int i = 0; i < sel.size(); i++) {
+                if (i > 0) json.append(",");
+                org.eclipse.emf.ecore.EObject eo = sel.get(i);
+                String type = eo != null && eo.eClass() != null
+                    ? eo.eClass().getName()
+                    : "EObject";
+                String name = "";
+                try {
+                    if (eo != null && eo.eClass() != null) {
+                        var f = eo.eClass().getEStructuralFeature("name");
+                        if (f != null) {
+                            Object v = eo.eGet(f);
+                            if (v != null) name = v.toString();
+                        }
+                    }
+                } catch (Exception ignored) {}
+                String id = "";
+                try {
+                    if (eo != null && eo.eClass() != null) {
+                        var f = eo.eClass().getEStructuralFeature("id");
+                        if (f != null) {
+                            Object v = eo.eGet(f);
+                            if (v != null) id = v.toString();
+                        }
+                    }
+                } catch (Exception ignored) {}
+                json
+                    .append("{\"type\":\"")
+                    .append(escapeJson(type))
+                    .append("\",\"name\":\"")
+                    .append(escapeJson(name))
+                    .append("\",\"id\":\"")
+                    .append(escapeJson(id))
+                    .append("\"}");
+            }
+            json.append("]");
+        }
+        json.append("}");
         sendResponse(exchange, 200, json.toString());
     }
 

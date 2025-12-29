@@ -5,6 +5,9 @@ import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.privacy.Tokenizer;
+import org.polarsys.capella.ai.session.SelectionContext;
+import org.polarsys.capella.ai.session.SelectionSummary;
+import org.polarsys.capella.ai.session.SessionBridge;
 
 /**
  * Routes LLM responses containing Groovy code to the executor.
@@ -104,7 +107,7 @@ public final class CodeExecutionRouter {
         String llmResponse,
         String sessionId
     ) {
-        return executeAttempt(session, llmResponse, null, 1, sessionId);
+        return executeAttempt(session, llmResponse, null, 1, sessionId, null);
     }
 
     private static Result executeAttempt(
@@ -112,7 +115,8 @@ public final class CodeExecutionRouter {
         String llmResponse,
         String labelHint,
         int attempts,
-        String sessionId
+        String sessionId,
+        java.util.Map<String, Object> extraBindings
     ) {
         if (session == null) {
             return Result.noCode(
@@ -155,6 +159,7 @@ public final class CodeExecutionRouter {
         ExecutionResult execResult = GroovyExecutor.execute(
             session,
             wrapped,
+            extraBindings,
             sessionId
         );
 
@@ -247,6 +252,26 @@ public final class CodeExecutionRouter {
         String labelHint,
         String sessionId
     ) {
+        return executeWithRetry(
+            session,
+            llmResponse,
+            maxRetries,
+            llmCallback,
+            labelHint,
+            sessionId,
+            null
+        );
+    }
+
+    public static Result executeWithRetry(
+        Session session,
+        String llmResponse,
+        int maxRetries,
+        java.util.function.BiFunction<String, String, String> llmCallback,
+        String labelHint,
+        String sessionId,
+        java.util.Map<String, Object> extraBindings
+    ) {
         String currentResponse = llmResponse;
         int attemptCount = 1;
         Result result = executeAttempt(
@@ -254,7 +279,8 @@ public final class CodeExecutionRouter {
             currentResponse,
             labelHint,
             attemptCount,
-            sessionId
+            sessionId,
+            extraBindings
         );
 
         int retriesUsed = 0;
@@ -287,7 +313,8 @@ public final class CodeExecutionRouter {
                 currentResponse,
                 labelHint,
                 attemptCount,
-                sessionId
+                sessionId,
+                extraBindings
             );
         }
 
@@ -393,6 +420,18 @@ public final class CodeExecutionRouter {
         Session session,
         String sessionId
     ) {
+        return buildCodeExecutionPrompt(
+            session,
+            sessionId,
+            SessionBridge.getSelectionContext()
+        );
+    }
+
+    public static String buildCodeExecutionPrompt(
+        Session session,
+        String sessionId,
+        SelectionContext selectionContext
+    ) {
         StringBuilder sb = new StringBuilder();
 
         // Minimal system prompt (~20 lines instead of ~100)
@@ -412,6 +451,8 @@ public final class CodeExecutionRouter {
         sb.append("- `api.diagram` - Diagram operations\n");
         sb.append("- `api.ops` - Engineering operations (transitions, reuse)\n");
         sb.append("- `api.help(\"diagram\")` - JSON method catalog for a module\n");
+        sb.append("- `selection` - List<EObject> of currently selected semantic elements\n");
+        sb.append("- `activeDiagram` - DRepresentation for the active diagram editor (may be null)\n");
         sb.append("- `log` - Logger (log.info, log.warn, log.error)\n\n");
 
         sb.append("### Operations\n\n");
@@ -438,6 +479,18 @@ public final class CodeExecutionRouter {
                     .append("\n");
             }
             sb.append("\n");
+        }
+
+        Tokenizer tokenizer =
+            LLMPreferences.isPrivacyTokenizationEnabled() &&
+            sessionId != null &&
+            !sessionId.isBlank()
+                ? Tokenizer.forSession(sessionId)
+                : null;
+
+        String ctxBlock = SelectionSummary.summarize(selectionContext, tokenizer);
+        if (ctxBlock != null && !ctxBlock.isBlank()) {
+            sb.append(ctxBlock).append("\n");
         }
 
         // Skill metadata (lightweight discovery)

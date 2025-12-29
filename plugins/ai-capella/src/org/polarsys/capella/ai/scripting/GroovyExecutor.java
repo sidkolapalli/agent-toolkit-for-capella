@@ -161,6 +161,15 @@ public final class GroovyExecutor {
     public static ExecutionResult execute(
         Session session,
         String script,
+        java.util.Map<String, Object> extraBindings,
+        String sessionId
+    ) {
+        return execute(session, script, DEFAULT_TIMEOUT_MS, extraBindings, sessionId);
+    }
+
+    public static ExecutionResult execute(
+        Session session,
+        String script,
         long timeoutMs,
         java.util.Map<String, Object> extraBindings,
         String sessionId
