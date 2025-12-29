@@ -1,6 +1,8 @@
 package org.polarsys.capella.ai.session;
 
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.polarsys.capella.ai.privacy.Tokenizer;
@@ -8,6 +10,9 @@ import org.polarsys.capella.ai.privacy.Tokenizer;
 /** Formats {@link SelectionContext} for prompt injection. */
 public final class SelectionSummary {
 
+    private static final Logger LOG = Logger.getLogger(
+        SelectionSummary.class.getName()
+    );
     private static final int MAX_ELEMENTS = 5;
     private static final int MAX_ID_CHARS = 18;
 
@@ -79,7 +84,9 @@ public final class SelectionSummary {
                 Object v = eo.eGet(f);
                 return v != null ? String.valueOf(v) : null;
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ex) {
+            LOG.log(Level.FINE, "Failed to extract 'name' from EObject", ex);
+        }
         return null;
     }
 
@@ -93,20 +100,26 @@ public final class SelectionSummary {
                 Object v = eo.eGet(idFeat);
                 if (v != null) return String.valueOf(v);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ex) {
+            LOG.log(Level.FINE, "Failed to extract 'id' from EObject", ex);
+        }
         try {
             EStructuralFeature uuidFeat = eo.eClass().getEStructuralFeature("uuid");
             if (uuidFeat != null) {
                 Object v = eo.eGet(uuidFeat);
                 if (v != null) return String.valueOf(v);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ex) {
+            LOG.log(Level.FINE, "Failed to extract 'uuid' from EObject", ex);
+        }
         try {
             var uri = org.eclipse.emf.ecore.util.EcoreUtil.getURI(eo);
             if (uri != null && uri.fragment() != null) {
                 return uri.fragment();
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ex) {
+            LOG.log(Level.FINE, "Failed to extract EObject URI fragment", ex);
+        }
         return null;
     }
 
