@@ -8,8 +8,9 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executors;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.business.api.session.SessionManager;
 import org.polarsys.capella.ai.session.SelectionContext;
@@ -29,6 +30,9 @@ import org.polarsys.capella.ai.session.SessionBridge;
  *   <li>POST /chat - Send prompt to LLM and execute generated code</li>
  *   <li>GET /status - Check server and session status</li>
  *   <li>GET /prompt - Get the system prompt for code generation</li>
+ *   <li>GET /context - Get current selection + active diagram</li>
+ *   <li>GET /config - View dev server configuration</li>
+ *   <li>GET /debug - View debug information</li>
  * </ul>
  *
  * <p>Start from Eclipse: Window → Show View → Other → Capella AI Dev Server
@@ -38,6 +42,7 @@ public final class DevServer {
 
     private static HttpServer server;
     private static final int DEFAULT_PORT = 8765;
+    private static final Logger LOG = Logger.getLogger(DevServer.class.getName());
 
     private DevServer() {}
 
@@ -81,6 +86,11 @@ public final class DevServer {
             );
             System.out.println("  GET  /status  - Check server/session status");
             System.out.println("  GET  /prompt  - Get system prompt for LLM");
+            System.out.println(
+                "  GET  /context - Get selection + active diagram context"
+            );
+            System.out.println("  GET  /config  - View configuration");
+            System.out.println("  GET  /debug   - View debug information");
         } catch (IOException e) {
             System.err.println(
                 "[DevServer] Failed to start: " + e.getMessage()
@@ -312,6 +322,8 @@ public final class DevServer {
         }
 
         SelectionContext ctx = SessionBridge.getSelectionContext();
+        boolean loggedNameError = false;
+        boolean loggedIdError = false;
         StringBuilder json = new StringBuilder();
         json.append("{");
         boolean hasDiag = ctx != null && ctx.hasDiagram();
@@ -347,7 +359,16 @@ public final class DevServer {
                             if (v != null) name = v.toString();
                         }
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception ex) {
+                    if (!loggedNameError) {
+                        loggedNameError = true;
+                        LOG.log(
+                            Level.FINE,
+                            "Failed to read selection element 'name' feature",
+                            ex
+                        );
+                    }
+                }
                 String id = "";
                 try {
                     if (eo != null && eo.eClass() != null) {
@@ -357,7 +378,16 @@ public final class DevServer {
                             if (v != null) id = v.toString();
                         }
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception ex) {
+                    if (!loggedIdError) {
+                        loggedIdError = true;
+                        LOG.log(
+                            Level.FINE,
+                            "Failed to read selection element 'id' feature",
+                            ex
+                        );
+                    }
+                }
                 json
                     .append("{\"type\":\"")
                     .append(escapeJson(type))

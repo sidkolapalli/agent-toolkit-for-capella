@@ -68,6 +68,7 @@ public final class SessionBridge {
                     DRepresentation activeDiagram = extractDiagramFromEditor(editor);
                     holder[0] = SelectionContext.of(selected, activeDiagram);
                 } catch (Exception ex) {
+                    LOG.log(Level.FINE, "Failed to capture selection context", ex);
                     holder[0] = SelectionContext.empty();
                 }
             };
@@ -79,6 +80,7 @@ public final class SessionBridge {
             }
             return holder[0] != null ? holder[0] : SelectionContext.empty();
         } catch (Exception ex) {
+            LOG.log(Level.FINE, "Selection context unavailable", ex);
             return SelectionContext.empty();
         }
     }
@@ -109,8 +111,8 @@ public final class SessionBridge {
                     if (eo != null) out.add(eo);
                 }
             }
-        } catch (Exception ignored) {
-            // best effort
+        } catch (Exception ex) {
+            LOG.log(Level.FINE, "Failed to read workbench selection", ex);
         }
 
         // 2) Diagram editor selection (if active editor is a Sirius diagram editor)
@@ -133,8 +135,8 @@ public final class SessionBridge {
                     }
                 }
             }
-        } catch (Throwable ignored) {
-            // best effort
+        } catch (Exception ex) {
+            LOG.log(Level.FINE, "Failed to read diagram editor selection", ex);
         }
 
         return java.util.List.copyOf(out);
@@ -202,8 +204,8 @@ public final class SessionBridge {
                     return (DRepresentation) rep;
                 }
             }
-        } catch (Throwable ignored) {
-            // best effort
+        } catch (Exception ex) {
+            LOG.log(Level.FINE, "Failed to extract active diagram from editor", ex);
         }
 
         // Fallback: editor adaptation (best effort)
@@ -371,9 +373,7 @@ public final class SessionBridge {
                 if (s != null && s.isOpen()) out.add(s);
             }
         } catch (Exception ex) {
-            System.err.println(
-                "[SessionBridge] Error listing sessions: " + ex.getMessage()
-            );
+            LOG.log(Level.WARNING, "Error listing sessions", ex);
         }
         return out;
     }

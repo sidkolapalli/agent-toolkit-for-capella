@@ -2,6 +2,8 @@ package org.polarsys.capella.ai.session;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.sirius.viewpoint.DRepresentation;
 
@@ -10,8 +12,18 @@ import org.eclipse.sirius.viewpoint.DRepresentation;
  *
  * <p>Captured on the UI thread via {@link SessionBridge#getSelectionContext()} and safe
  * to pass into background jobs and retry loops.
+ *
+ * <p>Note: this snapshot keeps references to live EMF objects (selected {@link EObject}s
+ * and the {@link DRepresentation}). These objects may be mutable and may become disposed
+ * or invalid between capture time and script execution. Consumers should treat these
+ * references as best-effort anchors for grounding, and still handle failures when
+ * dereferencing fields.
  */
 public final class SelectionContext {
+
+    private static final Logger LOG = Logger.getLogger(
+        SelectionContext.class.getName()
+    );
 
     private final List<EObject> selectedElements;
     private final DRepresentation activeDiagram;
@@ -47,16 +59,22 @@ public final class SelectionContext {
         if (activeDiagram != null) {
             try {
                 name = activeDiagram.getName();
-            } catch (Exception ignored) {}
+            } catch (Exception ex) {
+                LOG.log(Level.FINE, "Failed to read active diagram name", ex);
+            }
             try {
                 type =
                     activeDiagram.eClass() != null
                         ? activeDiagram.eClass().getName()
                         : activeDiagram.getClass().getSimpleName();
-            } catch (Exception ignored) {}
+            } catch (Exception ex) {
+                LOG.log(Level.FINE, "Failed to read active diagram type", ex);
+            }
             try {
                 uid = activeDiagram.getUid();
-            } catch (Exception ignored) {}
+            } catch (Exception ex) {
+                LOG.log(Level.FINE, "Failed to read active diagram uid", ex);
+            }
         }
         return new SelectionContext(
             selectedElements,
@@ -104,11 +122,10 @@ public final class SelectionContext {
     }
 
     public boolean hasSelection() {
-        return selectedElements != null && !selectedElements.isEmpty();
+        return !selectedElements.isEmpty();
     }
 
     public boolean hasDiagram() {
         return activeDiagram != null;
     }
 }
-

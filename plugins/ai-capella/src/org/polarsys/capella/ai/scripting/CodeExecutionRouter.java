@@ -416,6 +416,13 @@ public final class CodeExecutionRouter {
         return buildCodeExecutionPrompt(session, null);
     }
 
+    /**
+     * Build the system prompt for code execution mode, grounding it with the current
+     * selection and active diagram (captured on-demand from the UI).
+     *
+     * <p>When privacy tokenization is enabled, the dynamic context block is tokenized,
+     * but the rest of the prompt remains stable across sessions.
+     */
     public static String buildCodeExecutionPrompt(
         Session session,
         String sessionId
@@ -427,6 +434,14 @@ public final class CodeExecutionRouter {
         );
     }
 
+    /**
+     * Build the system prompt for code execution mode, using a provided UI context
+     * snapshot (preferred for deterministic retries).
+     *
+     * @param session the active Capella session
+     * @param sessionId optional session id (used for privacy tokenization)
+     * @param selectionContext immutable UI snapshot (selection + active diagram)
+     */
     public static String buildCodeExecutionPrompt(
         Session session,
         String sessionId,
