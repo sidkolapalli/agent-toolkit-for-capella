@@ -167,12 +167,13 @@ public final class FileSystemAPI {
         );
         DIRECTORY_INDEX.put(
             "metamodel/",
-            List.of("SKILL.md", "la/", "oa/", "pa/", "sa/")
+            List.of("SKILL.md", "la/", "oa/", "pa/", "sa/", "epbs/")
         );
         DIRECTORY_INDEX.put("metamodel/la/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("metamodel/oa/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("metamodel/pa/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("metamodel/sa/", List.of("SKILL.md"));
+        DIRECTORY_INDEX.put("metamodel/epbs/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put(
             "skills/",
             List.of(

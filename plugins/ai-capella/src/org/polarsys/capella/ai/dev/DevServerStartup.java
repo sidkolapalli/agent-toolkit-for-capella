@@ -30,7 +30,9 @@ public final class DevServerStartup implements IStartup {
         }
         try {
             int parsed = Integer.parseInt(port.trim());
-            return parsed > 0 ? parsed : 8765;
+            if (parsed > 0 && parsed <= 65535) return parsed;
+            System.err.println("[DevServer] Port must be between 1 and 65535; using default 8765.");
+            return 8765;
         } catch (NumberFormatException ex) {
             System.err.println(
                 "[DevServer] Invalid CAPELLA_AI_DEVSERVER_PORT '" +

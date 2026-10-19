@@ -30,7 +30,7 @@ final class SimpleJson {
 
     static Object parse(String json) {
         Parser parser = new Parser(json);
-        return parser.parseValue();
+        return parser.parseDocument();
     }
 
     private static final class Parser {
@@ -41,6 +41,15 @@ final class SimpleJson {
         Parser(String text) {
             this.text = text;
             this.length = text.length();
+        }
+
+        Object parseDocument() {
+            Object value = parseValue();
+            skipWs();
+            if (pos != length) {
+                throw error("Unexpected trailing input");
+            }
+            return value;
         }
 
         Object parseValue() {
@@ -150,6 +159,9 @@ final class SimpleJson {
                             throw error("Unknown escape: \\" + e);
                     }
                 } else {
+                    if (c < 0x20) {
+                        throw error("Unescaped control character in string");
+                    }
                     sb.append(c);
                 }
             }

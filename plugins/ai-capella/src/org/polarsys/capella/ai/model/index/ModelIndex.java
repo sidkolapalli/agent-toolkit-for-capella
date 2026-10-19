@@ -21,7 +21,6 @@ import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.sirius.business.api.session.Session;
-import org.polarsys.capella.ai.model.ArchitectureLocator;
 import org.polarsys.capella.ai.session.SessionBridge;
 
 /** Builds a lightweight search index over Capella model elements. */
@@ -356,15 +355,15 @@ public final class ModelIndex {
         Map<EObject, String> cache,
         ResourceSet resourceSet
     ) {
-        EObject root = EcoreUtil.getRootContainer(eo);
-        return cache.computeIfAbsent(root, key -> {
-            for (String candidate : List.of("OA", "SA", "LA", "PA")) {
-                EObject layerRoot = ArchitectureLocator.findTargetElement(
-                    resourceSet,
-                    candidate
-                );
-                if (layerRoot != null && EcoreUtil.isAncestor(layerRoot, eo)) {
-                    return candidate;
+        return cache.computeIfAbsent(eo, key -> {
+            for (EObject ancestor = key; ancestor != null; ancestor = ancestor.eContainer()) {
+                switch (ancestor.eClass().getName()) {
+                    case "OperationalAnalysis": return "OA";
+                    case "SystemAnalysis": return "SA";
+                    case "LogicalArchitecture": return "LA";
+                    case "PhysicalArchitecture": return "PA";
+                    case "EPBSArchitecture": return "EPBS";
+                    default: break;
                 }
             }
             return "";

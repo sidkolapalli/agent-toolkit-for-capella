@@ -13,6 +13,9 @@ import org.eclipse.gmf.runtime.notation.Node;
 import org.eclipse.gmf.runtime.notation.NotationFactory;
 import org.eclipse.gmf.runtime.notation.View;
 import org.eclipse.sirius.business.api.dialect.DialectManager;
+import org.eclipse.sirius.business.api.dialect.command.DeleteRepresentationCommand;
+import org.eclipse.sirius.business.api.dialect.command.RenameRepresentationCommand;
+import org.eclipse.sirius.business.api.query.DRepresentationQuery;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.common.tools.api.interpreter.IInterpreter;
 import org.eclipse.sirius.diagram.DDiagram;
@@ -31,6 +34,7 @@ import org.eclipse.sirius.diagram.description.NodeMapping;
 import org.eclipse.sirius.ui.business.api.dialect.DialectUIManager;
 import org.eclipse.sirius.tools.api.interpreter.InterpreterUtil;
 import org.eclipse.sirius.viewpoint.DRepresentation;
+import org.eclipse.sirius.viewpoint.DRepresentationDescriptor;
 import org.eclipse.sirius.viewpoint.DSemanticDecorator;
 import org.eclipse.sirius.viewpoint.RGBValues;
 import org.eclipse.sirius.viewpoint.description.RepresentationDescription;
@@ -69,20 +73,27 @@ public final class DiagramCommands {
         String descriptionName,
         String diagramName
     ) {
-        Session session = SessionBridge.getActiveSession();
+        return createAndOpenDiagram(SessionBridge.getActiveSession(), target, descriptionName, diagramName);
+    }
+
+    /** Create and open a diagram in the explicitly captured session. */
+    public static DRepresentation createAndOpenDiagram(
+        Session session,
+        EObject target,
+        String descriptionName,
+        String diagramName
+    ) {
         if (session == null) return null;
         TransactionalEditingDomain domain =
             session.getTransactionalEditingDomain();
         if (domain == null) return null;
 
         final DRepresentation[] rep = new DRepresentation[1];
-        final String[] errorMsg = new String[1];
-        SessionSafeguards.runWrite(session, "Create diagram", () -> {
-            RepresentationDescription desc = findDiagramDescription(
-                session,
-                descriptionName
-            );
-            if (desc == null) {
+        final RepresentationDescription[] description = new RepresentationDescription[1];
+        SessionSafeguards.runOnUiThread(() -> {
+            requireCreationTarget(session, domain, target);
+            description[0] = findDiagramDescription(session, descriptionName);
+            if (description[0] == null) {
                 // Build helpful error message with available descriptors
                 java.util.List<String> available = getAvailableDiagramDescriptions(session);
                 java.util.List<String> similar = findSimilarDescriptors(available, descriptionName);
@@ -101,14 +112,19 @@ public final class DiagramCommands {
                 sb.append("2. Use api.diagram.listAvailable() to see available types\n");
                 sb.append("3. Try using the full descriptor name directly");
 
-                errorMsg[0] = sb.toString();
-                return null;
+                throw new IllegalArgumentException(sb.toString());
+            }
+        });
+        SessionSafeguards.runWrite(session, "Create diagram", () -> {
+            requireCreationTarget(session, domain, target);
+            if (findDiagramDescription(session, descriptionName) != description[0]) {
+                throw new IllegalStateException("The captured session's diagram description changed before creation");
             }
             DRepresentation created =
                 DialectManager.INSTANCE.createRepresentation(
                     diagramName,
                     target,
-                    desc,
+                    description[0],
                     session,
                     new NullProgressMonitor()
                 );
@@ -116,10 +132,6 @@ public final class DiagramCommands {
             return created;
         });
 
-        // Throw exception with descriptive message if diagram creation failed
-        if (errorMsg[0] != null) {
-            throw new IllegalArgumentException(errorMsg[0]);
-        }
         if (rep[0] != null) {
             SessionSafeguards.runOnUiThread(() -> {
                 try {
@@ -139,6 +151,19 @@ public final class DiagramCommands {
         return rep[0];
     }
 
+    private static void requireCreationTarget(Session session, TransactionalEditingDomain domain, EObject target) {
+        Resource resource = target == null ? null : target.eResource();
+        java.util.Collection<Resource> semantic = session.getSemanticResources();
+        if (!session.isOpen() || session.getTransactionalEditingDomain() != domain) {
+            throw new IllegalStateException("The captured diagram session or editing domain is no longer available");
+        }
+        if (target == null || target.eIsProxy() || resource == null
+                || resource.getResourceSet() != domain.getResourceSet()
+                || semantic == null || !semantic.contains(resource)) {
+            throw new IllegalArgumentException("Diagram target must belong to the captured session's semantic resources");
+        }
+    }
+
     /** Arrange current diagram using Sirius UI (GMF Arrange). */
     public static void arrange(DRepresentation rep) {
         try {
@@ -151,7 +176,7 @@ public final class DiagramCommands {
     }
 
     /**
-     * Arrange/align the current selection (or all nodes if selection unavailable) using a simple strategy.
+     * Arrange/align the requested representation using its persisted GMF shapes.
      * Strategies: left, right, top, bottom, hcenter, vcenter, hspace, vspace, grid, auto.
      */
     public static boolean arrangeSelection(
@@ -169,94 +194,25 @@ public final class DiagramCommands {
             layerHintInit = stratInit.substring(0, idx).toUpperCase();
             stratInit = stratInit.substring(idx + 1);
         }
+        if ("auto".equals(stratInit)) stratInit = "layered";
+        if (!java.util.Set.of("left", "right", "top", "bottom", "hcenter", "vcenter",
+            "hspace", "vspace", "grid", "flow", "radial", "layered").contains(stratInit)) return false;
         final String strat = stratInit;
         final String layerHint = layerHintInit;
         try {
-            if (!(rep instanceof DDiagram)) {
-                arrange(rep);
-                return true;
-            }
-            // Collect candidate edit parts from selection if possible
-            IWorkbenchWindow win =
-                PlatformUI.getWorkbench().getActiveWorkbenchWindow();
-            org.eclipse.gef.EditPartViewer viewer = null;
-            IEditorPart part = null;
-            try {
-                if (win != null && win.getActivePage() != null) {
-                    part = win.getActivePage().getActiveEditor();
-                    if (part != null) {
-                        Class<?> edClass = Class.forName(
-                            "org.eclipse.sirius.diagram.ui.tools.api.editor.DDiagramEditor"
-                        );
-                        if (edClass.isInstance(part)) {
-                            var m = edClass.getMethod(
-                                "getDiagramGraphicalViewer"
-                            );
-                            Object v = m.invoke(part);
-                            if (
-                                v instanceof org.eclipse.gef.EditPartViewer
-                            ) viewer = (org.eclipse.gef.EditPartViewer) v;
-                        }
-                    }
-                }
-            } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-
-            java.util.List<Node> nodes = new java.util.ArrayList<>();
-            // Prefer selection if available
-            if (viewer != null) {
-                var sel = viewer.getSelection();
-                if (
-                    sel instanceof
-                        org.eclipse.jface.viewers.IStructuredSelection
-                ) {
-                    for (Object o : ((org.eclipse.jface.viewers.IStructuredSelection) sel).toArray()) {
-                        if (o instanceof IGraphicalEditPart) {
-                            Object model = ((IGraphicalEditPart) o).getModel();
-                            if (model instanceof Node) nodes.add((Node) model);
-                        }
-                    }
-                }
-            }
-            // Fallback to all nodes in diagram
-            if (nodes.isEmpty()) {
-                DDiagram diagram = (DDiagram) rep;
-                var it = diagram.eAllContents();
-                while (it.hasNext()) {
-                    Object o = it.next();
-                    if (o instanceof org.eclipse.sirius.diagram.DNode) {
-                        // Try to reach notation Node via editpart registry if possible
-                        // Fallback: skip if we can't resolve notation
-                        if (viewer != null) {
-                            for (Object epObj : viewer
-                                .getEditPartRegistry()
-                                .values()) {
-                                if (epObj instanceof IGraphicalEditPart) {
-                                    IGraphicalEditPart ep =
-                                        (IGraphicalEditPart) epObj;
-                                    try {
-                                        if (
-                                            o == ep.resolveSemanticElement() &&
-                                            ep.getModel() instanceof Node
-                                        ) {
-                                            nodes.add((Node) ep.getModel());
-                                            break;
-                                        }
-                                    } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if (nodes.isEmpty()) {
-                arrange(rep);
-                return true;
-            }
+            if (!(rep instanceof DDiagram) || !ownsRepresentation(session, rep)) return false;
+            // Unavailable notation is a failed request, not an empty undo command.
+            org.eclipse.gmf.runtime.notation.Diagram persisted = findNotationDiagram(session, rep);
+            if (persisted == null || collectLayoutShapes(persisted).isEmpty()) return false;
             // Compute bounds and apply layout inside write tx
             return SessionSafeguards.runWrite(
                 session,
-                "Arrange selection",
+                "Arrange diagram",
                 () -> {
+                    org.eclipse.gmf.runtime.notation.Diagram notation = findNotationDiagram(session, rep);
+                    if (notation == null) return false;
+                    java.util.List<Node> nodes = collectLayoutShapes(notation);
+                    if (nodes.isEmpty()) return false;
                     java.util.List<Bounds> bounds = new java.util.ArrayList<>(
                         nodes.size()
                     );
@@ -376,6 +332,10 @@ public final class DiagramCommands {
                                 80,
                                 (maxB - minY) / Math.max(1, rows)
                             );
+                            for (Bounds b : bounds) {
+                                cellW = Math.max(cellW, Math.max(120, b.getWidth()) + 60);
+                                cellH = Math.max(cellH, Math.max(80, b.getHeight()) + 40);
+                            }
                             int i = 0;
                             for (Bounds b : bounds) {
                                 int c = i % cols;
@@ -462,6 +422,10 @@ public final class DiagramCommands {
                                 : computeSpacing(rep);
                             int cellW = spacing[0];
                             int cellH = spacing[1];
+                            for (Bounds bound : bounds) {
+                                cellW = Math.max(cellW, Math.max(120, bound.getWidth()) + 60);
+                                cellH = Math.max(cellH, Math.max(80, bound.getHeight()) + 40);
+                            }
                             java.util.Map<Node, java.util.Set<Node>> adj =
                                 computeAdjacency(nodes);
                             // Map Bounds<->Node for ordering and placement
@@ -630,17 +594,11 @@ public final class DiagramCommands {
                             }
                             break;
                         }
-                        case "auto":
                         default:
-                            arrange(rep);
-                            break;
+                            throw new IllegalArgumentException("Unsupported layout strategy " + strat);
                     }
-                    try {
-                        DialectManager.INSTANCE.refresh(
-                            rep,
-                            new NullProgressMonitor()
-                        );
-                    } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+                    // Native notation notifications update an open editor after commit.
+                    // A semantic refresh is neither needed nor a substitute for layout.
                     // Telemetry post-metrics
                     int overlapsPost = countOverlaps(bounds);
                     int crossingsPost = estimateCrossings(nodes);
@@ -793,88 +751,94 @@ public final class DiagramCommands {
         return scores;
     }
 
-    /** Build undirected adjacency among nodes based on semantic references within the selection. */
-    private static java.util.Map<Node, java.util.Set<Node>> computeAdjacency(
-        java.util.List<Node> nodes
-    ) {
-        java.util.Map<Node, java.util.Set<Node>> adj =
-            new java.util.HashMap<>();
-        java.util.Map<Node, org.eclipse.emf.ecore.EObject> sem =
-            new java.util.HashMap<>();
-        java.util.Map<org.eclipse.emf.ecore.EObject, Node> bySem =
-            new java.util.HashMap<>();
-        for (Node n : nodes) {
-            org.eclipse.emf.ecore.EObject t = toSemantic(n);
-            if (t != null) {
-                sem.put(n, t);
-                bySem.put(t, n);
-            }
-            adj.put(n, new java.util.HashSet<>());
-        }
-        java.util.Set<org.eclipse.emf.ecore.EObject> all =
-            new java.util.HashSet<>(sem.values());
-        for (Node n : nodes) {
-            org.eclipse.emf.ecore.EObject t = sem.get(n);
-            if (t == null) continue;
-            try {
-                for (org.eclipse.emf.ecore.EStructuralFeature f : t
-                    .eClass()
-                    .getEAllStructuralFeatures()) {
-                    if (f instanceof org.eclipse.emf.ecore.EReference) {
-                        org.eclipse.emf.ecore.EReference r =
-                            (org.eclipse.emf.ecore.EReference) f;
-                        if (r.isContainment()) continue;
-                        Object v = t.eGet(r);
-                        if (v instanceof org.eclipse.emf.ecore.EObject e2) {
-                            if (all.contains(e2)) {
-                                Node m = bySem.get(e2);
-                                if (m != null) {
-                                    adj.get(n).add(m);
-                                    adj.get(m).add(n);
-                                }
-                            }
-                        } else if (v instanceof java.util.Collection<?>) {
-                            for (Object o : (java.util.Collection<?>) v) {
-                                if (
-                                    o instanceof
-                                        org.eclipse.emf.ecore.EObject e3 &&
-                                    all.contains(e3)
-                                ) {
-                                    Node m = bySem.get(e3);
-                                    if (m != null) {
-                                        adj.get(n).add(m);
-                                        adj.get(m).add(n);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-        }
-        return adj;
+    /** The diagram must belong to this session's editing domain and owned resources. */
+    private static boolean ownsRepresentation(Session session, DRepresentation rep) {
+        return ownsLayoutResource(session, rep.eResource());
     }
 
-    private static org.eclipse.emf.ecore.EObject toSemantic(Node node) {
-        try {
-            View v = node;
-            org.eclipse.emf.ecore.EObject el = v.getElement();
-            if (
-                el != null &&
-                el.getClass().getName().contains("DDiagramElement")
-            ) {
-                try {
-                    java.lang.reflect.Method m = el
-                        .getClass()
-                        .getMethod("getTarget");
-                    Object t = m.invoke(el);
-                    if (
-                        t instanceof org.eclipse.emf.ecore.EObject
-                    ) return (org.eclipse.emf.ecore.EObject) t;
-                } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+    private static boolean ownsLayoutResource(Session session, Resource resource) {
+        TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
+        if (resource == null || domain == null || resource.getResourceSet() != domain.getResourceSet()) return false;
+        if (resource == session.getSessionResource()) return true;
+        java.util.Collection<Resource> owned = session.getAllSessionResources();
+        java.util.Collection<Resource> referenced = session.getReferencedSessionResources();
+        return owned != null && owned.contains(resource) && (referenced == null || !referenced.contains(resource));
+    }
+
+    /** Sirius normally contains the GMF diagram in an annotation on the representation. */
+    private static org.eclipse.gmf.runtime.notation.Diagram findNotationDiagram(Session session, DRepresentation rep) {
+        var contents = rep.eAllContents();
+        while (contents.hasNext()) {
+            EObject element = contents.next();
+            if (element instanceof org.eclipse.gmf.runtime.notation.Diagram notation && notation.getElement() == rep) return notation;
+        }
+        for (Resource resource : session.getTransactionalEditingDomain().getResourceSet().getResources()) {
+            if (!ownsLayoutResource(session, resource)) continue;
+            var resourceContents = resource.getAllContents();
+            while (resourceContents.hasNext()) {
+                EObject element = resourceContents.next();
+                if (element instanceof org.eclipse.gmf.runtime.notation.Diagram notation && notation.getElement() == rep
+                    && ownsRepresentation(session, rep)) return notation;
             }
-        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+        }
         return null;
+    }
+
+    /** Keep outer semantic shapes; labels, compartment wrappers and border ports never move independently. */
+    private static java.util.List<Node> collectLayoutShapes(org.eclipse.gmf.runtime.notation.Diagram diagram) {
+        java.util.List<Node> shapes = new java.util.ArrayList<>();
+        collectLayoutShapes(diagram, shapes);
+        return shapes;
+    }
+
+    private static void collectLayoutShapes(View container, java.util.List<Node> shapes) {
+        for (Object child : container.getChildren()) {
+            if (!(child instanceof Node node)) continue;
+            EObject semanticView = node.getElement();
+            boolean shape = semanticView instanceof DNode || semanticView instanceof DNodeContainer
+                || semanticView instanceof org.eclipse.sirius.diagram.DNodeList;
+            if (shape && semanticView instanceof DSemanticDecorator decorator && decorator.getTarget() != null
+                && !(decorator.getTarget() instanceof org.polarsys.capella.core.data.information.Port)
+                && (semanticView.eContainingFeature() == null || !"ownedBorderedNodes".equals(semanticView.eContainingFeature().getName()))) {
+                shapes.add(node);
+            } else if (!(semanticView instanceof DSemanticDecorator)) {
+                // Only notation compartments may wrap top-level shapes. A port is never a wrapper.
+                collectLayoutShapes(node, shapes);
+            }
+        }
+    }
+
+    /** Native GMF edges already carry the exact visible endpoints, including function-port views. */
+    private static java.util.Map<Node, java.util.Set<Node>> computeAdjacency(java.util.List<Node> nodes) {
+        java.util.Map<Node, java.util.Set<Node>> adjacency = new java.util.LinkedHashMap<>();
+        for (Node node : nodes) adjacency.put(node, new java.util.LinkedHashSet<>());
+        java.util.Set<org.eclipse.gmf.runtime.notation.Diagram> diagrams = new java.util.HashSet<>();
+        for (Node node : nodes) if (node.getDiagram() != null) diagrams.add(node.getDiagram());
+        for (org.eclipse.gmf.runtime.notation.Diagram diagram : diagrams) {
+            for (Object candidate : diagram.getEdges()) {
+                if (!(candidate instanceof org.eclipse.gmf.runtime.notation.Edge edge)) continue;
+                Node source = owningLayoutShape(edge.getSource(), adjacency.keySet());
+                Node target = owningLayoutShape(edge.getTarget(), adjacency.keySet());
+                if (source != null && target != null && source != target) {
+                    adjacency.get(source).add(target);
+                    adjacency.get(target).add(source);
+                }
+            }
+        }
+        return adjacency;
+    }
+
+    private static Node owningLayoutShape(View endpoint, java.util.Set<Node> shapes) {
+        EObject current = endpoint;
+        while (current instanceof View) {
+            if (current instanceof Node node && shapes.contains(node)) return node;
+            current = current.eContainer();
+        }
+        return null;
+    }
+
+    private static EObject toSemantic(Node node) {
+        return node.getElement() instanceof DSemanticDecorator decorator ? decorator.getTarget() : null;
     }
 
     /** Count rectangle overlaps among given bounds. */
@@ -2440,25 +2404,26 @@ public final class DiagramCommands {
             newName == null ||
             newName.isBlank()
         ) return false;
+        boolean nested = SessionSafeguards.isInWriteContext();
         try {
+            DRepresentationDescriptor expected = ownedDescriptorOnUiThread(session, rep);
+            if (expected == null) return false;
             return SessionSafeguards.runWrite(session, "Rename diagram", () -> {
-                try {
-                    java.lang.reflect.Method setName = rep
-                        .getClass()
-                        .getMethod("setName", String.class);
-                    setName.invoke(rep, newName);
-                    DialectManager.INSTANCE.refresh(
-                        rep,
-                        new NullProgressMonitor()
-                    );
-                    return true;
-                } catch (Throwable t) {
-                    LOG.warning("renameDiagram failed: " + t.getMessage());
-                    return false;
-                }
+                DRepresentationDescriptor descriptor = ownedDescriptor(session, rep);
+                if (descriptor != expected) throw new IllegalStateException("The diagram's owned descriptor changed before rename");
+                RenameRepresentationCommand command = new RenameRepresentationCommand(
+                    session.getTransactionalEditingDomain(), descriptor, newName);
+                if (!command.canExecute()) return false;
+                // The enclosing RecordingCommand owns the single Undo operation.
+                command.execute();
+                requestDiagramSave(session);
+                return true;
             });
-        } catch (Exception e) {
+        } catch (SessionSafeguards.SaveFailedAfterCommitException e) {
+            throw e;
+        } catch (RuntimeException e) {
             LOG.warning("renameDiagram failed: " + e.getMessage());
+            if (nested) throw e;
             return false;
         }
     }
@@ -2466,39 +2431,51 @@ public final class DiagramCommands {
     /** Delete a diagram representation. */
     public static boolean deleteDiagram(Session session, DRepresentation rep) {
         if (session == null || rep == null) return false;
+        boolean nested = SessionSafeguards.isInWriteContext();
         try {
+            DRepresentationDescriptor expected = ownedDescriptorOnUiThread(session, rep);
+            if (expected == null) return false;
             return SessionSafeguards.runWrite(session, "Delete diagram", () -> {
-                try {
-                    // Prefer descriptor-based deletion for compatibility
-                    Object desc = null;
-                    try {
-                        java.lang.reflect.Method m =
-                            DialectManager.class.getMethod(
-                                "getRepresentationDescriptor",
-                                DRepresentation.class
-                            );
-                        desc = m.invoke(DialectManager.INSTANCE, rep);
-                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                    if (desc != null) {
-                        java.lang.reflect.Method del =
-                            DialectManager.class.getMethod(
-                                "deleteRepresentation",
-                                desc.getClass(),
-                                Session.class
-                            );
-                        del.invoke(DialectManager.INSTANCE, desc, session);
-                        return true;
-                    }
-                    // Fallback no-op
-                    return false;
-                } catch (Throwable t) {
-                    LOG.warning("deleteDiagram failed: " + t.getMessage());
-                    return false;
+                DRepresentationDescriptor descriptor = ownedDescriptor(session, rep);
+                if (descriptor != expected) throw new IllegalStateException("The diagram's owned descriptor changed before deletion");
+                DeleteRepresentationCommand command = new DeleteRepresentationCommand(session, java.util.Set.of(descriptor));
+                if (!command.canExecute()) return false;
+                command.execute();
+                if (descriptor.eContainer() != null || rep.eResource() != null) {
+                    throw new IllegalStateException("Sirius could not delete the diagram representation and descriptor");
                 }
+                requestDiagramSave(session);
+                return true;
             });
-        } catch (Exception e) {
+        } catch (SessionSafeguards.SaveFailedAfterCommitException e) {
+            throw e;
+        } catch (RuntimeException e) {
             LOG.warning("deleteDiagram failed: " + e.getMessage());
+            if (nested) throw e;
             return false;
+        }
+    }
+
+    private static DRepresentationDescriptor ownedDescriptor(Session session, DRepresentation representation) {
+        if (!session.isOpen() || !ownsRepresentation(session, representation)) return null;
+        DRepresentationDescriptor descriptor = new DRepresentationQuery(representation).getRepresentationDescriptor();
+        if (descriptor == null || descriptor.eContainer() == null || descriptor.eResource() == null
+            || !ownsLayoutResource(session, descriptor.eResource())
+            || descriptor.getRepresentation() != representation) return null;
+        return descriptor;
+    }
+
+    private static DRepresentationDescriptor ownedDescriptorOnUiThread(Session session, DRepresentation representation) {
+        java.util.concurrent.atomic.AtomicReference<DRepresentationDescriptor> descriptor = new java.util.concurrent.atomic.AtomicReference<>();
+        SessionSafeguards.runOnUiThread(() -> descriptor.set(ownedDescriptor(session, representation)));
+        return descriptor.get();
+    }
+
+    private static void requestDiagramSave(Session session) {
+        try {
+            SessionSafeguards.requestSave(session);
+        } catch (Exception e) {
+            throw new IllegalStateException("Diagram save failed", e);
         }
     }
 

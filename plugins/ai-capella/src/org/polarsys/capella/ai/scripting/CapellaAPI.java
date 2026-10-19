@@ -25,6 +25,7 @@ import org.polarsys.capella.ai.model.Finders;
 import org.polarsys.capella.ai.model.ModelAnalytics;
 import org.polarsys.capella.ai.model.ModelOps;
 import org.polarsys.capella.ai.model.ModelSummary;
+import org.polarsys.capella.ai.model.PersistentIds;
 import org.polarsys.capella.ai.model.index.ModelIndex;
 import org.polarsys.capella.ai.session.OperationInferencer;
 import org.polarsys.capella.ai.session.SessionSafeguards;
@@ -89,6 +90,12 @@ public final class CapellaAPI {
     /** Operations API for engineering transitions */
     public final OpsAPI ops;
 
+    /** Native requirements and traceability, when the Requirements viewpoint is installed. */
+    public final RequirementsAPI requirements;
+
+    /** Typed capability, scenario, chain, interface and deployment helpers. */
+    public final ArcadiaAPI arcadia;
+
     /** Optional reset hook for stateful Groovy sessions */
     private final Runnable resetHandler;
 
@@ -104,6 +111,8 @@ public final class CapellaAPI {
 
     /** Flag indicating cache needs clearing after mutation */
     private boolean cacheDirty = false;
+    private org.eclipse.emf.common.command.Command cachedUndoCommand;
+    private org.eclipse.emf.common.command.Command cachedRedoCommand;
 
     /**
      * Create a CapellaAPI for the given session.
@@ -122,7 +131,24 @@ public final class CapellaAPI {
         this.skills = new SkillsAPI(session);
         this.style = new StyleAPI(session, this.diagram);
         this.ops = new OpsAPI(session);
+        this.requirements = new RequirementsAPI(session);
+        this.arcadia = new ArcadiaAPI(session, this::invalidateArcadiaCaches);
         this.resetHandler = resetHandler;
+    }
+
+    public RequirementsAPI requirements() {
+        return requirements;
+    }
+
+    public ArcadiaAPI arcadia() {
+        return arcadia;
+    }
+
+    private void invalidateArcadiaCaches() {
+        cacheDirty = true;
+        ModelSummary.invalidate(session);
+        ModelIndex.invalidate(session);
+        ModelAnalytics.invalidate(session);
     }
 
     /**
@@ -159,6 +185,9 @@ public final class CapellaAPI {
         sb.append("},");
         sb.append("\"interpreter\":{");
         sb.append("\"available\":").append(interpreterAvailable);
+        sb.append("},");
+        sb.append("\"requirements\":{");
+        sb.append("\"available\":").append(requirements.available());
         sb.append("},");
         sb.append("\"fallbacks\":{");
         sb.append("\"semanticServices\":")
@@ -217,6 +246,9 @@ public final class CapellaAPI {
         if (session == null || type == null || name == null) {
             return null;
         }
+        if ("Requirement".equals(type)) {
+            return org.polarsys.capella.ai.model.finder.RequirementFinder.findByName(session, name);
+        }
         ensureCacheValid();
         String cacheKey = findCacheKey(type, name);
         EObject cached = findCache.get(cacheKey);
@@ -245,13 +277,14 @@ public final class CapellaAPI {
     }
 
     /**
-     * Find all elements of a given type.
+     * Find all elements of a given native type, including its actual subtypes.
+     * Actor aliases select only actor instances of their corresponding component type.
      *
      * @param type the simple class name
      * @return list of matching elements (never null)
      */
     public List<EObject> findAll(String type) {
-        if (session == null || type == null) {
+        if (session == null || type == null || type.isBlank()) {
             return new ArrayList<>();
         }
         ensureCacheValid();
@@ -259,6 +292,8 @@ public final class CapellaAPI {
         if (cached != null) {
             return new ArrayList<>(cached);  // Defensive copy
         }
+        String nativeType = resolveTypeAlias(type, null);
+        boolean actorOnly = isActorAlias(type);
         List<EObject> results = new ArrayList<>();
         try {
             for (Resource res : session.getSemanticResources()) {
@@ -266,8 +301,12 @@ public final class CapellaAPI {
                 var it = res.getAllContents();
                 while (it.hasNext()) {
                     EObject eo = it.next();
-                    String className = eo.eClass().getName();
-                    if (className.equals(type) || className.endsWith(type)) {
+                    EClass nativeClass = eo.eClass();
+                    boolean matches = nativeType.equals(nativeClass.getName()) ||
+                        nativeClass.getEAllSuperTypes().stream()
+                            .anyMatch(superType -> nativeType.equals(superType.getName()));
+                    EStructuralFeature actor = actorOnly ? nativeClass.getEStructuralFeature("actor") : null;
+                    if (matches && (!actorOnly || actor != null && Boolean.TRUE.equals(eo.eGet(actor)))) {
                         results.add(eo);
                     }
                 }
@@ -364,15 +403,14 @@ public final class CapellaAPI {
         }
         // Guess the layer from the type name
         String layer = guessLayerFromType(trimmedType);
-        // Resolve type aliases
-        String resolvedType = resolveTypeAlias(trimmedType, layer);
-        return create(layer, resolvedType, name);
+        // Preserve the alias so the layer overload can apply actor semantics.
+        return create(layer, trimmedType, name);
     }
 
     /**
      * Create an element in a specific architecture layer.
      *
-     * @param layer the layer (OA, SA, LA, PA)
+     * @param layer the layer (OA, SA, LA, PA, EPBS)
      * @param type the simple class name
      * @param name the element name
      * @return the created element
@@ -396,42 +434,44 @@ public final class CapellaAPI {
                 "Architecture layer '" +
                     layer +
                     "' not found. " +
-                    "Valid layers: OA, SA, LA, PA"
+                    "Valid layers: OA, SA, LA, PA, EPBS"
             );
         }
         // Resolve type aliases (e.g., OperationalActor -> Entity)
         String resolvedType = resolveTypeAlias(type, layer);
         boolean isActor = isActorAlias(type);
-
-        EObject created = ElementFactory.createUnder(
-            session,
-            root,
-            resolvedType,
-            name
-        );
-        if (created == null) {
-            throw new IllegalArgumentException(
-                "Failed to create '" +
-                    type +
-                    "' in " +
-                    layer +
-                    " layer. " +
-                    "Check type spelling. Common types: SystemFunction, SystemComponent, " +
-                    "LogicalFunction, LogicalComponent, PhysicalFunction, PhysicalComponent"
+        return SessionSafeguards.runWrite(session, "Create " + type, () -> {
+            EObject created = ElementFactory.createUnder(
+                session,
+                root,
+                resolvedType,
+                name
             );
-        }
-        // If this was an actor alias, set the actor property
-        if (isActor) {
-            set(created, "actor", true);
-        }
-        invalidate();
-        return created;
+            if (created == null) {
+                throw new IllegalArgumentException(
+                    "Failed to create '" +
+                        type +
+                        "' in " +
+                        layer +
+                        " layer. " +
+                        "Check type spelling. Common types: SystemFunction, SystemComponent, " +
+                        "LogicalFunction, LogicalComponent, PhysicalFunction, PhysicalComponent"
+                );
+            }
+            // If this was an actor alias, set the actor property
+            if (isActor) {
+                set(created, "actor", true);
+                if ("OperationalActor".equals(type)) set(created, "human", true);
+            }
+            invalidate();
+            return created;
+        });
     }
 
     /**
      * Create an element in a specific architecture layer (unambiguous helper).
      *
-     * @param layer the layer (OA, SA, LA, PA)
+     * @param layer the layer (OA, SA, LA, PA, EPBS)
      * @param type the simple class name
      * @param name the element name
      * @return the created element
@@ -467,24 +507,39 @@ public final class CapellaAPI {
                     "to create elements at the layer root."
             );
         }
-        EObject created = ElementFactory.createUnder(
-            session,
-            parent,
-            type,
-            name
-        );
-        if (created == null) {
-            throw new IllegalArgumentException(
-                "Failed to create '" +
-                    type +
-                    "' under " +
-                    parent.eClass().getName() +
-                    ". " +
-                    "This type may not be valid as a child of this parent element."
-            );
+        String parentLayer = guessLayerFromType(type);
+        for (EObject ancestor = parent; ancestor != null; ancestor = ancestor.eContainer()) {
+            if (ancestor instanceof BlockArchitecture) {
+                parentLayer = guessLayerFromType(ancestor.eClass().getName());
+                break;
+            }
         }
-        invalidate();
-        return created;
+        String resolvedType = resolveTypeAlias(type, parentLayer);
+        boolean actor = isActorAlias(type);
+        return SessionSafeguards.runWrite(session, "Create " + type, () -> {
+            EObject created = ElementFactory.createUnder(
+                session,
+                parent,
+                resolvedType,
+                name
+            );
+            if (created == null) {
+                throw new IllegalArgumentException(
+                    "Failed to create '" +
+                        type +
+                        "' under " +
+                        parent.eClass().getName() +
+                        ". " +
+                        "This type may not be valid as a child of this parent element."
+                );
+            }
+            if (actor) {
+                set(created, "actor", true);
+                if ("OperationalActor".equals(type)) set(created, "human", true);
+            }
+            invalidate();
+            return created;
+        });
     }
 
     /**
@@ -537,6 +592,11 @@ public final class CapellaAPI {
             }
             OperationInferencer.recordCreate("Part", finalPartName);
             invalidate();
+            try {
+                SessionSafeguards.requestSave(session);
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to save after creating Part", e);
+            }
             return part;
         });
     }
@@ -612,7 +672,14 @@ public final class CapellaAPI {
                         element.eClass().getName()
                 );
             }
-            element.eSet(feature, value);
+            if (feature instanceof org.eclipse.emf.ecore.EAttribute attribute && attribute.isID()) {
+                if (!(value instanceof String identifier)) {
+                    throw new IllegalArgumentException("Persistent model ID must be a nonblank String");
+                }
+                PersistentIds.setId(element, identifier);
+            } else {
+                element.eSet(feature, value);
+            }
             // Record operation for undo label inference
             OperationInferencer.recordSet(element.eClass().getName(), property);
             invalidate();
@@ -750,6 +817,22 @@ public final class CapellaAPI {
                 "Component/entity to allocate to cannot be null"
             );
         }
+        if (!(function instanceof org.polarsys.capella.core.data.fa.AbstractFunction) ||
+            !(component instanceof org.polarsys.capella.core.data.cs.Component)) {
+            throw new IllegalArgumentException("Allocation requires a function/activity and a component/entity.");
+        }
+        BlockArchitecture functionArchitecture = containingArchitecture(function);
+        BlockArchitecture componentArchitecture = containingArchitecture(component);
+        if (functionArchitecture == null || functionArchitecture != componentArchitecture ||
+            "EPBSArchitecture".equals(componentArchitecture.eClass().getName())) {
+            throw new IllegalArgumentException("Function allocation requires endpoints in the same OA, SA, LA or PA architecture. EPBS items use PhysicalArtifactRealization links.");
+        }
+        var allocationDomain = session.getTransactionalEditingDomain();
+        if (allocationDomain == null || function.eResource() == null || component.eResource() == null ||
+            function.eResource().getResourceSet() != allocationDomain.getResourceSet() ||
+            component.eResource().getResourceSet() != allocationDomain.getResourceSet()) {
+            throw new IllegalArgumentException("Allocation endpoints must belong to the active model session.");
+        }
         return SessionSafeguards.runWrite(session, "Allocate function", () -> {
             try {
                 // Create ComponentFunctionalAllocation
@@ -781,6 +864,10 @@ public final class CapellaAPI {
                 var allocList = (java.util.List<EObject>) component.eGet(
                     allocRef
                 );
+                for (EObject existing : allocList) {
+                    if (existing instanceof org.polarsys.capella.core.data.fa.ComponentFunctionalAllocation typed &&
+                        typed.getTargetElement() == function) return true;
+                }
                 allocList.add(allocation);
                 // Record operation for undo label inference
                 OperationInferencer.recordAllocate(
@@ -813,6 +900,13 @@ public final class CapellaAPI {
                 );
             }
         });
+    }
+
+    private static BlockArchitecture containingArchitecture(EObject element) {
+        for (EObject parent = element; parent != null; parent = parent.eContainer()) {
+            if (parent instanceof BlockArchitecture architecture) return architecture;
+        }
+        return null;
     }
 
     // ========== NAVIGATION Operations ==========
@@ -868,7 +962,7 @@ public final class CapellaAPI {
     /**
      * Get an architecture layer root.
      *
-     * @param name the layer name (OA, SA, LA, PA, or full names like "operational", "logical")
+     * @param name the layer name (OA, SA, LA, PA, EPBS, or full names like "operational", "logical")
      * @return the layer root element, or null if not found
      */
     public EObject layer(String name) {
@@ -877,7 +971,8 @@ public final class CapellaAPI {
         }
         String canonical = ArchitectureLocator.canonicalizeLayer(name);
         if (canonical == null) {
-            canonical = "SA"; // Default
+            throw new IllegalArgumentException("Unknown architecture layer '" + name +
+                "'. Valid layers: OA, SA, LA, PA, EPBS.");
         }
         // Layer roots never change during script - no need for ensureCacheValid()
         EObject cached = layerCache.get(canonical);
@@ -898,6 +993,11 @@ public final class CapellaAPI {
         return layer(layer);
     }
 
+    /** Get the End-Product Breakdown Structure architecture. */
+    public EObject epbs() {
+        return layer("EPBS");
+    }
+
     /**
      * Get a standard container (package/root) for a given layer and kind.
      *
@@ -913,6 +1013,14 @@ public final class CapellaAPI {
             return null;
         }
         EObject root = layer(layer);
+        if (root instanceof org.polarsys.capella.core.data.epbs.EPBSArchitecture epbsArchitecture) {
+            String normalized = kind.trim().toLowerCase(Locale.ROOT);
+            if (normalized.equals("configuration-item") || normalized.equals("configuration item") ||
+                normalized.equals("configurationitem") || normalized.equals("component") ||
+                normalized.equals("components")) {
+                return epbsArchitecture.getOwnedConfigurationItemPkg();
+            }
+        }
         if (!(root instanceof BlockArchitecture)) {
             return null;
         }
@@ -1225,6 +1333,8 @@ public final class CapellaAPI {
                 Object result = closure.call();
                 invalidate();
                 return result;
+            } catch (SessionSafeguards.ScriptCancelledException e) {
+                throw e;
             } catch (Exception e) {
                 throw new RuntimeException(
                     "Raw API execution failed: " + e.getMessage(),
@@ -1250,6 +1360,8 @@ public final class CapellaAPI {
                 Object result = closure.call();
                 invalidate();
                 return result;
+            } catch (SessionSafeguards.ScriptCancelledException e) {
+                throw e;
             } catch (Exception e) {
                 throw new RuntimeException(
                     label + " failed: " + e.getMessage(),
@@ -1297,26 +1409,87 @@ public final class CapellaAPI {
             OperationInferencer.hintLabel(finalLabel);
         }
 
-        // Use deferSaves to prevent intermediate saves
-        return SessionSafeguards.deferSaves(session, () -> {
-            // Execute everything in a single transaction with explicit label
-            return SessionSafeguards.runWrite(session, finalLabel, () -> {
-                try {
-                    OperationInferencer.hintLabel(finalLabel);
-                    Object result = closure.call();
-                    invalidate();
-                    return result;
-                } catch (Exception e) {
-                    throw new RuntimeException(
-                        finalLabel + " failed: " + e.getMessage(),
-                        e
-                    );
-                }
-            });
+        // runWrite owns save deferral on the UI thread and saves after commit.
+        return SessionSafeguards.runWrite(session, finalLabel, () -> {
+            try {
+                OperationInferencer.hintLabel(finalLabel);
+                Object result = closure.call();
+                invalidate();
+                return result;
+            } catch (SessionSafeguards.ScriptCancelledException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new RuntimeException(
+                    finalLabel + " failed: " + e.getMessage(),
+                    e
+                );
+            }
         });
     }
 
     // ========== VALIDATION Operations ==========
+
+    /** Run Capella's installed batch validator, including its live constraints. */
+    public Map<String, Object> validateNative() {
+        return validateNative(200);
+    }
+
+    /** Complete counts with a caller-selected, bounded number of diagnostic messages. */
+    public Map<String, Object> validateNative(int maximumMessages) {
+        if (maximumMessages < 1 || maximumMessages > 10000) {
+            throw new IllegalArgumentException("Native validation message limit must be between 1 and 10000");
+        }
+        if (session == null || !session.isOpen()) {
+            throw new IllegalStateException("Native validation requires an open Capella model");
+        }
+        for (Resource resource : session.getSemanticResources()) {
+            if (!resource.getErrors().isEmpty()) {
+                throw new IllegalStateException("Model resource failed to load: " + resource.getURI() + ". " +
+                    resource.getErrors().get(0).getMessage() + ". Repair and reopen it before native validation.");
+            }
+        }
+        List<EObject> projects = session.getSemanticResources().stream()
+            .flatMap(resource -> resource.getContents().stream())
+            .filter(element -> element instanceof Project).toList();
+        if (projects.size() != 1) {
+            throw new IllegalStateException("Native validation requires exactly one Project in the active session");
+        }
+        var bundle = org.eclipse.core.runtime.Platform.getBundle("org.polarsys.capella.core.validation");
+        if (bundle == null) throw new IllegalStateException("Capella native validation is unavailable");
+        try {
+            Object adapter = bundle.loadClass("org.polarsys.capella.core.validation.CapellaValidatorAdapter")
+                .getConstructor().newInstance();
+            Object validator = adapter.getClass().getMethod("getValidator").invoke(adapter);
+            Class<?> contract = bundle.loadClass("org.eclipse.emf.validation.service.IBatchValidator");
+            contract.getMethod("setIncludeLiveConstraints", boolean.class).invoke(validator, true);
+            var status = (org.eclipse.core.runtime.IStatus) contract.getMethod("validate", EObject.class,
+                org.eclipse.core.runtime.IProgressMonitor.class).invoke(validator, projects.get(0),
+                    new org.eclipse.core.runtime.NullProgressMonitor());
+            List<org.eclipse.core.runtime.IStatus> issues = new ArrayList<>();
+            collectNativeIssues(status, issues);
+            NativeValidationDiagnostics diagnostics = new NativeValidationDiagnostics(bundle);
+            List<Map<String, Object>> messages = issues.stream()
+                .sorted(java.util.Comparator.comparingInt(org.eclipse.core.runtime.IStatus::getSeverity).reversed())
+                .limit(maximumMessages).map(diagnostics::message).toList();
+            return Map.of("severity", status.getSeverity(),
+                "errors", issues.stream().filter(issue -> issue.getSeverity() >= org.eclipse.core.runtime.IStatus.ERROR).count(),
+                "warnings", issues.stream().filter(issue -> issue.getSeverity() == org.eclipse.core.runtime.IStatus.WARNING).count(),
+                "issueCount", issues.size(), "issues", messages, "truncated", issues.size() > messages.size());
+        } catch (ReflectiveOperationException failure) {
+            Throwable cause = failure instanceof java.lang.reflect.InvocationTargetException invocation
+                ? invocation.getTargetException() : failure;
+            throw new IllegalStateException("Native Capella validation failed: " + cause.getMessage(), cause);
+        }
+    }
+
+    private static void collectNativeIssues(org.eclipse.core.runtime.IStatus status,
+        List<org.eclipse.core.runtime.IStatus> issues) {
+        if (status.isMultiStatus()) {
+            for (var child : status.getChildren()) collectNativeIssues(child, issues);
+        } else if (!status.isOK()) {
+            issues.add(status);
+        }
+    }
 
     /**
      * Validate the model and return issues.
@@ -1339,7 +1512,7 @@ public final class CapellaAPI {
     /**
      * Validate a specific architecture layer.
      *
-     * @param layer the layer (OA, SA, LA, PA)
+     * @param layer the layer (OA, SA, LA, PA, EPBS)
      */
     public List<String> validate(String layer) {
         if (session == null) {
@@ -1353,7 +1526,7 @@ public final class CapellaAPI {
             return List.of(
                 "Validation unavailable: architecture layer '" +
                     layer +
-                    "' not found. Valid layers: OA, SA, LA, PA."
+                    "' not found. Valid layers: OA, SA, LA, PA, EPBS."
             );
         }
         return validateRoot(
@@ -1650,6 +1823,17 @@ public final class CapellaAPI {
      * Clear caches if they've been invalidated by a mutation.
      */
     private void ensureCacheValid() {
+        var domain = session != null ? session.getTransactionalEditingDomain() : null;
+        if (domain != null) {
+            var stack = domain.getCommandStack();
+            var undo = stack.getUndoCommand();
+            var redo = stack.getRedoCommand();
+            if (undo != cachedUndoCommand || redo != cachedRedoCommand) {
+                cacheDirty = true;
+                cachedUndoCommand = undo;
+                cachedRedoCommand = redo;
+            }
+        }
         if (cacheDirty) {
             findCache.clear();
             findAllCache.clear();
@@ -1786,7 +1970,7 @@ public final class CapellaAPI {
         if (name == null) {
             return false;
         }
-        return name.endsWith("Component") || name.equals("Entity");
+        return name.endsWith("Component") || name.equals("Entity") || name.equals("ConfigurationItem");
     }
 
     private String guessContainerKind(EObject element) {
@@ -1839,7 +2023,7 @@ public final class CapellaAPI {
     }
 
     private boolean isComponentPkgType(String name) {
-        return name.endsWith("ComponentPkg") || name.endsWith("EntityPkg");
+        return name.endsWith("ComponentPkg") || name.endsWith("EntityPkg") || name.equals("ConfigurationItemPkg");
     }
 
     private boolean isInterfacePkgType(String name) {
@@ -1879,15 +2063,9 @@ public final class CapellaAPI {
                 var it = res.getAllContents();
                 while (it.hasNext()) {
                     EObject eo = it.next();
-                    if (!isPart(eo)) {
-                        continue;
-                    }
-                    Object abstractType = get(eo, "abstractType");
-                    if (component.equals(abstractType)) {
-                        return eo;
-                    }
-                    Object type = get(eo, "type");
-                    if (component.equals(type)) {
+                    // abstractType is the persistent native reference. Part.type
+                    // is derived and can invoke additional Capella adapters.
+                    if (eo instanceof Part part && component.equals(part.getAbstractType())) {
                         return eo;
                     }
                 }
@@ -1905,6 +2083,12 @@ public final class CapellaAPI {
         EObject normalized = normalizePartContainer(preferredRoot, component);
         if (normalized != null) {
             return normalized;
+        }
+        // Native component creation places the Part alongside its type, under
+        // the immediate owning Component or ComponentPkg.
+        EObject immediateOwner = component.eContainer();
+        if (canContainPart(immediateOwner)) {
+            return immediateOwner;
         }
         EObject componentPkg = findComponentPackage(component);
         if (componentPkg == null) {
@@ -1951,7 +2135,7 @@ public final class CapellaAPI {
             }
             return preferredRoot;
         }
-        if (name.contains("ComponentPkg") || name.contains("EntityPkg")) {
+        if (isComponentPkgType(name)) {
             EObject rootComponent = findRootComponentCandidate(preferredRoot);
             if (canContainPart(preferredRoot)) {
                 return preferredRoot;
@@ -1980,7 +2164,7 @@ public final class CapellaAPI {
         EObject current = element;
         while (current != null) {
             String name = current.eClass().getName();
-            if (name.contains("ComponentPkg") || name.contains("EntityPkg")) {
+            if (isComponentPkgType(name)) {
                 return current;
             }
             current = current.eContainer();
@@ -2006,7 +2190,7 @@ public final class CapellaAPI {
     private EObject findRootComponentCandidate(EObject root) {
         return findFirstChildByClassName(
             root,
-            List.of("SystemComponent", "LogicalComponent", "PhysicalComponent", "Entity")
+            List.of("SystemComponent", "LogicalComponent", "PhysicalComponent", "Entity", "ConfigurationItem")
         );
     }
 
@@ -2033,7 +2217,7 @@ public final class CapellaAPI {
                 continue;
             }
             EReference ref = (EReference) feature;
-            if (!ref.isContainment()) {
+            if (!isSemanticContainment(ref)) {
                 continue;
             }
             if (!(ref.getEType() instanceof EClass)) {
@@ -2066,7 +2250,7 @@ public final class CapellaAPI {
                 continue;
             }
             EReference ref = (EReference) feature;
-            if (!ref.isContainment()) {
+            if (!isSemanticContainment(ref)) {
                 continue;
             }
             if (!(ref.getEType() instanceof EClass)) {
@@ -2094,7 +2278,7 @@ public final class CapellaAPI {
                 continue;
             }
             EReference ref = (EReference) feature;
-            if (!ref.isContainment()) {
+            if (!isSemanticContainment(ref)) {
                 continue;
             }
             for (String name : names) {
@@ -2111,6 +2295,9 @@ public final class CapellaAPI {
         EReference ref,
         EObject child
     ) {
+        if (!isSemanticContainment(ref) || !ref.getEReferenceType().isInstance(child)) {
+            return false;
+        }
         try {
             if (ref.isMany()) {
                 @SuppressWarnings("unchecked")
@@ -2124,6 +2311,13 @@ public final class CapellaAPI {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private boolean isSemanticContainment(EReference ref) {
+        return ref.isContainment() && ref.isChangeable() && !ref.isDerived()
+            && !ref.isTransient() && !ref.isVolatile()
+            && !"ownedMigratedElements".equals(ref.getName())
+            && !"ownedExtensions".equals(ref.getName());
     }
 
     private boolean setFeatureIfPresent(
@@ -2330,8 +2524,9 @@ public final class CapellaAPI {
     private String guessLayerFromType(String type) {
         if (type == null) return "SA";
         String lower = type.toLowerCase();
+        if (lower.startsWith("configurationitem") || lower.startsWith("epbs")) return "EPBS";
         if (
-            lower.startsWith("operational") || lower.startsWith("oa")
+            lower.equals("entity") || lower.startsWith("operational") || lower.startsWith("oa")
         ) return "OA";
         if (lower.startsWith("logical") || lower.startsWith("la")) return "LA";
         if (lower.startsWith("physical") || lower.startsWith("pa")) return "PA";
@@ -2344,7 +2539,8 @@ public final class CapellaAPI {
         return "OA".equals(upper) ||
             "SA".equals(upper) ||
             "LA".equals(upper) ||
-            "PA".equals(upper);
+            "PA".equals(upper) ||
+            "EPBS".equals(upper);
     }
 
     private String mapTypeToLayer(String type, String targetLayer) {

@@ -2,7 +2,7 @@
 
 This document tracks known limitations in the Capella API.
 
-> **Last Updated**: 2025-12-14
+> **Last Updated**: 2026-10-09
 > **Status**: Most cross-layer issues resolved in Issue #36, diagram errors improved in Issue #59
 
 ---
@@ -13,10 +13,17 @@ This document tracks known limitations in the Capella API.
 |---------|--------|-------|
 | OperationalActor creation | ✅ Fixed | Auto-maps to Entity with `actor=true` |
 | ComponentRealization | ✅ Fixed | Works in RelationFactory |
-| FunctionRealization | ✅ Working | Always worked |
+| FunctionRealization | ✅ Working | Typed endpoints, correct function containment and architecture checks |
+| EPBS configuration items | ✅ Supported | Root/nested creation and CI→PA PhysicalArtifactRealization |
 | Architecture Blank diagrams | ✅ Fixed | SAB, LAB, PAB work |
 | Data Flow Blank diagrams | ⚠️ Improved | Better errors, fuzzy matching (Issue #59) |
 | OAB diagram | ⚠️ Viewpoint | Requires viewpoint activation |
+| Capability involvement/realization | Supported | `api.arcadia` native typed relationships |
+| Linear functional chain | Supported | Ordered leaf functions and actual exchanges; branching requires native services |
+| Operational interaction scenario | Supported | Activity roles, native messages/events/ends; richer fragments require native services |
+| Physical deployment/topology | Supported | Explicit BEHAVIOR/NODE Parts and actual PhysicalLink ends |
+| Functional transport | Supported | Native CE→FE and component/function port allocations |
+| Interface realization | Supported | Adjacent-layer FE/FLOW CE realization and matching endpoint ports, with native ownership and direction checks |
 
 ---
 
@@ -24,7 +31,7 @@ This document tracks known limitations in the Capella API.
 
 ### Cross-Layer Traceability
 
-All cross-layer links now work correctly:
+Function/component realization links require the lower-level source first (SA→OA, LA→SA, PA→LA), with both endpoints in the active session. EPBS configuration items use `PhysicalArtifactRealization` to realize PA physical components:
 
 ```groovy
 // Function Realization (LA → SA)
@@ -104,17 +111,17 @@ api.diagram.create("OAB", "Operational View", oaLayer)
 
 ### 3. PhysicalLink vs ComponentExchange
 
-`PhysicalLink` is not a valid relation type. Physical components use `ComponentExchange`:
+`PhysicalLink` is not a supported `api.link()` relation type. For behavioral interfaces between PA components, use `ComponentExchange`:
 
 ```groovy
 // Wrong
-api.link(pc1, pc2, "PhysicalLink")  // ❌ Returns null
+api.link(pc1, pc2, "PhysicalLink")  // ❌ Unsupported relation; throws an error
 
 // Correct
 api.link(pc1, pc2, "ComponentExchange")  // ✅ Works
 ```
 
-**Note**: `PhysicalLink` in Capella refers to physical paths/cables, not component connections.
+**Note**: Use `api.arcadia.physicalLink(...)` for actual NODE topology and `api.arcadia.deploy(...)` for BEHAVIOR→NODE deployment. Component exchanges do not create those structures. Use `api.arcadia.allocateExchange(...)` for native transport/port allocations and the typed capability involvement helpers. See `api/arcadia.md` for ownership and direction rules.
 
 ---
 
@@ -126,7 +133,7 @@ The API now provides descriptive error messages for common issues:
 |-------|---------|
 | "No active Capella session" | Open a model first |
 | "Element type cannot be null" | Provide a valid type name |
-| "Architecture layer 'XX' not found" | Use OA, SA, LA, or PA |
+| "Architecture layer 'XX' not found" | Use OA, SA, LA, PA, or EPBS |
 | "Property 'X' not found... Available: [...]" | Check property name spelling |
 | "Failed to create 'X'... Common types: [...]" | Check type name spelling |
 

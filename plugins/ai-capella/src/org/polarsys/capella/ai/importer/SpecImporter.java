@@ -1,158 +1,159 @@
 package org.polarsys.capella.ai.importer;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 import org.eclipse.sirius.business.api.session.Session;
-import org.polarsys.capella.ai.llm.LLMService;
-import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.scripting.CodeExecutionRouter;
 import org.polarsys.capella.ai.scripting.ExecutionResult;
 import org.polarsys.capella.ai.scripting.GroovyExecutor;
+import org.polarsys.capella.ai.scripting.ScriptRouter;
+import org.polarsys.capella.ai.session.SelectionContext;
+import org.polarsys.capella.ai.session.SessionBridge;
 
-/**
- * Spec-driven execution: import natural language requirements/spec text
- * and generate Groovy code to create the model.
- *
- * <p>Updated for Phase 4 code execution architecture.
- */
+/** Generates specification drafts through the assistant's privacy and execution path. */
 public final class SpecImporter {
-
     private SpecImporter() {}
 
-    /**
-     * Result of spec import operation.
-     */
+    /** A successful draft has no executionResult until it has been reviewed and applied. */
     public static final class ImportResult {
-
         public final boolean success;
+        public final String reply;
         public final String generatedCode;
         public final ExecutionResult executionResult;
         public final String error;
+        private final Session session;
+        private final String request;
+        private final String conversationId;
+        private final SelectionContext context;
+        private final AtomicBoolean executionClaimed;
 
-        private ImportResult(
-            boolean success,
-            String generatedCode,
-            ExecutionResult executionResult,
-            String error
-        ) {
+        private ImportResult(boolean success, String reply, String code, ExecutionResult execution,
+                String error, Session session, String request, String conversationId, SelectionContext context,
+                AtomicBoolean executionClaimed) {
             this.success = success;
-            this.generatedCode = generatedCode;
-            this.executionResult = executionResult;
+            this.reply = reply;
+            this.generatedCode = code;
+            this.executionResult = execution;
             this.error = error;
+            this.session = session;
+            this.request = request;
+            this.conversationId = conversationId;
+            this.context = context;
+            this.executionClaimed = executionClaimed;
         }
 
-        public static ImportResult success(
-            String code,
-            ExecutionResult result
-        ) {
-            return new ImportResult(true, code, result, null);
+        public boolean wasApplied() {
+            return executionResult != null && executionResult.success();
+        }
+
+        public static ImportResult success(String code, ExecutionResult result) {
+            return new ImportResult(true, null, code, result, null, null, null, null, null, new AtomicBoolean(result != null));
         }
 
         public static ImportResult failure(String error) {
-            return new ImportResult(false, null, null, error);
+            return new ImportResult(false, null, null, null, error, null, null, null, null, new AtomicBoolean());
+        }
+
+        private ImportResult withExecution(ScriptRouter.Result result) {
+            return new ImportResult(result.success(), reply, generatedCode, result.executionResult,
+                result.error, session, request, conversationId, context, executionClaimed);
+        }
+
+        private ImportResult failed(String message) {
+            return new ImportResult(false, reply, generatedCode, null, message,
+                session, request, conversationId, context, executionClaimed);
         }
     }
 
-    /**
-     * Generate and execute code from a specification.
-     *
-     * @param session the Capella session
-     * @param specText the specification text
-     * @return import result with generated code and execution status
-     */
+    /** Generate an immutable review draft. This method never executes generated code. */
     public static ImportResult importSpec(Session session, String specText) {
-        if (session == null) {
-            return ImportResult.failure("No active session");
-        }
-        if (specText == null || specText.isBlank()) {
-            return ImportResult.failure("Empty specification");
-        }
+        return generateDraft(session, specText, SessionBridge.getSelectionContext(), ROUTER);
+    }
 
-        // Build prompt for code generation
-        List<LLMService.Message> messages = new ArrayList<>();
-        messages.add(LLMService.Message.system(buildSystemPrompt(session)));
-        messages.add(
-            LLMService.Message.user(buildUserPrompt(specText, session))
-        );
-
-        try {
-            // Get code from LLM
-            String reply = LLMService.get().send(messages);
-
-            // Extract and execute code
-            String code = GroovyExecutor.extractCode(reply);
-            if (code.isBlank()) {
-                return ImportResult.failure(
-                    "LLM did not generate executable code"
-                );
-            }
-
-            ExecutionResult result = GroovyExecutor.execute(session, code);
-
-            if (result.success()) {
-                return ImportResult.success(code, result);
-            } else {
-                return ImportResult.failure(result.formatForLLM());
-            }
-        } catch (Exception e) {
-            return ImportResult.failure("Error: " + e.getMessage());
-        }
+    /** Generate code for a preview without applying changes. */
+    public static String generateCode(Session session, String specText) {
+        ImportResult draft = importSpec(session, specText);
+        return draft.success ? draft.generatedCode : null;
     }
 
     /**
-     * Generate code from specification without executing.
-     * Useful for preview/review before execution.
+     * Show generatedCode to the caller's reviewer and apply precisely that draft only on acceptance.
+     * Review is mandatory for imports, including when the general confirmation preference is disabled.
      */
-    public static String generateCode(Session session, String specText) {
-        if (session == null || specText == null || specText.isBlank()) {
-            return null;
+    public static ImportResult applyReviewed(ImportResult draft, Predicate<String> review) {
+        return applyReviewed(draft, review, ROUTER);
+    }
+
+    /** Adapter for the generation and reviewed execution boundary. */
+    public interface Gateway {
+        String generate(Session session, String request, String conversationId, SelectionContext context) throws Exception;
+        ScriptRouter.Result execute(Session session, String request, String reply, String conversationId,
+            SelectionContext context, BooleanSupplier confirmation);
+    }
+
+    private static final Gateway ROUTER = new Gateway() {
+        @Override
+        public String generate(Session session, String request, String conversationId, SelectionContext context) throws Exception {
+            return ScriptRouter.generateReply(session, request, List.of(), conversationId, context);
         }
 
-        List<LLMService.Message> messages = new ArrayList<>();
-        messages.add(LLMService.Message.system(buildSystemPrompt(session)));
-        messages.add(
-            LLMService.Message.user(buildUserPrompt(specText, session))
-        );
+        @Override
+        public ScriptRouter.Result execute(Session session, String request, String reply, String conversationId,
+                SelectionContext context, BooleanSupplier confirmation) {
+            return ScriptRouter.executeReply(session, request, reply, conversationId, context, confirmation);
+        }
+    };
 
+    public static ImportResult generateDraft(Session session, String specText, SelectionContext context, Gateway gateway) {
+        if (session == null || !session.isOpen()) return ImportResult.failure("No open Capella session");
+        if (specText == null || specText.isBlank()) return ImportResult.failure("Empty specification");
+        String request = buildUserPrompt(specText);
+        String conversationId = "spec-" + UUID.randomUUID();
         try {
-            String reply = LLMService.get().send(messages);
-            return GroovyExecutor.extractCode(reply);
-        } catch (Exception e) {
-            return null;
+            String reply = gateway.generate(session, request, conversationId, context);
+            if (!CodeExecutionRouter.containsCode(reply)) return ImportResult.failure("Assistant did not generate a code draft");
+            String code = GroovyExecutor.extractCode(reply);
+            if (code.isBlank()) return ImportResult.failure("Assistant generated an empty code draft");
+            return new ImportResult(true, reply, code, null, null, session, request, conversationId, context, new AtomicBoolean());
+        } catch (Exception failure) {
+            if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
+            return ImportResult.failure("Error: " + failure.getMessage());
         }
     }
 
-    private static String buildSystemPrompt(Session session) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("You are a Capella MBSE modeling assistant.\n\n");
-        sb.append(CodeExecutionRouter.buildCodeExecutionPrompt(session));
-        sb.append(
-            "\n\nIMPORTANT: Always respond with a complete Groovy script that creates the model.\n"
-        );
-        sb.append("The script should be self-contained and executable.\n");
-        return sb.toString();
+    public static ImportResult applyReviewed(ImportResult draft, Predicate<String> review, Gateway gateway) {
+        if (draft == null || !draft.success || draft.session == null || draft.reply == null) {
+            return ImportResult.failure("Generate a specification draft before applying it");
+        }
+        if (draft.executionClaimed.get()) return draft.failed("This draft has already been executed or is executing");
+        if (Thread.currentThread().isInterrupted()) return draft.failed("Import stopped before review");
+        if (!draft.session.isOpen()) return draft.failed("The model was closed before review");
+        try {
+            if (review == null || !review.test(draft.generatedCode)) return draft.failed("Draft was not applied; review and confirm the code first");
+            if (Thread.currentThread().isInterrupted()) return draft.failed("Import stopped before execution");
+            if (!draft.session.isOpen()) return draft.failed("The model was closed before execution");
+            if (!draft.executionClaimed.compareAndSet(false, true)) return draft.failed("This draft is already executing");
+            ScriptRouter.Result result = gateway.execute(draft.session, draft.request, draft.reply,
+                draft.conversationId, draft.context, () -> true);
+            if (!result.codeExecuted) draft.executionClaimed.set(false);
+            return draft.withExecution(result);
+        } catch (Exception failure) {
+            return draft.failed("Error: " + failure.getMessage());
+        }
     }
 
-    private static String buildUserPrompt(String specText, Session session) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(
-            "From the following specification, create a complete ARCADIA model "
-        );
-        sb.append(
-            "covering all relevant layers (OA, SA, LA, PA as appropriate).\n\n"
-        );
-        sb.append("Generate a Groovy script that:\n");
-        sb.append("1. Creates the appropriate elements in each layer\n");
-        sb.append("2. Creates relationships between elements\n");
-        sb.append("3. Creates at least one overview diagram\n");
-        sb.append("4. Logs what was created\n\n");
-        sb.append("Specification:\n");
-        sb.append("```\n").append(specText).append("\n```\n\n");
-        sb.append("Current model state:\n");
-        sb
-            .append("```\n")
-            .append(ModelSummary.summarize(session))
-            .append("\n```\n");
-        return sb.toString();
+    static String buildUserPrompt(String specText) {
+        return "Prepare a Groovy draft from the following specification for review. Cover relevant "
+            + "Arcadia perspectives OA, SA, LA, PA and EPBS. Use native elements, relationships and "
+            + "supported diagrams only; EPBS supports configuration items and physical artifact realizations, "
+            + "not functions or exchanges. Preserve source requirement identifiers and provenance where supplied. "
+            + "Separate design requirements from submission, inspection and competition obligations. "
+            + "Do not invent missing source details, silently resolve applicability, or claim compliance from "
+            + "imported identifiers. Mark unresolved clauses and verification obligations explicitly. "
+            + "Do not execute changes or hide follow-up edits. Return one complete fenced Groovy draft "
+            + "and state its scope and unresolved decisions.\n\nSpecification:\n" + specText;
     }
 }

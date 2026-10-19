@@ -1,81 +1,123 @@
-﻿# Capella AI Assistant (Plugin Only)
+# Capella AI Assistant
 
-This repository contains only the Capella plugin and p2 update site used to install the AI Assistant into Capella.
+An Eclipse plug-in for working with live Arcadia models inside Capella 7. Its chat agent can inspect the current model, maintain a task plan, propose reviewed Groovy changes, and check actual execution with Capella's installed validator. Model, diagram and documentation APIs cover Operational Analysis (OA), System Analysis (SA), Logical Architecture (LA), Physical Architecture (PA) and End-Product Breakdown Structure (EPBS).
 
 ## Build
 
-- Java 17+ required (Tycho will download the Capella target automatically).
-- Eclipse 2023‑03 repositories require relaxed XML entity limits. Export once per shell session:
-  ```bash
-  export JAVA_TOOL_OPTIONS="-Djdk.xml.maxGeneralEntitySizeLimit=0 -Djdk.xml.totalEntitySizeLimit=0 -Djdk.xml.entityExpansionLimit=0"
-  ```
-- Run the Tycho build: `mvn -f plugins clean verify`
-- Install from the generated update site: `plugins/ai-capella-repository/target/repository`
+Use a Java 17 JDK and Maven. The Tycho reactor downloads its declared Capella 7.0.1 target platform.
 
-## Installing in Capella
+Install Git LFS before cloning, or run `git lfs pull` after cloning, to retrieve the bundled Windows Codex executables. These binaries are tracked with LFS; their original bytes and checksums are pinned in `plugins/ai-capella/resources/codex/windows-x64/provenance.json`.
 
-1. `Help → Install New Software… → Add… → Local…` and select the repository folder above.
-2. Accept the wizard, restart Capella, then open the view:`Window → Show View → Other… → Capella AI Assistant`.
-3. If you ever uninstall/reinstall, reset the Capella perspective afterwards so the view docks properly (`Window → Perspective → Reset Perspective…`).
+Eclipse update sites require the following XML entity settings:
 
-## Dev Server (Local Testing)
-
-The plugin ships with a lightweight HTTP dev server for LLM and Groovy execution testing.
-
-**Manual start (UI):**
-1. Launch Capella and open a `.aird` model.
-2. `Window → Show View → Other… → Capella AI → AI Dev Server`, then click **Start**.
-
-**Auto‑start (headless launch):**
-```bash
-CAPELLA_AI_DEVSERVER_AUTOSTART=1 \
-CAPELLA_AI_DEVSERVER_PORT=8765 \
-CAPELLA_AI_DEVSERVER_OPEN_AIRD="/path/to/YourModel.aird" \
-/path/to/capella -clean -consoleLog -data /path/to/workspace
+```powershell
+$env:JAVA_TOOL_OPTIONS='-Djdk.xml.maxGeneralEntitySizeLimit=0 -Djdk.xml.totalEntitySizeLimit=0 -Djdk.xml.entityExpansionLimit=0'
+mvn -f plugins clean verify
 ```
 
-**Endpoints:**
-- `GET /status` – server + session status
-- `GET /prompt` – current system prompt
-- `POST /execute` – run Groovy code
-- `POST /chat` – LLM prompt + auto‑execute returned code
+On Linux or macOS:
 
-Use the provided smoke test script:
 ```bash
-./test-dev-server.sh 8765
+export JAVA_TOOL_OPTIONS='-Djdk.xml.maxGeneralEntitySizeLimit=0 -Djdk.xml.totalEntitySizeLimit=0 -Djdk.xml.entityExpansionLimit=0'
+mvn -f plugins clean verify
 ```
 
-## Configuring the LLM
+The update site is generated in `plugins/ai-capella-repository/target/repository`, with an archive in the same target directory. It includes the required Groovy 4 runtime. The build target includes Windows x64, Linux x64 and macOS Apple Silicon; this change was verified on Windows.
 
-- The assistant view now exposes an **LLM Connection** panel where you can set provider, model, base URL, temperature, token/timeout limits, test the connection, and securely store API keys. Changes persist immediately via `LLMPreferences`.
-- The legacy preference page still works: `Capella (menu) → Preferences… → Capella AI → LLM`.
-- Environment fallbacks remain available (`CAPELLA_AI_PROVIDER`, `OPENAI_API_KEY`, etc.) if you prefer system-level configuration.
-- The `Explain model` button now produces layer dashboards with coverage metrics, validation warnings, and dependency highlights so you can gauge model health at a glance.
-- Use the new **Search model** button to query the indexed Capella model (name/type keywords) directly from the assistant view.
-- Telemetry is opt-in via the "Telemetry (opt-in)" checkbox; when enabled it logs anonymous plan metrics locally to help prioritise features.
+## Install and configure
 
-## Using the assistant
+1. In Capella, choose **Help → Install New Software → Add → Local** and select the generated update-site directory, or choose **Archive** and select its ZIP.
+2. Install **Capella AI Assistant**, restart, then open **Window → Show View → Other → Capella AI Assistant**.
+3. The default runtime is **Codex app-server**. Click **Sign in with ChatGPT** in the assistant header. On Windows x64, the plugin includes the official Codex **0.160.1** runtime and its companion host; a separate Codex installation is not required. An existing Codex ChatGPT connection is reused; an existing OpenAI API-key account is recognized as connected. Otherwise, finish ChatGPT sign-in in your system browser; the assistant confirms the connection before you start chatting.
+4. Open a model and ask for the work in normal language. Review the proposed changes, then choose **Apply changes** or **Cancel**. The **Changes** tab is selected by default; the optional **Script** tab retains the exact Groovy source that will run.
 
-- Type in the **Conversation** section; pressing Enter or clicking **Send** dispatches the request on a background job. The assistant replies in the log pane.
-- Multi-turn context is preserved: the assistant keeps the most recent exchanges so follow-up prompts can reference earlier analysis or decisions without repeating details.
-- Inline context cards summarize the current model selection, the most recent AI plan preview, and a quick health snapshot of the model so you can react faster.
-- A Methodology coach card tracks Arcadia progress with step checklists and recommended commands so you always know what to tackle next.
-- Use `/` to open the quick command palette or press Ctrl/Cmd + Space for inline suggestions; the assistant seeds prompts for common Arcadia tasks (scaffolding components, extending chains, syncing layers, linking requirements).
-- Replies can stream live with a **Stop** button so you can interrupt or redirect the conversation mid-generation.
-- Before running a plan, the editor now shows a colour-coded diff of creates/updates/deletes with inline warnings and sample attribute changes; a dedicated "Undo last plan" button invokes Capella's undo command when available.
-- If the sandbox dry-run flags missing elements or conflicts, a clarification dialog appears with suggested matches and automatically drafts a follow-up prompt so you can fix the plan before anything touches the model.
-- If the LLM provides a `TOOL_PLAN`, the view displays a summary. When *Enable tool actions* is on, a **Plan Editor** dialog opens so you can inspect every action, toggle unwanted steps, and confirm execution before anything touches the model. The preview runs a sandbox dry-run that groups upcoming creates/updates/deletes, surfaces warnings inline, highlights Undo availability, and cancelling still leaves the plan unapplied.
-- Logical ↔ Physical transformations are now first-class plan actions: propagate logical components into the Physical architecture (optionally cloning hierarchies) with automatic trace links, sync existing physical components from their logical counterparts or run in "link only" mode, and add trace mappings independently. Dry-runs flag name clashes or missing endpoints so you can fix conflicts before the plan applies, and destructive sync steps default to unchecked with explicit confirmation hints.
-- The **Operational templates** panel offers quick buttons for creating missions, activities, operational exchanges, and linking activities to capabilities without crafting prompts. Each action validates prerequisites (layers, actors, capabilities) through the dry-run sandbox before execution and reports via telemetry when opt-in is enabled.
-- The **System templates** panel mirrors this for System Analysis: create components/functions, wire component exchanges, and allocate capabilities via guided dialogs that enforce parent/component existence before plans run.
-- The **Functional chain templates** let you spin up chains, add functions/exchanges, and hook chains to scenarios. Dry-runs verify every chain/function/exchange/situation exists before generating plan diffs.
-- The **Requirement templates** cover the remaining Arcadia traceability loop: create requirements in the right package, link them to architecture elements, and record coverage status/notes with sandbox checks before execution.
-- The **Mass edit templates** accelerate renames, reparenting, capability allocation, mapping, and deletions for large selections; each action validates element presence via dry-run before applying.
-- The **Model & Diagram Tools** group exposes quick actions (list diagrams, create LAB, import draw.io, rename/delete/reveal elements). These operations run in EMF transactions and persist across sessions.
+Advanced runtime, model and provider settings remain under **Preferences → Capella → LLM**. Leave the Codex model blank to use its configured model. **Direct provider** uses an HTTP provider with API keys stored locally in Eclipse secure storage. Linux and macOS currently require a compatible external Codex executable or Direct provider; the bundled runtime is Windows x64 only. See [connection setup](docs/CODEX_SETUP.md) and [bundled runtime provenance](plugins/ai-capella/resources/codex/windows-x64/PROVENANCE.md).
 
-## Known requirements
+The LLM preferences include:
 
-- For large models the LLM prompt includes a cached `ModelSummary`. It invalidates automatically after tool actions but you can refresh manually via the **Explain model** button.
-- When running headless or via scripts, remember to export `JAVA_TOOL_OPTIONS` (see Build section) before the Maven build so Tycho can read the Eclipse update sites.
+- **Allow generated code to run:** disabling this returns generated code for inspection without executing it.
+- **Review code before running:** enabled by default. **Review changes** opens a readable summary and expected native model checks. Choose **Apply changes** or **Cancel**; the exact generated source remains available in **Script**. Each corrective script requires a fresh review.
+- **Replace quoted names and UUIDs before sending:** enables best-effort tokenization of quoted labels and UUIDs in requests, history and model context, plus explicit native names and IDs in agent tool data. It is not a general redaction filter for arbitrary free text.
 
-Enjoy, and feel free to open issues/PRs for additional actions or provider support.
+Environment fallbacks include `CAPELLA_AI_PROVIDER`, `CAPELLA_AI_MODEL`, `CAPELLA_AI_BASE_URL`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `AZURE_OPENAI_API_KEY`, `OPENROUTER_API_KEY` and `CAPELLA_AI_API_KEY` (custom providers).
+
+Codex runtime overrides are `CAPELLA_AI_RUNTIME=codex|direct`, `CAPELLA_AI_CODEX_BINARY` (an executable path), and `CAPELLA_AI_CODEX_MODEL`. An explicit executable overrides the bundled runtime; with no override, a supported installation selects the bundle before searching for an external executable. Both bundled executables are checked against pinned byte sizes and SHA-256 digests before use. Codex owns ChatGPT authentication and credential storage; the plugin does not copy its tokens or email into conversation history. Sign-in opens only the official HTTPS OpenAI authorization page, waits for the matching login result, and confirms it with an account check. Cancelling stops that pending login without signing out an existing account. This account setup does not run model inference.
+
+[OpenAI's app-server documentation](https://learn.chatgpt.com/docs/app-server) describes the native protocol. This integration uses the experimental app-server and `dynamicTools` interfaces, pins runtime **0.160.1**, and communicates over local JSONL stdio. It remains a preview integration; connection success alone does not verify a model's access, Arcadia decisions or engineering results.
+
+Codex runs as an owned child process of the Java plugin. Native function tools expose the captured Capella model, documentation and capabilities, task plans, and a reviewed edit proposal. The proposal pauses its tool call while the user reviews the exact Groovy source. Native transactions, change capture, Undo, saving and independent model checks stay in Capella. Capella records their authoritative execution receipt locally before returning it to Codex, so a transport failure cannot erase a committed result. It concludes the original turn and discards any answer produced before that receipt, then starts a bounded fresh turn on the same Codex thread with the actual outcome, original task and current plan. This continuation may gather native read evidence or propose a separately reviewed correction; it never replays a committed script, including one whose saving failed.
+
+The internal Codex code-mode host is enabled so models that require it can orchestrate the registered tools. Execution environments are explicitly empty on fresh threads and every turn, excluding native filesystem/patch tools. Generic shell, image, app, plugin, browser, agent, hosted search and MCP tools are disabled in the child runtime, which also uses a read-only sandbox with network access disabled. Generic file/shell approval requests are declined rather than routed into a model approval.
+
+The Codex thread ID is persisted with each model's local conversation and resumed on the next request or after restarting Capella. Privacy-tokenized conversations start a fresh remote thread from re-encoded local history because token dictionaries are not durably stored; a previous private thread is also invalidated when privacy is turned off. New conversation clears that binding. An interrupted or committed operation is recorded as history and must be inspected before a follow-up; resuming never executes a saved script or restores an approval. Recent local execution evidence is supplied on resume. Initial native tools use app-server's experimental `dynamicTools` contract rather than assistant text containing JSON commands. SDK migration does not by itself establish Arcadia methodology correctness or complete requirements coverage.
+
+## Working with models
+
+Example requests:
+
+- "Create two system functions called Acquire Data and Process Data, and connect them."
+- "Create a logical component called Sensor and allocate its functions."
+- "Realize the logical component Sensor with a physical component, preserving traceability."
+- "Create an EPBS configuration item called Sensor Assembly and link it to its physical components."
+- "Rename the selected element and show the result."
+
+Scripts have `api`, `selection`, `activeDiagram` and `log` bindings. `api.fs` exposes on-demand API documentation, `api.diagram` provides diagram operations, and `api.ops` provides native engineering operations. Details and examples live in `plugins/ai-capella/resources/capella-api/`.
+
+Before proposing a change, the chat agent can use eight typed read tools: architecture summary, paged element search, native element inspection, relationship inspection, bounded structural checks, full native validation, shipped documentation and available API capabilities. These reads use the captured session and cannot evaluate generated Groovy, AQL or shell commands. Codex uses native function calls and a configurable active-turn deadline; reviews pause that deadline, and repeated proposals share bounded tool and edit limits. The Direct provider runtime retains bounded requests, reads and three reviewed proposals, with legacy prose or Groovy-block compatibility.
+
+Generated Groovy is compiled before review without defining or initializing its classes, calling the model APIs or creating a transaction. Compiler and policy failures can trigger two automatic corrections within the existing task budget. Each corrected draft is checked again and requires fresh review. Diagnostics preserve bounded error categories and locations, without forwarding raw compiler excerpts or stack traces. Failed preparation creates no model changes, Undo entry or save. Compilation does not establish native API behavior or engineering correctness; the applied result still requires its independent model checks.
+
+After approval, the assistant records net created, edited and deleted elements, applies the exact reviewed source, and compares native validator diagnostics before and after committed changes. A proposal can declare typed checks for expected element existence, absence or stored attribute values; these checks are displayed before review and read independently afterward. An edit step completes only when its declared checks pass after observed committed changes and no additional native error diagnostics appear. Counts cover observed changes; displayed element lists and diagnostic details are bounded. Rollback, save failure after commit, unavailable evidence and incomplete validation are reported separately. These checks verify the declared native state; they do not establish engineering completeness or safety compliance. Steps without independently confirmed results stay pending.
+
+Programmatic callers must invoke `GroovyExecutor.execute` from a background thread. Nested skills invoked from a script reuse its transaction and cancellation deadline; a failing executed skill makes the outer transaction roll back.
+
+Model writes run in an EMF transaction as one undoable script. Failed scripts roll back before saving; successful changes save after commit. If saving fails after commit, the assistant reports that changes were applied and asks you to save again rather than rerunning the script. Use Capella's **Undo** command to revert an applied operation.
+
+**Stop** cancels generation or pending review. During a model transaction the SWT thread is occupied, so the button cannot dispatch until that operation returns; the script deadline and externally requested cancellation still trigger cooperative rollback. Arbitrary blocking Java/native calls can delay cancellation. This in-process executor is not an isolation boundary for hostile code, and filesystem or other external side effects are not undone by an EMF rollback.
+
+**New conversation** starts fresh for the current model and clears its saved script variables. Switching models restores each model's conversation, draft and task plan. Messages, drafts and plans are saved locally in this Capella workspace's plug-in metadata; execution approvals and live model references are never saved. Reopening a conversation does not rerun its scripts. Recent context is bounded to keep requests manageable.
+
+The assistant captures the model and selection when you send, keeps that context visible during the request, and stops a pending request if its active model changes. It renders selectable Markdown and code, preserves your place while you read earlier messages, and offers **Latest response** when new messages arrive below. **Review changes** names the target model and starts with the proposed changes and native checks; **Script** shows the exact source. **Dismiss** returns you to revision without running code. Actual execution and cancellation results are included in subsequent requests.
+
+When the provider is not configured, the assistant guides you to **Settings**. Generation failures retain your draft and offer **Retry reply** using the original selection; this generates a new response and never reruns an existing script. Malformed or incomplete provider replies are rejected before execution. If multiple open models cannot be resolved, select the intended model before sending.
+
+## Tests
+
+`mvn -f plugins clean verify` compiles the plug-in, runs the Eclipse test harness and packages the update site. Live provider tests require `CAPELLA_AI_RUN_LLM_TESTS=true` and an API key; they are skipped by default.
+
+Deterministic regressions cover:
+
+- Responses API JSON decoding, malformed/incomplete responses and retry backoff.
+- Action-disable and confirmation settings, including changes during review, and conversation tokenization.
+- Strict agent protocol, typed read-tool limits, scoped plan status, cancellation and correction budgets; native data tokenization preserves valid JSON.
+- Net model change observation, rollback/Undo, deleted subtrees, owned representation resources and native diagnostic multiset comparisons.
+- Script deadlines, cancellation, rollback, save timing and undo using SWT dispatch and a real EMF transactional editing domain.
+- OA/SA/LA/PA creation, exchanges, allocation, editing, cross-layer realizations, undo and serialization/reload using Capella's real metamodel.
+- EPBS configuration-item breakdowns and physical-artifact realizations, plus deletion reference cleanup and undo.
+- Account setup without inference: existing sign-in reuse, matching login notifications, cancellation races, official authorization-URL validation and safe errors without credential details.
+
+These model tests use a controlled Session proxy. They do not establish that every diagram type, transition or arbitrary script works in a full Capella workbench.
+
+Account-only probes with the bundled **0.160.1** executable reused an existing ChatGPT connection without opening a browser. A separate fresh Codex home started and immediately cancelled its own login, opened no browser, created no credential file, and closed its owned child process. Installed workbench testing also confirmed that **Sign in with ChatGPT** reuses the existing account, displays the connected state, and leaves conversation history empty. First-time browser sign-in completion remains untested.
+
+The bundled Windows release (`0.2.1.202610090008`) passed **545 tests: 531 passed, 14 skipped, zero failures or errors**. With the bundled runtime and an existing ChatGPT connection, live native chat read the disposable project, then proposed and applied separately reviewed creation, UUID-preserving rename and deletion across all five layers. The EPBS representing Part was preserved during rename and removed before its configuration item. All declared native checks passed, each change committed and saved, and the final replies agreed with the actual execution receipts. Native errors remained zero; deletion returned warnings from 41 to the original 33. This confirms the tested workflow, not complete Arcadia engineering autonomy or FSAE design completeness.
+
+The compiler-repair build (`0.2.1.202610091235`) passed **784 tests: 770 passed, 14 skipped, zero failures or errors** and was installed in Capella 7.0.0. Its native chat acceptance used a deterministic local provider: an invalid draft produced compiler feedback and an automatic correction, with native file bytes, dirty flags and Undo/Redo unchanged before review. Fresh review then applied the exact corrected source once, saved five layer elements and the EPBS representing Part, and passed all five declared native checks. Native errors stayed at zero; unallocated fixture elements added eight warnings. This verifies the correction/execution workflow, not a live model's ability to solve every compiler error.
+
+Native workbench acceptance was also run on installed Capella 7.0.0 with Requirements Viewpoint 0.14.0 on Windows. It exercised all five perspectives, native requirements and diagrams, deletion cleanup, Undo/Redo, nested scripts, rollback, deadlines, save failures and save/reopen. Chat review, Run, Cancel, Stop during generation and execution feedback were checked using a local mock provider. Acceptance of a live HTTP provider through the optional Direct provider runtime still requires credentials and a separate run.
+
+The structured agent workflow additionally passed seven installed chat scenarios: five-layer creation, rename and deletion; rollback followed by a separately reviewed correction; dismissal; cancellation; and a read-only question. All eight typed read tools left the native model unchanged. Creation, rename and deletion completed their declared model checks without additional native error diagnostics. A read-only FSAE Requirements Viewpoint probe confirmed native UUID identity, source identifiers and relationship inspection. These scripted provider fixtures exercise execution behavior; they do not measure a live model's planning quality.
+
+The FSAE acceptance project imports all 3,197 pinned 2027 source records and contains candidate architecture across the five perspectives. Its three detailed safety slices scope 588 records through 86 candidate derived obligations. The saved model reopened with 86,658 unique semantic IDs and no unresolved semantic references; nine overview diagrams and three detailed safety diagrams survived reload. Installed native validation reported zero errors and 517 warnings. These results establish the checked native structure and persistence; engineering completeness and competition compliance remain unresolved. See `test-models/fsae-acceptance/model-completeness.md` for the completion gates.
+
+## Local dev server
+
+Open **AI Dev Server** and click **Start**, or opt into startup with `CAPELLA_AI_DEVSERVER_AUTOSTART=1`. Its default port is 8765.
+
+- `GET /status`: server and session status.
+- `GET /prompt`: current code-generation prompt.
+- `GET /context`: active diagram and selection.
+- `POST /execute`: execute an explicitly submitted script.
+- `POST /chat`: generate a reply; automatically execute only when actions are enabled and confirmation is disabled. With confirmation enabled, the reply is returned for review.
+
+Use `test-dev-server.sh` for an opt-in smoke test against a disposable model. Telemetry and dataset logging are opt-in and local.

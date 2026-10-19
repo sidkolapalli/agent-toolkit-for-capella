@@ -8,7 +8,7 @@ Pre-built patterns for common Capella modeling tasks.
 |-------|-------------|
 | `state-machine/` | Create state machines with modes and transitions |
 | `interface/` | Define interfaces between components |
-| `arcadia-workflow/` | Full OA→SA→LA→PA workflow |
+| `arcadia-workflow/` | OA→SA→LA→PA→EPBS creation and traceability |
 
 ## How to Use
 

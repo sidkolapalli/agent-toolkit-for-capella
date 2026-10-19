@@ -3,22 +3,34 @@ package org.polarsys.capella.ai.scripting;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
-import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
+import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.sirius.business.api.session.Session;
-import org.polarsys.capella.ai.model.ArchitectureLocator;
-import org.polarsys.capella.ai.model.ElementFactory;
-import org.polarsys.capella.ai.model.FindResult;
 import org.polarsys.capella.ai.session.OperationInferencer;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 import org.polarsys.capella.core.data.capellacore.CapellaElement;
 import org.polarsys.capella.core.data.cs.BlockArchitecture;
+import org.polarsys.capella.core.data.cs.Component;
+import org.polarsys.capella.core.data.cs.ComponentPkg;
+import org.polarsys.capella.core.data.epbs.ConfigurationItem;
+import org.polarsys.capella.core.data.epbs.EpbsFactory;
 import org.polarsys.capella.core.data.fa.AbstractFunction;
 import org.polarsys.capella.core.data.fa.ComponentExchange;
+import org.polarsys.capella.core.data.fa.ComponentExchangeKind;
+import org.polarsys.capella.core.data.fa.ComponentPort;
+import org.polarsys.capella.core.data.fa.ComponentPortKind;
+import org.polarsys.capella.core.data.fa.FaFactory;
+import org.polarsys.capella.core.data.fa.FunctionInputPort;
+import org.polarsys.capella.core.data.fa.FunctionOutputPort;
 import org.polarsys.capella.core.data.fa.FunctionalExchange;
-import org.polarsys.capella.core.model.helpers.BlockArchitectureExt;
+import org.polarsys.capella.core.data.fa.OrientationPortKind;
+import org.polarsys.capella.core.data.oa.Entity;
+import org.polarsys.capella.core.data.oa.OaFactory;
+import org.polarsys.capella.core.data.oa.OperationalActivity;
+import org.polarsys.capella.core.data.pa.PhysicalComponent;
+import org.polarsys.capella.common.data.activity.ActivityNode;
 import org.polarsys.capella.core.model.helpers.ComponentExchangeExt;
 import org.polarsys.capella.core.model.helpers.FunctionalExchangeExt;
 
@@ -53,6 +65,23 @@ public final class RelationFactory {
                 "componentexchange",
                 RelationFactory::createComponentExchange
             ),
+            Map.entry("communicationmean", RelationFactory::createComponentExchange),
+            Map.entry("functionalexchangerealization", (session, source, target, name) -> {
+                if (!(source instanceof FunctionalExchange lower) || !(target instanceof FunctionalExchange upper))
+                    throw new IllegalArgumentException("FunctionalExchangeRealization requires two native functional exchanges");
+                return new ArcadiaInterfaceAPI(session).realizeFunctionalExchange(lower, upper);
+            }),
+            Map.entry("componentexchangerealization", (session, source, target, name) -> {
+                if (!(source instanceof ComponentExchange lower) || !(target instanceof ComponentExchange upper))
+                    throw new IllegalArgumentException("ComponentExchangeRealization requires two native component exchanges");
+                return new ArcadiaInterfaceAPI(session).realizeComponentExchange(lower, upper);
+            }),
+            Map.entry("portrealization", (session, source, target, name) -> {
+                if (!(source instanceof org.polarsys.capella.core.data.information.Port lower) ||
+                    !(target instanceof org.polarsys.capella.core.data.information.Port upper))
+                    throw new IllegalArgumentException("PortRealization requires two native interface ports");
+                return new ArcadiaInterfaceAPI(session).realizePort(lower, upper);
+            }),
             Map.entry("allocation", RelationFactory::createAllocation),
             Map.entry("involvement", RelationFactory::createInvolvement),
             Map.entry("realization", RelationFactory::createRealization),
@@ -65,6 +94,7 @@ public final class RelationFactory {
                 "componentrealization",
                 RelationFactory::createComponentRealization
             ),
+            Map.entry("physicalartifactrealization", RelationFactory::createPhysicalArtifactRealization),
             Map.entry("requirement", RelationFactory::createRequirementLink),
             Map.entry("reference", RelationFactory::createGenericReference)
         );
@@ -106,6 +136,7 @@ public final class RelationFactory {
         }
 
         String normalizedType = relationType
+            .trim()
             .toLowerCase(Locale.ROOT)
             .replace("_", "")
             .replace("-", "");
@@ -133,8 +164,10 @@ public final class RelationFactory {
                     " to " +
                     target.eClass().getName() +
                     ". " +
-                    "Valid relation types: FunctionalExchange, ComponentExchange, " +
-                    "Realization, Allocation, Transition, reference"
+                    "Supported relation types include FunctionalExchange, ComponentExchange, " +
+                    "CommunicationMean, FunctionRealization, ComponentRealization, FunctionalExchangeRealization, " +
+                    "ComponentExchangeRealization, PortRealization, PhysicalArtifactRealization, realization, reference. " +
+                    "For function allocation, use api.allocate(function, component)."
             );
         }
         return result;
@@ -149,44 +182,37 @@ public final class RelationFactory {
         EObject target,
         String name
     ) {
+        AbstractFunction sourceFunction = endpointFunction(source, true);
+        AbstractFunction targetFunction = endpointFunction(target, false);
+        requireSameArchitecture(session, sourceFunction, targetFunction);
+        AbstractFunction container = FunctionalExchangeExt.getDefaultContainer(sourceFunction, targetFunction);
+        if (container == null) {
+            throw new IllegalArgumentException("Functions require a common root function before creating an exchange");
+        }
         return SessionSafeguards.runWrite(
             session,
             "Create FunctionalExchange",
             () -> {
-                // Find container for the exchange (typically the function pkg or parent)
-                EObject container = findExchangeContainer(
-                    session,
-                    source,
-                    target,
-                    "FunctionalExchange"
-                );
-                if (container == null) {
-                    container = source.eContainer();
+                ActivityNode sourceNode = (ActivityNode) source;
+                ActivityNode targetNode = (ActivityNode) target;
+                // OA exchanges connect activities directly. Other layers use
+                // output/input ports, matching Capella's native creation tool.
+                if (source instanceof AbstractFunction && !(source instanceof OperationalActivity)) {
+                    FunctionOutputPort port = FaFactory.eINSTANCE.createFunctionOutputPort();
+                    sourceFunction.getOutputs().add(port);
+                    sourceNode = port;
                 }
-
-                EObject exchange = ElementFactory.createUnder(
-                    session,
-                    container,
-                    "FunctionalExchange",
-                    name != null && !name.equalsIgnoreCase("functionalexchange")
-                        ? name
-                        : "Exchange"
-                );
-
-                if (exchange != null) {
-                    assignEndpoint(exchange, "source", source);
-                    assignEndpoint(exchange, "target", target);
-                    try {
-                        if (exchange instanceof FunctionalExchange) {
-                            FunctionalExchangeExt.attachToDefaultContainer(
-                                (FunctionalExchange) exchange
-                            );
-                        }
-                    } catch (Throwable ignored) {
-                        // Best effort: fall back to existing container
-                    }
-                    OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "FunctionalExchange");
+                if (target instanceof AbstractFunction && !(target instanceof OperationalActivity)) {
+                    FunctionInputPort port = FaFactory.eINSTANCE.createFunctionInputPort();
+                    targetFunction.getInputs().add(port);
+                    targetNode = port;
                 }
+                FunctionalExchange exchange = FaFactory.eINSTANCE.createFunctionalExchange();
+                exchange.setName(exchangeName(name, "FunctionalExchange"));
+                exchange.setSource(sourceNode);
+                exchange.setTarget(targetNode);
+                container.getOwnedFunctionalExchanges().add(exchange);
+                OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "FunctionalExchange");
                 return exchange;
             }
         );
@@ -201,43 +227,39 @@ public final class RelationFactory {
         EObject target,
         String name
     ) {
+        requireSameArchitecture(session, source, target);
+        if (source instanceof Entity sourceEntity && target instanceof Entity targetEntity) {
+            return SessionSafeguards.runWrite(session, "Create CommunicationMean", () -> {
+                var exchange = OaFactory.eINSTANCE.createCommunicationMean();
+                exchange.setName(exchangeName(name, "ComponentExchange"));
+                exchange.setSource(sourceEntity);
+                exchange.setTarget(targetEntity);
+                sourceEntity.getOwnedCommunicationMeans().add(exchange);
+                OperationInferencer.recordLink("Entity", "Entity", "CommunicationMean");
+                return exchange;
+            });
+        }
+        Component sourceComponent = endpointComponent(source, true);
+        Component targetComponent = endpointComponent(target, false);
+        CapellaElement container = componentExchangeContainer(sourceComponent, targetComponent);
+        if (container == null) {
+            throw new IllegalArgumentException("Components require a common component or package before creating an exchange");
+        }
         return SessionSafeguards.runWrite(
             session,
             "Create ComponentExchange",
             () -> {
-                EObject container = findExchangeContainer(
-                    session,
-                    source,
-                    target,
-                    "ComponentExchange"
-                );
-                if (container == null) {
-                    container = source.eContainer();
+                ComponentPort sourcePort = componentPort(source, sourceComponent, true);
+                ComponentPort targetPort = componentPort(target, targetComponent, false);
+                ComponentExchange exchange = FaFactory.eINSTANCE.createComponentExchange();
+                exchange.setName(exchangeName(name, "ComponentExchange"));
+                exchange.setKind(ComponentExchangeKind.FLOW);
+                exchange.setSource(sourcePort);
+                exchange.setTarget(targetPort);
+                if (!ComponentExchangeExt.attachTo(exchange, container)) {
+                    throw new IllegalArgumentException("Cannot attach component exchange to " + container.eClass().getName());
                 }
-
-                EObject exchange = ElementFactory.createUnder(
-                    session,
-                    container,
-                    "ComponentExchange",
-                    name != null && !name.equalsIgnoreCase("componentexchange")
-                        ? name
-                        : "Exchange"
-                );
-
-                if (exchange != null) {
-                    assignEndpoint(exchange, "source", source);
-                    assignEndpoint(exchange, "target", target);
-                    try {
-                        if (exchange instanceof ComponentExchange) {
-                            ComponentExchangeExt.attachToDefaultContainer(
-                                (ComponentExchange) exchange
-                            );
-                        }
-                    } catch (Throwable ignored) {
-                        // Best effort: fall back to existing container
-                    }
-                    OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "ComponentExchange");
-                }
+                OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "ComponentExchange");
                 return exchange;
             }
         );
@@ -321,28 +343,21 @@ public final class RelationFactory {
         EObject target,
         String name
     ) {
-        return SessionSafeguards.runWrite(session, "Create realization", () -> {
-            boolean linked = addReference(
-                source,
-                target,
-                "realiz",
-                "trace",
-                "refined"
-            );
-            if (!linked) {
-                linked = addReference(target, source, "realizing", "refining");
-            }
-            if (linked) {
-                OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "Realization");
-                return source;
-            }
-            return null;
-        });
+        if (source instanceof ConfigurationItem && target instanceof PhysicalComponent) {
+            return createPhysicalArtifactRealization(session, source, target, name);
+        }
+        if (source instanceof AbstractFunction && target instanceof AbstractFunction) {
+            return createFunctionRealization(session, source, target, name);
+        }
+        if (source instanceof Component && (target instanceof Component || target instanceof Entity)) {
+            return createComponentRealization(session, source, target, name);
+        }
+        throw new IllegalArgumentException("Realization supports functions and components; use a specific relation type for other elements");
     }
 
     /**
      * Create a FunctionRealization between functions across layers.
-     * Source is the lower-level function (LA/PA), target is the higher-level function (SA/LA).
+     * Source is the lower-level function (SA/LA/PA), target is the higher-level function (OA/SA/LA).
      */
     private static EObject createFunctionRealization(
         Session session,
@@ -350,6 +365,10 @@ public final class RelationFactory {
         EObject target,
         String name
     ) {
+        if (!(source instanceof AbstractFunction) || !(target instanceof AbstractFunction)) {
+            throw new IllegalArgumentException("FunctionRealization requires two functions or operational activities");
+        }
+        requireRealizationLayers(session, source, target);
         return SessionSafeguards.runWrite(
             session,
             "Create FunctionRealization",
@@ -405,7 +424,7 @@ public final class RelationFactory {
 
     /**
      * Create a ComponentRealization between components across layers.
-     * Source is the lower-level component (LA/PA), target is the higher-level component (SA/LA).
+     * Source is the lower-level component (SA/LA/PA), target is the higher-level entity/component (OA/SA/LA).
      */
     private static EObject createComponentRealization(
         Session session,
@@ -413,6 +432,13 @@ public final class RelationFactory {
         EObject target,
         String name
     ) {
+        if (source instanceof ConfigurationItem || target instanceof ConfigurationItem) {
+            throw new IllegalArgumentException("EPBS configuration items realize PA physical components through PhysicalArtifactRealization");
+        }
+        if (!(source instanceof Component) || !(target instanceof Component || target instanceof Entity)) {
+            throw new IllegalArgumentException("ComponentRealization requires a component realizing a component or operational entity");
+        }
+        requireRealizationLayers(session, source, target);
         return SessionSafeguards.runWrite(
             session,
             "Create ComponentRealization",
@@ -464,6 +490,27 @@ public final class RelationFactory {
                 }
             }
         );
+    }
+
+    /** A configuration item realizes a PA physical artifact through a native EPBS allocation. */
+    private static EObject createPhysicalArtifactRealization(
+        Session session, EObject source, EObject target, String name
+    ) {
+        if (!(source instanceof ConfigurationItem item) || !(target instanceof PhysicalComponent component)) {
+            throw new IllegalArgumentException("PhysicalArtifactRealization requires an EPBS ConfigurationItem source and a PA PhysicalComponent target");
+        }
+        if (!"EPBSArchitecture".equals(endpointArchitecture(session, item).eClass().getName()) ||
+            !"PhysicalArchitecture".equals(endpointArchitecture(session, component).eClass().getName())) {
+            throw new IllegalArgumentException("PhysicalArtifactRealization connects EPBS configuration items to PA physical components");
+        }
+        return SessionSafeguards.runWrite(session, "Create PhysicalArtifactRealization", () -> {
+            var realization = EpbsFactory.eINSTANCE.createPhysicalArtifactRealization();
+            realization.setSourceElement(item);
+            realization.setTargetElement(component);
+            item.getOwnedPhysicalArtifactRealizations().add(realization);
+            OperationInferencer.recordLink("ConfigurationItem", "PhysicalComponent", "PhysicalArtifactRealization");
+            return realization;
+        });
     }
 
     /**
@@ -519,6 +566,9 @@ public final class RelationFactory {
                     OperationInferencer.recordLink(source.eClass().getName(), target.eClass().getName(), "Reference");
                     return source;
                 }
+                if (!"reference".equalsIgnoreCase(hintName)) {
+                    return null;
+                }
             }
 
             // Try to find any compatible reference
@@ -526,7 +576,8 @@ public final class RelationFactory {
                 .eClass()
                 .getEAllStructuralFeatures()) {
                 if (
-                    !(feature instanceof EReference ref) || ref.isContainment()
+                    !(feature instanceof EReference ref) || ref.isContainment() ||
+                    !ref.isChangeable() || ref.isDerived() || ref.isTransient()
                 ) {
                     continue;
                 }
@@ -553,160 +604,92 @@ public final class RelationFactory {
 
     // ========== Helper Methods ==========
 
-    /**
-     * Find the appropriate container for an exchange element.
-     */
-    private static EObject findExchangeContainer(
-        Session session,
-        EObject source,
-        EObject target,
-        String exchangeType
-    ) {
-        EObject container = findExchangeContainerByHelpers(
-            source,
-            target,
-            exchangeType
-        );
-        if (container != null) {
-            return container;
-        }
-        container = findExchangeContainerFallback(session, source, exchangeType);
-        if (container != null) {
-            return container;
-        }
-        return findExchangeContainerFallback(session, target, exchangeType);
+    private static String exchangeName(String name, String type) {
+        return name == null || name.isBlank() || name.equalsIgnoreCase(type) ? "Exchange" : name;
     }
 
-    private static EObject findExchangeContainerByHelpers(
-        EObject source,
-        EObject target,
-        String exchangeType
-    ) {
-        if (source == null || exchangeType == null) {
-            return null;
+    private static AbstractFunction endpointFunction(EObject endpoint, boolean source) {
+        if (endpoint instanceof AbstractFunction function) return function;
+        if ((source && endpoint instanceof FunctionOutputPort) ||
+            (!source && endpoint instanceof FunctionInputPort)) {
+            if (endpoint.eContainer() instanceof AbstractFunction function) return function;
         }
-        String normalized = exchangeType.trim().toLowerCase(Locale.ROOT);
-        try {
-            if ("functionalexchange".equals(normalized)) {
-                if (
-                    source instanceof AbstractFunction &&
-                    target instanceof AbstractFunction
-                ) {
-                    AbstractFunction container =
-                        FunctionalExchangeExt.getDefaultContainer(
-                            (AbstractFunction) source,
-                            (AbstractFunction) target
-                        );
-                    if (container != null) {
-                        return container;
-                    }
-                }
-                BlockArchitecture arch =
-                    BlockArchitectureExt.getRootBlockArchitecture(source);
-                if (arch != null) {
-                    AbstractFunction rootFunction =
-                        BlockArchitectureExt.getRootFunction(arch, false);
-                    if (rootFunction != null) {
-                        return rootFunction;
-                    }
-                }
+        throw new IllegalArgumentException("FunctionalExchange " + (source ? "source" : "target") +
+            " must be a function/activity or an attached " + (source ? "output" : "input") + " function port");
+    }
+
+    private static Component endpointComponent(EObject endpoint, boolean source) {
+        if (endpoint instanceof Component component) return component;
+        if (endpoint instanceof ComponentPort port && port.eContainer() instanceof Component component) {
+            if ((source && port.getOrientation() == OrientationPortKind.IN) ||
+                (!source && port.getOrientation() == OrientationPortKind.OUT)) {
+                throw new IllegalArgumentException("Component port orientation is incompatible with the exchange direction");
             }
-            if ("componentexchange".equals(normalized)) {
-                if (
-                    source instanceof CapellaElement &&
-                    target instanceof CapellaElement
-                ) {
-                    CapellaElement container =
-                        ComponentExchangeExt.getDefaultContainer(
-                            (CapellaElement) source,
-                            (CapellaElement) target
-                        );
-                    if (container != null) {
-                        return container;
-                    }
-                }
-                BlockArchitecture arch =
-                    BlockArchitectureExt.getRootBlockArchitecture(source);
-                if (arch != null) {
-                    EObject pkg = BlockArchitectureExt.getComponentPkg(
-                        arch,
-                        false
-                    );
-                    if (pkg != null) {
-                        return pkg;
-                    }
-                }
+            return component;
+        }
+        throw new IllegalArgumentException("ComponentExchange endpoints must be components, attached component ports, or two OA entities");
+    }
+
+    private static ComponentPort componentPort(EObject endpoint, Component component, boolean source) {
+        if (endpoint instanceof ComponentPort port) return port;
+        ComponentPort port = FaFactory.eINSTANCE.createComponentPort();
+        port.setKind(ComponentPortKind.FLOW);
+        port.setOrientation(source ? OrientationPortKind.OUT : OrientationPortKind.IN);
+        component.getOwnedFeatures().add(port);
+        return port;
+    }
+
+    private static CapellaElement componentExchangeContainer(Component source, Component target) {
+        // These endpoints are component types or their ports. Their structural
+        // common ancestor avoids arbitrarily picking a representing Part when
+        // a component has multiple instances in the architecture.
+        for (EObject ancestor = source; ancestor != null; ancestor = ancestor.eContainer()) {
+            if ((ancestor instanceof Component || ancestor instanceof ComponentPkg) &&
+                EcoreUtil.isAncestor(ancestor, target)) {
+                return (CapellaElement) ancestor;
             }
-        } catch (Throwable ignored) {
-            return null;
         }
         return null;
     }
 
-    private static EObject findExchangeContainerFallback(
-        Session session,
-        EObject nearElement,
-        String exchangeType
-    ) {
-        if (nearElement == null) {
-            return null;
+    private static BlockArchitecture endpointArchitecture(Session session, EObject endpoint) {
+        if (session.getTransactionalEditingDomain() == null || endpoint.eResource() == null ||
+            endpoint.eResource().getResourceSet() != session.getTransactionalEditingDomain().getResourceSet()) {
+            throw new IllegalArgumentException("Relationship endpoints must belong to the active session");
         }
-        // Navigate up to find a suitable container
-        EObject current = nearElement;
-        while (current != null) {
-            EClass eClass = current.eClass();
-            // Look for a package or architecture layer
-            String className = eClass.getName();
-            if (
-                className.contains("Pkg") ||
-                className.contains("Architecture") ||
-                className.contains("Analysis")
-            ) {
-                // Check if it can contain exchanges
-                EClass targetClass = ElementFactory.findEClass(exchangeType);
-                if (targetClass != null) {
-                    for (EStructuralFeature f : eClass.getEAllStructuralFeatures()) {
-                        if (
-                            f instanceof EReference ref &&
-                            ref.isContainment() &&
-                            ref.isMany()
-                        ) {
-                            if (
-                                ref
-                                    .getEReferenceType()
-                                    .isSuperTypeOf(targetClass)
-                            ) {
-                                return current;
-                            }
-                        }
-                    }
-                }
-            }
-            current = current.eContainer();
+        for (EObject ancestor = endpoint; ancestor != null; ancestor = ancestor.eContainer()) {
+            if (ancestor instanceof BlockArchitecture architecture) return architecture;
         }
-
-        // Fall back to architecture root
-        String sourceClassName = nearElement.eClass().getName();
-        String layer = guessLayerFromClassName(sourceClassName);
-        FindResult layerResult = ArchitectureLocator.findLayerWithDiagnostic(
-            session,
-            layer
-        );
-        return layerResult.success() ? layerResult.element() : null;
+        throw new IllegalArgumentException("Relationship endpoint is outside an OA/SA/LA/PA architecture");
     }
 
-    /**
-     * Guess the architecture layer from an element's class name.
-     */
-    private static String guessLayerFromClassName(String className) {
-        if (className == null) return "SA";
-        String lower = className.toLowerCase(Locale.ROOT);
-        if (
-            lower.contains("operational") || lower.startsWith("oa")
-        ) return "OA";
-        if (lower.contains("logical") || lower.startsWith("la")) return "LA";
-        if (lower.contains("physical") || lower.startsWith("pa")) return "PA";
-        return "SA"; // Default to System Analysis
+    private static void requireSameArchitecture(Session session, EObject source, EObject target) {
+        BlockArchitecture sourceArchitecture = endpointArchitecture(session, source);
+        if (sourceArchitecture != endpointArchitecture(session, target)) {
+            throw new IllegalArgumentException("Exchanges must connect elements in the same architecture; use realization for cross-layer links");
+        }
+        if ("EPBSArchitecture".equals(sourceArchitecture.eClass().getName())) {
+            throw new IllegalArgumentException("EPBS supports configuration items and physical artifact realizations; functional and component exchanges are unavailable");
+        }
+    }
+
+    private static void requireRealizationLayers(Session session, EObject source, EObject target) {
+        int sourceLayer = architectureLevel(endpointArchitecture(session, source));
+        int targetLayer = architectureLevel(endpointArchitecture(session, target));
+        if (sourceLayer <= targetLayer) {
+            throw new IllegalArgumentException("Realization source must be in a lower-level architecture than its target (SA realizes OA, LA realizes SA, PA realizes LA)");
+        }
+    }
+
+    private static int architectureLevel(BlockArchitecture architecture) {
+        return switch (architecture.eClass().getName()) {
+            case "OperationalAnalysis" -> 0;
+            case "SystemAnalysis" -> 1;
+            case "LogicalArchitecture" -> 2;
+            case "PhysicalArchitecture" -> 3;
+            case "EPBSArchitecture" -> 4;
+            default -> throw new IllegalArgumentException("Unsupported architecture " + architecture.eClass().getName());
+        };
     }
 
     /**
@@ -720,7 +703,8 @@ public final class RelationFactory {
         for (EStructuralFeature feature : source
             .eClass()
             .getEAllStructuralFeatures()) {
-            if (!(feature instanceof EReference ref) || ref.isContainment()) {
+            if (!(feature instanceof EReference ref) || ref.isContainment() ||
+                !ref.isChangeable() || ref.isDerived() || ref.isTransient()) {
                 continue;
             }
             if (!ref.getEReferenceType().isInstance(target)) {
@@ -752,47 +736,6 @@ public final class RelationFactory {
             return true;
         }
         return false;
-    }
-
-    /**
-     * Assign an endpoint (source/target) to an exchange element.
-     */
-    private static void assignEndpoint(
-        EObject exchange,
-        String role,
-        EObject endpoint
-    ) {
-        if (exchange == null || endpoint == null) {
-            return;
-        }
-        for (EStructuralFeature feature : exchange
-            .eClass()
-            .getEAllStructuralFeatures()) {
-            if (!(feature instanceof EReference ref) || ref.isContainment()) {
-                continue;
-            }
-            String name = feature.getName().toLowerCase(Locale.ROOT);
-            boolean matches =
-                (role.equals("source") && name.contains("source")) ||
-                (role.equals("target") && name.contains("target"));
-            if (!matches) {
-                continue;
-            }
-            if (ref.getEReferenceType().isInstance(endpoint)) {
-                if (ref.isMany()) {
-                    @SuppressWarnings("unchecked")
-                    Collection<Object> list = (Collection<
-                        Object
-                    >) exchange.eGet(ref);
-                    if (!list.contains(endpoint)) {
-                        list.add(endpoint);
-                    }
-                } else {
-                    exchange.eSet(ref, endpoint);
-                }
-                return;
-            }
-        }
     }
 
     /**

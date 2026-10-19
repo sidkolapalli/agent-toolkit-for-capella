@@ -1,179 +1,70 @@
 ---
 name: ARCADIA Workflow
-summary: Create a complete model across OA to SA to LA to PA.
-keywords: [arcadia, workflow, oa, sa, la, pa]
-layer: [OA, SA, LA, PA]
-when_to_use: User wants a full end-to-end model or multi-layer setup.
+summary: Build and inspect native behavior, responsibility, realization and traceability across OA, SA, LA, PA and EPBS.
+keywords: [arcadia, workflow, oa, sa, la, pa, epbs, capability, scenario, functional chain, deployment]
+layer: [OA, SA, LA, PA, EPBS]
+when_to_use: User wants an end-to-end engineering model or a coherent multi-layer change.
 difficulty: advanced
 ---
 
-# Full ARCADIA Workflow
+# Arcadia engineering workflow
 
-Create a complete model across all architecture layers (OA→SA→LA→PA).
+Start from the user's operational need, source obligations and explicit assumptions. Preserve the initialized model roots. Inspect native IDs, existing responsibilities, installed descriptors and `api/arcadia.md` before proposing a bounded coherent phase. A set of named objects across five layers is not a complete Arcadia model.
 
-## Overview
+## Operational analysis
 
-This skill demonstrates creating a system model following the 
-ARCADIA methodology, progressing through all four layers.
+Describe the people/organizations/entities, capabilities, observable activities and operational interactions. Allocate leaf activities to their actual entities with `api.allocate`. Use `api.arcadia.involveFunction` and `involveComponent` for native capability involvement. Implementation decisions such as software, ECU hardware or protocols belong to later perspectives.
 
-## Complete Example: Drone Delivery System
+Create actual operational scenarios beneath their capability using `api.arcadia.operationalScenario`. The native OA INTERACTION scenario has activity InstanceRoles, ordered messages invoking actual FunctionalExchanges, sending/receiving events and message ends. A description-only Scenario does not establish a scenario. Model nominal, degraded and inhibited cases as the need requires, with meaningful preconditions, postconditions and verification obligations.
 
-```groovy
-// ============================================================
-// STEP 1: OPERATIONAL ANALYSIS (OA)
-// What do users need to accomplish?
-// ============================================================
+## System analysis
 
-log.info("=== Creating Operational Analysis ===")
+Reuse the unique initialized system as a black box and identify external actors. Allocate internal leaf SystemFunctions to that system and external functions to the actors. Do not create a second system or decompose SA into implementation components.
 
-// Create operational capability
-def deliveryCap = api.create("OA", "OperationalCapability", "Package Delivery")
-api.set(deliveryCap, "description", "Ability to deliver packages via drone")
+Translate operational needs into system capabilities, functions and exchanges. Create typed adjacent function/component realizations with lower-level source first; realize capabilities through `api.arcadia.realizeCapability`. Inspect their actual endpoints and meaning.
 
-// Create operational activities
-def pickUp = api.create("OA", "OperationalActivity", "Pick Up Package")
-def transport = api.create("OA", "OperationalActivity", "Transport Package")
-def deliver = api.create("OA", "OperationalActivity", "Deliver Package")
-
-// Link activities to capability
-[pickUp, transport, deliver].each { act ->
-    api.link(act, deliveryCap, "involvement")
-}
-
-// Create activity flow
-api.link(pickUp, transport, "FunctionalExchange")
-api.link(transport, deliver, "FunctionalExchange")
-
-// Create actors
-def operator = api.create("OA", "Entity", "Drone Operator")
-def customer = api.create("OA", "Entity", "Customer")
-
-
-// ============================================================
-// STEP 2: SYSTEM ANALYSIS (SA)
-// What must the system do?
-// ============================================================
-
-log.info("=== Creating System Analysis ===")
-
-// Create system component
-def droneSystem = api.create("SA", "SystemComponent", "Drone Delivery System")
-
-// Create system functions (realize operational activities)
-def navigate = api.create("SA", "SystemFunction", "Navigate Route")
-def carryPayload = api.create("SA", "SystemFunction", "Carry Payload")
-def detectObstacles = api.create("SA", "SystemFunction", "Detect Obstacles")
-def communicate = api.create("SA", "SystemFunction", "Communicate Status")
-
-// Create functional chain
-def e1 = api.link(detectObstacles, navigate, "FunctionalExchange")
-api.set(e1, "name", "Obstacle Data")
-
-def e2 = api.link(navigate, carryPayload, "FunctionalExchange")
-api.set(e2, "name", "Position Data")
-
-def e3 = api.link(carryPayload, communicate, "FunctionalExchange")
-api.set(e3, "name", "Delivery Status")
-
-// Create system actors
-def groundStation = api.create("SA", "SystemActor", "Ground Station")
-
-
-// ============================================================
-// STEP 3: LOGICAL ARCHITECTURE (LA)
-// How is it logically organized?
-// ============================================================
-
-log.info("=== Creating Logical Architecture ===")
-
-// Create logical components
-def flightController = api.create("LA", "LogicalComponent", "Flight Controller")
-def navigationModule = api.create("LA", "LogicalComponent", "Navigation Module")
-def sensorSuite = api.create("LA", "LogicalComponent", "Sensor Suite")
-def commModule = api.create("LA", "LogicalComponent", "Communication Module")
-def payloadHandler = api.create("LA", "LogicalComponent", "Payload Handler")
-
-// Create logical functions (realize system functions)
-def computeRoute = api.create("LA", "LogicalFunction", "Compute Route")
-def processSensors = api.create("LA", "LogicalFunction", "Process Sensor Data")
-def controlFlight = api.create("LA", "LogicalFunction", "Control Flight")
-def managePayload = api.create("LA", "LogicalFunction", "Manage Payload")
-
-// Allocate functions to components
-api.link(computeRoute, navigationModule, "allocation")
-api.link(processSensors, sensorSuite, "allocation")
-api.link(controlFlight, flightController, "allocation")
-api.link(managePayload, payloadHandler, "allocation")
-
-// Create component interfaces
-api.link(sensorSuite, navigationModule, "ComponentExchange")
-api.link(navigationModule, flightController, "ComponentExchange")
-api.link(flightController, commModule, "ComponentExchange")
-
-
-// ============================================================
-// STEP 4: PHYSICAL ARCHITECTURE (PA)
-// How is it physically implemented?
-// ============================================================
-
-log.info("=== Creating Physical Architecture ===")
-
-// Create physical components (hardware)
-def mainBoard = api.create("PA", "PhysicalComponent", "Main Control Board")
-def gpsModule = api.create("PA", "PhysicalComponent", "GPS Module")
-def imuSensor = api.create("PA", "PhysicalComponent", "IMU Sensor")
-def radioModule = api.create("PA", "PhysicalComponent", "Radio Module")
-def servoController = api.create("PA", "PhysicalComponent", "Servo Controller")
-
-// Create physical components (software)
-def flightFirmware = api.create("PA", "PhysicalComponent", "Flight Firmware")
-def navSoftware = api.create("PA", "PhysicalComponent", "Navigation Software")
-
-// Create physical links
-api.link(gpsModule, mainBoard, "PhysicalLink")
-api.link(imuSensor, mainBoard, "PhysicalLink")
-api.link(radioModule, mainBoard, "PhysicalLink")
-api.link(servoController, mainBoard, "PhysicalLink")
-
-// Deploy software to hardware
-api.link(flightFirmware, mainBoard, "deployment")
-api.link(navSoftware, mainBoard, "deployment")
-
-
-// ============================================================
-// SUMMARY
-// ============================================================
-
-log.info("=== Model Creation Complete ===")
-log.info("OA: 1 capability, 3 activities, 2 actors")
-log.info("SA: 1 system, 4 functions, 1 actor")
-log.info("LA: 5 components, 4 functions")
-log.info("PA: 7 components (5 HW, 2 SW)")
-```
-
-## Customization
-
-### Scaling Up
-
-Add more elements at each layer:
-- More capabilities and activities in OA
-- More detailed function breakdown in SA
-- Deeper component hierarchy in LA
-- More hardware detail in PA
-
-### Adding Diagrams
+Store rules and verification obligations as native Constraints with a nonempty Text OpaqueExpression and actual constrained-element bindings. Use `api.arcadia.constraint(owner, name, expression, subjects)` from `api/arcadia.md`. A description alone does not establish a native specification. This stores a modeled obligation; it does not execute a control rule or complete physical verification.
 
 ```groovy
-// Create overview diagram for each layer
-def oaDiagram = api.diagram.create("OAB", "Operational Overview")
-def saDiagram = api.diagram.create("SAB", "System Overview")
-def laDiagram = api.diagram.create("LAB", "Logical Overview")
-def paDiagram = api.diagram.create("PAB", "Physical Overview")
+// Variables here are previously inspected, resolved native model objects.
+def chain = api.arcadia.linearChain(api.container("SA", "root-function"),
+    "Nominal request", [request, acquire, authorize, command, report, observe],
+    [requestFlow, acquiredDemand, permission, commandResult, status])
+api.arcadia.involveChain(systemCapability, chain)
 ```
 
-## Tips
+The chain must contain actual FunctionalChainInvolvementFunction/Link objects involving the corresponding functions/exchanges, with correct source/target involvements. A row of FunctionalExchanges alone is not a chain. The helper builds linear chains; branching, nesting and richer scenario fragments require native metamodel services and separate verification.
 
-- Start with OA to understand user needs
-- SA translates needs into system requirements
-- LA organizes without physical constraints
-- PA maps to real hardware/software
+## Logical architecture
+
+Decompose responsibilities into logical components without selecting physical equipment. Allocate leaf LogicalFunctions, realize their SA counterparts and preserve the external actor boundary. A realization is an engineering claim: provide a rationale when one lower responsibility realizes several upper responsibilities.
+
+Create component interfaces for cross-component functional flows and call `api.arcadia.allocateExchange(componentExchange, functionalExchange)`. Inspect both the ComponentExchangeFunctionalExchangeAllocation and matching component-port/function-port PortAllocations. Internal flows between functions allocated to the same component do not need an invented component exchange.
+
+## Physical architecture
+
+Separate BEHAVIOR components carrying functions from NODE components carrying equipment. Allocate leaf PhysicalFunctions to their behavior components and realize the corresponding logical responsibilities and interfaces. Keep unselected equipment, protocol, energy, timing and rating decisions explicitly unresolved.
+
+```groovy
+api.arcadia.deploy(behaviorPart, equipmentPart)
+api.arcadia.allocateExchange(controlInterface, commandFlow)
+api.arcadia.physicalLink("Control transport TBD", controllerNodePart, driveNodePart)
+```
+
+Deployment is a native PartDeploymentLink owned by its NODE location Part. Physical topology is a PhysicalLink with actual Part/PhysicalPort ends. Component containment and ComponentExchanges do not establish those structures. Distinguish control/data transport from traction energy. Where a PA interface realizes LA, inspect native FunctionalExchangeRealization, PortRealization and ComponentExchangeRealization endpoints.
+
+## End-product breakdown and source traceability
+
+Extend the initialized EPBS product ConfigurationItem into meaningful configuration items. Set stable item identifiers and link CI→PA artifacts through `PhysicalArtifactRealization`. EPBS contains neither functions nor exchanges. Select the actual ConfigurationItem rather than a same-named representing Part.
+
+When Requirements Viewpoint is installed and active, create native source requirements with distinct provenance and stable ReqIF identifiers. Use `api.requirements.satisfy`, `verify` and `derive` with their documented endpoint directions. A verification Constraint describes the required procedure/acceptance criteria; it does not record a physical test as passed. Keep imported source, candidate interpretation, applicability, model allocation and physical verification as distinct states. See `skills/requirements/SKILL.md`.
+
+## Review, persistence and completion
+
+1. Propose a bounded coherent phase with exact source and checks; wait for its actual execution outcome before updating the plan. Use native persistent IDs and `api.findById`; never rewrite an attached object's ID directly.
+2. Inspect ownership and actual endpoints of every created allocation, involvement, realization, scenario, chain, transport and deployment. Confirm allocations target leaves and no raw-demand bypass contradicts a modeled authorization guard.
+   For structural postconditions use stored references. `SequenceMessage.invokedOperation` is derived; inspect stored sending/receiving ends, their events, and `EventSentOperation.operation`/`EventReceiptOperation.operation` instead. The host rejects unsupported named-classifier reference contracts before review.
+3. Run full native validation once after a coherent edit. Continue `native_validation` cursors to review all captured diagnostics, checking `source_truncated` and `message_truncated`. Zero errors does not establish completeness or compliance.
+4. Discover actual installed representation descriptions, create useful views, add the intended content and inspect persisted layout. Do not guess unsupported diagram names.
+5. Save, reload and recheck IDs/references and native diagnostics. Exercise Undo/Redo of one phase and confirm coherent relationships/views. Do not replay a committed phase to recover a save failure.
+6. Review engineering meaning: operational need, system boundary, nominal/degraded behavior, responsibility, interface semantics, cross-perspective traceability and every source obligation. Report unresolved choices and coverage gaps accurately. Native structural checks cannot certify a design, a vehicle or rule compliance.

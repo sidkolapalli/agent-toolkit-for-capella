@@ -14,7 +14,9 @@ public class LLMServiceBackoffTest {
         assertTrue(LLMService.isRetryableStatus(504));
         assertFalse(LLMService.isRetryableStatus(400));
         assertFalse(LLMService.isRetryableStatus(401));
-        assertFalse(LLMService.isRetryableStatus(500));
+        assertTrue(LLMService.isRetryableStatus(500));
+        assertTrue(LLMService.isRetryableStatus(408));
+        assertTrue(LLMService.isRetryableStatus(529));
     }
 
     @Test

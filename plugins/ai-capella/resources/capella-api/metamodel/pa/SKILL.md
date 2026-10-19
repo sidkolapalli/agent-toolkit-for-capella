@@ -38,7 +38,7 @@ def physComp = api.propagate(logComp, "PA")
 log.info("Created: ${api.name(physComp)}")
 ```
 
-### Hardware/Software Mapping
+### Physical Functions and Allocation
 
 ```groovy
 // Create hardware
@@ -49,9 +49,14 @@ def sensors = api.create("PA", "PhysicalComponent", "IMU Sensor Board")
 def rtos = api.create("PA", "PhysicalComponent", "FreeRTOS")
 def app = api.create("PA", "PhysicalComponent", "Flight Application")
 
-// Software runs on hardware
-api.link(rtos, mcu, "deployment")
-api.link(app, mcu, "deployment")
+// Allocate physical functions to their implementing components
+def schedule = api.create("PA", "PhysicalFunction", "Schedule Control Tasks")
+def control = api.create("PA", "PhysicalFunction", "Execute Flight Control")
+api.allocate(schedule, rtos)
+api.allocate(control, app)
+api.link(schedule, control, "FunctionalExchange")
+
+// Software deployment onto hardware requires a native Capella deployment operation.
 ```
 
 ### Physical Interfaces
@@ -60,9 +65,9 @@ api.link(app, mcu, "deployment")
 def board1 = api.find("PhysicalComponent", "Control Board")
 def board2 = api.find("PhysicalComponent", "Sensor Board")
 
-// Physical link (e.g., SPI bus)
-def link = api.link(board1, board2, "PhysicalLink")
-api.set(link, "name", "SPI Bus")
+// Behavioral interface between PA components (not a physical cable)
+def link = api.link(board1, board2, "ComponentExchange")
+api.set(link, "name", "Sensor Data Interface")
 ```
 
 ### Complete Node Architecture
@@ -76,9 +81,9 @@ def mainBoard = api.create("PhysicalComponent", "Main Board", drone)
 def powerBoard = api.create("PhysicalComponent", "Power Board", drone)
 def commBoard = api.create("PhysicalComponent", "Comm Board", drone)
 
-// Add links between boards
-api.link(mainBoard, powerBoard, "PhysicalLink")
-api.link(mainBoard, commBoard, "PhysicalLink")
+// Add component exchanges between boards
+api.link(mainBoard, powerBoard, "ComponentExchange")
+api.link(mainBoard, commBoard, "ComponentExchange")
 
 log.info("Created drone node with 3 boards")
 ```

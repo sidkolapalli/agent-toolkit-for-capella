@@ -23,7 +23,8 @@ public final class ArchitectureLocator {
         "OA",
         "SA",
         "LA",
-        "PA"
+        "PA",
+        "EPBS"
     );
 
     public static EObject findTargetElement(Session session, String layer) {
@@ -118,6 +119,8 @@ public final class ArchitectureLocator {
                 "SA".equalsIgnoreCase(layer) &&
                 child.eClass().getName().equals("SystemAnalysis")
             ) return child;
+            if ("EPBS".equalsIgnoreCase(layer) &&
+                child.eClass().getName().equals("EPBSArchitecture")) return child;
         }
         return null;
     }
@@ -129,7 +132,7 @@ public final class ArchitectureLocator {
      * Returns FindResult with available layers when target layer is not found.
      *
      * @param session the Capella session
-     * @param layer the layer identifier (OA, SA, LA, PA, or variants like "operational", "logical")
+     * @param layer the layer identifier (OA, SA, LA, PA, EPBS, or variants like "operational", "logical")
      * @return FindResult with layer element, error code, and available layers
      */
     public static FindResult findLayerWithDiagnostic(
@@ -208,6 +211,11 @@ public final class ArchitectureLocator {
                             !availableLayers.contains("SA")
                         ) {
                             availableLayers.add("SA");
+                        } else if (
+                            child.eClass().getName().equals("EPBSArchitecture") &&
+                            !availableLayers.contains("EPBS")
+                        ) {
+                            availableLayers.add("EPBS");
                         }
                     }
                 }
@@ -245,7 +253,7 @@ public final class ArchitectureLocator {
     }
 
     /**
-     * Canonicalize layer identifier to standard form (OA, SA, LA, PA).
+     * Canonicalize layer identifier to standard form (OA, SA, LA, PA, EPBS).
      *
      * @param layer the layer identifier (e.g., "operational", "system", "logical", "physical", or abbreviations)
      * @return canonical form or null if invalid
@@ -260,6 +268,8 @@ public final class ArchitectureLocator {
             case "sa", "system", "system analysis" -> "SA";
             case "la", "logical", "logical architecture" -> "LA";
             case "pa", "physical", "physical architecture" -> "PA";
+            case "epbs", "epbs architecture", "end product breakdown structure",
+                "end-product breakdown structure" -> "EPBS";
             default -> {
                 // Check if it's already a valid canonical form
                 String upper = layer.toUpperCase(Locale.ROOT).trim();

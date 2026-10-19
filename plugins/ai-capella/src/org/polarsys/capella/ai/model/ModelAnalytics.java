@@ -38,15 +38,16 @@ public final class ModelAnalytics {
         SA,
         LA,
         PA,
+        EPBS,
     }
 
     private static final Map<LayerId, LayerConfig> LAYER_CONFIGS = Map.of(
         LayerId.OA,
         new LayerConfig(
             "Operational",
-            Set.of("OperationalEntity", "OperationalActor"),
+            Set.of("Entity"),
             Set.of("OperationalActivity"),
-            Set.of("OperationalActivityFlow", "OperationalExchange"),
+            Set.of("FunctionalExchange", "CommunicationMean"),
             Set.of("Requirement", "OperationalCapability")
         ),
         LayerId.SA,
@@ -70,8 +71,16 @@ public final class ModelAnalytics {
             "Physical",
             Set.of("PhysicalComponent"),
             Set.of("PhysicalFunction"),
-            Set.of("ComponentExchange", "PhysicalLink"),
+            Set.of("ComponentExchange", "FunctionalExchange", "PhysicalLink"),
             Set.of("Requirement", "PhysicalRequirement")
+        ),
+        LayerId.EPBS,
+        new LayerConfig(
+            "End-Product Breakdown Structure",
+            Set.of("ConfigurationItem"),
+            Set.of(),
+            Set.of(),
+            Set.of("Requirement")
         )
     );
 
@@ -203,7 +212,7 @@ public final class ModelAnalytics {
                 EReference ref = (EReference) feature;
                 if (ref.isContainment()) {
                     String name = ref.getName().toLowerCase(Locale.ROOT);
-                    if (name.contains("component")) {
+                    if (name.contains("component") || name.contains("configurationitem")) {
                         Object value = component.eGet(ref);
                         if (value instanceof Collection<?> collection) {
                             if (!collection.isEmpty()) {

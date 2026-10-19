@@ -32,14 +32,15 @@
     </extension>
 
     <extension point="org.eclipse.ui.perspectiveExtensions">
-        <perspectiveExtension targetID="capella.perspective">
+        <perspectiveExtension targetID="capella.sirius.perspective">
             <view
                 closeable="true"
                 id="org.polarsys.capella.ai.chatview"
                 minimized="false"
                 moveable="true"
                 relationship="right"
-                relative="org.eclipse.ui.editors"
+                relative="org.eclipse.ui.editorss"
+                ratio="0.72"
                 visible="true"/>
             <view
                 closeable="true"
@@ -48,7 +49,7 @@
                 moveable="true"
                 relationship="right"
                 relative="org.polarsys.capella.ai.chatview"
-                visible="true"/>
+                visible="false"/>
             <view
                 closeable="true"
                 id="org.polarsys.capella.ai.logs"
@@ -56,7 +57,7 @@
                 moveable="true"
                 relationship="bottom"
                 relative="org.polarsys.capella.ai.chatview"
-                visible="true"/>
+                visible="false"/>
         </perspectiveExtension>
     </extension>
 
@@ -65,12 +66,12 @@
             id="org.polarsys.capella.ai.preferences.llm"
             name="LLM"
             class="org.polarsys.capella.ai.preferences.LLMPreferencePage"
-            category="org.polarsys.capella.preferences"/>
+            category="org.polarsys.capella.core.platform.sirius.ui.actions.Capella.page"/>
         <page
             id="org.polarsys.capella.ai.preferences.advanced"
             name="AI Advanced Settings"
             class="org.polarsys.capella.ai.preferences.AdvancedPreferencePage"
-            category="org.polarsys.capella.preferences"/>
+            category="org.polarsys.capella.core.platform.sirius.ui.actions.Capella.page"/>
     </extension>
 
     <extension point="org.eclipse.ui.startup">

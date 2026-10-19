@@ -46,6 +46,7 @@ api.set(newFunc, "visible_in_doc", true)
 - `OperationalActivity` - Activities performed by actors
 - `Entity` - Operational actors and components
   - For actors: `api.set(entity, "actor", true)`
+- `OperationalActor` - Alias for `Entity` with `actor=true`
 
 ### SA - System Analysis
 - `SystemFunction` - Functions the system performs
@@ -60,6 +61,13 @@ api.set(newFunc, "visible_in_doc", true)
 - `PhysicalFunction` - Physical functions
 - `PhysicalComponent` - Physical building blocks
 
+### EPBS - End-Product Breakdown Structure
+- `ConfigurationItem` - Configuration items realizing PA physical components
+- Use `api.create("EPBS", "ConfigurationItem", "Control Item")` to create beneath the existing unique product root. If the architecture has no root item, this creates its first root; multiple existing roots cause an error rather than choosing a parent.
+- Nest items with `api.create("ConfigurationItem", "Navigation Item", parentItem)`.
+- Configuration items have same-named native representing Parts. Use `api.find("ConfigurationItem", name)` when selecting an item by name.
+- Use `api.epbs()` or `api.layer("EPBS")` for the architecture root. EPBS does not support functions or exchanges.
+
 ## Layer Shortcuts
 
 ```groovy
@@ -67,11 +75,15 @@ api.create("OA", "OperationalActivity", "Deliver Package")
 api.create("SA", "SystemFunction", "Track Delivery")
 api.create("LA", "LogicalComponent", "GPS Module")
 api.create("PA", "PhysicalComponent", "Antenna")
+api.create("EPBS", "ConfigurationItem", "Antenna Item")
 ```
 
 ## Tips
 
-- Created elements are automatically saved
+- Functions must match their architecture: OA `OperationalActivity`, SA `SystemFunction`, LA `LogicalFunction`, PA `PhysicalFunction`.
+- Layer-based function creation places new functions under that layer's existing root function. To decompose a function, pass a parent function of the same layer.
+- Components do not contain functions. Create functions in their layer, then use `api.allocate(function, component)`.
+- Successful script changes are committed together and saved after execution; failed or cancelled scripts are rolled back.
 - Parent is auto-detected from type if not specified
 - Use `api.layer("SA")` to get layer root for inspection
 - If you need to allocate a function to a component, use `api.allocate(function, component)` (do not create allocation objects directly)

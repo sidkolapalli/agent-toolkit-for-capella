@@ -5,17 +5,29 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
+import java.net.ConnectException;
+import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.polarsys.capella.ai.llm.SimpleJson;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 
@@ -64,6 +76,7 @@ public final class LLMService {
                 "At least one message is required"
             );
         }
+        validateConfiguration(messages);
         String provider = LLMPreferences.getProvider();
         if (provider.equalsIgnoreCase("anthropic")) {
             return sendAnthropic(messages);
@@ -73,33 +86,19 @@ public final class LLMService {
 
     public String testConnection() throws Exception {
         String provider = LLMPreferences.getProvider();
-        if (provider.equalsIgnoreCase("anthropic")) {
-            // Anthropic expects anthropic-version; we just return provider info
-            return "Anthropic configured: " + LLMPreferences.getModel();
+        String reply = send("Reply with OK.");
+        if (reply == null || reply.isBlank()) {
+            throw new IllegalStateException("The provider returned no text for the connection test");
         }
-        return "OpenAI-compatible configured: " + LLMPreferences.getModel();
+        return provider + " responded using " + LLMPreferences.getModel();
     }
 
     private String sendOpenAI(List<Message> messages) throws Exception {
         String model = LLMPreferences.getModel();
         ModelCapabilities caps = getModelCapabilities(model);
-        try {
-            if (caps.useResponsesEndpoint) {
-                return sendOpenAIResponses(messages, caps);
-            }
-            return sendOpenAIChat(messages, caps);
-        } catch (RuntimeException ex) {
-            String body = ex.getMessage();
-            // Fallback: if Chat Completions fails for a model that may require Responses, retry once
-            boolean retryResponses =
-                !caps.useResponsesEndpoint &&
-                body != null &&
-                body.contains("OpenAI error:");
-            if (retryResponses) {
-                return sendOpenAIResponses(messages, caps);
-            }
-            throw ex;
-        }
+        if (caps.useResponsesEndpoint) return sendOpenAIResponses(messages, caps);
+        // Authentication, quota and invalid requests must not trigger a second endpoint request.
+        return sendOpenAIChat(messages, caps);
     }
 
     private String sendOpenAIChat(
@@ -163,61 +162,21 @@ public final class LLMService {
                 "http=" + resp.statusCode(),
                 start
             );
-            throw new RuntimeException(
-                "OpenAI error: " + resp.statusCode() + ": " + resp.body()
-            );
+            throw providerFailure(resp.statusCode(), resp.body());
         }
         String s = resp.body();
-        try {
-            Object parsed = SimpleJson.parse(s);
-            if (parsed instanceof Map<?, ?> map) {
-                Object choicesObj = map.get("choices");
-                if (
-                    choicesObj instanceof List<?> choices && !choices.isEmpty()
-                ) {
-                    Object first = choices.get(0);
-                    if (first instanceof Map<?, ?> choice) {
-                        Object msg = choice.get("message");
-                        if (msg instanceof Map<?, ?> message) {
-                            Object content = message.get("content");
-                            if (content instanceof String str) return str;
-                            if (content instanceof List<?> blocks) {
-                                StringBuilder sb = new StringBuilder();
-                                for (Object block : blocks) {
-                                    if (
-                                        block instanceof Map<?, ?> b &&
-                                        "text".equals(b.get("type"))
-                                    ) {
-                                        Object text = b.get("text");
-                                        if (text instanceof String) sb.append(
-                                            (String) text
-                                        );
-                                    }
-                                }
-                                if (sb.length() > 0) return sb.toString();
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (Exception ex) {
-            // JSON parsing failed - return raw response
-            System.err.println(
-                "[LLMService] Error parsing OpenAI chat response: " +
-                    ex.getMessage()
-            );
-        }
+        String result = parseChatBody(s);
         tryLogConversation(
             provider,
             "openai-chat",
             model,
             msgDump,
-            s,
+            result,
             false,
             "ok",
             start
         );
-        return s;
+        return result;
     }
 
     private String sendOpenAIResponses(
@@ -234,24 +193,9 @@ public final class LLMService {
         String provider = LLMPreferences.getProvider();
         String msgDump = dumpMessages(messages);
 
-        // Build a simple textual transcript for input
-        String input = buildResponsesInput(messages);
-        StringBuilder body = new StringBuilder();
-        body
-            .append('{')
-            .append("\"model\":\"")
-            .append(esc(model))
-            .append("\",")
-            .append("\"input\":\"")
-            .append(esc(input))
-            .append("\",")
-            // Responses API: use max_output_tokens
-            .append("\"max_output_tokens\":")
-            .append(maxT);
-        if (caps.supportsTemperature) {
-            body.append(',').append("\"temperature\":").append(temp);
-        }
-        body.append('}');
+        String body = buildResponsesBody(
+            messages, model, maxT, temp, caps.supportsTemperature, false
+        );
 
         HttpRequest req = HttpRequest.newBuilder()
             .uri(URI.create(api))
@@ -260,7 +204,7 @@ public final class LLMService {
             .header("Authorization", "Bearer " + key)
             .POST(
                 HttpRequest.BodyPublishers.ofString(
-                    body.toString(),
+                    body,
                     StandardCharsets.UTF_8
                 )
             )
@@ -282,54 +226,128 @@ public final class LLMService {
                 "http=" + resp.statusCode(),
                 start
             );
-            throw new RuntimeException(
-                "OpenAI error: " + resp.statusCode() + ": " + resp.body()
-            );
+            throw providerFailure(resp.statusCode(), resp.body());
         }
         String s = resp.body();
+        String result;
         try {
-            Object parsed = SimpleJson.parse(s);
-            if (parsed instanceof Map<?, ?> map) {
-                // output_text convenience field present in SDKs/aggregated outputs
-                Object outText = map.get("output_text");
-                if (outText instanceof String str && !str.isEmpty()) return str;
-                // Generic output array
-                Object output = map.get("output");
-                if (output instanceof List<?> items && !items.isEmpty()) {
-                    StringBuilder sb = new StringBuilder();
-                    for (Object item : items) {
-                        if (item instanceof Map<?, ?> itm) {
-                            Object type = itm.get("type");
-                            if ("output_text".equals(type)) {
-                                Object text = itm.get("text");
-                                if (text instanceof String t) sb.append(t);
-                            }
-                        }
-                    }
-                    if (sb.length() > 0) return sb.toString();
-                }
-            }
-        } catch (Exception ex) {
-            // JSON parsing failed - return raw response
-            System.err.println(
-                "[LLMService] Error parsing OpenAI responses: " +
-                    ex.getMessage()
+            result = parseResponsesBody(s);
+        } catch (RuntimeException ex) {
+            tryLogConversation(
+                provider,
+                "openai-responses",
+                model,
+                msgDump,
+                "",
+                false,
+                "error:" + ex.getMessage(),
+                start
             );
+            throw ex;
         }
         tryLogConversation(
             provider,
             "openai-responses",
             model,
             msgDump,
-            s,
+            result,
             false,
             "ok",
             start
         );
-        return s;
+        return result;
     }
 
-    private String buildChatMessagesJson(List<Message> messages) {
+    /** Decode REST output messages before returning text to the code router. */
+    private static String parseResponsesBody(String body) {
+        if (body == null || body.isBlank()) {
+            throw new IllegalStateException("OpenAI Responses returned an empty response body");
+        }
+
+        Object parsed;
+        try {
+            parsed = SimpleJson.parse(body);
+        } catch (RuntimeException ex) {
+            throw new IllegalStateException("OpenAI Responses returned invalid JSON", ex);
+        }
+        return parseResponsesObject(parsed);
+    }
+
+    private static String parseResponsesObject(Object parsed) {
+        if (!(parsed instanceof Map<?, ?> response)) {
+            throw new IllegalStateException("OpenAI Responses expected a JSON object");
+        }
+        Object error = response.get("error");
+        if (error != null) {
+            Object detail = error instanceof Map<?, ?> errorFields
+                ? errorFields.get("message")
+                : error;
+            throw new IllegalStateException(
+                "OpenAI Responses failed" + (detail == null ? "" : ": " + detail)
+            );
+        }
+
+        Object status = response.get("status");
+        if (status != null && !"completed".equals(status)) {
+            Object details = response.get("incomplete_details");
+            Object reason = details instanceof Map<?, ?> fields ? fields.get("reason") : null;
+            throw new IllegalStateException(
+                "OpenAI Responses did not complete (status=" + status +
+                (reason == null ? "" : ", reason=" + reason) + ")"
+            );
+        }
+
+        StringBuilder text = new StringBuilder();
+        Object output = response.get("output");
+        if (output != null) {
+            if (!(output instanceof List<?> items)) {
+                throw new IllegalStateException("OpenAI Responses output must be an array");
+            }
+            for (Object item : items) {
+                if (!(item instanceof Map<?, ?> message)) {
+                    throw new IllegalStateException("OpenAI Responses output item must be an object");
+                }
+                if (!"message".equals(message.get("type"))) {
+                    continue;
+                }
+                Object messageStatus = message.get("status");
+                if (messageStatus != null && !"completed".equals(messageStatus)) {
+                    throw new IllegalStateException("OpenAI Responses contains an incomplete message");
+                }
+                if (!(message.get("content") instanceof List<?> content)) {
+                    throw new IllegalStateException("OpenAI Responses message content must be an array");
+                }
+                for (Object part : content) {
+                    if (!(part instanceof Map<?, ?> block)) {
+                        throw new IllegalStateException("OpenAI Responses content item must be an object");
+                    }
+                    if ("refusal".equals(block.get("type"))) {
+                        Object refusal = block.get("refusal");
+                        throw new IllegalStateException(
+                            "OpenAI refused the request" +
+                            (refusal instanceof String reason && !reason.isBlank() ? ": " + reason : "")
+                        );
+                    }
+                    if ("output_text".equals(block.get("type"))) {
+                        if (!(block.get("text") instanceof String value)) {
+                            throw new IllegalStateException("OpenAI Responses output text must be a string");
+                        }
+                        text.append(value);
+                    }
+                }
+            }
+        }
+        if (!text.toString().isBlank()) {
+            return text.toString();
+        }
+        // Keep compatibility with SDK/proxy responses that expose aggregated text.
+        if (response.get("output_text") instanceof String value && !value.isBlank()) {
+            return value;
+        }
+        throw new IllegalStateException("OpenAI Responses returned no text output");
+    }
+
+    private static String buildChatMessagesJson(List<Message> messages) {
         StringBuilder payloadMessages = new StringBuilder("[");
         for (int i = 0; i < messages.size(); i++) {
             Message msg = messages.get(i);
@@ -349,28 +367,119 @@ public final class LLMService {
         return payloadMessages.toString();
     }
 
-    private String buildResponsesInput(List<Message> messages) {
-        StringBuilder sb = new StringBuilder();
-        // Put system instructions first if present
-        for (Message msg : messages) {
-            if (
-                msg.role == Message.Role.SYSTEM &&
-                msg.content != null &&
-                !msg.content.isBlank()
-            ) {
-                sb.append("System:\n").append(msg.content).append("\n\n");
+    private static Map<?, ?> jsonObject(String body, String provider) {
+        if (body == null || body.isBlank()) throw new IllegalStateException(provider + " returned an empty response body");
+        Object parsed;
+        try {
+            parsed = SimpleJson.parse(body);
+        } catch (RuntimeException ex) {
+            throw new IllegalStateException(provider + " returned invalid JSON", ex);
+        }
+        if (!(parsed instanceof Map<?, ?> object)) throw new IllegalStateException(provider + " expected a JSON object");
+        if (object.get("error") != null) throw new IllegalStateException(provider + " reported a provider error");
+        return object;
+    }
+
+    private static String parseChatBody(String body) {
+        Map<?, ?> response = jsonObject(body, "OpenAI Chat");
+        if (!(response.get("choices") instanceof List<?> choices) || choices.isEmpty() ||
+            !(choices.get(0) instanceof Map<?, ?> choice)) {
+            throw new IllegalStateException("OpenAI Chat returned no reply choices");
+        }
+        validateStopReason(choice.get("finish_reason"), false);
+        if (!(choice.get("message") instanceof Map<?, ?> message)) {
+            throw new IllegalStateException("OpenAI Chat returned no reply message");
+        }
+        rejectRefusalAndTools(message);
+        return requireText(textContent(message.get("content")), "OpenAI Chat");
+    }
+
+    private static String parseAnthropicBody(String body) {
+        Map<?, ?> response = jsonObject(body, "Anthropic");
+        validateStopReason(response.get("stop_reason"), true);
+        return requireText(textContent(response.get("content")), "Anthropic");
+    }
+
+    private static String textContent(Object content) {
+        if (content instanceof String text) return text;
+        if (!(content instanceof List<?> blocks)) {
+            if (content == null) return "";
+            throw new IllegalStateException("Provider text content must be a string or an array");
+        }
+        StringBuilder text = new StringBuilder();
+        for (Object value : blocks) {
+            if (!(value instanceof Map<?, ?> block)) throw new IllegalStateException("Provider content block must be an object");
+            Object type = block.get("type");
+            if ("refusal".equals(type)) throw new IllegalStateException("The provider refused the request");
+            if ("tool_use".equals(type) || "tool_call".equals(type)) {
+                throw new IllegalStateException("The provider requested an unsupported tool call");
+            }
+            if ("text".equals(type) || "output_text".equals(type)) {
+                if (!(block.get("text") instanceof String part)) throw new IllegalStateException("Provider text block must contain a string");
+                text.append(part);
             }
         }
-        for (Message msg : messages) {
-            if (msg.role == Message.Role.SYSTEM) continue;
-            sb
-                .append(capitalize(msg.role.name().toLowerCase()))
-                .append(':')
-                .append('\n')
-                .append(msg.content == null ? "" : msg.content)
-                .append("\n\n");
+        return text.toString();
+    }
+
+    private static String requireText(String text, String provider) {
+        if (text == null || text.isBlank()) throw new IllegalStateException(provider + " returned no text output");
+        return text;
+    }
+
+    private static void rejectRefusalAndTools(Map<?, ?> message) {
+        if (message.get("refusal") instanceof String refusal && !refusal.isBlank()) {
+            throw new IllegalStateException("The provider refused the request");
         }
-        return sb.toString().trim();
+        if (message.get("function_call") != null ||
+            (message.get("tool_calls") instanceof List<?> calls && !calls.isEmpty())) {
+            throw new IllegalStateException("The provider requested an unsupported tool call");
+        }
+    }
+
+    private static void validateStopReason(Object reason, boolean anthropic) {
+        if (reason == null) return; // Some compatible gateways omit the terminal field in REST responses.
+        if ("length".equals(reason) || "max_tokens".equals(reason)) {
+            throw new IllegalStateException("The reply exceeded the output token limit. Increase Max tokens in LLM preferences or request a smaller change.");
+        }
+        if ("content_filter".equals(reason) || "refusal".equals(reason)) {
+            throw new IllegalStateException("The provider refused the request");
+        }
+        if ("tool_calls".equals(reason) || "function_call".equals(reason) || "tool_use".equals(reason)) {
+            throw new IllegalStateException("The provider requested an unsupported tool call");
+        }
+        if (anthropic ? !"end_turn".equals(reason) && !"stop_sequence".equals(reason) : !"stop".equals(reason)) {
+            throw new IllegalStateException("The provider did not complete the reply (stop reason=" + reason + ")");
+        }
+    }
+
+    private static String buildResponsesBody(
+        List<Message> messages,
+        String model,
+        int maxTokens,
+        double temperature,
+        boolean supportsTemperature,
+        boolean streaming
+    ) {
+        StringBuilder body = new StringBuilder();
+        body
+            .append('{')
+            .append("\"model\":\"")
+            .append(esc(model))
+            .append("\",")
+            // Preserve conversation roles and order, including system instructions.
+            .append("\"input\":")
+            .append(buildChatMessagesJson(messages))
+            .append(',')
+            .append("\"max_output_tokens\":")
+            .append(maxTokens);
+        if (streaming) {
+            body.append(',').append("\"stream\":true");
+        }
+        if (supportsTemperature) {
+            body.append(',').append("\"temperature\":").append(temperature);
+        }
+        return body.append('}').toString();
     }
 
     private String sendAnthropic(List<Message> messages) throws Exception {
@@ -460,57 +569,21 @@ public final class LLMService {
                 "http=" + resp.statusCode(),
                 start
             );
-            throw new RuntimeException(
-                "Anthropic error: " + resp.statusCode() + ": " + resp.body()
-            );
+            throw providerFailure(resp.statusCode(), resp.body());
         }
-        // Parse JSON response properly
         String s = resp.body();
-        try {
-            Object parsed = SimpleJson.parse(s);
-            if (parsed instanceof Map<?, ?> map) {
-                Object content = map.get("content");
-                if (content instanceof List<?> blocks) {
-                    StringBuilder sb = new StringBuilder();
-                    for (Object block : blocks) {
-                        if (block instanceof Map<?, ?> b) {
-                            Object type = b.get("type");
-                            if ("text".equals(type)) {
-                                Object text = b.get("text");
-                                if (text instanceof String t) sb.append(t);
-                            }
-                        }
-                    }
-                    if (sb.length() > 0) {
-                        String result = sb.toString();
-                        tryLogConversation(
-                            provider,
-                            "anthropic-messages",
-                            model,
-                            msgDump,
-                            result,
-                            false,
-                            "ok",
-                            start
-                        );
-                        return result;
-                    }
-                }
-            }
-        } catch (Exception parseEx) {
-            // Fall through to raw response
-        }
+        String result = parseAnthropicBody(s);
         tryLogConversation(
             provider,
             "anthropic-messages",
             model,
             msgDump,
-            s,
+            result,
             false,
             "ok",
             start
         );
-        return s;
+        return result;
     }
 
     private StreamHandle streamOpenAI(
@@ -561,7 +634,7 @@ public final class LLMService {
                 )
             )
             .build();
-        StreamHandle sh = streamSse(req, listener, this::extractOpenAIDelta);
+        StreamHandle sh = streamSse(req, listener, new ChatStreamParser());
         sh
             .completion()
             .whenComplete((reply, err) -> {
@@ -596,24 +669,9 @@ public final class LLMService {
         double temp = LLMPreferences.getTemperature();
         String key = LLMPreferences.getApiKey();
 
-        String input = buildResponsesInput(messages);
-        StringBuilder body = new StringBuilder();
-        body
-            .append('{')
-            .append("\"model\":\"")
-            .append(esc(model))
-            .append("\",")
-            .append("\"input\":\"")
-            .append(esc(input))
-            .append("\",")
-            .append("\"max_output_tokens\":")
-            .append(maxT)
-            .append(',')
-            .append("\"stream\":true");
-        if (caps.supportsTemperature) {
-            body.append(',').append("\"temperature\":").append(temp);
-        }
-        body.append('}');
+        String body = buildResponsesBody(
+            messages, model, maxT, temp, caps.supportsTemperature, true
+        );
 
         HttpRequest req = HttpRequest.newBuilder()
             .uri(URI.create(api))
@@ -622,12 +680,12 @@ public final class LLMService {
             .header("Authorization", "Bearer " + key)
             .POST(
                 HttpRequest.BodyPublishers.ofString(
-                    body.toString(),
+                    body,
                     StandardCharsets.UTF_8
                 )
             )
             .build();
-        return streamSse(req, listener, this::extractResponsesDelta);
+        return streamSse(req, listener, new ResponsesStreamParser());
     }
 
     private StreamHandle streamAnthropic(
@@ -704,7 +762,7 @@ public final class LLMService {
                 )
             )
             .build();
-        StreamHandle sh = streamSse(req, listener, this::extractAnthropicDelta);
+        StreamHandle sh = streamSse(req, listener, new AnthropicStreamParser());
         sh
             .completion()
             .whenComplete((reply, err) -> {
@@ -733,9 +791,22 @@ public final class LLMService {
         DeltaExtractor extractor
     ) {
         AtomicBoolean cancelled = new AtomicBoolean(false);
+        AtomicReference<InputStream> activeBody = new AtomicReference<>();
+        if (listener.isCancelled()) {
+            CompletableFuture<String> stopped = new CompletableFuture<>();
+            stopped.completeExceptionally(new CancellationException("Request stopped."));
+            return new StreamHandle(stopped, () -> {});
+        }
         CompletableFuture<HttpResponse<InputStream>> responseFuture =
             http.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream());
         CompletableFuture<String> completion = new CompletableFuture<>();
+        request.timeout().ifPresent(timeout -> completion.orTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS));
+        completion.whenComplete((reply, error) -> {
+            if (error != null) {
+                closeStream(activeBody.getAndSet(null));
+                responseFuture.cancel(true);
+            }
+        });
         responseFuture.whenComplete((response, error) -> {
             if (error != null) {
                 completion.completeExceptionally(error);
@@ -747,19 +818,19 @@ public final class LLMService {
                 );
                 return;
             }
+            activeBody.set(response.body());
+            if (completion.isDone() || cancelled.get()) {
+                closeStream(activeBody.getAndSet(null));
+                return;
+            }
             if (response.statusCode() >= 400) {
                 try (InputStream body = response.body()) {
                     String message = new String(
-                        body.readAllBytes(),
+                        body.readNBytes(16 * 1024),
                         StandardCharsets.UTF_8
                     );
                     completion.completeExceptionally(
-                        new RuntimeException(
-                            "LLM error: " +
-                                response.statusCode() +
-                                ": " +
-                                message
-                        )
+                        providerFailure(response.statusCode(), message)
                     );
                 } catch (Exception ex) {
                     completion.completeExceptionally(ex);
@@ -773,26 +844,39 @@ public final class LLMService {
                 )
             ) {
                 StringBuilder aggregate = new StringBuilder();
+                StringBuilder eventData = new StringBuilder();
                 String line;
-                while ((line = reader.readLine()) != null) {
-                    if (cancelled.get() || listener.isCancelled()) {
+                while (true) {
+                    if (completion.isDone() || cancelled.get() || listener.isCancelled()) {
                         completion.completeExceptionally(
                             new CancellationException("stream cancelled")
                         );
                         return;
                     }
-                    if (!line.startsWith("data:")) {
+                    line = reader.readLine();
+                    if (line != null && !line.isEmpty()) {
+                        if (line.startsWith("data:")) {
+                            String value = line.substring(5);
+                            if (value.startsWith(" ")) value = value.substring(1);
+                            if (eventData.length() > 0) eventData.append('\n');
+                            eventData.append(value);
+                        }
                         continue;
                     }
-                    String payload = line.substring(5).trim();
+                    String payload = eventData.toString();
+                    eventData.setLength(0);
                     if (payload.isEmpty()) {
+                        if (line == null) break;
                         continue;
                     }
-                    if ("[DONE]".equals(payload)) {
+                    if ("[DONE]".equals(payload.trim())) {
                         break;
                     }
                     String delta = extractor.extract(payload);
-                    if (delta != null && !delta.isBlank()) {
+                    if (completion.isDone() || cancelled.get() || listener.isCancelled()) {
+                        throw new CancellationException("stream cancelled");
+                    }
+                    if (delta != null && !delta.isEmpty()) {
                         aggregate.append(delta);
                         try {
                             listener.onChunk(delta);
@@ -800,8 +884,9 @@ public final class LLMService {
                             // UI listener best-effort
                         }
                     }
+                    if (extractor.isComplete() || line == null) break;
                 }
-                completion.complete(aggregate.toString());
+                completion.complete(extractor.finish(aggregate.toString()));
             } catch (CancellationException ex) {
                 completion.completeExceptionally(ex);
             } catch (Exception ex) {
@@ -811,114 +896,161 @@ public final class LLMService {
 
         Runnable cancel = () -> {
             cancelled.set(true);
+            completion.completeExceptionally(new CancellationException("stream cancelled"));
+            closeStream(activeBody.getAndSet(null));
             responseFuture.cancel(true);
         };
         return new StreamHandle(completion, cancel);
     }
 
-    private String extractOpenAIDelta(String payload) {
+    private static void closeStream(InputStream stream) {
+        if (stream == null) return;
         try {
-            Object parsed = SimpleJson.parse(payload);
-            if (parsed instanceof Map<?, ?> map) {
-                Object choicesObj = map.get("choices");
-                if (
-                    choicesObj instanceof List<?> choices && !choices.isEmpty()
-                ) {
-                    Object first = choices.get(0);
-                    if (first instanceof Map<?, ?> choice) {
-                        Object deltaObj = choice.get("delta");
-                        if (deltaObj instanceof Map<?, ?> delta) {
-                            Object content = delta.get("content");
-                            if (content instanceof String str) {
-                                return str;
-                            }
-                            if (content instanceof List<?> blocks) {
-                                StringBuilder sb = new StringBuilder();
-                                for (Object block : blocks) {
-                                    if (
-                                        block instanceof Map<?, ?> b &&
-                                        "text".equals(b.get("type"))
-                                    ) {
-                                        Object text = b.get("text");
-                                        if (text instanceof String) {
-                                            sb.append((String) text);
-                                        }
-                                    }
-                                }
-                                return sb.toString();
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (Exception ex) {
-            // Streaming delta parse error - return empty
-            System.err.println(
-                "[LLMService] Error extracting OpenAI delta: " + ex.getMessage()
-            );
+            stream.close();
+        } catch (IOException ignore) {
+            // Cancellation and timeout must not depend on closing a stalled body.
         }
-        return "";
     }
 
-    private String extractAnthropicDelta(String payload) {
-        try {
-            Object parsed = SimpleJson.parse(payload);
-            if (parsed instanceof Map<?, ?> event) {
-                Object type = event.get("type");
-                if ("content_block_delta".equals(type)) {
-                    Object deltaObj = event.get("delta");
-                    if (deltaObj instanceof Map<?, ?> delta) {
-                        Object text = delta.get("text");
-                        if (text instanceof String) {
-                            return (String) text;
-                        }
-                    }
-                } else if ("message_delta".equals(type)) {
-                    Object deltaObj = event.get("delta");
-                    if (deltaObj instanceof Map<?, ?> delta) {
-                        Object text = delta.get("text");
-                        if (text instanceof String) {
-                            return (String) text;
-                        }
-                    }
-                }
+    private static final class ChatStreamParser implements DeltaExtractor {
+        private boolean completed;
+
+        @Override
+        public String extract(String payload) {
+            Map<?, ?> event = jsonObject(payload, "OpenAI Chat stream");
+            if (!(event.get("choices") instanceof List<?> choices)) {
+                throw new IllegalStateException("OpenAI Chat stream returned no choices array");
             }
-        } catch (Exception ex) {
-            // Streaming delta parse error - return empty
-            System.err.println(
-                "[LLMService] Error extracting Anthropic delta: " +
-                    ex.getMessage()
-            );
+            if (choices.isEmpty()) return ""; // A usage-only event has no choices.
+            if (!(choices.get(0) instanceof Map<?, ?> choice)) {
+                throw new IllegalStateException("OpenAI Chat stream choice must be an object");
+            }
+            Object reason = choice.get("finish_reason");
+            validateStopReason(reason, false);
+            if (reason != null) completed = true;
+            if (!(choice.get("delta") instanceof Map<?, ?> delta)) {
+                throw new IllegalStateException("OpenAI Chat stream delta must be an object");
+            }
+            rejectRefusalAndTools(delta);
+            return textContent(delta.get("content"));
         }
-        return "";
+
+        @Override
+        public boolean isComplete() { return completed; }
+
+        @Override
+        public String finish(String aggregate) {
+            if (!completed) throw new IllegalStateException("OpenAI Chat stream ended before its finish reason");
+            return requireText(aggregate, "OpenAI Chat stream");
+        }
     }
 
-    private String extractResponsesDelta(String payload) {
-        try {
-            Object parsed = SimpleJson.parse(payload);
-            if (parsed instanceof Map<?, ?> event) {
-                Object type = event.get("type");
-                if (type instanceof String t) {
-                    // Stream text deltas from Responses API
-                    if (
-                        "response.output_text.delta".equals(t) ||
-                        "response.refusal.delta".equals(t)
-                    ) {
-                        Object delta = event.get("delta");
-                        if (delta instanceof String) {
-                            return (String) delta;
-                        }
+    private static final class AnthropicStreamParser implements DeltaExtractor {
+        private boolean stopReasonReceived;
+        private boolean completed;
+
+        @Override
+        public String extract(String payload) {
+            Map<?, ?> event = jsonObject(payload, "Anthropic stream");
+            Object type = event.get("type");
+            if ("content_block_start".equals(type)) {
+                if (!(event.get("content_block") instanceof Map<?, ?> block)) {
+                    throw new IllegalStateException("Anthropic stream content block must be an object");
+                }
+                return textContent(List.of(block));
+            }
+            if ("content_block_delta".equals(type)) {
+                if (!(event.get("delta") instanceof Map<?, ?> delta)) {
+                    throw new IllegalStateException("Anthropic stream delta must be an object");
+                }
+                if ("input_json_delta".equals(delta.get("type"))) {
+                    throw new IllegalStateException("The provider requested an unsupported tool call");
+                }
+                if ("text_delta".equals(delta.get("type"))) {
+                    if (!(delta.get("text") instanceof String text)) {
+                        throw new IllegalStateException("Anthropic stream text delta must be a string");
                     }
+                    return text;
                 }
             }
-        } catch (Exception ex) {
-            // Streaming delta parse error - return empty
-            System.err.println(
-                "[LLMService] Error extracting Responses delta: " +
-                    ex.getMessage()
-            );
+            if ("message_delta".equals(type)) {
+                if (!(event.get("delta") instanceof Map<?, ?> delta)) {
+                    throw new IllegalStateException("Anthropic stream message delta must be an object");
+                }
+                Object reason = delta.get("stop_reason");
+                validateStopReason(reason, true);
+                stopReasonReceived = reason != null;
+            }
+            if ("message_stop".equals(type)) {
+                if (!stopReasonReceived) throw new IllegalStateException("Anthropic stream ended without a stop reason");
+                completed = true;
+            }
+            return "";
         }
-        return "";
+
+        @Override
+        public boolean isComplete() { return completed; }
+
+        @Override
+        public String finish(String aggregate) {
+            if (!completed) throw new IllegalStateException("Anthropic stream ended before message_stop");
+            return requireText(aggregate, "Anthropic stream");
+        }
+    }
+
+    private static final class ResponsesStreamParser implements DeltaExtractor {
+        private String completedText;
+
+        @Override
+        public String extract(String payload) {
+            Object parsed;
+            try {
+                parsed = SimpleJson.parse(payload);
+            } catch (RuntimeException ex) {
+                throw new IllegalStateException("OpenAI Responses stream returned invalid JSON", ex);
+            }
+            if (!(parsed instanceof Map<?, ?> event)) {
+                throw new IllegalStateException("OpenAI Responses stream event must be an object");
+            }
+            Object type = event.get("type");
+            if ("response.output_text.delta".equals(type)) {
+                if (!(event.get("delta") instanceof String text)) {
+                    throw new IllegalStateException("OpenAI Responses stream delta must be a string");
+                }
+                return text;
+            }
+            if ("response.refusal.delta".equals(type) || "response.refusal.done".equals(type)) {
+                throw new IllegalStateException("OpenAI refused the request");
+            }
+            if ("error".equals(type)) {
+                Object detail = event.get("message");
+                throw new IllegalStateException(
+                    "OpenAI Responses stream failed" + (detail == null ? "" : ": " + detail)
+                );
+            }
+            if ("response.failed".equals(type) || "response.incomplete".equals(type)) {
+                // Use the same status, error and refusal validation as nonstream responses.
+                parseResponsesObject(event.get("response"));
+                throw new IllegalStateException("OpenAI Responses stream did not complete: " + type);
+            }
+            if ("response.completed".equals(type)) {
+                completedText = parseResponsesObject(event.get("response"));
+            }
+            return "";
+        }
+
+        @Override
+        public boolean isComplete() {
+            return completedText != null;
+        }
+
+        @Override
+        public String finish(String aggregate) {
+            if (completedText == null) {
+                throw new IllegalStateException("OpenAI Responses stream ended before response.completed");
+            }
+            return completedText;
+        }
     }
 
     /**
@@ -938,14 +1070,14 @@ public final class LLMService {
         boolean useResponses = false;
         boolean supportsTemperature = true;
 
-        // GPT-5, GPT-4.1 and o-series (reasoning) are Responses-first in OpenAI docs
+        // Match actual reasoning families, rather than unrelated compatible models such as "orca".
         if (
             model.startsWith("gpt-5") ||
             model.startsWith("gpt-4.1") ||
-            model.startsWith("o")
+            model.matches("o[1-9](?:-.*)?")
         ) {
             useResponses = true;
-            supportsTemperature = false; // reasoning models typically ignore temperature
+            supportsTemperature = model.startsWith("gpt-4.1");
         } else if (
             model.startsWith("gpt-4o") ||
             model.startsWith("gpt-4") ||
@@ -970,10 +1102,118 @@ public final class LLMService {
     @FunctionalInterface
     private interface DeltaExtractor {
         String extract(String payload);
+
+        default boolean isComplete() { return false; }
+
+        default String finish(String aggregate) { return aggregate; }
     }
 
     private static String normalizeBase(String b) {
-        return b.endsWith("/") ? b.substring(0, b.length() - 1) : b;
+        String base = b.strip();
+        while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
+        // Accept both host roots and conventional API bases ending in /v1.
+        return base.endsWith("/v1") ? base.substring(0, base.length() - 3) : base;
+    }
+
+    /** Validate provider settings without making a request or exposing the API key. */
+    public static String configurationIssue() {
+        if (LLMPreferences.getModel() == null || LLMPreferences.getModel().isBlank()) {
+            return "Choose a model in LLM preferences before sending a request.";
+        }
+        try {
+            URI base = URI.create(LLMPreferences.getBaseUrl().strip());
+            if (!("http".equalsIgnoreCase(base.getScheme()) || "https".equalsIgnoreCase(base.getScheme())) ||
+                base.getHost() == null || base.getUserInfo() != null || base.getQuery() != null || base.getFragment() != null) {
+                return "Enter a valid HTTP or HTTPS provider base URL in LLM preferences.";
+            }
+        } catch (RuntimeException ex) {
+            return "Enter a valid HTTP or HTTPS provider base URL in LLM preferences.";
+        }
+        if (LLMPreferences.getMaxTokens() <= 0) return "Set Max tokens to a positive number in LLM preferences.";
+        if (LLMPreferences.getTimeoutSec() <= 0) return "Set Timeout to a positive number in LLM preferences.";
+        if (!Double.isFinite(LLMPreferences.getTemperature()) || LLMPreferences.getTemperature() < 0 ||
+            LLMPreferences.getTemperature() > 2) return "Set Temperature between 0 and 2 in LLM preferences.";
+        if ("anthropic".equalsIgnoreCase(LLMPreferences.getProvider()) && LLMPreferences.getTemperature() > 1) {
+            return "Set Temperature between 0 and 1 for Anthropic in LLM preferences.";
+        }
+        if (!"custom".equalsIgnoreCase(LLMPreferences.getProvider())) {
+            String key = LLMPreferences.getApiKey();
+            if (key == null || key.isBlank()) return "Add an API key in LLM preferences before sending a request.";
+        }
+        return null;
+    }
+
+    private static void validateConfiguration(List<Message> messages) {
+        if (Thread.currentThread().isInterrupted()) throw new CancellationException("Request stopped.");
+        if (messages.stream().anyMatch(message -> message == null)) throw new IllegalArgumentException("Messages must not contain null entries");
+        String issue = configurationIssue();
+        if (issue != null) throw new IllegalStateException(issue);
+    }
+
+    private static final class ProviderException extends RuntimeException {
+        ProviderException(String message) { super(message); }
+    }
+
+    private static ProviderException providerFailure(int status, String body) {
+        String code = providerErrorCode(body);
+        String guidance;
+        if (status == 401) guidance = "The provider rejected the API key. Check the key in LLM preferences.";
+        else if (status == 403) guidance = "The provider denied access. Check the key's permissions and model access.";
+        else if (status == 402 || isQuotaError(code)) guidance = "The provider's quota or credit balance is exhausted. Check the provider's billing and usage limits before retrying.";
+        else if (status == 429) guidance = "The provider's rate limit was reached. Wait briefly, then retry.";
+        else if (status == 404) guidance = "The provider endpoint or model was not found. Check the base URL and model in LLM preferences.";
+        else if (status >= 500) guidance = "The provider is temporarily unavailable. Try again shortly.";
+        else if (code.contains("context") || code.contains("token_limit")) guidance = "The request exceeds the model's context limit. Start a new conversation or make the request smaller.";
+        else guidance = "The provider rejected the request. Check the model and request settings in LLM preferences.";
+        // Never put the raw response in UI errors: HTML and credential echoes are common in gateway failures.
+        return new ProviderException(guidance + " (HTTP " + status + ")");
+    }
+
+    private static String providerErrorCode(String body) {
+        try {
+            Object parsed = SimpleJson.parse(body);
+            if (parsed instanceof Map<?, ?> response && response.get("error") instanceof Map<?, ?> error) {
+                Object code = error.get("code");
+                if (!(code instanceof String) || ((String) code).isBlank()) code = error.get("type");
+                return code instanceof String text ? text.toLowerCase(java.util.Locale.ROOT) : "";
+            }
+        } catch (RuntimeException ignore) {}
+        return "";
+    }
+
+    private static boolean isQuotaError(String code) {
+        return code.contains("quota") || code.contains("credit_balance") || code.contains("billing") ||
+            code.contains("spend_limit") || code.contains("usage_limit");
+    }
+
+    /** Concise recovery guidance for the chat UI; also unwrap asynchronous failures. */
+    public static String userFacingError(Throwable error) {
+        if (error == null) return "The request failed. Try again.";
+        Throwable cause = error;
+        while ((cause instanceof CompletionException || cause instanceof ExecutionException) && cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        for (Throwable current = cause; current != null; current = current.getCause()) {
+            if (current instanceof CancellationException || current instanceof InterruptedException) return "Request stopped.";
+            if (current instanceof HttpTimeoutException || current instanceof TimeoutException) {
+                return "The provider did not respond in time. Retry, request a smaller change, or increase Timeout in LLM preferences.";
+            }
+            if (current instanceof ProviderException) return current.getMessage();
+            if (current instanceof ConnectException || current instanceof UnknownHostException) {
+                return "Could not reach the provider. Check the base URL, network connection and proxy settings, then retry.";
+            }
+        }
+        if (cause instanceof IOException) return "The connection to the provider failed. Check your connection and retry.";
+        String message = cause.getMessage();
+        if (message == null || message.isBlank()) return "The request failed. Try again.";
+        if (message.contains("max_output_tokens")) {
+            return "The reply exceeded the output token limit. Increase Max tokens in LLM preferences or request a smaller change.";
+        }
+        if (message.contains("invalid JSON") || message.contains("stream ended") || message.contains("no text output") ||
+            message.contains("empty response body") || message.contains("did not complete")) {
+            return "The provider returned an incomplete or unreadable reply. Retry or check that the provider URL supports the selected model.";
+        }
+        return message.length() > 400 ? message.substring(0, 397) + "..." : message;
     }
 
     private static String dumpMessages(List<Message> messages) {
@@ -1016,26 +1256,25 @@ public final class LLMService {
         }
     }
 
-    private static String capitalize(String s) {
-        if (s == null || s.isEmpty()) return s;
-        return (
-            Character.toUpperCase(s.charAt(0)) +
-            (s.length() > 1 ? s.substring(1) : "")
-        );
-    }
-
     private static String esc(String s) {
         if (s == null) {
             return "";
         }
-        return s
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
-            .replace("\b", "\\b")
-            .replace("\f", "\\f");
+        StringBuilder escaped = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char value = s.charAt(i);
+            switch (value) {
+                case '\\': escaped.append("\\\\"); break;
+                case '"': escaped.append("\\\""); break;
+                case '\n': escaped.append("\\n"); break;
+                case '\r': escaped.append("\\r"); break;
+                case '\t': escaped.append("\\t"); break;
+                default:
+                    if (value < 0x20) escaped.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) value));
+                    else escaped.append(value);
+            }
+        }
+        return escaped.toString();
     }
 
     private HttpResponse<String> sendWithRetry(
@@ -1045,42 +1284,52 @@ public final class LLMService {
         String model
     ) throws Exception {
         int retries = 0;
+        long started = System.nanoTime();
+        long budget = req.timeout().orElse(Duration.ofSeconds(60)).toNanos();
         while (true) {
-            HttpResponse<String> resp = http.send(
-                req,
-                HttpResponse.BodyHandlers.ofString()
-            );
+            if (Thread.currentThread().isInterrupted()) throw new InterruptedException("Request stopped.");
+            long remaining = budget - (System.nanoTime() - started);
+            if (remaining <= 0) throw new HttpTimeoutException("The provider request timed out.");
+            HttpRequest bounded = HttpRequest.newBuilder(req, (name, value) -> true)
+                .timeout(Duration.ofNanos(remaining)).build();
+            HttpResponse<String> resp;
+            try {
+                resp = http.send(bounded, HttpResponse.BodyHandlers.ofString());
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw interrupted;
+            }
             int status = resp.statusCode();
-            if (!isRetryableStatus(status) || retries >= MAX_RETRIES) {
+            if (!isRetryableStatus(status) || isQuotaError(providerErrorCode(resp.body())) || retries >= MAX_RETRIES) {
                 return resp;
             }
             long delayMs = computeBackoffMillis(
                 retries,
                 resp.headers().firstValue("Retry-After").orElse(null)
             );
+            remaining = budget - (System.nanoTime() - started);
+            // Respect Retry-After, but never sleep past the configured total request deadline.
+            if (delayMs >= TimeUnit.NANOSECONDS.toMillis(remaining)) return resp;
             logRetry(provider, api, model, status, delayMs, retries + 1);
             try {
                 Thread.sleep(delayMs);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
-                throw new IOException(
-                    "LLM request interrupted during retry backoff",
-                    ex
-                );
+                throw ex;
             }
             retries++;
         }
     }
 
     public static boolean isRetryableStatus(int statusCode) {
-        return statusCode == 429 ||
+        return statusCode == 408 || statusCode == 429 || statusCode == 500 ||
             statusCode == 502 ||
             statusCode == 503 ||
-            statusCode == 504;
+            statusCode == 504 || statusCode == 529;
     }
 
     public static long computeBackoffMillis(int retryIndex, String retryAfterHeader) {
-        long delayMs = BASE_BACKOFF_MS << Math.max(0, retryIndex);
+        long delayMs = Math.min(30_000L, BASE_BACKOFF_MS << Math.min(5, Math.max(0, retryIndex)));
         long retryAfterMs = parseRetryAfterMillis(retryAfterHeader);
         if (retryAfterMs > delayMs) {
             delayMs = retryAfterMs;
@@ -1089,14 +1338,26 @@ public final class LLMService {
     }
 
     public static long parseRetryAfterMillis(String header) {
+        return parseRetryAfterMillis(header, Instant.now());
+    }
+
+    private static long parseRetryAfterMillis(String header, Instant now) {
         if (header == null || header.isBlank()) {
             return -1;
         }
         try {
             long seconds = Long.parseLong(header.trim());
-            return seconds * 1000L;
+            if (seconds < 0) return -1;
+            return Math.multiplyExact(seconds, 1000L);
         } catch (NumberFormatException ex) {
-            return -1;
+            try {
+                Instant target = ZonedDateTime.parse(header.trim(), DateTimeFormatter.RFC_1123_DATE_TIME).toInstant();
+                return Math.max(0, Duration.between(now, target).toMillis());
+            } catch (DateTimeParseException | ArithmeticException invalid) {
+                return -1;
+            }
+        } catch (ArithmeticException ex) {
+            return Long.MAX_VALUE;
         }
     }
 
@@ -1162,6 +1423,7 @@ public final class LLMService {
         if (listener == null) {
             throw new IllegalArgumentException("Stream listener required");
         }
+        validateConfiguration(messages);
         String provider = LLMPreferences.getProvider();
         if (provider.equalsIgnoreCase("anthropic")) {
             return streamAnthropic(messages, listener);

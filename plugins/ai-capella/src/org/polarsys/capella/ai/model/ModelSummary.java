@@ -142,6 +142,7 @@ public final class ModelSummary {
     public static void invalidate(Session session) {
         invalidateSummary(session);
         ModelIndex.invalidate(session);
+        ModelAnalytics.invalidate(session);
     }
 
     private static void invalidateSummary(Session session) {

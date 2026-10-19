@@ -44,9 +44,11 @@ def attitude = api.create("LogicalComponent", "Attitude Control", controller)
 def altitude = api.create("LogicalComponent", "Altitude Control", controller)
 def heading = api.create("LogicalComponent", "Heading Control", controller)
 
-// Each sub-component can have its own functions
-def stabilize = api.create("LogicalFunction", "Stabilize", attitude)
-def maintain = api.create("LogicalFunction", "Maintain Altitude", altitude)
+// Functions belong under the LA root function, then are allocated to components
+def stabilize = api.create("LA", "LogicalFunction", "Stabilize")
+def maintain = api.create("LA", "LogicalFunction", "Maintain Altitude")
+api.allocate(stabilize, attitude)
+api.allocate(maintain, altitude)
 ```
 
 ### Interface Definition

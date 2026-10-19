@@ -1,5 +1,7 @@
 package org.polarsys.capella.ai.preferences;
 
+import java.util.Locale;
+import java.util.function.Function;
 import org.eclipse.core.runtime.preferences.IEclipsePreferences;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.equinox.security.storage.ISecurePreferences;
@@ -101,8 +103,20 @@ public final class LLMPreferences {
     }
 
     private static String envAnyKey() {
-        String[] keys = new String[] {"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "AZURE_OPENAI_API_KEY", "OPENROUTER_API_KEY"};
-        for (String k : keys) { String v = System.getenv(k); if (v != null && !v.isBlank()) return v; }
-        return "";
+        return environmentKey(getProvider(), System::getenv);
+    }
+
+    private static String environmentKey(String provider, Function<String, String> environment) {
+        String name = switch (provider == null ? "" : provider.strip().toLowerCase(Locale.ROOT)) {
+            case "openai" -> "OPENAI_API_KEY";
+            case "anthropic" -> "ANTHROPIC_API_KEY";
+            case "azure-openai" -> "AZURE_OPENAI_API_KEY";
+            case "openrouter" -> "OPENROUTER_API_KEY";
+            // Custom endpoints may be unrelated to any hosted provider; use a deliberate generic key.
+            case "custom" -> "CAPELLA_AI_API_KEY";
+            default -> "CAPELLA_AI_API_KEY";
+        };
+        String value = environment.apply(name);
+        return value != null && !value.isBlank() ? value : "";
     }
 }

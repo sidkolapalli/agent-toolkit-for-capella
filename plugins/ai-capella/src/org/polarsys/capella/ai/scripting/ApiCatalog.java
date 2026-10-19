@@ -43,7 +43,11 @@ public final class ApiCatalog {
         "api.fs",
         "org.polarsys.capella.ai.scripting.FileSystemAPI",
         "api.skills",
-        "org.polarsys.capella.ai.scripting.SkillsAPI"
+        "org.polarsys.capella.ai.scripting.SkillsAPI",
+        "api.requirements",
+        "org.polarsys.capella.ai.scripting.RequirementsAPI",
+        "api.arcadia",
+        "org.polarsys.capella.ai.scripting.ArcadiaAPI"
     );
 
     private static final Map<String, List<String>> MODULE_NOTES =
@@ -72,6 +76,21 @@ public final class ApiCatalog {
                 "User-defined skills are trust-gated and may be disabled by default."
             )
         );
+        MODULE_NOTES.put("api.requirements", List.of(
+            "Requires the optional native Requirements viewpoint; check available() and viewpointEnabled().",
+            "Enable the viewpoint through the Assistant Requirements action before running semantic scripts.",
+            "Use native ReqIFIdentifier values for rule IDs; imported, satisfied and verified are distinct states.",
+            "Use satisfy(modelElement, requirement), verify(requirement, Constraint) and derive(derived, source)."
+        ));
+        MODULE_NOTES.put("api.arcadia", List.of(
+            "Typed native capability involvements and adjacent-layer capability realizations.",
+            "linearChain requires ordered leaf functions and matching exchanges; operationalScenario creates activity roles, messages, ends and events.",
+            "FunctionalChainInvolvementFunction/Link have no name attribute: use native IDs or stored involved references beneath the owning chain.",
+            "deploy requires BEHAVIOR and NODE Parts; physicalLink requires NODE Parts; allocateExchange creates native exchange and port allocations.",
+            "realizeInterface creates adjacent-layer exchange and endpoint port realizations atomically; realize the endpoint functions/components first.",
+            "constraint(owner, name, expression, subjects) stores a native owned Constraint/OpaqueExpression with 1..32 actual same-project subjects; a description alone is not its expression or scope.",
+            "All endpoints must belong to the captured model session. Inspect api/arcadia.md before creating engineering relationships."
+        ));
     }
 
     private ApiCatalog() {}
@@ -148,6 +167,14 @@ public final class ApiCatalog {
             errors.add(skillsError);
         }
 
+        String requirementsError = validateUnknownMethods(code, "api.requirements",
+            "api\\s*\\.\\s*requirements(?:\\s*\\(\\s*\\))?", methodNames("api.requirements"));
+        if (requirementsError != null) errors.add(requirementsError);
+
+        String arcadiaError = validateUnknownMethods(code, "api.arcadia",
+            "api\\s*\\.\\s*arcadia(?:\\s*\\(\\s*\\))?", methodNames("api.arcadia"));
+        if (arcadiaError != null) errors.add(arcadiaError);
+
         String diagramFindMisuse = detectDiagramFindMisuse(code);
         if (diagramFindMisuse != null) {
             errors.add(diagramFindMisuse);
@@ -165,8 +192,8 @@ public final class ApiCatalog {
         // ClassLoader usage is blocked by the Groovy sandbox.
         if (lower.contains(".classloader")) {
             return "Sandbox blocks ClassLoader usage. Avoid `api.class.classLoader.loadClass(...)`. " +
-                "Use pre-bound factories (CapellacoreFactory, OaFactory, CtxFactory, LaFactory, PaFactory, FaFactory, CsFactory, InformationFactory) " +
-                "or use OSGi bundle loading (FrameworkUtil.getBundle(api.class).bundleContext.getBundle(...).loadClass(...)) when needed.";
+                "Use pre-bound factories (CapellacoreFactory, OaFactory, CtxFactory, LaFactory, PaFactory, EpbsFactory, FaFactory, CsFactory, InformationFactory) " +
+                "or use the documented Capella APIs when needed.";
         }
 
         // Java reflection is blocked / unreliable (Method/Field/Constructor receivers are blocked).

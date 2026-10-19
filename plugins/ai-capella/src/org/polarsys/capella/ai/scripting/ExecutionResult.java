@@ -36,6 +36,8 @@ public record ExecutionResult(
         SECURITY_VIOLATION,
         /** Session or API not available */
         API_ERROR,
+        /** Model changes committed, but writing them to disk failed; do not repeat the script. */
+        SAVE_FAILED_AFTER_COMMIT,
         /** Script returned null or invalid result */
         INVALID_RESULT
     }

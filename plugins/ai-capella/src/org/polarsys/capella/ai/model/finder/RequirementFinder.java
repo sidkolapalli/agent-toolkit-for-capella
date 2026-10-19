@@ -2,49 +2,84 @@ package org.polarsys.capella.ai.model.finder;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.sirius.business.api.session.Session;
+import org.polarsys.capella.ai.scripting.RequirementsAPI;
 
-/** Typed finder utilities for Requirement elements. */
+/** Finder for native ReqIF identifiers and titles, with legacy name support. */
 public final class RequirementFinder {
     private RequirementFinder() {}
 
-    public static EObject findByName(ResourceSet rs, String name) {
-        if (rs == null || name == null) return null;
-        String target = name.trim();
-        for (Resource res : rs.getResources()) {
-            if (res == null) continue;
-            var it = res.getAllContents();
-            while (it.hasNext()) {
-                EObject eo = it.next();
-                if (!"Requirement".equals(eo.eClass().getName())) continue;
-                var f = eo.eClass().getEStructuralFeature("name");
-                if (f != null) {
-                    Object v = eo.eGet(f);
-                    if (v != null && target.equals(String.valueOf(v))) {
-                        return eo;
-                    }
-                }
-            }
+    public static EObject findByIdentifier(Session session, String identifier) {
+        if (session == null || identifier == null || identifier.isBlank()) return null;
+        RequirementsAPI requirements = new RequirementsAPI(session);
+        if (requirements.available()) {
+            EObject found = requirements.find(identifier.trim());
+            return isRequirement(found) ? found : null;
         }
-        return null;
+        return findByIdentifier(resources(session), identifier);
+    }
+
+    public static EObject findByIdentifier(ResourceSet resources, String identifier) {
+        return find(resources, identifier, "ReqIFIdentifier");
+    }
+
+    public static EObject findByName(Session session, String name) {
+        if (name == null || name.isBlank()) return null;
+        EObject identified = findByIdentifier(session, name);
+        return identified != null ? identified : findByName(resources(session), name);
+    }
+
+    public static EObject findByName(ResourceSet resources, String name) {
+        EObject identified = findByIdentifier(resources, name);
+        return identified != null ? identified : find(resources, name, "ReqIFLongName", "ReqIFName", "name");
     }
 
     public static List<EObject> listAll(Session session) {
-        List<EObject> out = new ArrayList<>();
-        if (session == null || session.getTransactionalEditingDomain() == null) return out;
-        ResourceSet rs = session.getTransactionalEditingDomain().getResourceSet();
-        for (Resource res : rs.getResources()) {
-            if (res == null) continue;
-            var it = res.getAllContents();
-            while (it.hasNext()) {
-                EObject eo = it.next();
-                if ("Requirement".equals(eo.eClass().getName())) out.add(eo);
+        return listAll(resources(session));
+    }
+
+    public static List<EObject> listAll(ResourceSet resources) {
+        List<EObject> result = new ArrayList<>();
+        if (resources == null) return result;
+        for (Resource resource : List.copyOf(resources.getResources())) {
+            if (resource == null) continue;
+            resource.getAllContents().forEachRemaining(item -> {
+                if (isRequirement(item)) result.add(item);
+            });
+        }
+        return result;
+    }
+
+    private static EObject find(ResourceSet resources, String value, String... features) {
+        if (resources == null || value == null || value.isBlank()) return null;
+        String target = value.trim();
+        EObject found = null;
+        for (EObject requirement : listAll(resources)) {
+            for (String featureName : features) {
+                var feature = requirement.eClass().getEStructuralFeature(featureName);
+                if (feature != null && target.equals(requirement.eGet(feature))) {
+                    if (found != null && found != requirement) {
+                        throw new IllegalStateException("Ambiguous requirement lookup: " + target);
+                    }
+                    found = requirement;
+                    break;
+                }
             }
         }
-        return out;
+        return found;
+    }
+
+    private static ResourceSet resources(Session session) {
+        return session != null && session.getTransactionalEditingDomain() != null
+            ? session.getTransactionalEditingDomain().getResourceSet() : null;
+    }
+
+    private static boolean isRequirement(EObject object) {
+        if (object == null || "Folder".equals(object.eClass().getName())) return false;
+        return "Requirement".equals(object.eClass().getName()) || object.eClass().getEAllSuperTypes().stream()
+            .anyMatch(type -> "Requirement".equals(type.getName()));
     }
 }

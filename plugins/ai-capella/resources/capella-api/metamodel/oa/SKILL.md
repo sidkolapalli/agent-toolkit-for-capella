@@ -19,15 +19,15 @@ Activities performed by actors to achieve capabilities.
 def activity = api.create("OA", "OperationalActivity", "Pick Up Package")
 api.set(activity, "description", "Operator picks up package from warehouse")
 
-// Link activity to capability
-api.link(activity, cap, "involvement")
+// Capability/activity involvement requires a native typed Capella operation;
+// the generic api.link(..., "involvement") helper does not create that structure.
 ```
 
 ### Entity / OperationalActor
 Who performs the activities.
 
 ```groovy
-def actor = api.create("OA", "Entity", "Delivery Driver")
+def actor = api.create("OA", "OperationalActor", "Delivery Driver")
 api.set(actor, "description", "Person who delivers packages")
 ```
 
@@ -43,11 +43,6 @@ def cap = api.create("OA", "OperationalCapability", "Package Delivery")
 def pickup = api.create("OA", "OperationalActivity", "Pick Up")
 def transport = api.create("OA", "OperationalActivity", "Transport")
 def deliver = api.create("OA", "OperationalActivity", "Deliver")
-
-// Link to capability
-[pickup, transport, deliver].each { act ->
-    api.link(act, cap, "involvement")
-}
 
 // Create flow between activities
 api.link(pickup, transport, "FunctionalExchange")

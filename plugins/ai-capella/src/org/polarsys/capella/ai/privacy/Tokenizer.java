@@ -99,6 +99,32 @@ public final class Tokenizer {
         return out;
     }
 
+    /** A schema-identified model name or identifier, including quotes and line breaks. */
+    public String tokenizeDataValue(String input) {
+        if (input == null || input.isBlank() || TOKEN.matcher(input).matches()) return input;
+        String result = tokenForValue(input, UUID.matcher(input).matches() ? "UUID" : "ELEM");
+        maybeWriteAudit();
+        return result;
+    }
+
+    /** Redact registered model values in prose feedback as well as quoted labels and UUIDs. */
+    public String tokenizeKnownText(String input) {
+        String result = tokenizeText(input);
+        if (result == null || result.isBlank()) return result;
+        List<Map.Entry<String, String>> known;
+        synchronized (this) { known = new ArrayList<>(valueToToken.entrySet()); }
+        known.sort((left, right) -> Integer.compare(right.getKey().length(), left.getKey().length()));
+        for (var entry : known) {
+            String value = entry.getKey();
+            if (value.isEmpty()) continue;
+            String start = Character.isLetterOrDigit(value.charAt(0)) ? "(?<![\\p{L}\\p{N}_])" : "";
+            String end = Character.isLetterOrDigit(value.charAt(value.length() - 1)) ? "(?![\\p{L}\\p{N}_])" : "";
+            result = Pattern.compile(start + Pattern.quote(value) + end).matcher(result)
+                .replaceAll(Matcher.quoteReplacement(entry.getValue()));
+        }
+        return result;
+    }
+
     private String tokenizeByPattern(String input, Pattern pattern, String kind) {
         Matcher m = pattern.matcher(input);
         StringBuffer sb = new StringBuffer(input.length() + 64);

@@ -107,7 +107,18 @@ public final class CodeExecutionRouter {
         String llmResponse,
         String sessionId
     ) {
-        return executeAttempt(session, llmResponse, null, 1, sessionId, null);
+        return executeAttempt(session, llmResponse, null, 1, sessionId, null, false);
+    }
+
+    /** Execute an already decoded reply, preserving the exact code the user reviewed. */
+    public static Result executeReviewed(
+        Session session,
+        String reply,
+        String labelHint,
+        String sessionId,
+        java.util.Map<String, Object> extraBindings
+    ) {
+        return executeAttempt(session, reply, labelHint, 1, sessionId, extraBindings, true);
     }
 
     private static Result executeAttempt(
@@ -116,7 +127,8 @@ public final class CodeExecutionRouter {
         String labelHint,
         int attempts,
         String sessionId,
-        java.util.Map<String, Object> extraBindings
+        java.util.Map<String, Object> extraBindings,
+        boolean alreadyDecoded
     ) {
         if (session == null) {
             return Result.noCode(
@@ -153,15 +165,14 @@ public final class CodeExecutionRouter {
             );
         }
 
-        String wrapped = wrapInBatchIfNeeded(code, labelHint);
+        // GroovyExecutor owns the script transaction. Reviewed source must keep
+        // its original scope and field initializers as well as its exact text.
+        String wrapped = alreadyDecoded ? code : wrapInBatchIfNeeded(code, labelHint);
 
         // Execute the code
-        ExecutionResult execResult = GroovyExecutor.execute(
-            session,
-            wrapped,
-            extraBindings,
-            sessionId
-        );
+        ExecutionResult execResult = alreadyDecoded
+            ? GroovyExecutor.executeDecoded(session, wrapped, extraBindings, sessionId)
+            : GroovyExecutor.execute(session, wrapped, extraBindings, sessionId);
 
         if (execResult.success()) {
             StringBuilder output = new StringBuilder();
@@ -280,14 +291,18 @@ public final class CodeExecutionRouter {
             labelHint,
             attemptCount,
             sessionId,
-            extraBindings
+            extraBindings,
+            false
         );
 
         int retriesUsed = 0;
         while (
             !result.success &&
             retriesUsed < maxRetries &&
-            result.executionResult != null
+            result.executionResult != null &&
+            result.executionResult.code() != ExecutionResult.ErrorCode.SAVE_FAILED_AFTER_COMMIT &&
+            result.executionResult.code() != ExecutionResult.ErrorCode.TIMEOUT &&
+            llmCallback != null
         ) {
             // Get error feedback for LLM
             String errorFeedback = result.executionResult.formatForLLM();
@@ -314,7 +329,8 @@ public final class CodeExecutionRouter {
                 labelHint,
                 attemptCount,
                 sessionId,
-                extraBindings
+                extraBindings,
+                false
             );
         }
 
@@ -565,7 +581,8 @@ public final class CodeExecutionRouter {
         sb.append("### Quick Start\n\n");
         sb.append("```groovy\n");
         sb.append("// Get architecture layer root\n");
-        sb.append("def saLayer = api.layer(\"SA\")  // OA, SA, LA, PA\n\n");
+        sb.append("def saLayer = api.layer(\"SA\")  // OA, SA, LA, PA, EPBS\n\n");
+        sb.append("// EPBS uses ConfigurationItem breakdowns and PhysicalArtifactRealization links to PA components.\n\n");
         sb.append("// Optional: summarize current model (on-demand)\n");
         sb.append("log.info(api.summary())\n\n");
         sb.append("// Find an element (type + name)\n");

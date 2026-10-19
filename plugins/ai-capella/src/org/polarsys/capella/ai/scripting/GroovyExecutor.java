@@ -2,6 +2,7 @@ package org.polarsys.capella.ai.scripting;
 
 import groovy.lang.Binding;
 import groovy.lang.GroovyShell;
+import groovy.transform.ConditionalInterrupt;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Arrays;
@@ -19,24 +20,36 @@ import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.codehaus.groovy.control.CompilerConfiguration;
+import org.codehaus.groovy.ast.ClassHelper;
+import org.codehaus.groovy.ast.Parameter;
+import org.codehaus.groovy.ast.VariableScope;
+import org.codehaus.groovy.ast.expr.ArgumentListExpression;
+import org.codehaus.groovy.ast.expr.ClosureExpression;
+import org.codehaus.groovy.ast.expr.StaticMethodCallExpression;
+import org.codehaus.groovy.ast.stmt.ReturnStatement;
+import org.codehaus.groovy.control.customizers.ASTTransformationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.codehaus.groovy.control.customizers.SecureASTCustomizer;
+import org.codehaus.groovy.runtime.InvokerHelper;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.sirius.business.api.session.Session;
+import org.eclipse.swt.widgets.Display;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.privacy.Tokenizer;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 
 /**
  * Sandboxed Groovy executor for LLM-generated scripts.
- * Executes scripts with Capella API bindings in a secure, time-limited environment.
+ * Executes scripts with Capella API bindings, restricted operations, and a
+ * cooperative deadline. Injected checks cover Groovy loops, methods, and closures;
+ * they cannot preempt an arbitrary blocking Java call.
  *
  * <p>Security features:
  * <ul>
  *   <li>30-second execution timeout</li>
  *   <li>Blocked dangerous operations (System.exit, Runtime.exec, file I/O)</li>
  *   <li>Limited imports to safe packages</li>
- *   <li>Memory-bounded via executor pool</li>
+ *   <li>Model writes roll back on cancellation before completion</li>
  * </ul>
  *
  * <p>Script bindings:
@@ -68,6 +81,11 @@ public final class GroovyExecutor {
         new ConcurrentHashMap<>();
 
     private static volatile long lastCleanupMs = 0L;
+
+    private static final int MAX_SCRIPT_NESTING = 16;
+    private static final ThreadLocal<ActiveScript> ACTIVE_SCRIPT = new ThreadLocal<>();
+
+    private record ActiveScript(Session session, SessionSafeguards.ExecutionControl control, int depth) {}
 
     /** Executor for running scripts with timeout */
     private static final ExecutorService EXECUTOR =
@@ -105,6 +123,18 @@ public final class GroovyExecutor {
     );
 
     private GroovyExecutor() {}
+
+    /** Validate exact decoded proposal source without bindings, execution or a model transaction. */
+    public static GroovyCompilationValidator.Report compileDecoded(String script,
+            java.util.function.BooleanSupplier cancelled) {
+        return GroovyCompilationValidator.validate(script, cancelled);
+    }
+
+    /** A bounded wait for cold compiler startup; cancellation remains separate from a compile error. */
+    public static GroovyCompilationValidator.Report compileDecoded(String script,
+            java.util.function.BooleanSupplier cancelled, long timeoutMs) {
+        return GroovyCompilationValidator.validate(script, cancelled, timeoutMs);
+    }
 
     /**
      * Execute a Groovy script with Capella API bindings.
@@ -187,10 +217,31 @@ public final class GroovyExecutor {
         java.util.Map<String, Object> extraBindings,
         String sessionId
     ) {
+        return executeInternal(session, script, timeoutMs, extraBindings, sessionId, true);
+    }
+
+    /** Execute exactly the already-decoded script approved by the user, preserving session variables. */
+    public static ExecutionResult executeDecoded(
+        Session session,
+        String script,
+        java.util.Map<String, Object> extraBindings,
+        String sessionId
+    ) {
+        return executeInternal(session, script, DEFAULT_TIMEOUT_MS, extraBindings, sessionId, false);
+    }
+
+    private static ExecutionResult executeInternal(
+        Session session,
+        String script,
+        long timeoutMs,
+        java.util.Map<String, Object> extraBindings,
+        String sessionId,
+        boolean decodePrivacy
+    ) {
         long startTime = System.currentTimeMillis();
 
         final String resolvedScript =
-            sessionId != null &&
+            decodePrivacy && sessionId != null &&
             !sessionId.isBlank() &&
             LLMPreferences.isPrivacyTokenizationEnabled()
                 ? Tokenizer.forSession(sessionId).detokenizeText(script)
@@ -217,6 +268,41 @@ public final class GroovyExecutor {
                     " characters"
             );
         }
+        if (timeoutMs <= 0) {
+            return ExecutionResult.fail(
+                ExecutionResult.ErrorCode.INVALID_RESULT,
+                "Script timeout must be positive"
+            );
+        }
+        if (session.getTransactionalEditingDomain() == null) {
+            return ExecutionResult.fail(
+                ExecutionResult.ErrorCode.API_ERROR,
+                "No transactional editing domain available for model writes"
+            );
+        }
+        if (SessionSafeguards.isInWriteContext()) {
+            ActiveScript parent = ACTIVE_SCRIPT.get();
+            if (parent == null) {
+                return ExecutionResult.fail(ExecutionResult.ErrorCode.API_ERROR,
+                    "Run scripts from a background thread outside an existing model transaction");
+            }
+            if (parent.session() != session) {
+                return recordNestedFailure(ExecutionResult.fail(ExecutionResult.ErrorCode.API_ERROR,
+                    "Nested scripts must use the parent Capella session"));
+            }
+            if (parent.depth() >= MAX_SCRIPT_NESTING) {
+                return recordNestedFailure(ExecutionResult.fail(ExecutionResult.ErrorCode.SECURITY_VIOLATION,
+                    "Maximum nested script depth exceeded"));
+            }
+            return executeNested(session, resolvedScript, timeoutMs, extraBindings, parent, startTime);
+        }
+        // A worker writes through Display.syncExec. Waiting for it on SWT would deadlock.
+        if (Display.getCurrent() != null) {
+            return ExecutionResult.fail(ExecutionResult.ErrorCode.API_ERROR,
+                "Run scripts from a background thread; the SWT UI thread cannot wait for model execution");
+        }
+        SessionSafeguards.ExecutionControl control =
+            new SessionSafeguards.ExecutionControl(timeoutMs);
 
         // Create script logger for output capture
         ScriptLogger logger = new ScriptLogger();
@@ -241,40 +327,46 @@ public final class GroovyExecutor {
 
         // Execute with timeout
         Callable<Object> task = () -> {
-            try {
-                return shell.evaluate(resolvedScript);
-            } catch (SecurityException e) {
-                throw new SecurityException(
-                    "Blocked operation: " + e.getMessage(),
-                    e
-                );
-            }
+            return SessionSafeguards.withExecutionControl(control, () -> {
+                try {
+                    // Compile off SWT; execute all mutations as one undoable command.
+                    Class<?> compiled = shell.getClassLoader().parseClass(resolvedScript);
+                    control.checkCancelled();
+                    return SessionSafeguards.runWrite(session, "Execute Script", () -> {
+                        // Instance initializers may use the API, so construct inside the command too.
+                        Object value = runCompiled(compiled, binding, new ActiveScript(session, control, 1));
+                        control.checkCancelled();
+                        try {
+                            // Also persist raw factory/EMF mutations after commit.
+                            SessionSafeguards.requestSave(session);
+                        } catch (Exception e) {
+                            throw new IllegalStateException("Model save failed", e);
+                        }
+                        return value;
+                    });
+                } catch (SecurityException e) {
+                    throw new SecurityException(
+                        "Blocked operation: " + e.getMessage(),
+                        e
+                    );
+                }
+            });
         };
 
+        Future<Object> future = null;
         try {
-            Future<Object> future = EXECUTOR.submit(task);
+            future = EXECUTOR.submit(task);
             Object result;
             try {
-                result = future.get(timeoutMs, TimeUnit.MILLISECONDS);
+                result = future.get(control.remainingNanos(), TimeUnit.NANOSECONDS);
             } catch (TimeoutException e) {
+                control.cancel();
                 future.cancel(true);
-                return ExecutionResult.timeout(timeoutMs, logger.getMessages());
+                control.awaitWritesFinished();
+                return cancellationResult(control, timeoutMs, logger, startTime);
             }
 
-            // Ensure model is saved after successful script execution
             long duration = System.currentTimeMillis() - startTime;
-            try {
-                SessionSafeguards.requestSave(session);
-            } catch (Exception e) {
-                LOG.log(Level.SEVERE, "Post-script save failed - changes not persisted", e);
-                return ExecutionResult.fail(
-                    ExecutionResult.ErrorCode.API_ERROR,
-                    "Script executed successfully but model save failed: " + e.getMessage(),
-                    getStackTrace(e),
-                    logger.getMessages(),
-                    duration
-                );
-            }
 
             return ExecutionResult.success(
                 result,
@@ -284,6 +376,23 @@ public final class GroovyExecutor {
         } catch (java.util.concurrent.ExecutionException e) {
             Throwable cause = e.getCause();
             long duration = System.currentTimeMillis() - startTime;
+
+            Throwable saveFailure = findSaveFailure(cause);
+            if (saveFailure != null) {
+                return ExecutionResult.fail(
+                    ExecutionResult.ErrorCode.SAVE_FAILED_AFTER_COMMIT,
+                    saveFailure.getMessage(),
+                    getStackTrace(saveFailure),
+                    logger.getMessages(),
+                    duration
+                );
+            }
+
+            if (control.isCancelled() || containsCancellation(cause)) {
+                control.cancel();
+                control.awaitWritesFinished();
+                return cancellationResult(control, timeoutMs, logger, startTime);
+            }
 
             if (cause instanceof SecurityException) {
                 String message = withSecurityHint(cause.getMessage());
@@ -333,7 +442,15 @@ public final class GroovyExecutor {
                 duration
             );
         } catch (InterruptedException e) {
+            control.cancel();
+            if (future != null) {
+                future.cancel(true);
+            }
+            control.awaitWritesFinished();
             Thread.currentThread().interrupt();
+            if (control.wasCommitted()) {
+                return cancellationResult(control, timeoutMs, logger, startTime);
+            }
             return ExecutionResult.fail(
                 ExecutionResult.ErrorCode.TIMEOUT,
                 "Script execution was interrupted"
@@ -351,6 +468,112 @@ public final class GroovyExecutor {
         }
     }
 
+    /**
+     * Child skills run in the already-owned SWT transaction, never by submitting
+     * a worker which would dispatch back to this blocked thread. Their bindings
+     * are local, and their deadline is bounded by the parent's remaining budget.
+     */
+    private static ExecutionResult executeNested(
+        Session session,
+        String script,
+        long timeoutMs,
+        Map<String, Object> extraBindings,
+        ActiveScript parent,
+        long startTime
+    ) {
+        ScriptLogger logger = new ScriptLogger();
+        SessionSafeguards.ExecutionControl control =
+            new SessionSafeguards.ExecutionControl(timeoutMs, parent.control());
+        try {
+            Object value = SessionSafeguards.withExecutionControl(control, () -> {
+                Binding binding = createBinding(session, logger, extraBindings, null, null);
+                GroovyShell shell = new GroovyShell(GroovyExecutor.class.getClassLoader(), binding, createSecureConfig());
+                Class<?> compiled = shell.getClassLoader().parseClass(script);
+                control.checkCancelled();
+                Object result = runCompiled(compiled, binding,
+                    new ActiveScript(session, control, parent.depth() + 1));
+                control.checkCancelled();
+                return result;
+            });
+            return ExecutionResult.success(value, logger.getMessages(), System.currentTimeMillis() - startTime);
+        } catch (Throwable failure) {
+            parent.control().markRollbackOnly(failure);
+            if (control.isCancelled() || containsCancellation(failure)) {
+                control.cancel();
+                return ExecutionResult.timeout(timeoutMs, logger.getMessages());
+            }
+            ExecutionResult.ErrorCode code = failure instanceof SecurityException
+                ? ExecutionResult.ErrorCode.SECURITY_VIOLATION
+                : failure instanceof org.codehaus.groovy.control.MultipleCompilationErrorsException
+                    ? ExecutionResult.ErrorCode.COMPILATION_ERROR : ExecutionResult.ErrorCode.RUNTIME_ERROR;
+            return ExecutionResult.fail(code, "Nested script failed: " + failure.getMessage(),
+                getStackTrace(failure), logger.getMessages(), System.currentTimeMillis() - startTime);
+        }
+    }
+
+    private static Object runCompiled(Class<?> compiled, Binding binding, ActiveScript current) {
+        ActiveScript previous = ACTIVE_SCRIPT.get();
+        ACTIVE_SCRIPT.set(current);
+        try {
+            return InvokerHelper.createScript(compiled, binding).run();
+        } finally {
+            if (previous == null) ACTIVE_SCRIPT.remove();
+            else ACTIVE_SCRIPT.set(previous);
+        }
+    }
+
+    /** Failed skills make the outer operation atomic even if callers ignore their result. */
+    static ExecutionResult recordNestedFailure(ExecutionResult result) {
+        ActiveScript active = ACTIVE_SCRIPT.get();
+        if (result.failed() && active != null && SessionSafeguards.isInWriteContext()) {
+            active.control().markRollbackOnly(new IllegalStateException(result.message()));
+        }
+        return result;
+    }
+
+    private static ExecutionResult cancellationResult(
+        SessionSafeguards.ExecutionControl control,
+        long timeoutMs,
+        ScriptLogger logger,
+        long startTime
+    ) {
+        long duration = System.currentTimeMillis() - startTime;
+        if (control.wasCommitted()) {
+            if (control.wasSaved()) {
+                logger.warn("Model changes were applied and saved before cancellation completed.");
+                return ExecutionResult.success(control.committedValue(), logger.getMessages(), duration);
+            }
+            Throwable saveFailure = control.saveFailure();
+            return ExecutionResult.fail(
+                ExecutionResult.ErrorCode.SAVE_FAILED_AFTER_COMMIT,
+                saveFailure != null ? saveFailure.getMessage()
+                    : "Model changes were applied, but saving was not confirmed. Save the model; do not rerun the script.",
+                saveFailure != null ? getStackTrace(saveFailure) : null,
+                logger.getMessages(),
+                duration
+            );
+        }
+        return ExecutionResult.timeout(timeoutMs, logger.getMessages());
+    }
+
+    private static boolean containsCancellation(Throwable cause) {
+        for (Throwable current = cause; current != null; current = current.getCause()) {
+            if (current instanceof SessionSafeguards.ScriptCancelledException) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Throwable findSaveFailure(Throwable cause) {
+        for (Throwable current = cause; current != null; current = current.getCause()) {
+            if (current instanceof SessionSafeguards.SaveFailedAfterCommitException) {
+                return current;
+            }
+        }
+        return null;
+    }
+
     private static String withSecurityHint(String message) {
         String safe = message != null ? message : "Security violation";
         String lower = safe.toLowerCase();
@@ -361,7 +584,7 @@ public final class GroovyExecutor {
             lower.contains("[java.lang.classloader]")
         ) {
             return safe + "\nHint: ClassLoader is blocked in the Groovy sandbox. " +
-                "Use pre-bound factories (CapellacoreFactory, OaFactory, CtxFactory, LaFactory, PaFactory, FaFactory, CsFactory, InformationFactory) " +
+                "Use pre-bound factories (CapellacoreFactory, OaFactory, CtxFactory, LaFactory, PaFactory, EpbsFactory, FaFactory, CsFactory, InformationFactory) " +
                 "or OSGi bundle loading via FrameworkUtil.getBundle(api.class).";
         }
         if (lower.contains("java.lang.reflect") || lower.contains("reflect")) {
@@ -401,26 +624,11 @@ public final class GroovyExecutor {
         Set<String> reservedKeys,
         Runnable resetHook
     ) {
-        // Main API facade (reuse in stateful sessions so caches persist across turns)
-        Object existingApi = null;
-        try {
-            existingApi =
-                binding != null ? binding.getVariables().get("api") : null;
-        } catch (Exception ignored) {
-            // best effort
-        }
-        if (existingApi instanceof CapellaAPI) {
-            if (reservedKeys != null) {
-                reservedKeys.add("api");
-            }
-        } else {
-            setBindingVar(
-                binding,
-                reservedKeys,
-                "api",
-                new CapellaAPI(session, resetHook)
-            );
-        }
+        // Queries can cache objects created during a subsequently rolled-back
+        // command. Keep user variables, but start each execution with fresh API caches.
+        setBindingVar(binding, reservedKeys, "api", new CapellaAPI(session, resetHook));
+
+        setBindingVar(binding, reservedKeys, "requirements", new RequirementsAPI(session));
 
         // Direct session access for advanced operations
         setBindingVar(binding, reservedKeys, "session", session);
@@ -462,6 +670,12 @@ public final class GroovyExecutor {
             reservedKeys,
             "PaFactory",
             org.polarsys.capella.core.data.pa.PaFactory.eINSTANCE
+        );
+        setBindingVar(
+            binding,
+            reservedKeys,
+            "EpbsFactory",
+            org.polarsys.capella.core.data.epbs.EpbsFactory.eINSTANCE
         );
         setBindingVar(
             binding,
@@ -799,7 +1013,7 @@ public final class GroovyExecutor {
     /**
      * Create a secure compiler configuration.
      */
-    private static CompilerConfiguration createSecureConfig() {
+    static CompilerConfiguration createSecureConfig() {
         CompilerConfiguration config = new CompilerConfiguration();
 
         // Add default imports for convenience
@@ -819,6 +1033,7 @@ public final class GroovyExecutor {
             "org.polarsys.capella.core.data.ctx",
             "org.polarsys.capella.core.data.la",
             "org.polarsys.capella.core.data.pa",
+            "org.polarsys.capella.core.data.epbs",
             "org.polarsys.capella.core.data.fa",
             "org.polarsys.capella.core.data.cs",
             "org.polarsys.capella.core.data.information",
@@ -826,6 +1041,23 @@ public final class GroovyExecutor {
             "org.polarsys.capella.core.data.capellamodeller"
         );
         config.addCompilationCustomizers(imports);
+
+        ClosureExpression cancellationCondition = new ClosureExpression(
+            Parameter.EMPTY_ARRAY,
+            new ReturnStatement(new StaticMethodCallExpression(
+                ClassHelper.make(SessionSafeguards.class),
+                "isScriptCancellationRequested",
+                ArgumentListExpression.EMPTY_ARGUMENTS
+            ))
+        );
+        cancellationCondition.setVariableScope(new VariableScope());
+        config.addCompilationCustomizers(new ASTTransformationCustomizer(
+            Map.of(
+                "value", cancellationCondition,
+                "thrown", SessionSafeguards.ScriptCancelledException.class
+            ),
+            ConditionalInterrupt.class
+        ));
 
         // Add security restrictions
         SecureASTCustomizer secure = new SecureASTCustomizer();

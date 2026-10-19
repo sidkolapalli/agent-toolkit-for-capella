@@ -13,7 +13,16 @@ import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.polarsys.capella.ai.tools.DiagramCommands;
 import org.polarsys.capella.core.data.cs.BlockArchitecture;
 import org.polarsys.capella.core.data.cs.Component;
+import org.polarsys.capella.core.data.ctx.Capability;
+import org.polarsys.capella.core.data.ctx.SystemFunction;
 import org.polarsys.capella.core.data.fa.AbstractFunction;
+import org.polarsys.capella.core.data.la.CapabilityRealization;
+import org.polarsys.capella.core.data.la.LogicalArchitecture;
+import org.polarsys.capella.core.data.la.LogicalFunction;
+import org.polarsys.capella.core.data.oa.OperationalActivity;
+import org.polarsys.capella.core.data.oa.OperationalCapability;
+import org.polarsys.capella.core.data.pa.PhysicalArchitecture;
+import org.polarsys.capella.core.data.pa.PhysicalFunction;
 import org.polarsys.capella.core.model.helpers.BlockArchitectureExt;
 
 /**
@@ -97,10 +106,11 @@ public final class DiagramAPI {
             target
         );
         if (actualTarget == null) {
-            actualTarget = target;
+            throw new IllegalArgumentException(buildTargetError(descriptionName, target));
         }
 
         return DiagramCommands.createAndOpenDiagram(
+            session,
             actualTarget,
             descriptionName,
             name
@@ -147,6 +157,7 @@ public final class DiagramAPI {
         }
 
         DRepresentation created = DiagramCommands.createAndOpenDiagram(
+            session,
             resolvedTarget,
             descriptionName,
             name
@@ -177,10 +188,9 @@ public final class DiagramAPI {
         }
 
         if (description.contains("data flow blank")) {
-            EObject functionPkg = findFunctionPkgTarget(target);
-            if (functionPkg != null) return functionPkg;
+            if (isDataFlowTarget(target, description)) return target;
             EObject rootFunction = findRootFunctionTarget(target);
-            if (rootFunction != null) return rootFunction;
+            return isDataFlowTarget(rootFunction, description) ? rootFunction : null;
         }
 
         if (description.contains("architecture blank")) {
@@ -230,6 +240,23 @@ public final class DiagramAPI {
         }
 
         return target;
+    }
+
+    private boolean isDataFlowTarget(EObject target, String description) {
+        if (description.contains("system data flow blank")) {
+            return target instanceof SystemFunction || target instanceof Capability;
+        }
+        if (description.contains("logical data flow blank")) {
+            return target instanceof LogicalFunction ||
+                (target instanceof CapabilityRealization &&
+                    resolveArchitecture(target) instanceof LogicalArchitecture);
+        }
+        if (description.contains("physical data flow blank")) {
+            return target instanceof PhysicalFunction ||
+                (target instanceof CapabilityRealization &&
+                    resolveArchitecture(target) instanceof PhysicalArchitecture);
+        }
+        return false;
     }
 
     private EObject findRootComponentTarget(EObject target) {
@@ -350,11 +377,13 @@ public final class DiagramAPI {
         }
 
         if (desc.contains("operational activity")) {
-            if (classNameContains(preferredTarget, "OperationalActivity")) {
+            if (preferredTarget instanceof OperationalActivity ||
+                (desc.contains("interaction") && preferredTarget instanceof OperationalCapability)) {
                 return preferredTarget;
             }
-            EObject found = findFirstByClassName(preferredTarget, "OperationalActivity");
-            if (found != null) return found;
+            EObject rootActivity = findRootFunctionTarget(preferredTarget);
+            if (rootActivity instanceof OperationalActivity) return rootActivity;
+            return null;
         }
 
         if (desc.contains("operational entity")) {
@@ -1266,8 +1295,8 @@ public final class DiagramAPI {
             return null;
         }
         return switch (type.toUpperCase()) {
-            case "OAB", "OPERATIONAL" -> "Operational Activity Blank";
-            case "OAIB" -> "Operational Interaction Blank";
+            case "OAB", "OPERATIONAL" -> "Operational Entity Blank";
+            case "OAIB" -> "Operational Activity Interaction Blank";
             case "OCB" -> "Operational Capabilities Blank";
             case "OES" -> "Operational Entity Blank";
             case "SAB", "SYSTEM" -> "System Architecture Blank";

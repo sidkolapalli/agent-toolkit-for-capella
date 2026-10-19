@@ -13,11 +13,12 @@ api.set(func, "description", "Processes raw sensor input into usable data")
 ```
 
 ### SystemComponent
-Building blocks of the system.
+The single system under study, treated as a black box. Allocate system functions to this component. Put internal component decomposition in LA and PA.
 
 ```groovy
-def comp = api.create("SA", "SystemComponent", "Navigation Module")
-api.set(comp, "description", "Handles all navigation functions")
+def comp = api.find("SystemComponent", "System")
+if (comp == null) throw new IllegalArgumentException("Inspect the SA system component and use its actual name or UUID")
+api.set(comp, "description", "System boundary under study")
 ```
 
 ### SystemActor
@@ -53,19 +54,20 @@ api.set(e3, "name", "Processed Data")
 
 ```groovy
 def func = api.find("SystemFunction", "Process Data")
-def comp = api.find("SystemComponent", "Processor")
+def comp = api.find("SystemComponent", "System")
+if (func == null || comp == null) throw new IllegalArgumentException("Inspect the actual function and system identifiers first")
 
 // Allocate function to component
-api.link(func, comp, "allocation")
+api.allocate(func, comp)
 ```
 
-### Component Hierarchy
+### Internal Component Decomposition
 
 ```groovy
-def system = api.create("SA", "SystemComponent", "Drone System")
-def nav = api.create("SystemComponent", "Navigation", system)
-def sensor = api.create("SystemComponent", "Sensors", system)
-def comms = api.create("SystemComponent", "Communications", system)
+// Internal decomposition belongs to Logical Architecture.
+def nav = api.create("LA", "LogicalComponent", "Navigation")
+def sensor = api.create("LA", "LogicalComponent", "Sensors")
+def comms = api.create("LA", "LogicalComponent", "Communications")
 ```
 
 ## Diagram Types

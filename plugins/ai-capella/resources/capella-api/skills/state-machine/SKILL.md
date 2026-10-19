@@ -37,28 +37,30 @@ def active = api.create("State", "Active", region)
 def error = api.create("State", "Error", region)
 
 // 5. Create initial pseudo-state
-def initial = api.create("Pseudostate", "Initial", region)
-api.set(initial, "kind", "INITIAL")
+def initial = api.create("InitialPseudoState", "Initial", region)
 
-// 6. Create transitions
+// 6. Create native StateTransition objects in their owning region
+def connectStates = { source, target, name ->
+    def transition = api.create("StateTransition", name, region)
+    api.set(transition, "source", source)
+    api.set(transition, "target", target)
+    transition
+}
+
 // Initial -> Idle
-def t0 = api.link(initial, idle, "Transition")
+def t0 = connectStates(initial, idle, "initialize")
 
 // Idle -> Active (on activate command)
-def t1 = api.link(idle, active, "Transition")
-api.set(t1, "name", "activate")
+def t1 = connectStates(idle, active, "activate")
 
 // Active -> Idle (on deactivate command)
-def t2 = api.link(active, idle, "Transition")
-api.set(t2, "name", "deactivate")
+def t2 = connectStates(active, idle, "deactivate")
 
 // Active -> Error (on fault detected)
-def t3 = api.link(active, error, "Transition")
-api.set(t3, "name", "on_fault")
+def t3 = connectStates(active, error, "on_fault")
 
 // Error -> Idle (on reset)
-def t4 = api.link(error, idle, "Transition")
-api.set(t4, "name", "reset")
+def t4 = connectStates(error, idle, "reset")
 
 log.info("Created state machine with 3 states and 5 transitions")
 ```
@@ -69,9 +71,9 @@ log.info("Created state machine with 3 states and 5 transitions")
 
 ```groovy
 def standby = api.create("State", "Standby", region)
-api.link(idle, standby, "Transition").tap { 
-    api.set(it, "name", "enter_standby") 
-}
+def enterStandby = api.create("StateTransition", "enter_standby", region)
+api.set(enterStandby, "source", idle)
+api.set(enterStandby, "target", standby)
 ```
 
 ### Nested States (Sub-machines)
@@ -86,14 +88,22 @@ def degradedMode = api.create("State", "Degraded", subRegion)
 ### Adding Guards/Triggers
 
 ```groovy
-def transition = api.link(idle, active, "Transition")
-api.set(transition, "name", "start")
-api.set(transition, "guard", "battery > 20%")
-api.set(transition, "trigger", "StartCommand")
+def transition = api.create("StateTransition", "start", region)
+api.set(transition, "source", idle)
+api.set(transition, "target", active)
+api.set(transition, "triggerDescription", "StartCommand")
+
+// guard is a Constraint reference, rather than a text property
+def guard = api.create("Constraint", "Battery Guard", transition)
+api.set(guard, "description", "Battery charge must exceed 20 percent")
+api.set(transition, "guard", guard)
 ```
+
+Configure a guard's formal expression and typed trigger events through the native Capella editor when needed; the description above records the intended condition.
 
 ## Tips
 
 - Every region should have an initial pseudo-state
 - Use meaningful transition names (they appear in diagrams)
 - Consider error/fault states for robust designs
+- Use the concrete `InitialPseudoState` and `StateTransition` metamodel types; `Pseudostate` is abstract and `api.link()` has no transition-creation strategy.

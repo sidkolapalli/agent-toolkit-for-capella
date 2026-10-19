@@ -2,6 +2,10 @@
 
 You can manipulate Capella models using Groovy code.
 
+## Review and Execution
+
+Generated code is a preview until execution is allowed. With **Review code before running** enabled, the user reviews the exact script and chooses **Run code** or **Cancel**. Disabled model actions prevent execution. A failed script is rolled back; any correction must be shown and reviewed as a new reply. Successful script changes commit as one undoable operation and are saved after execution.
+
 ## How to Use This Documentation
 
 1. **List directories**: `api.fs.list("api/")` - see available API methods
@@ -45,6 +49,15 @@ Skills are saved to `~/.capella-ai/skills/<skill-name>/SKILL.md` and persist acr
 
 ## Quick Start
 
+Use `api.all()`, `api.findAll(type)` and normal containment lists when inspecting elements. EMF's `eAllContents()` and resource `getAllContents()` return tree iterators that also inherit an internal List. Groovy collection methods such as `each`, `findAll`, `collect` or `toList` can inspect that internal traversal stack and silently miss descendants. For raw native traversal, walk the iterator explicitly before filtering:
+
+```groovy
+def descendants = new java.util.ArrayList()
+def iterator = element.eAllContents()
+while (iterator.hasNext()) descendants.add(iterator.next())
+def functions = descendants.findAll { it instanceof AbstractFunction }
+```
+
 ```groovy
 // Get architecture layer root
 def saLayer = api.layer("SA")  // Returns SystemAnalysis root
@@ -79,7 +92,8 @@ api.reset()
 
 | Method | Purpose |
 |--------|---------|
-| `api.layer("SA")` | Get layer root (OA, SA, LA, PA) |
+| `api.layer("SA")` | Get layer root (OA, SA, LA, PA, EPBS) |
+| `api.epbs()` | Get the EPBS architecture root |
 | `api.find(type, name)` | Find element by type and name |
 | `api.findAll(type)` | Find all elements of type |
 | `api.create(layer, type, name)` | Create element in layer |
@@ -100,7 +114,7 @@ api.reset()
 ## Directory Structure
 
 - `api/` - Core API method documentation
-- `metamodel/` - Capella element types by layer (OA, SA, LA, PA)
+- `metamodel/` - Capella element types by perspective (OA, SA, LA, PA, EPBS)
 - `skills/` - Reusable patterns for common tasks
 
 ## ARCADIA Layers
@@ -113,6 +127,7 @@ Capella follows the ARCADIA methodology with these layers:
 | SA | System | System Analysis - system functions |
 | LA | Logical | Logical Architecture - logical components |
 | PA | Physical | Physical Architecture - physical implementation |
+| EPBS | Configuration | End-Product Breakdown Structure - configuration items realizing physical artifacts |
 
 ## Advanced: Raw API Access
 

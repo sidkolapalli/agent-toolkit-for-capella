@@ -7,12 +7,13 @@ The `api` object provides all Capella model operations.
 | Category | Methods | Description |
 |----------|---------|-------------|
 | Find | `find`, `findAll`, `query`, `aql` | Locate elements |
-| Create | `create`, `ensurePart` | Create new elements (and Parts for diagrams) |
+| Create | `create`, `createIn`, `ensurePart` | Create new elements (and Parts for diagrams) |
 | Modify | `set`, `get`, `rename`, `delete` | Change elements |
 | Link | `link` | Create relationships |
-| Navigate | `layer`, `root`, `container`, `containerFor`, `parent`, `children` | Traverse model |
+| Navigate | `layer`, `root`, `epbs`, `container`, `containerFor`, `parent`, `children` | Traverse model |
 | Utilities | `capabilities`, `summarize`, `describe`, `validate`, `reset` | Runtime info, descriptions, validation, and context |
 | Diagram | `api.diagram.*` | Diagram operations |
+| Arcadia | `api.arcadia.*` | Capabilities, scenarios, linear chains, deployment and transport |
 
 ## Quick Reference
 
@@ -37,12 +38,13 @@ api.delete(element)
 
 // Linking
 api.link(source, target, "FunctionalExchange")
-api.link(func, component, "allocation")
-api.allocate(func, component)  // Preferred allocation helper
+api.allocate(func, component)  // Typed function/activity allocation
+api.link(configurationItem, physicalComponent, "PhysicalArtifactRealization")
 
 // Navigation
 api.layer("SA")           // Get layer root
 api.root("SA")            // Alias for layer
+api.epbs()                // EPBS architecture root; also api.layer("EPBS")
 api.container("SA", "function")  // Default function container
 api.containerFor(element) // Canonical container for an element
 api.parent(element)       // Get parent
@@ -69,3 +71,4 @@ api.reset()               // Clear remembered variables
 - `api.fs.read("api/diagram.md")` - Diagram operations
 - `api.fs.read("api/diagram-layout.md")` - Alignment and distribution
 - `api.fs.read("api/validate.md")` - Validation
+- `api.fs.read("api/arcadia.md")` - Typed native engineering relationships

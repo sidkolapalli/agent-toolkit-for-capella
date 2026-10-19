@@ -32,17 +32,17 @@ if (controller == null) {
     controller = api.create("LA", "LogicalComponent", "Controller")
 }
 
-// 2. Create functions for each component
-def readSensor = api.create("LogicalFunction", "Read Sensor", sensor)
-def processData = api.create("LogicalFunction", "Process Data", controller)
+// 2. Create functions under the LA root function
+def readSensor = api.create("LA", "LogicalFunction", "Read Sensor")
+def processData = api.create("LA", "LogicalFunction", "Process Data")
 
 // 3. Create functional exchange (data flow)
 def dataFlow = api.link(readSensor, processData, "FunctionalExchange")
 api.set(dataFlow, "name", "Sensor Data")
 
 // 4. Allocate functions to components
-api.link(readSensor, sensor, "allocation")
-api.link(processData, controller, "allocation")
+api.allocate(readSensor, sensor)
+api.allocate(processData, controller)
 
 // 5. Create component exchange (interface)
 def interface1 = api.link(sensor, controller, "ComponentExchange")
@@ -100,3 +100,4 @@ log.info("Created ${sensors.size()} sensor interfaces")
 - Functional exchanges define WHAT data flows
 - Component exchanges define HOW components connect
 - Use ports for complex interface definitions
+- Exchanges require endpoints in the same architecture and session. Component/function endpoints create compatible ports automatically.

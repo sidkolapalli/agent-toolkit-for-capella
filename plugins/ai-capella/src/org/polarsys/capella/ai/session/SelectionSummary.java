@@ -36,7 +36,7 @@ public final class SelectionSummary {
             String diagLine = "Active Diagram: \"" +
                 (name.isBlank() ? "Unnamed" : name) +
                 "\"" +
-                (!uid.isBlank() ? " (uid: " + truncateId(uid) + ")" : "") +
+                (!uid.isBlank() ? " (uid: " + displayId(uid, tokenizer) + ")" : "") +
                 (!type.isBlank() ? " [" + type + "]" : "");
             sb.append(diagLine).append("\n\n");
         }
@@ -48,7 +48,7 @@ public final class SelectionSummary {
             for (EObject eo : selected) {
                 if (eo == null) continue;
                 if (count >= MAX_ELEMENTS) break;
-                sb.append("- ").append(describe(eo)).append("\n");
+                sb.append("- ").append(describe(eo, tokenizer)).append("\n");
                 count++;
             }
             int remaining = selected.size() - count;
@@ -63,7 +63,7 @@ public final class SelectionSummary {
         return tokenizer != null ? tokenizer.tokenizeText(out) : out;
     }
 
-    private static String describe(EObject eo) {
+    private static String describe(EObject eo, Tokenizer tokenizer) {
         String type = eo.eClass() != null ? eo.eClass().getName() : "EObject";
         String name = extractName(eo);
         String id = extractStableId(eo);
@@ -72,7 +72,7 @@ public final class SelectionSummary {
             label += " \"" + name + "\"";
         }
         if (id != null && !id.isBlank()) {
-            label += " (id: " + truncateId(id) + ")";
+            label += " (id: " + displayId(id, tokenizer) + ")";
         }
         return label;
     }
@@ -128,6 +128,11 @@ public final class SelectionSummary {
         String s = id.trim();
         if (s.length() <= MAX_ID_CHARS) return s;
         return s.substring(0, MAX_ID_CHARS - 3) + "...";
+    }
+
+    private static String displayId(String id, Tokenizer tokenizer) {
+        // Tokenize the complete UUID before display truncation can expose a prefix.
+        return truncateId(tokenizer != null ? tokenizer.tokenizeText(id) : id);
     }
 
     private static String safe(String s) {

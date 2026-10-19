@@ -1,6 +1,6 @@
 # Capella Metamodel
 
-Capella follows the ARCADIA methodology with four architecture layers.
+Capella follows the ARCADIA methodology through OA, SA, LA, PA and the EPBS end-product breakdown perspective.
 
 ## Layer Overview
 
@@ -16,6 +16,9 @@ LA (Logical Architecture)
   
 PA (Physical Architecture)
   └── How it's physically implemented
+
+EPBS (End-Product Breakdown Structure)
+  └── Configuration items realizing the physical artifacts
 ```
 
 ## Layer Navigation
@@ -26,6 +29,7 @@ def oa = api.layer("OA")  // or "operational"
 def sa = api.layer("SA")  // or "system"
 def la = api.layer("LA")  // or "logical"
 def pa = api.layer("PA")  // or "physical"
+def epbs = api.layer("EPBS")  // or api.epbs()
 
 // Explore layer contents
 api.children(sa).each { child ->
@@ -39,6 +43,7 @@ api.children(sa).each { child ->
 - `api.fs.read("metamodel/sa/SKILL.md")` - System Analysis
 - `api.fs.read("metamodel/la/SKILL.md")` - Logical Architecture
 - `api.fs.read("metamodel/pa/SKILL.md")` - Physical Architecture
+- `api.fs.read("metamodel/epbs/SKILL.md")` - End-Product Breakdown Structure
 
 ## Cross-Layer Relationships
 
@@ -57,4 +62,5 @@ Most Capella types share common patterns:
 - All have `name` and `description` properties
 - Functions can be linked with exchanges
 - Components can contain sub-components
-- All can be added to diagrams
+- EPBS configuration items realize PA physical components; EPBS has no functions or exchanges.
+- Diagram availability depends on the activated viewpoint and target element; inspect `api.diagram.listAvailable()`.
