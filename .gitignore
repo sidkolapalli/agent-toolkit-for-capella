@@ -35,3 +35,6 @@ Thumbs.db
 
 # build outputs
 plugins/ai-capella.tests/target/
+
+# Private archive (not for publication)
+archive/
