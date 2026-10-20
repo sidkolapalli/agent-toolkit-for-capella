@@ -440,10 +440,11 @@ public final class CapellaAPI {
         // Resolve type aliases (e.g., OperationalActor -> Entity)
         String resolvedType = resolveTypeAlias(type, layer);
         boolean isActor = isActorAlias(type);
+        EObject parent = isActor ? root : rootComponentFor(root, resolvedType);
         return SessionSafeguards.runWrite(session, "Create " + type, () -> {
             EObject created = ElementFactory.createUnder(
                 session,
-                root,
+                parent,
                 resolvedType,
                 name
             );
@@ -466,6 +467,21 @@ public final class CapellaAPI {
             invalidate();
             return created;
         });
+    }
+
+    /**
+     * New LA/PA components belong inside the layer's single root component; a second component
+     * beside it is a second root, which Capella validation reports as an error. Actors stay beside it; the SA system is a black box.
+     */
+    private static EObject rootComponentFor(EObject layer, String type) {
+        EClass target = ElementFactory.findEClass(type);
+        if (!(layer instanceof org.polarsys.capella.core.data.cs.BlockArchitecture architecture)
+                || layer instanceof org.polarsys.capella.core.data.oa.OperationalAnalysis
+                || layer instanceof org.polarsys.capella.core.data.ctx.SystemAnalysis
+                || layer instanceof org.polarsys.capella.core.data.epbs.EPBSArchitecture
+                || target == null || !org.polarsys.capella.core.data.cs.CsPackage.Literals.COMPONENT.isSuperTypeOf(target)) return layer;
+        var roots = org.polarsys.capella.core.model.helpers.BlockArchitectureExt.getRootComponents(architecture);
+        return roots != null && roots.size() == 1 ? roots.iterator().next() : layer;
     }
 
     /**

@@ -64,6 +64,20 @@ public class ArcadiaModelWorkflowTest {
         assertTrue(invalid.getMessage(), invalid.getMessage().contains("NODE") && invalid.getMessage().contains("BEHAVIOR"));
     }
 
+    /** A second component beside the Logical System is a second root and a Capella validation error. */
+    @Test
+    public void defaultComponentCreationGoesUnderTheLayerRootComponentButActorsStayBeside() {
+        var la = (org.polarsys.capella.core.data.la.LogicalArchitecture) api.layer("LA");
+        var system = la.getOwnedLogicalComponentPkg().getOwnedLogicalComponents().get(0);
+        assertEquals(List.of(system), List.copyOf(org.polarsys.capella.core.model.helpers.BlockArchitectureExt.getRootComponents(la)));
+        EObject controller = api.create("LA", "LogicalComponent", "Battery Controller");
+        assertSame(system, controller.eContainer());
+        EObject driver = api.create("LA", "LogicalActor", "Driver");
+        assertSame(la.getOwnedLogicalComponentPkg(), driver.eContainer());
+        assertEquals("Still one root component", List.of(system),
+            List.copyOf(org.polarsys.capella.core.model.helpers.BlockArchitectureExt.getRootComponents(la)));
+    }
+
     @Test
     public void facadePersistentIdChangeRemainsResolvableAfterUndoRedoAndReload() throws Exception {
         EObject function = api.create("LA", "LogicalFunction", "Stable identity function");
@@ -550,7 +564,8 @@ public class ArcadiaModelWorkflowTest {
             assertEquals(1, storedPartsOf(parent).size());
             Part parentPart = storedPartsOf(parent).get(0);
             assertSame(parent.eContainer(), parentPart.eContainer());
-            assertEquals("ownedParts", parentPart.eContainingFeature().getName());
+            // LA/PA components are created inside the layer's root system, whose parts are owned features.
+            assertEquals(i == 2 || i == 3 ? "ownedFeatures" : "ownedParts", parentPart.eContainingFeature().getName());
             assertEquals(parent.getName(), parentPart.getName());
             assertSame(parent, parentPart.getAbstractType());
             assertSame(parentPart, api.ensurePart(parent));
@@ -721,7 +736,14 @@ public class ArcadiaModelWorkflowTest {
         set(architecture, "ownedFunctionPkg", functionPackage);
         set(architecture, componentsFeature, componentPackage);
         add(functionPackage, functionsFeature, rootFunctions[layer]);
+        // Capella projects start with a Logical/Physical System root component.
+        if (layer == 2) add(componentPackage, "ownedLogicalComponents", named(LaFactory.eINSTANCE.createLogicalComponent(), "Logical System"));
+        if (layer == 3) add(componentPackage, "ownedPhysicalComponents", named(PaFactory.eINSTANCE.createPhysicalComponent(), "Physical System"));
         return architecture;
+    }
+
+    private static <T extends org.polarsys.capella.core.data.capellacore.NamedElement> T named(T element, String name) {
+        element.setName(name); return element;
     }
 
     private static ResourceSet resourceSet() {

@@ -24,7 +24,8 @@ EObject create(String type, String name, EObject parent)
 // Create a SystemFunction (auto-detects SA layer)
 def func = api.create("SystemFunction", "Process Input")
 
-// Create in specific layer
+// Create in specific layer. LA/PA components go inside the layer's root system (Logical/Physical
+// System), as Capella expects; actors stay beside it. Functions go under the root function.
 def comp = api.create("LA", "LogicalComponent", "Controller")
 
 // Create in specific layer (explicit helper)
