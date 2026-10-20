@@ -39,7 +39,7 @@ ports and exchanges; 34 MB `.capella` file) on Windows with a 6 GB heap:
 | --- | --- | --- |
 | Read tools (summary, search, method checks) | under 0.15 s | under 0.21 s |
 | Capella full validation | 23 s | 48 s |
-| Reviewed edit, Apply to verified | 49 s | about 100 s (two validations) |
+| Reviewed edit, Apply to verified | 49 s | about 100 s (two validations); 54 s once the previous pass is reused |
 | Capella memory | 1.2 GB | 1.6 GB (4.3 GB after the 100-component diagram) |
 
 Fixed on the way: change capture and result checks stopped at 250,000 objects (now 2,000,000,
@@ -48,7 +48,9 @@ the agent's follow-up search failed after an edit on a large model (now restarts
 chain laid out as one 90,604 px row (now wraps). A 100-component diagram (3,198 nodes, 999 edges)
 shows in about 52 s and lays out in about 21 s.
 
-Limits: full validation runs before and after each edit and grows linearly with model size; very
+The pass after one edit is reused as the baseline of the next while no semantic resource changes in
+between, so a run of edits pays one full validation each instead of two. Limits: full validation grows
+linearly with model size; very
 large single diagrams are legible only in parts.
 
 ## Working now

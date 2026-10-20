@@ -1,15 +1,28 @@
 package org.polarsys.capella.ai.agent;
 
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.emf.common.notify.Notification;
+import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.resource.Resource;
+import org.eclipse.emf.ecore.resource.ResourceSet;
+import org.eclipse.emf.transaction.NotificationFilter;
+import org.eclipse.emf.transaction.ResourceSetChangeEvent;
+import org.eclipse.emf.transaction.ResourceSetListener;
+import org.eclipse.emf.transaction.ResourceSetListenerImpl;
+import org.eclipse.emf.transaction.TransactionalEditingDomain;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.scripting.CapellaAPI;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /** Optional evidence from Capella's installed validator, never a compliance verdict. */
 public final class ModelVerification {
@@ -130,7 +143,88 @@ public final class ModelVerification {
      * invoke it for every read or chat message.
      */
     public static Snapshot snapshot(Session session) {
-        return snapshot(session, open -> new CapellaAPI(open).validateNative());
+        return reusingSnapshot(session, open -> new CapellaAPI(open).validateNative());
+    }
+
+    private record LastPass(
+            Session session,
+            TransactionalEditingDomain domain,
+            ResourceSetListener watcher,
+            AtomicBoolean changed,
+            Snapshot snapshot) {}
+
+    // ponytail: one slot, for the model being edited; another model just runs its own pass.
+    // A change to Capella's validation preferences between passes is not detected.
+    private static final AtomicReference<LastPass> LAST_PASS = new AtomicReference<>();
+
+    /**
+     * The last available pass while no semantic resource of its session has changed since it
+     * started: the pass after one edit is the baseline of the next. Validation reads only semantic
+     * resources, so diagram-only commits keep it.
+     */
+    public static Snapshot reusingSnapshot(
+            Session session, Function<Session, Map<String, Object>> nativeValidation) {
+        LastPass last = LAST_PASS.get();
+        if (last != null
+                && last.session() == session
+                && session.isOpen()
+                && session.getTransactionalEditingDomain() == last.domain()
+                && !last.changed().get()) return last.snapshot();
+        forgetLastPass();
+        TransactionalEditingDomain domain =
+                session == null || !session.isOpen()
+                        ? null
+                        : session.getTransactionalEditingDomain();
+        if (domain == null) return snapshot(session, nativeValidation);
+        AtomicBoolean changed = new AtomicBoolean();
+        ResourceSetListener watcher = semanticChangeWatcher(session, changed);
+        // Registered before the pass, so no commit after its read began can go unnoticed.
+        domain.addResourceSetListener(watcher);
+        Snapshot snapshot = snapshot(session, nativeValidation);
+        if (snapshot.available()
+                && !changed.get()
+                && LAST_PASS.compareAndSet(
+                        null, new LastPass(session, domain, watcher, changed, snapshot)))
+            return snapshot;
+        domain.removeResourceSetListener(watcher);
+        return snapshot;
+    }
+
+    public static void forgetLastPass() {
+        LastPass last = LAST_PASS.getAndSet(null);
+        if (last != null) last.domain().removeResourceSetListener(last.watcher());
+    }
+
+    private static ResourceSetListener semanticChangeWatcher(
+            Session session, AtomicBoolean changed) {
+        Set<Resource> semantic = Collections.newSetFromMap(new IdentityHashMap<>());
+        semantic.addAll(session.getSemanticResources());
+        return new ResourceSetListenerImpl(NotificationFilter.NOT_TOUCH) {
+            @Override
+            public boolean isPostcommitOnly() {
+                return true;
+            }
+
+            @Override
+            public void resourceSetChanged(ResourceSetChangeEvent event) {
+                for (Notification notification : event.getNotifications()) {
+                    Object notifier = notification.getNotifier();
+                    boolean saved =
+                            notifier instanceof Resource
+                                    && notification.getFeatureID(Resource.class)
+                                            == Resource.RESOURCE__IS_MODIFIED;
+                    Resource resource =
+                            notifier instanceof EObject object
+                                    ? object.eResource()
+                                    : notifier instanceof Resource own ? own : null;
+                    if (notifier instanceof ResourceSet
+                            || (!saved && resource != null && semantic.contains(resource))) {
+                        changed.set(true);
+                        return;
+                    }
+                }
+            }
+        };
     }
 
     /**
