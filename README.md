@@ -22,7 +22,7 @@ export JAVA_TOOL_OPTIONS='-Djdk.xml.maxGeneralEntitySizeLimit=0 -Djdk.xml.totalE
 mvn -f plugins clean verify
 ```
 
-The update site is generated in `plugins/ai-capella-repository/target/repository`, with an archive in the same target directory. It includes the required Groovy 4 runtime. The build target includes Windows x64, Linux x64 and macOS Apple Silicon. On 2026-10-20 the full build and all tests also passed on Linux (Ubuntu under WSL2, JDK 17, GTK), and Capella 7.0.0 for Linux ran the chat review, diagram creation and MCP edit flows with the Direct provider. macOS has not been run.
+The update site is generated in `plugins/ai-capella-repository/target/repository`, with an archive in the same target directory. It includes the required Groovy 4 runtime. The build target includes Windows x64, Linux x64 and macOS Apple Silicon. On 2026-10-20 the full build and all tests also passed on Linux (Ubuntu under WSL2, JDK 17, GTK), and Capella 7.0.0 for Linux ran the chat review, diagram creation and MCP edit flows. With the official Codex 0.160.1 Linux release on `PATH` (the `codex` and `codex-code-mode-host` executables side by side), live Codex edits and two evaluation tasks, including the laid-out BMS diagram, passed on Linux. macOS has not been run.
 
 ## Install and configure
 
@@ -31,7 +31,7 @@ The update site is generated in `plugins/ai-capella-repository/target/repository
 3. The default runtime is **Codex app-server**. Click **Sign in with ChatGPT** in the assistant header. On Windows x64, the plugin includes the official Codex **0.160.1** runtime and its companion host; a separate Codex installation is not required. An existing Codex ChatGPT connection is reused; an existing OpenAI API-key account is recognized as connected. Otherwise, finish ChatGPT sign-in in your system browser; the assistant confirms the connection before you start chatting.
 4. Open a model and ask for the work in normal language. Review the proposed changes, then choose **Apply changes** or **Cancel**. The **Changes** tab is selected by default; the optional **Script** tab retains the exact Groovy source that will run.
 
-Advanced runtime, model and provider settings remain under **Preferences → Capella → LLM**. Leave the Codex model blank to use its configured model. **Direct provider** uses an HTTP provider with API keys stored locally in Eclipse secure storage. Linux and macOS currently require a compatible external Codex executable or Direct provider; the bundled runtime is Windows x64 only. See [connection setup](docs/CODEX_SETUP.md) and [bundled runtime provenance](plugins/ai-capella/resources/codex/windows-x64/PROVENANCE.md).
+Advanced runtime, model and provider settings remain under **Preferences → Capella → LLM**. Leave the Codex model blank to use its configured model. **Direct provider** uses an HTTP provider with API keys stored locally in Eclipse secure storage. Linux and macOS currently require a compatible external Codex executable or Direct provider; the bundled runtime is Windows x64 only. An external Codex must be version 0.160.1 with `codex-code-mode-host` in the same folder as `codex`; Capella checks this before a request. See [connection setup](docs/CODEX_SETUP.md) and [bundled runtime provenance](plugins/ai-capella/resources/codex/windows-x64/PROVENANCE.md).
 
 The LLM preferences include:
 

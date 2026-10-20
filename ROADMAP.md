@@ -32,5 +32,5 @@ can fail on the next run, so compare several runs before trusting a change.
 
 1. Grow the evaluation set toward the work engineers actually need (requirements traceability, scenarios, state machines, larger subsystems) and keep the score in this file.
 2. Review at the right level for large tasks: show changes on diagrams and against requirements, not only as a script.
-3. Linux and macOS: bundle or locate a Codex runtime, or document the Direct provider path.
+3. macOS: run it (Linux is verified with an external Codex 0.160.1 release); consider bundling Linux and macOS Codex runtimes.
 4. Impact analysis: the downstream effect of a proposed change before it is reviewed.
