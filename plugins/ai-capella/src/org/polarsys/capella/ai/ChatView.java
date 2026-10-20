@@ -934,7 +934,7 @@ public class ChatView extends ViewPart {
                 }
                 final String code = turn.proposalCode();
                 final String proposalSummary = turn.reply();
-                final String expectedChecks = describePostconditions(turn.postconditions());
+                final String expectedChecks = org.polarsys.capella.ai.presentation.NativeCheckDescription.describeAll(turn.postconditions());
                 ui(() -> setActivity("Checking the proposal…"));
                 GroovyCompilationValidator.Report compilation = GroovyExecutor.compileDecoded(code,
                     this::requestCancelled, 10_000);
@@ -1188,27 +1188,11 @@ public class ChatView extends ViewPart {
         } catch (IllegalArgumentException malformed) { return false; }
     }
 
-    private static String describePostconditions(List<ArcadiaAgent.Postcondition> conditions) {
-        return conditions.stream().map(condition -> {
-            Map<String, Object> args = condition.arguments();
-            if ("native_structure".equals(condition.kind())) {
-                return "- " + org.polarsys.capella.ai.presentation.NativeCheckDescription.describe(args.get("check"));
-            }
-            String target = args.containsKey("id") ? "Element " + args.get("id")
-                : args.get("type") + " “" + args.get("name") + "”" + (args.containsKey("layer") ? " in " + args.get("layer") : "");
-            return "- " + target + switch (condition.kind()) {
-                case "element_absent" -> " is absent";
-                case "attribute_equals" -> ": " + args.get("attribute") + " equals " + args.get("expected");
-                default -> " exists";
-            };
-        }).collect(java.util.stream.Collectors.joining("\n"));
-    }
-
     private static String displayedReply(ArcadiaAgent.Turn turn) {
         String text = turn.reply();
         if (turn.hasProposal()) {
             if (text == null || text.isBlank()) text = "Proposed model changes are ready for review.";
-            if (!turn.postconditions().isEmpty()) text += "\n\n**Expected model checks**\n" + describePostconditions(turn.postconditions());
+            if (!turn.postconditions().isEmpty()) text += "\n\n**Expected model checks**\n" + org.polarsys.capella.ai.presentation.NativeCheckDescription.describeAll(turn.postconditions());
         }
         return text == null ? "" : text;
     }

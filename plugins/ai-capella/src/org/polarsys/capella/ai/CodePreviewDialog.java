@@ -5,6 +5,7 @@ import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.window.Window;
+import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.SWTError;
 import org.eclipse.swt.accessibility.AccessibleAdapter;
@@ -29,7 +30,7 @@ import org.eclipse.swt.widgets.TabItem;
 import org.eclipse.swt.widgets.Text;
 
 /** Review proposed model changes, with the exact immutable script available for inspection. */
-final class CodePreviewDialog extends Dialog {
+public final class CodePreviewDialog extends Dialog {
     private final String code;
     private final String modelName;
     private final String contextSummary;
@@ -38,6 +39,24 @@ final class CodePreviewDialog extends Dialog {
     private TabFolder tabs;
     private Text changes;
     private Text preview;
+
+    /**
+     * Modal review for proposals that do not come from the chat view, such as MCP clients.
+     * Runs on SWT; returns true only when the person chooses Apply.
+     */
+    public static boolean review(Session session, String code, String origin, String summary, String expectedChecks) {
+        org.eclipse.swt.widgets.Display display = org.eclipse.swt.widgets.Display.getDefault();
+        Shell shell = display.getActiveShell();
+        if (shell == null && org.eclipse.ui.PlatformUI.isWorkbenchRunning()) {
+            var window = org.eclipse.ui.PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+            if (window == null && org.eclipse.ui.PlatformUI.getWorkbench().getWorkbenchWindowCount() > 0) {
+                window = org.eclipse.ui.PlatformUI.getWorkbench().getWorkbenchWindows()[0];
+            }
+            if (window != null) shell = window.getShell();
+        }
+        return new CodePreviewDialog(shell, code, ChatContextDetails.modelName(session), origin, summary, expectedChecks)
+            .open() == Window.OK;
+    }
 
     CodePreviewDialog(Shell parent, String code) {
         this(parent, code, "Current Capella model", "");

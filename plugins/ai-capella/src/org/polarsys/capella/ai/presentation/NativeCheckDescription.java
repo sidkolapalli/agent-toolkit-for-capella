@@ -44,4 +44,21 @@ public final class NativeCheckDescription {
             .replace("`", "\\`").replace("*", "\\*").replace("_", "\\_").replace("[", "\\[")
             .replace("]", "\\]").replace("<", "&lt;").replace(">", "&gt;");
     }
+
+    /** One readable line per declared check, shown to the reviewer before anything runs. */
+    public static String describeAll(List<org.polarsys.capella.ai.agent.ArcadiaAgent.Postcondition> conditions) {
+        return conditions.stream().map(condition -> {
+            Map<String, Object> args = condition.arguments();
+            if ("native_structure".equals(condition.kind())) {
+                return "- " + describe(args.get("check"));
+            }
+            String target = args.containsKey("id") ? "Element " + args.get("id")
+                : args.get("type") + " “" + args.get("name") + "”" + (args.containsKey("layer") ? " in " + args.get("layer") : "");
+            return "- " + target + switch (condition.kind()) {
+                case "element_absent" -> " is absent";
+                case "attribute_equals" -> ": " + args.get("attribute") + " equals " + args.get("expected");
+                default -> " exists";
+            };
+        }).collect(java.util.stream.Collectors.joining("\n"));
+    }
 }
