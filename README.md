@@ -112,7 +112,7 @@ The FSAE acceptance project imports all 3,197 pinned 2027 source records and con
 
 ## Evaluating agent quality
 
-`test-models/evals/arcadia-starter.json` holds tasks scored only by native checks (element existence, attributes, allocations and realizations), never by the agent's own claims. To score the configured runtime and model:
+`test-models/evals/arcadia-starter.json` holds tasks scored only by native checks (element existence, attributes, allocations and realizations), never by the agent's own claims. `arcadia-advanced.json` adds harder multi-step tasks, and `fsae-2027.json` holds 30 Formula SAE 2027 tasks for the FSAE acceptance project (it needs the Requirements Viewpoint). To score the configured runtime and model:
 
 1. Open a **disposable copy** of a Capella project. Evaluation approves every proposal automatically, and approved edits commit and save.
 2. Start Capella with `-Dcapella.ai.eval=true` (or `CAPELLA_AI_EVAL=1`) and the dev server enabled. Without this opt-in `/eval` returns 403.

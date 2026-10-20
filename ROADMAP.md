@@ -20,6 +20,16 @@ Earlier runs the same day scored 11/12 (enum values could not be set by name), t
 list aborted scripts; no API for interface exchange items). Single runs vary: a task that passes once
 can fail on the next run, so compare several runs before trusting a change.
 
+## FSAE task set (2026-10-20)
+
+`test-models/evals/fsae-2027.json` holds 30 tasks drawn from Formula SAE 2027 work (requirement traceability, shutdown-path
+functional chains, interfaces, state machines, a scenario, physical hardware and diagrams); it needs the
+Requirements Viewpoint. On a disposable copy of the FSAE 2027 project the bundled Codex runtime passed
+29/30. The failure was the scenario task: the API used a diagram name Capella 7 does not have and had
+no way to create SA/LA/PA scenarios. After the fix (`api.arcadia.scenario(capability, name,
+"exchange"|"functional"|"interface")` and the native ES/IS names) that task passed on its own with every
+step verified. A full 30-task rerun on the fixed build is still to do.
+
 ## Scale (stress test, 2026-10-20)
 
 A synthetic model grown to 312,000 semantic objects (6,000 logical components, 60,000 functions with
