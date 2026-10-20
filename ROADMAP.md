@@ -20,6 +20,27 @@ Earlier runs the same day scored 11/12 (enum values could not be set by name), t
 list aborted scripts; no API for interface exchange items). Single runs vary: a task that passes once
 can fail on the next run, so compare several runs before trusting a change.
 
+## Scale (stress test, 2026-10-20)
+
+A synthetic model grown to 312,000 semantic objects (6,000 logical components, 60,000 functions with
+ports and exchanges; 34 MB `.capella` file) on Windows with a 6 GB heap:
+
+| Measure | 156,000 objects | 312,000 objects |
+| --- | --- | --- |
+| Read tools (summary, search, method checks) | under 0.15 s | under 0.21 s |
+| Capella full validation | 23 s | 48 s |
+| Reviewed edit, Apply to verified | 49 s | about 100 s (two validations) |
+| Capella memory | 1.2 GB | 1.6 GB (4.3 GB after the 100-component diagram) |
+
+Fixed on the way: change capture and result checks stopped at 250,000 objects (now 2,000,000,
+time-bounded); validation froze the UI (now off the UI thread, Capella stayed responsive throughout);
+the agent's follow-up search failed after an edit on a large model (now restarts); a 20-component
+chain laid out as one 90,604 px row (now wraps). A 100-component diagram (3,198 nodes, 999 edges)
+shows in about 52 s and lays out in about 21 s.
+
+Limits: full validation runs before and after each edit and grows linearly with model size; very
+large single diagrams are legible only in parts.
+
 ## Working now
 
 - Reviewed model edits across OA, SA, LA, PA and EPBS from chat, MCP clients and evaluation, through one shared pipeline with independent checks and native validation.
@@ -35,4 +56,5 @@ can fail on the next run, so compare several runs before trusting a change.
 1. Grow the evaluation set toward the work engineers actually need (requirements traceability, scenarios, state machines, larger subsystems) and keep the score in this file.
 2. Review at the right level for large tasks: show changes on diagrams and against requirements, not only as a script.
 3. macOS: run it (Linux is verified with an external Codex 0.160.1 release); consider bundling Linux and macOS Codex runtimes.
-4. Impact analysis: the downstream effect of a proposed change before it is reviewed.
+4. Faster verification on very large models: validate only what an edit touches.
+5. Impact analysis: the downstream effect of a proposed change before it is reviewed.
