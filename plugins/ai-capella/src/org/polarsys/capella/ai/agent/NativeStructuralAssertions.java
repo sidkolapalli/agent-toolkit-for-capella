@@ -34,7 +34,7 @@ public final class NativeStructuralAssertions {
     private static final int MAX_INPUT_BYTES = 65_536;
     private static final int MAX_OUTPUT_BYTES = 131_072;
     private static final Set<String> LAYERS = Set.of("OA", "SA", "LA", "PA", "EPBS");
-    private static final Set<String> KINDS = Set.of("reference_equals", "reference_sequence_equals", "contained_by", "relation_exists");
+    private static final Set<String> KINDS = Set.of("reference_equals", "reference_sequence_equals", "contained_by", "relation_exists", "diagram_shows");
 
     private NativeStructuralAssertions() {}
 
@@ -96,7 +96,7 @@ public final class NativeStructuralAssertions {
                         int outputBytes = 0;
                         for (Check request : requests) {
                             Result result;
-                            try { result = evaluate(request, snapshot); }
+                            try { result = evaluate(session, request, snapshot); }
                             catch (EvidenceUnavailable incomplete) { result = new Result(request.kind, Status.UNAVAILABLE, request.data, null, incomplete.getMessage()); }
                             outputBytes += bytes(result.feedback());
                             if (outputBytes > MAX_OUTPUT_BYTES) {
@@ -119,9 +119,10 @@ public final class NativeStructuralAssertions {
         return results.get() == null ? unavailable(requests, "The native read returned no evidence.") : results.get();
     }
 
-    private static Result evaluate(Check request, Snapshot snapshot) {
+    private static Result evaluate(Session session, Check request, Snapshot snapshot) {
         snapshot.budget();
         if ("relation_exists".equals(request.kind)) return relation(request, snapshot);
+        if ("diagram_shows".equals(request.kind)) return diagramShows(session, request, snapshot);
         Node target = snapshot.one(request.target);
         if (target == null) return failed(request, null, "The target selector has no native match.");
         Map<String, Object> actual = new LinkedHashMap<>(); actual.put("target", target.describe());
@@ -190,6 +191,44 @@ public final class NativeStructuralAssertions {
         return verdict(request, count == 1, actual, "Exactly one native relation must match every stored-reference predicate and optional immediate owner.");
     }
 
+    /** Exactly one representation of that name in the session's own resources has a view of every element. */
+    private static Result diagramShows(Session session, Check request, Snapshot snapshot) {
+        Set<Resource> owned = new LinkedHashSet<>();
+        if (session.getSessionResource() != null) owned.add(session.getSessionResource());
+        if (session.getAllSessionResources() != null) owned.addAll(session.getAllSessionResources());
+        List<org.eclipse.sirius.diagram.DDiagram> diagrams = new ArrayList<>();
+        for (Resource resource : owned) {
+            var contents = resource.getAllContents();
+            while (contents.hasNext()) {
+                snapshot.budget();
+                EObject next = contents.next();
+                // Sirius keeps the name on the descriptor; do not descend into representations.
+                if (next instanceof org.eclipse.sirius.viewpoint.DRepresentation) contents.prune();
+                else if (next instanceof org.eclipse.sirius.viewpoint.DRepresentationDescriptor descriptor && request.feature.equals(descriptor.getName())
+                        && descriptor.getRepresentation() instanceof org.eclipse.sirius.diagram.DDiagram diagram) diagrams.add(diagram);
+            }
+        }
+        Map<String, Object> actual = new LinkedHashMap<>(); actual.put("diagrams", diagrams.size());
+        if (diagrams.size() != 1) return failed(request, actual, diagrams.isEmpty() ? "No diagram has this name." : "Several diagrams have this name.");
+        Set<EObject> shown = Collections.newSetFromMap(new IdentityHashMap<>());
+        var views = diagrams.get(0).eAllContents();
+        while (views.hasNext()) {
+            snapshot.budget();
+            EObject view = views.next();
+            if (view instanceof org.eclipse.sirius.viewpoint.DSemanticDecorator decorated && decorated.getTarget() != null) shown.add(decorated.getTarget());
+            // A component box targets its Part and lists the component among its semantic elements.
+            if (view instanceof org.eclipse.sirius.diagram.DDiagramElement element) shown.addAll(element.getSemanticElements());
+        }
+        List<Object> missing = new ArrayList<>();
+        for (Selector selector : request.sequence) {
+            Node element = snapshot.one(selector);
+            if (element == null) missing.add(selector.data);
+            else if (!shown.contains(element.object)) missing.add(element.id);
+        }
+        actual.put("missing", missing);
+        return verdict(request, missing.isEmpty(), actual, "Semantic targets of the named diagram's views compared.");
+    }
+
     private static EReference reference(EClass type, String feature, boolean sequence) {
         EStructuralFeature value = type.getEStructuralFeature(feature);
         if (!(value instanceof EReference reference) || reference.isDerived() || reference.isTransient() || reference.isVolatile()
@@ -233,6 +272,14 @@ public final class NativeStructuralAssertions {
                 }
                 data.put("predicates", described);
                 if (input.containsKey("owner")) { result.container = selector(input.get("owner"), 0); data.put("owner", result.container.data); }
+            } else if ("diagram_shows".equals(kind)) {
+                keys(input, Set.of("kind", "diagram", "elements"));
+                result.feature = text(input.get("diagram"), 400); data.put("diagram", result.feature);
+                if (!(input.get("elements") instanceof List<?> elements) || elements.isEmpty() || elements.size() > MAX_ORDERED_TARGETS) {
+                    throw invalid("A diagram check names 1..32 elements");
+                }
+                result.sequence = elements.stream().map(value -> selector(value, 0)).toList();
+                data.put("elements", result.sequence.stream().map(selector -> selector.data).toList());
             } else {
                 keys(input, "contained_by".equals(kind) ? Set.of("kind", "target", "container") : Set.of("kind", "target", "feature", "expected"));
                 result.target = selector(input.get("target"), 0); data.put("target", result.target.data);
@@ -260,7 +307,7 @@ public final class NativeStructuralAssertions {
                 for (EClass nativeType : result.types) {
                     for (String nativeFeature : result.predicates.keySet()) reference(nativeType, nativeFeature, false);
                 }
-            } else if (!"contained_by".equals(kind) && result.target.types != null) {
+            } else if (!"contained_by".equals(kind) && !"diagram_shows".equals(kind) && result.target.types != null) {
                 for (EClass nativeType : result.target.types) {
                     reference(nativeType, result.feature, "reference_sequence_equals".equals(kind));
                 }

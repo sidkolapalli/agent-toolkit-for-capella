@@ -460,6 +460,29 @@ public class NativeStructuralAssertionsTest {
         assertEquals(0, saves.get());
     }
 
+    @Test
+    public void diagramShowsRequiresOneNamedDiagramWithAViewOfEveryElement() {
+        Resource aird = new org.eclipse.emf.ecore.resource.impl.ResourceImpl(URI.createURI("memory:/structural.aird"));
+        write(() -> {
+            resources.getResources().add(aird);
+            var diagram = org.eclipse.sirius.diagram.DiagramFactory.eINSTANCE.createDSemanticDiagram();
+            var container = org.eclipse.sirius.diagram.DiagramFactory.eINSTANCE.createDNodeContainer(); container.setTarget(chain); container.getSemanticElements().add(secondSystem);
+            var node = org.eclipse.sirius.diagram.DiagramFactory.eINSTANCE.createDNode(); node.setTarget(system);
+            container.getOwnedDiagramElements().add(node); diagram.getOwnedDiagramElements().add(container); aird.getContents().add(diagram);
+            var descriptor = org.eclipse.sirius.viewpoint.ViewpointFactory.eINSTANCE.createDRepresentationDescriptor();
+            descriptor.setName("Torque view"); aird.getContents().add(descriptor); descriptor.setRepresentation(diagram);
+        });
+        session = session(List.of(resource), aird);
+        var results = check(shows("Torque view", id("system-demand"), id("system-command")),
+            shows("Torque view", id("system-demand"), id("logical-demand")), shows("Missing view", id("system-demand")));
+        assertEquals(List.of(Status.PASSED, Status.FAILED, Status.FAILED), statuses(results));
+        assertEquals(List.of("logical-demand"), ((Map<?, ?>) results.get(1).actual()).get("missing"));
+        assertEquals(0, ((Map<?, ?>) results.get(2).actual()).get("diagrams"));
+        assertThrows(IllegalArgumentException.class, () -> check(Map.of("kind", "diagram_shows", "diagram", "Torque view", "elements", List.of())));
+        assertDetached(results.get(0).actual());
+    }
+
+    @SafeVarargs private static Map<String, Object> shows(String diagram, Map<String, Object>... elements) { return Map.of("kind", "diagram_shows", "diagram", diagram, "elements", List.of(elements)); }
     @SafeVarargs private final List<NativeStructuralAssertions.Result> check(Map<String, Object>... checks) { return NativeStructuralAssertions.check(session, List.of(checks)); }
     private static List<Status> statuses(List<NativeStructuralAssertions.Result> results) { return results.stream().map(NativeStructuralAssertions.Result::status).toList(); }
     private static Map<String, Object> id(String id) { return Map.of("id", id); }
@@ -472,10 +495,12 @@ public class NativeStructuralAssertionsTest {
     private static Map<String, Object> relation(Map<String, Map<String, Object>> predicates, Map<String, Object> owner) {
         Map<String, Object> result = new LinkedHashMap<>(); result.put("kind", "relation_exists"); result.put("type", "FunctionRealization"); result.put("predicates", predicates); if (owner != null) result.put("owner", owner); return result;
     }
-    private Session session(List<Resource> semantic) {
+    private Session session(List<Resource> semantic) { return session(semantic, null); }
+    private Session session(List<Resource> semantic, Resource aird) {
         return (Session) Proxy.newProxyInstance(Session.class.getClassLoader(), new Class<?>[] { Session.class },
             (proxy, method, arguments) -> switch (method.getName()) {
                 case "getTransactionalEditingDomain" -> domain; case "getSemanticResources" -> semantic; case "isOpen" -> open;
+                case "getSessionResource" -> aird; case "getAllSessionResources" -> aird == null ? Set.of() : Set.of(aird);
                 case "save" -> { saves.incrementAndGet(); yield null; }
                 case "hashCode" -> System.identityHashCode(proxy); case "equals" -> proxy == arguments[0]; default -> null;
             });

@@ -157,7 +157,8 @@ public final class CodexToolSchemas {
             object(Map.of("kind", Map.of("const", "reference_sequence_equals"), "target", selector, "feature", text(120),
                 "expected", array(selector, 0, 32)), List.of("kind", "target", "feature", "expected")),
             object(Map.of("kind", Map.of("const", "contained_by"), "target", selector, "container", selector), List.of("kind", "target", "container")),
-            object(Map.of("kind", Map.of("const", "relation_exists"), "type", text(120), "predicates", predicates, "owner", selector), List.of("kind", "type", "predicates"))));
+            object(Map.of("kind", Map.of("const", "relation_exists"), "type", text(120), "predicates", predicates, "owner", selector), List.of("kind", "type", "predicates")),
+            object(Map.of("kind", Map.of("const", "diagram_shows"), "diagram", text(400), "elements", array(selector, 1, 32)), List.of("kind", "diagram", "elements"))));
     }
 
     private static Map<String, Object> object(Map<String, Object> properties, List<String> required) {

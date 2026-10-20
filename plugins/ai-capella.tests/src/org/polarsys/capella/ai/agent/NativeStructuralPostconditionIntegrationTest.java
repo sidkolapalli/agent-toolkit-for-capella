@@ -298,7 +298,7 @@ public class NativeStructuralPostconditionIntegrationTest {
         var item = object(conditions.get("items")); assertEquals(Boolean.FALSE, item.get("additionalProperties"));
         var check = object(object(item.get("properties")).get("check"));
         var branches = ((List<?>) check.get("oneOf")).stream().map(NativeStructuralPostconditionIntegrationTest::object).toList();
-        assertEquals(Set.of("reference_equals", "reference_sequence_equals", "contained_by", "relation_exists"),
+        assertEquals(Set.of("reference_equals", "reference_sequence_equals", "contained_by", "relation_exists", "diagram_shows"),
             Set.copyOf(branches.stream().map(value -> String.valueOf(object(object(value.get("properties")).get("kind")).get("const"))).toList()));
         for (var branch : branches) assertEquals(Boolean.FALSE, branch.get("additionalProperties"));
         var sequence = branches.get(1); assertEquals(32, object(object(sequence.get("properties")).get("expected")).get("maxItems"));

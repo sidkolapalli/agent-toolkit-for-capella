@@ -18,6 +18,7 @@ public final class NativeCheckDescription {
                 + " contains exactly " + sequence(check.get("expected")) + " in this order";
             case "relation_exists" -> "Exactly one " + plain(check.get("type")) + ": " + predicates(check.get("predicates"))
                 + (check.containsKey("owner") ? "; owned by " + selector(check.get("owner")) : "");
+            case "diagram_shows" -> "Diagram “" + plain(check.get("diagram")) + "” shows " + sequence(check.get("elements")).replace(" → ", ", ");
             default -> "Native relationship check is unavailable";
         };
     }
