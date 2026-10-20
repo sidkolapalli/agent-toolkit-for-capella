@@ -1,0 +1,106 @@
+{
+  "description": "Harder Arcadia tasks: multi-element architectures, chains, interfaces, deployment, cross-layer traceability and a subsystem large enough to need several reviewed proposals. Scored only by native checks. Run on a disposable copy with restore=true.",
+  "restore": true,
+  "tasks": [
+    {
+      "id": "adv-bms-functional-architecture",
+      "prompt": "In the system analysis, build the functional architecture of a battery management system. Create the system functions 'Measure Cell Voltages', 'Measure Cell Temperatures', 'Estimate State of Charge', 'Detect Fault' and 'Command Contactor'. Connect them with functional exchanges: 'Cell Voltages' from Measure Cell Voltages to Estimate State of Charge, 'Cell Temperatures' from Measure Cell Temperatures to Detect Fault, 'Voltage Limits' from Measure Cell Voltages to Detect Fault, and 'Fault Status' from Detect Fault to Command Contactor.",
+      "checks": [
+        {"kind": "element_exists", "type": "SystemFunction", "name": "Measure Cell Voltages", "layer": "SA"},
+        {"kind": "element_exists", "type": "SystemFunction", "name": "Measure Cell Temperatures", "layer": "SA"},
+        {"kind": "element_exists", "type": "SystemFunction", "name": "Estimate State of Charge", "layer": "SA"},
+        {"kind": "element_exists", "type": "SystemFunction", "name": "Detect Fault", "layer": "SA"},
+        {"kind": "element_exists", "type": "SystemFunction", "name": "Command Contactor", "layer": "SA"},
+        {"kind": "element_exists", "type": "FunctionalExchange", "name": "Cell Voltages", "layer": "SA"},
+        {"kind": "element_exists", "type": "FunctionalExchange", "name": "Cell Temperatures", "layer": "SA"},
+        {"kind": "element_exists", "type": "FunctionalExchange", "name": "Voltage Limits", "layer": "SA"},
+        {"kind": "element_exists", "type": "FunctionalExchange", "name": "Fault Status", "layer": "SA"}
+      ]
+    },
+    {
+      "id": "adv-functional-chain",
+      "prompt": "Create the system functions 'Read Pedal', 'Compute Torque' and 'Drive Motor', connected in that order by the functional exchanges 'Pedal Signal' and 'Torque Command'. Then create a functional chain 'Torque Path' that involves the three functions and both exchanges.",
+      "checks": [
+        {"kind": "element_exists", "type": "FunctionalChain", "name": "Torque Path", "layer": "SA"},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "FunctionalChainInvolvementFunction",
+          "predicates": {"involved": {"type": "SystemFunction", "name": "Read Pedal", "layer": "SA"}},
+          "owner": {"type": "FunctionalChain", "name": "Torque Path", "layer": "SA"}}},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "FunctionalChainInvolvementFunction",
+          "predicates": {"involved": {"type": "SystemFunction", "name": "Drive Motor", "layer": "SA"}},
+          "owner": {"type": "FunctionalChain", "name": "Torque Path", "layer": "SA"}}}
+      ]
+    },
+    {
+      "id": "adv-exchange-allocated-to-component-exchange",
+      "prompt": "In the logical architecture, create the components 'Pedal Box' and 'Vehicle Controller'. Allocate a new logical function 'Sense Pedal' to Pedal Box and a new logical function 'Arbitrate Torque' to Vehicle Controller. Connect the functions with a functional exchange 'Pedal Position', connect the components with a component exchange 'Pedal Link', and allocate the functional exchange to the component exchange.",
+      "checks": [
+        {"kind": "element_exists", "type": "ComponentExchange", "name": "Pedal Link", "layer": "LA"},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "ComponentExchangeFunctionalExchangeAllocation", "predicates": {
+          "sourceElement": {"type": "ComponentExchange", "name": "Pedal Link", "layer": "LA"},
+          "targetElement": {"type": "FunctionalExchange", "name": "Pedal Position", "layer": "LA"}}}},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "ComponentFunctionalAllocation", "predicates": {
+          "sourceElement": {"type": "LogicalComponent", "name": "Vehicle Controller", "layer": "LA"},
+          "targetElement": {"type": "LogicalFunction", "name": "Arbitrate Torque", "layer": "LA"}}}}
+      ]
+    },
+    {
+      "id": "adv-interface-exchange-item",
+      "prompt": "In the logical architecture, create an exchange item 'Torque Setpoint' and an interface 'Torque Command Interface' that carries it.",
+      "checks": [
+        {"kind": "element_exists", "type": "ExchangeItem", "name": "Torque Setpoint", "layer": "LA"},
+        {"kind": "element_exists", "type": "Interface", "name": "Torque Command Interface", "layer": "LA"},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "ExchangeItemAllocation",
+          "predicates": {"allocatedItem": {"type": "ExchangeItem", "name": "Torque Setpoint", "layer": "LA"}},
+          "owner": {"type": "Interface", "name": "Torque Command Interface", "layer": "LA"}}}
+      ]
+    },
+    {
+      "id": "adv-behavior-deployed-on-node",
+      "prompt": "In the physical architecture, create a node component 'Inverter Board' and a behavior component 'Motor Control Software', and deploy the software on the board.",
+      "checks": [
+        {"kind": "attribute_equals", "type": "PhysicalComponent", "name": "Inverter Board", "layer": "PA", "attribute": "nature", "expected": "NODE"},
+        {"kind": "attribute_equals", "type": "PhysicalComponent", "name": "Motor Control Software", "layer": "PA", "attribute": "nature", "expected": "BEHAVIOR"},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "PartDeploymentLink", "predicates": {
+          "deployedElement": {"type": "Part", "name": "Motor Control Software", "layer": "PA"},
+          "location": {"type": "Part", "name": "Inverter Board", "layer": "PA"}}}}
+      ]
+    },
+    {
+      "id": "adv-physical-link",
+      "prompt": "In the physical architecture, create node components 'Battery Pack' and 'Inverter' connected by a physical link named 'HV DC Link'.",
+      "checks": [
+        {"kind": "attribute_equals", "type": "PhysicalComponent", "name": "Battery Pack", "layer": "PA", "attribute": "nature", "expected": "NODE"},
+        {"kind": "element_exists", "type": "PhysicalLink", "name": "HV DC Link", "layer": "PA"}
+      ]
+    },
+    {
+      "id": "adv-three-layer-realization",
+      "prompt": "Create a system function 'Monitor Insulation', a logical function 'Monitor Insulation Resistance' that realizes it, and a physical function 'Measure Insulation Resistance' that realizes the logical function.",
+      "checks": [
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "FunctionRealization", "predicates": {
+          "sourceElement": {"type": "LogicalFunction", "name": "Monitor Insulation Resistance", "layer": "LA"},
+          "targetElement": {"type": "SystemFunction", "name": "Monitor Insulation", "layer": "SA"}}}},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "FunctionRealization", "predicates": {
+          "sourceElement": {"type": "PhysicalFunction", "name": "Measure Insulation Resistance", "layer": "PA"},
+          "targetElement": {"type": "LogicalFunction", "name": "Monitor Insulation Resistance", "layer": "LA"}}}}
+      ]
+    },
+    {
+      "id": "adv-shutdown-subsystem",
+      "prompt": "Model the shutdown subsystem across the system and logical analyses. In SA, create the functions 'Detect Shutdown Request', 'Open Shutdown Circuit', 'Discharge DC Link' and 'Report Shutdown State', connected in that order by the functional exchanges 'Shutdown Request', 'Circuit Open' and 'Discharge Complete'. In LA, create the components 'Shutdown Controller' and 'Discharge Circuit', create a logical function realizing each system function with the same name, allocate the logical 'Detect Shutdown Request', 'Open Shutdown Circuit' and 'Report Shutdown State' to Shutdown Controller, and allocate the logical 'Discharge DC Link' to Discharge Circuit.",
+      "checks": [
+        {"kind": "element_exists", "type": "FunctionalExchange", "name": "Discharge Complete", "layer": "SA"},
+        {"kind": "element_exists", "type": "LogicalComponent", "name": "Discharge Circuit", "layer": "LA"},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "FunctionRealization", "predicates": {
+          "sourceElement": {"type": "LogicalFunction", "name": "Discharge DC Link", "layer": "LA"},
+          "targetElement": {"type": "SystemFunction", "name": "Discharge DC Link", "layer": "SA"}}}},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "ComponentFunctionalAllocation", "predicates": {
+          "sourceElement": {"type": "LogicalComponent", "name": "Discharge Circuit", "layer": "LA"},
+          "targetElement": {"type": "LogicalFunction", "name": "Discharge DC Link", "layer": "LA"}}}},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "ComponentFunctionalAllocation", "predicates": {
+          "sourceElement": {"type": "LogicalComponent", "name": "Shutdown Controller", "layer": "LA"},
+          "targetElement": {"type": "LogicalFunction", "name": "Report Shutdown State", "layer": "LA"}}}}
+      ]
+    }
+  ]
+}

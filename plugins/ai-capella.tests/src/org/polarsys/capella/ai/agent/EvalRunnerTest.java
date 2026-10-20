@@ -89,16 +89,25 @@ public class EvalRunnerTest {
         assertThrows(IllegalArgumentException.class, () -> EvalRunner.parse("{\"tasks\":[{\"id\":\"no-checks\",\"prompt\":\"x\"}]}"));
     }
 
-    @Test public void shippedStarterTasksAreValidDeclarations() throws Exception {
-        java.nio.file.Path file = null;
-        for (var dir = java.nio.file.Path.of(System.getProperty("user.dir")).toAbsolutePath(); dir != null && file == null; dir = dir.getParent()) {
-            var candidate = dir.resolve("test-models/evals/arcadia-starter.json");
-            if (java.nio.file.Files.isRegularFile(candidate)) file = candidate;
+    @Test public void shippedTaskFilesAreValidDeclarations() throws Exception {
+        java.nio.file.Path dir = null;
+        for (var root = java.nio.file.Path.of(System.getProperty("user.dir")).toAbsolutePath(); root != null && dir == null; root = root.getParent()) {
+            var candidate = root.resolve("test-models/evals");
+            if (java.nio.file.Files.isDirectory(candidate)) dir = candidate;
         }
-        assertNotNull("test-models/evals/arcadia-starter.json must be reachable from the build directory", file);
-        List<EvalRunner.Task> tasks = EvalRunner.parse(java.nio.file.Files.readString(file));
-        assertTrue(tasks.size() >= 12);
-        assertEquals("Task ids are unique", tasks.size(), tasks.stream().map(EvalRunner.Task::id).distinct().count());
+        assertNotNull("test-models/evals must be reachable from the build directory", dir);
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        int files = 0;
+        try (var paths = java.nio.file.Files.list(dir)) {
+            for (var file : paths.filter(path -> path.toString().endsWith(".json")).toList()) {
+                files++;
+                for (EvalRunner.Task task : EvalRunner.parse(java.nio.file.Files.readString(file))) {
+                    assertTrue("Task ids are unique across files: " + task.id(), ids.add(task.id()));
+                }
+            }
+        }
+        assertTrue(files >= 2);
+        assertTrue(ids.size() >= 20);
     }
 
     @Test public void solvedTaskPassesItsNativeChecksAndRecordsTheEffort() throws Exception {
