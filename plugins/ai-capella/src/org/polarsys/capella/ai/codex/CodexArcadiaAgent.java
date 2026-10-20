@@ -246,7 +246,7 @@ public final class CodexArcadiaAgent implements AgentRuntime {
             + "Use capella_plan for 1..12 stable read/edit steps. Never mark an edit complete yourself. "
             + "Read tools may include stepId of a read step; successful evidence can complete only that read step. "
             + "For a requested edit use capella_propose_edit with one exact full Groovy script, explicit pending edit stepIds "
-            + "and optional bounded native postconditions. This pauses for human review; a proposal is not execution. "
+            + "and bounded native postconditions. This pauses for human review; a proposal is not execution. " + ArcadiaAgent.EDIT_STEP_COMPLETION
             + "Postconditions use element_exists/element_absent/attribute_equals, target id alone or type+name(+layer), "
             + "and stored attribute+primitive expected for attribute_equals. Native UUID selectors are preferred; named targets must be unique. "
             + "For relationship direction, exact order and ownership use kind native_structure and check: {kind:reference_equals,target,feature,expected}, "

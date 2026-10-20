@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.polarsys.capella.ai.agent.ArcadiaAgent;
 import org.polarsys.capella.ai.agent.ArcadiaModelTools;
 
 /** Pinned app-server 0.160.1 dynamic function specifications. No executable schemas. */
@@ -22,7 +23,7 @@ public final class CodexToolSchemas {
             object(Map.of("message", text(2400), "steps", array(stepSchema(), 1, 12)), List.of("message", "steps"))));
         tools.add(spec(PROPOSE, "Pause for review of this exact complete Groovy script; never execute it. stepIds must name pending edit steps from capella_plan. "
             + "Await and print the tool's eventual execution receipt. If Code Mode exec yields a running cell, wait on that cell until the receipt arrives; do not finalize while it is pending. "
-            + "Optional postconditions are FLAT objects, each with its own stepId; there is no nested target or arguments field. "
+            + ArcadiaAgent.EDIT_STEP_COMPLETION + "Postconditions are FLAT objects, each with its own stepId; there is no nested target or arguments field. "
             + "native_structure instead contains one nested check for stored reference equality, exact reference order, immediate containment or a unique directed relation. "
             + "Example: {\"message\":\"Create a function\",\"script\":\"api.create('LA','LogicalFunction','Probe')\",\"stepIds\":[\"create\"],"
             + "\"postconditions\":[{\"stepId\":\"create\",\"kind\":\"element_exists\",\"type\":\"LogicalFunction\",\"name\":\"Probe\",\"layer\":\"LA\"}]}. "
