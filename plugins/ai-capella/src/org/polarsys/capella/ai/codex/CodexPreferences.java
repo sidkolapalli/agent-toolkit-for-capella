@@ -92,7 +92,7 @@ public final class CodexPreferences {
                 Path candidate = path(configured);
                 if (usable(candidate)) return candidate.toAbsolutePath().normalize();
                 throw new IllegalStateException("The configured Codex binary is not an executable file: " + configured
-                    + ". Choose codex.exe in Capella AI preferences, or clear the path to discover it automatically.");
+                    + ". Choose the Codex executable (codex.exe on Windows, codex elsewhere) in Capella AI preferences, or clear the path to discover it automatically.");
             }
             Path packaged = bundledRuntime.get();
             if (packaged != null) {

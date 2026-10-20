@@ -188,13 +188,13 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
             } else {
                 Path binary = Path.of(configured);
                 if (!Files.isRegularFile(binary) || !Files.isExecutable(binary)) {
-                    throw new IllegalArgumentException("The configured Codex binary is not an executable file. Choose codex.exe or clear the path to discover it automatically.");
+                    throw new IllegalArgumentException("The configured Codex binary is not an executable file. Choose the Codex executable (codex.exe on Windows, codex elsewhere) or clear the path to discover it automatically.");
                 }
                 status.setText("Codex executable selected: " + binary);
             }
             status.setText(status.getText() + "\nConnection and sign-in are checked when a conversation starts.");
         } catch (RuntimeException exception) {
-            status.setText("Check the Codex binary path. Choose codex.exe or clear the path to discover it automatically.");
+            status.setText("Check the Codex binary path. Choose the Codex executable (codex.exe on Windows, codex elsewhere) or clear the path to discover it automatically.");
             if (exception instanceof IllegalArgumentException && !(exception instanceof java.nio.file.InvalidPathException)) {
                 status.setText(exception.getMessage());
             }
