@@ -1,0 +1,1249 @@
+{
+  "description": "FSAE 2027 electric vehicle tasks for a disposable copy of the FSAE-2027-Electric-Arcadia project: requirements traceability, functional chains, interfaces and exchange items, modes and states, scenarios, architecture extensions, diagrams and model maintenance. Scored only by native checks. Run with restore=true.",
+  "restore": true,
+  "tasks": [
+    {
+      "id": "fsae-trace-imd-function",
+      "prompt": "Trace the logical function 'FSAE2027:SD Independently detect insulation and IMD operational faults' as satisfying the FSAE requirement FSAE-2027-V1:EV.8.6.6:p001 (Insulation Monitoring Device).",
+      "checks": [
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "CapellaOutgoingRelation",
+            "predicates": {
+              "source": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Independently detect insulation and IMD operational faults",
+                "layer": "LA"
+              },
+              "target": {
+                "id": "a4171639-6c11-46b6-8e30-186f9ec8311c"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-trace-bspd-component",
+      "prompt": "Trace the logical component 'FSAE2027:DD Independent nonprogrammable BSPD Logical component' as satisfying the FSAE requirement FSAE-2027-V1:IC.4.8.1:p001 (Brake System Plausibility Device).",
+      "checks": [
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "CapellaOutgoingRelation",
+            "predicates": {
+              "source": {
+                "type": "LogicalComponent",
+                "name": "FSAE2027:DD Independent nonprogrammable BSPD Logical component",
+                "layer": "LA"
+              },
+              "target": {
+                "id": "fbd0d966-7506-401b-b636-7e69ef805f5a"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-trace-apps-component",
+      "prompt": "Trace the logical component 'FSAE2027:DD Independent analogue APPS channels Logical component' as satisfying the FSAE requirement FSAE-2027-V1:T.4.2.4:p001 (Accelerator Pedal Position Sensor).",
+      "checks": [
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "CapellaOutgoingRelation",
+            "predicates": {
+              "source": {
+                "type": "LogicalComponent",
+                "name": "FSAE2027:DD Independent analogue APPS channels Logical component",
+                "layer": "LA"
+              },
+              "target": {
+                "id": "81062f60-8ef1-4998-8d40-1ff50929b1a1"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-trace-precharge-component",
+      "prompt": "Trace the logical component 'FSAE2027:SD Isolation precharge and discharge Logical interface' as satisfying the FSAE requirement FSAE-2027-V1:EV.5.6.1:p001 (precharge and discharge circuits).",
+      "checks": [
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "CapellaOutgoingRelation",
+            "predicates": {
+              "source": {
+                "type": "LogicalComponent",
+                "name": "FSAE2027:SD Isolation precharge and discharge Logical interface",
+                "layer": "LA"
+              },
+              "target": {
+                "id": "89ab3034-3dad-4a73-80e1-a52d0ee16091"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-trace-shutdown-circuit",
+      "prompt": "Trace the logical component 'FSAE2027:SD Hardwired shutdown current path Logical subsystem' as satisfying the FSAE requirement FSAE-2027-V1:IC.9.1.1:p001 (shutdown circuit).",
+      "checks": [
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "CapellaOutgoingRelation",
+            "predicates": {
+              "source": {
+                "type": "LogicalComponent",
+                "name": "FSAE2027:SD Hardwired shutdown current path Logical subsystem",
+                "layer": "LA"
+              },
+              "target": {
+                "id": "a6338e74-b010-4690-8fa1-ab2a8749a589"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-energy-meter-function",
+      "prompt": "In the logical architecture, create the logical function 'FSAE2027:EM Measure tractive voltage and current for the energy meter', allocate it to the logical component 'FSAE2027:energy-storage Logical subsystem', and trace it as satisfying the FSAE requirement FSAE-2027-V1:EV.3.2.1:p001 (energy meter).",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "LogicalFunction",
+          "name": "FSAE2027:EM Measure tractive voltage and current for the energy meter",
+          "layer": "LA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "ComponentFunctionalAllocation",
+            "predicates": {
+              "sourceElement": {
+                "type": "LogicalComponent",
+                "name": "FSAE2027:energy-storage Logical subsystem",
+                "layer": "LA"
+              },
+              "targetElement": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:EM Measure tractive voltage and current for the energy meter",
+                "layer": "LA"
+              }
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "CapellaOutgoingRelation",
+            "predicates": {
+              "source": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:EM Measure tractive voltage and current for the energy meter",
+                "layer": "LA"
+              },
+              "target": {
+                "id": "c3fd1cae-ac22-4e8c-8039-36944f15e20f"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-chain-imd-shutdown",
+      "prompt": "In the logical architecture, create the functional chain 'FSAE2027:Chain IMD fault to tractive current interruption' that follows 'FSAE2027:SD Independently detect insulation and IMD operational faults' -> 'FSAE2027:SD Accept independent shutdown trips' -> 'FSAE2027:SD Open high-side shutdown current path' -> 'FSAE2027:SD Remove isolation and precharge relay coil drive' -> 'FSAE2027:SD Interrupt all tractive battery current' through the existing functional exchanges 'FSAE2027:SD LA Independent IMD shutdown trip', 'FSAE2027:SD LA Any series path open request', 'FSAE2027:SD LA Coil drive removed', 'FSAE2027:SD LA Isolation relays release and interrupt current'.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "FunctionalChain",
+          "name": "FSAE2027:Chain IMD fault to tractive current interruption",
+          "layer": "LA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementFunction",
+            "predicates": {
+              "involved": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Independently detect insulation and IMD operational faults",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain IMD fault to tractive current interruption",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementFunction",
+            "predicates": {
+              "involved": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Interrupt all tractive battery current",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain IMD fault to tractive current interruption",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementLink",
+            "predicates": {
+              "involved": {
+                "type": "FunctionalExchange",
+                "name": "FSAE2027:SD LA Isolation relays release and interrupt current",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain IMD fault to tractive current interruption",
+              "layer": "LA"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-chain-bms-shutdown",
+      "prompt": "In the logical architecture, create the functional chain 'FSAE2027:Chain cell voltage fault to shutdown' that follows 'FSAE2027:SD Measure every required cell-group voltage and apply datasheet limits' -> 'FSAE2027:SD Issue independent BMS trip for any monitored fault' -> 'FSAE2027:SD Accept independent shutdown trips' -> 'FSAE2027:SD Open high-side shutdown current path' through the existing functional exchanges 'FSAE2027:SD LA Cell voltage and sense validity', 'FSAE2027:SD LA Independent BMS shutdown trip', 'FSAE2027:SD LA Any series path open request'.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "FunctionalChain",
+          "name": "FSAE2027:Chain cell voltage fault to shutdown",
+          "layer": "LA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementFunction",
+            "predicates": {
+              "involved": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Measure every required cell-group voltage and apply datasheet limits",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain cell voltage fault to shutdown",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementFunction",
+            "predicates": {
+              "involved": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Open high-side shutdown current path",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain cell voltage fault to shutdown",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementLink",
+            "predicates": {
+              "involved": {
+                "type": "FunctionalExchange",
+                "name": "FSAE2027:SD LA Any series path open request",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain cell voltage fault to shutdown",
+              "layer": "LA"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-chain-bspd-shutdown",
+      "prompt": "In the logical architecture, create the functional chain 'FSAE2027:Chain BSPD trip to shutdown' that follows 'FSAE2027:DD BSPD standalone brake and current monitor' -> 'FSAE2027:DD BSPD latched shutdown request' -> 'FSAE2027:SD Accept independent shutdown trips' -> 'FSAE2027:SD Open high-side shutdown current path' through the existing functional exchanges 'FSAE2027:DD LA Hardware simultaneous condition or sensor wiring fault', 'FSAE2027:DD LA BSPD trip request', 'FSAE2027:SD LA Any series path open request'.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "FunctionalChain",
+          "name": "FSAE2027:Chain BSPD trip to shutdown",
+          "layer": "LA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementFunction",
+            "predicates": {
+              "involved": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:DD BSPD standalone brake and current monitor",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain BSPD trip to shutdown",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementFunction",
+            "predicates": {
+              "involved": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Open high-side shutdown current path",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain BSPD trip to shutdown",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementLink",
+            "predicates": {
+              "involved": {
+                "type": "FunctionalExchange",
+                "name": "FSAE2027:SD LA Any series path open request",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain BSPD trip to shutdown",
+              "layer": "LA"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-chain-torque-removal",
+      "prompt": "In the logical architecture, create the functional chain 'FSAE2027:Chain shutdown torque removal' that follows 'FSAE2027:SD Open high-side shutdown current path' -> 'FSAE2027:SD Remove motor torque on shutdown' -> 'FSAE2027:DD Motor power inhibit enforcement' -> 'FSAE2027:DD Execute permitted motor power and forward torque command' through the existing functional exchanges 'FSAE2027:SD LA Torque removed and motor free-spin', 'FSAE2027:DD LA Shutdown motor inhibit', 'FSAE2027:DD LA Permitted motor power and forward torque command'.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "FunctionalChain",
+          "name": "FSAE2027:Chain shutdown torque removal",
+          "layer": "LA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementFunction",
+            "predicates": {
+              "involved": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Open high-side shutdown current path",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain shutdown torque removal",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementFunction",
+            "predicates": {
+              "involved": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:DD Execute permitted motor power and forward torque command",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain shutdown torque removal",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementLink",
+            "predicates": {
+              "involved": {
+                "type": "FunctionalExchange",
+                "name": "FSAE2027:DD LA Permitted motor power and forward torque command",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain shutdown torque removal",
+              "layer": "LA"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-chain-discharge",
+      "prompt": "In the logical architecture, create the functional chain 'FSAE2027:Chain residual energy discharge' that follows 'FSAE2027:SD Open high-side shutdown current path' -> 'FSAE2027:SD Reduce residual TS voltage to low voltage within 5 seconds' through the existing functional exchanges 'FSAE2027:SD LA Residual energy discharge required'.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "FunctionalChain",
+          "name": "FSAE2027:Chain residual energy discharge",
+          "layer": "LA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementFunction",
+            "predicates": {
+              "involved": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Open high-side shutdown current path",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain residual energy discharge",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementFunction",
+            "predicates": {
+              "involved": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Reduce residual TS voltage to low voltage within 5 seconds",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain residual energy discharge",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionalChainInvolvementLink",
+            "predicates": {
+              "involved": {
+                "type": "FunctionalExchange",
+                "name": "FSAE2027:SD LA Residual energy discharge required",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "FunctionalChain",
+              "name": "FSAE2027:Chain residual energy discharge",
+              "layer": "LA"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-apps-interface",
+      "prompt": "In the logical architecture, create the exchange items 'APPS channel A voltage' and 'APPS channel B voltage' and an interface 'FSAE2027:APPS sensor interface' that carries both.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "ExchangeItem",
+          "name": "APPS channel A voltage",
+          "layer": "LA"
+        },
+        {
+          "kind": "element_exists",
+          "type": "ExchangeItem",
+          "name": "APPS channel B voltage",
+          "layer": "LA"
+        },
+        {
+          "kind": "element_exists",
+          "type": "Interface",
+          "name": "FSAE2027:APPS sensor interface",
+          "layer": "LA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "ExchangeItemAllocation",
+            "predicates": {
+              "allocatedItem": {
+                "type": "ExchangeItem",
+                "name": "APPS channel A voltage",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "Interface",
+              "name": "FSAE2027:APPS sensor interface",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "ExchangeItemAllocation",
+            "predicates": {
+              "allocatedItem": {
+                "type": "ExchangeItem",
+                "name": "APPS channel B voltage",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "Interface",
+              "name": "FSAE2027:APPS sensor interface",
+              "layer": "LA"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-imd-exchange-item",
+      "prompt": "In the logical architecture, create the exchange item 'IMD fault status' and make the existing functional exchange 'FSAE2027:SD LA Independent IMD shutdown trip' convey it.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "ExchangeItem",
+          "name": "IMD fault status",
+          "layer": "LA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "reference_sequence_equals",
+            "target": {
+              "type": "FunctionalExchange",
+              "name": "FSAE2027:SD LA Independent IMD shutdown trip",
+              "layer": "LA"
+            },
+            "feature": "exchangedItems",
+            "expected": [
+              {
+                "type": "ExchangeItem",
+                "name": "IMD fault status",
+                "layer": "LA"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-shutdown-trip-interface",
+      "prompt": "In the logical architecture, create the interface 'FSAE2027:Shutdown trip interface' carrying three new exchange items: 'BMS trip request', 'IMD trip request', 'BSPD trip request'.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "Interface",
+          "name": "FSAE2027:Shutdown trip interface",
+          "layer": "LA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "ExchangeItemAllocation",
+            "predicates": {
+              "allocatedItem": {
+                "type": "ExchangeItem",
+                "name": "BMS trip request",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "Interface",
+              "name": "FSAE2027:Shutdown trip interface",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "ExchangeItemAllocation",
+            "predicates": {
+              "allocatedItem": {
+                "type": "ExchangeItem",
+                "name": "IMD trip request",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "Interface",
+              "name": "FSAE2027:Shutdown trip interface",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "ExchangeItemAllocation",
+            "predicates": {
+              "allocatedItem": {
+                "type": "ExchangeItem",
+                "name": "BSPD trip request",
+                "layer": "LA"
+              }
+            },
+            "owner": {
+              "type": "Interface",
+              "name": "FSAE2027:Shutdown trip interface",
+              "layer": "LA"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-bms-trip-line",
+      "prompt": "In the logical architecture, connect 'FSAE2027:SD Independent BMS Logical monitor' to 'FSAE2027:SD Hardwired shutdown current path Logical subsystem' with a component exchange 'FSAE2027:BMS trip line', and allocate the existing functional exchange 'FSAE2027:SD LA Independent BMS shutdown trip' to it.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "ComponentExchange",
+          "name": "FSAE2027:BMS trip line",
+          "layer": "LA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "ComponentExchangeFunctionalExchangeAllocation",
+            "predicates": {
+              "sourceElement": {
+                "type": "ComponentExchange",
+                "name": "FSAE2027:BMS trip line",
+                "layer": "LA"
+              },
+              "targetElement": {
+                "type": "FunctionalExchange",
+                "name": "FSAE2027:SD LA Independent BMS shutdown trip",
+                "layer": "LA"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-tractive-system-states",
+      "prompt": "Give the logical component 'FSAE2027:tractive-distribution Logical subsystem' a state machine 'FSAE2027:Tractive system states' with the states 'TS inactive', 'Precharging', 'TS active', 'Discharging' and the transitions TS inactive to Precharging, Precharging to TS active, TS active to Discharging, and Discharging to TS inactive.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "State",
+          "name": "TS inactive",
+          "layer": "LA"
+        },
+        {
+          "kind": "element_exists",
+          "type": "State",
+          "name": "Precharging",
+          "layer": "LA"
+        },
+        {
+          "kind": "element_exists",
+          "type": "State",
+          "name": "TS active",
+          "layer": "LA"
+        },
+        {
+          "kind": "element_exists",
+          "type": "State",
+          "name": "Discharging",
+          "layer": "LA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "StateTransition",
+            "predicates": {
+              "source": {
+                "type": "State",
+                "name": "TS inactive",
+                "layer": "LA"
+              },
+              "target": {
+                "type": "State",
+                "name": "Precharging",
+                "layer": "LA"
+              }
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "StateTransition",
+            "predicates": {
+              "source": {
+                "type": "State",
+                "name": "Precharging",
+                "layer": "LA"
+              },
+              "target": {
+                "type": "State",
+                "name": "TS active",
+                "layer": "LA"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-ready-to-drive-states",
+      "prompt": "Give the logical component 'FSAE2027:status Logical subsystem' a state machine 'FSAE2027:Ready-to-drive states' with the states 'Not ready to drive' and 'Ready to drive', a transition from 'Not ready to drive' to 'Ready to drive', and trace the state 'Ready to drive' as satisfying the FSAE requirement FSAE-2027-V1:EV.10.6.1:p001.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "State",
+          "name": "Ready to drive",
+          "layer": "LA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "StateTransition",
+            "predicates": {
+              "source": {
+                "type": "State",
+                "name": "Not ready to drive",
+                "layer": "LA"
+              },
+              "target": {
+                "type": "State",
+                "name": "Ready to drive",
+                "layer": "LA"
+              }
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "CapellaOutgoingRelation",
+            "predicates": {
+              "source": {
+                "type": "State",
+                "name": "Ready to drive",
+                "layer": "LA"
+              },
+              "target": {
+                "id": "208025bd-45f7-429f-89a3-a3ad25a704a6"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-imd-fault-scenario",
+      "prompt": "In the system analysis, create an exchange scenario 'FSAE2027:IMD fault shutdown scenario' in the capability 'FSAE2027:shutdown System capability'.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "Scenario",
+          "name": "FSAE2027:IMD fault shutdown scenario",
+          "layer": "SA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "contained_by",
+            "target": {
+              "type": "Scenario",
+              "name": "FSAE2027:IMD fault shutdown scenario",
+              "layer": "SA"
+            },
+            "container": {
+              "type": "Capability",
+              "name": "FSAE2027:shutdown System capability",
+              "layer": "SA"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-tsal-component",
+      "prompt": "In the logical architecture, create the logical component 'FSAE2027:TSAL Logical component' inside 'FSAE2027:status Logical subsystem', create the logical function 'FSAE2027:Indicate tractive system active with TSAL', and allocate the function to the new component.",
+      "checks": [
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "contained_by",
+            "target": {
+              "type": "LogicalComponent",
+              "name": "FSAE2027:TSAL Logical component",
+              "layer": "LA"
+            },
+            "container": {
+              "type": "LogicalComponent",
+              "name": "FSAE2027:status Logical subsystem",
+              "layer": "LA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "ComponentFunctionalAllocation",
+            "predicates": {
+              "sourceElement": {
+                "type": "LogicalComponent",
+                "name": "FSAE2027:TSAL Logical component",
+                "layer": "LA"
+              },
+              "targetElement": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:Indicate tractive system active with TSAL",
+                "layer": "LA"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-inertia-switch",
+      "prompt": "Add the inertia switch to the logical architecture: create the logical function 'FSAE2027:SD Open shutdown circuit on inertia switch trigger', connect it to 'FSAE2027:SD Accept independent shutdown trips' with a functional exchange 'FSAE2027:SD LA Inertia switch trip', allocate the new function to 'FSAE2027:SD Hardwired shutdown current path Logical subsystem', and trace it as satisfying the FSAE requirement FSAE-2027-V1:T.9.4.1:p001.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "FunctionalExchange",
+          "name": "FSAE2027:SD LA Inertia switch trip",
+          "layer": "LA"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "ComponentFunctionalAllocation",
+            "predicates": {
+              "sourceElement": {
+                "type": "LogicalComponent",
+                "name": "FSAE2027:SD Hardwired shutdown current path Logical subsystem",
+                "layer": "LA"
+              },
+              "targetElement": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Open shutdown circuit on inertia switch trigger",
+                "layer": "LA"
+              }
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "CapellaOutgoingRelation",
+            "predicates": {
+              "source": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Open shutdown circuit on inertia switch trigger",
+                "layer": "LA"
+              },
+              "target": {
+                "id": "f04779cb-2fce-4f07-ac6c-fd2187f2e802"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-energy-meter-hardware",
+      "prompt": "In the physical architecture, create a node component 'FSAE2027:Energy meter Equipment' inside 'FSAE2027:energy-storage Equipment' and a behavior component 'FSAE2027:Energy meter firmware Physical behavior' deployed on it.",
+      "checks": [
+        {
+          "kind": "attribute_equals",
+          "type": "PhysicalComponent",
+          "name": "FSAE2027:Energy meter Equipment",
+          "layer": "PA",
+          "attribute": "nature",
+          "expected": "NODE"
+        },
+        {
+          "kind": "attribute_equals",
+          "type": "PhysicalComponent",
+          "name": "FSAE2027:Energy meter firmware Physical behavior",
+          "layer": "PA",
+          "attribute": "nature",
+          "expected": "BEHAVIOR"
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "contained_by",
+            "target": {
+              "type": "PhysicalComponent",
+              "name": "FSAE2027:Energy meter Equipment",
+              "layer": "PA"
+            },
+            "container": {
+              "type": "PhysicalComponent",
+              "name": "FSAE2027:energy-storage Equipment",
+              "layer": "PA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "PartDeploymentLink",
+            "predicates": {
+              "deployedElement": {
+                "type": "Part",
+                "name": "FSAE2027:Energy meter firmware Physical behavior",
+                "layer": "PA"
+              },
+              "location": {
+                "type": "Part",
+                "name": "FSAE2027:Energy meter Equipment",
+                "layer": "PA"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-imd-physical-link",
+      "prompt": "In the physical architecture, connect 'FSAE2027:SD IMD Equipment approved model TBD' and 'FSAE2027:SD Normally-open independent IMD shutdown contact' with a physical link 'FSAE2027:SD IMD contact drive link'.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "PhysicalLink",
+          "name": "FSAE2027:SD IMD contact drive link",
+          "layer": "PA"
+        }
+      ]
+    },
+    {
+      "id": "fsae-imd-realization",
+      "prompt": "Create the physical function 'FSAE2027:SD Monitor insulation resistance in hardware' that realizes the logical function 'FSAE2027:SD Independently detect insulation and IMD operational faults'.",
+      "checks": [
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionRealization",
+            "predicates": {
+              "sourceElement": {
+                "type": "PhysicalFunction",
+                "name": "FSAE2027:SD Monitor insulation resistance in hardware",
+                "layer": "PA"
+              },
+              "targetElement": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Independently detect insulation and IMD operational faults",
+                "layer": "LA"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-ready-to-drive-sound",
+      "prompt": "In the system analysis, create the system function 'FSAE2027:SD Sound ready-to-drive signal' under 'FSAE2027:status Indicate electrical and readiness states' and trace it as satisfying the FSAE requirement FSAE-2027-V1:EV.10.6.1:p001.",
+      "checks": [
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "contained_by",
+            "target": {
+              "type": "SystemFunction",
+              "name": "FSAE2027:SD Sound ready-to-drive signal",
+              "layer": "SA"
+            },
+            "container": {
+              "type": "SystemFunction",
+              "name": "FSAE2027:status Indicate electrical and readiness states",
+              "layer": "SA"
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "CapellaOutgoingRelation",
+            "predicates": {
+              "source": {
+                "type": "SystemFunction",
+                "name": "FSAE2027:SD Sound ready-to-drive signal",
+                "layer": "SA"
+              },
+              "target": {
+                "id": "208025bd-45f7-429f-89a3-a3ad25a704a6"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-ready-to-drive-sound-la",
+      "prompt": "Create the system function 'FSAE2027:SD Sound ready-to-drive signal', a logical function 'FSAE2027:SD Generate ready-to-drive sound' that realizes it, and allocate the logical function to 'FSAE2027:status Logical subsystem'.",
+      "checks": [
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "FunctionRealization",
+            "predicates": {
+              "sourceElement": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Generate ready-to-drive sound",
+                "layer": "LA"
+              },
+              "targetElement": {
+                "type": "SystemFunction",
+                "name": "FSAE2027:SD Sound ready-to-drive signal",
+                "layer": "SA"
+              }
+            }
+          }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "relation_exists",
+            "type": "ComponentFunctionalAllocation",
+            "predicates": {
+              "sourceElement": {
+                "type": "LogicalComponent",
+                "name": "FSAE2027:status Logical subsystem",
+                "layer": "LA"
+              },
+              "targetElement": {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:SD Generate ready-to-drive sound",
+                "layer": "LA"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-shutdown-sources-diagram",
+      "prompt": "Create a Logical Architecture Blank diagram 'FSAE2027:Shutdown trip sources' showing 'FSAE2027:SD Independent IMD Logical monitor', 'FSAE2027:SD Independent BMS Logical monitor', 'FSAE2027:DD Independent nonprogrammable BSPD Logical component' and 'FSAE2027:SD Hardwired shutdown current path Logical subsystem' with their allocated functions and the functional exchanges between those functions, and lay it out cleanly.",
+      "checks": [
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "diagram_shows",
+            "diagram": "FSAE2027:Shutdown trip sources",
+            "elements": [
+              {
+                "type": "LogicalComponent",
+                "name": "FSAE2027:SD Independent IMD Logical monitor",
+                "layer": "LA"
+              },
+              {
+                "type": "LogicalComponent",
+                "name": "FSAE2027:SD Independent BMS Logical monitor",
+                "layer": "LA"
+              },
+              {
+                "type": "LogicalComponent",
+                "name": "FSAE2027:DD Independent nonprogrammable BSPD Logical component",
+                "layer": "LA"
+              },
+              {
+                "type": "LogicalComponent",
+                "name": "FSAE2027:SD Hardwired shutdown current path Logical subsystem",
+                "layer": "LA"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-apps-dataflow-diagram",
+      "prompt": "Create a Logical Data Flow Blank diagram 'FSAE2027:APPS plausibility data flow' showing the logical functions 'FSAE2027:DD Acquire separate analogue APPS channels A and B' and 'FSAE2027:DD Detect APPS wiring range and plausibility failures' and the functional exchanges 'FSAE2027:DD LA APPS channel A raw signal' and 'FSAE2027:DD LA APPS channel B raw signal', and lay it out cleanly.",
+      "checks": [
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "diagram_shows",
+            "diagram": "FSAE2027:APPS plausibility data flow",
+            "elements": [
+              {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:DD Acquire separate analogue APPS channels A and B",
+                "layer": "LA"
+              },
+              {
+                "type": "LogicalFunction",
+                "name": "FSAE2027:DD Detect APPS wiring range and plausibility failures",
+                "layer": "LA"
+              },
+              {
+                "type": "FunctionalExchange",
+                "name": "FSAE2027:DD LA APPS channel A raw signal",
+                "layer": "LA"
+              },
+              {
+                "type": "FunctionalExchange",
+                "name": "FSAE2027:DD LA APPS channel B raw signal",
+                "layer": "LA"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-bspd-hardware-diagram",
+      "prompt": "Create a Physical Architecture Blank diagram 'FSAE2027:BSPD hardware view' showing 'FSAE2027:DD Independent nonprogrammable BSPD Equipment', 'FSAE2027:DD Independent BSPD tractive current sensor', 'FSAE2027:DD Independent BSPD hard braking sensor input', and lay it out cleanly.",
+      "checks": [
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "diagram_shows",
+            "diagram": "FSAE2027:BSPD hardware view",
+            "elements": [
+              {
+                "type": "PhysicalComponent",
+                "name": "FSAE2027:DD Independent nonprogrammable BSPD Equipment",
+                "layer": "PA"
+              },
+              {
+                "type": "PhysicalComponent",
+                "name": "FSAE2027:DD Independent BSPD tractive current sensor",
+                "layer": "PA"
+              },
+              {
+                "type": "PhysicalComponent",
+                "name": "FSAE2027:DD Independent BSPD hard braking sensor input",
+                "layer": "PA"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fsae-resolve-tbd-name",
+      "prompt": "The braking topology is decided: rename the logical component 'FSAE2027:VP Wheel braking distribution topology TBD Logical subsystem' to 'FSAE2027:VP Diagonal split wheel braking Logical subsystem'.",
+      "checks": [
+        {
+          "kind": "element_exists",
+          "type": "LogicalComponent",
+          "name": "FSAE2027:VP Diagonal split wheel braking Logical subsystem",
+          "layer": "LA"
+        },
+        {
+          "kind": "element_absent",
+          "type": "LogicalComponent",
+          "name": "FSAE2027:VP Wheel braking distribution topology TBD Logical subsystem",
+          "layer": "LA"
+        }
+      ]
+    },
+    {
+      "id": "fsae-document-imd",
+      "prompt": "Set the summary of the logical component 'FSAE2027:SD Independent IMD Logical monitor' to exactly: Approved IMD that opens the shutdown circuit on low insulation resistance between the tractive system and chassis.",
+      "checks": [
+        {
+          "kind": "attribute_equals",
+          "type": "LogicalComponent",
+          "name": "FSAE2027:SD Independent IMD Logical monitor",
+          "layer": "LA",
+          "attribute": "summary",
+          "expected": "Approved IMD that opens the shutdown circuit on low insulation resistance between the tractive system and chassis."
+        }
+      ]
+    }
+  ]
+}
