@@ -47,6 +47,7 @@ import org.polarsys.capella.ai.llm.LLMService;
 import org.polarsys.capella.ai.agent.ArcadiaAgent;
 import org.polarsys.capella.ai.agent.AgentRuntime;
 import org.polarsys.capella.ai.agent.AgentJson;
+import org.polarsys.capella.ai.agent.ReviewedEdit;
 import org.polarsys.capella.ai.agent.TaskContinuation;
 import org.polarsys.capella.ai.agent.TaskTermination;
 import org.polarsys.capella.ai.codex.CodexPreferences;
@@ -959,80 +960,44 @@ public class ChatView extends ViewPart {
                     return;
                 }
                 proposals++;
-                ModelVerification.Snapshot[] baseline = { null };
-                ModelChangeSummary.Recorder[] capture = { null };
-                ScriptRouter.Result result;
-                ModelChangeSummary.ChangeReport changes = null;
+                // Recorded as soon as the script returns, so a later capture failure still reports committed changes.
+                boolean[] ranAttempt = { false }, ranCommit = { false };
+                ReviewedEdit.Outcome edit;
                 try {
-                    result = ScriptRouter.executeProposal(session, input, turn.reply(), code, conversationId, context,
-                        () -> confirmCode(session, code, proposalSummary, expectedChecks), () -> {
-                            if (!isCurrentSession(session)) throw new java.util.concurrent.CancellationException("The target model changed before execution.");
-                            ui(() -> setActivity("Checking the model before applying the change…"));
-                            baseline[0] = ModelVerification.snapshot(session);
-                            if (!isCurrentSession(session)) throw new java.util.concurrent.CancellationException("The target model changed before execution.");
-                            capture[0] = ModelChangeSummary.capture(session);
-                            ui(() -> setActivity("Applying the model change…"));
+                    edit = ReviewedEdit.apply(session, new ReviewedEdit.Request(input, turn.reply(), code,
+                        turn.postconditions(), conversationId, context, () -> confirmCode(session, code, proposalSummary, expectedChecks),
+                        this::requestCancelled, () -> isCurrentSession(session), ModelVerification::snapshot), new ReviewedEdit.Listener() {
+                            @Override public void activity(String text) { ui(() -> setActivity(text)); }
+                            @Override public void ran(ScriptRouter.Result executed) {
+                                ranAttempt[0] |= executed.attempts > 0;
+                                ranCommit[0] |= executed.executionResult != null && (executed.executionResult.success()
+                                    || executed.executionResult.code() == ExecutionResult.ErrorCode.SAVE_FAILED_AFTER_COMMIT);
+                            }
+                            @Override public void executed(ScriptRouter.Result executed, String feedback, ModelChangeSummary.ChangeReport report) {
+                                ui(() -> {
+                                    if (executed.executionResult != null) showExecutionResult(executed.executionResult);
+                                    else appendMessage("Model action", feedback);
+                                    if (report != null) appendMessage("Model changes", report.markdownSummary());
+                                    conversation.addOutcome(feedback);
+                                    persistConversation();
+                                });
+                            }
+                            @Override public void checks(String markdown) {
+                                ui(() -> { appendMessage("Model result checks", markdown); conversation.addOutcome(markdown); persistConversation(); });
+                            }
+                            @Override public void validation(String markdown) {
+                                ui(() -> { appendMessage("Capella validation", markdown); conversation.addOutcome(markdown); persistConversation(); });
+                            }
                         });
-                    executionAttempted |= result.attempts > 0;
-                    if (result.executionResult != null && (result.executionResult.success()
-                        || result.executionResult.code() == ExecutionResult.ErrorCode.SAVE_FAILED_AFTER_COMMIT)) applied = true;
-                    if (capture[0] != null) changes = capture[0].finish(result.executionResult);
                 } finally {
-                    if (capture[0] != null) capture[0].close();
+                    executionAttempted |= ranAttempt[0];
+                    // A committed save failure must never be mistaken for rollback or an invitation to retry.
+                    applied |= ranCommit[0];
                 }
-                boolean committed = result.executionResult != null && (result.executionResult.success()
-                    || result.executionResult.code() == ExecutionResult.ErrorCode.SAVE_FAILED_AFTER_COMMIT);
-                boolean changed = committed && changes != null && changes.hasChanges();
-                // A committed save failure must never be mistaken for rollback or an invitation to retry.
-                applied |= changed || (committed && (changes == null || !changes.available()));
-                String feedback = result.executionResult == null
-                    ? "No code was executed. " + (result.error == null ? actionNote(result.reply, turn.reply()) : result.error)
-                    : ExecutionFeedback.forHistory(result.executionResult);
-                ModelChangeSummary.ChangeReport report = changes;
-                if (changes != null) ScriptRouter.registerModelNames(session, conversationId,
-                    java.util.stream.Stream.of(changes.created(), changes.edited(), changes.deleted())
-                        .flatMap(List::stream).map(ModelChangeSummary.ElementChange::name).toList());
-                String executionFeedback = feedback;
-                ui(() -> {
-                    if (result.executionResult != null) showExecutionResult(result.executionResult);
-                    else appendMessage("Model action", executionFeedback);
-                    if (report != null) appendMessage("Model changes", report.markdownSummary());
-                    conversation.addOutcome(executionFeedback);
-                    persistConversation();
-                });
-                if (changes != null) feedback += "\n" + changes.markdownSummary();
-                ModelPostconditions.Report postconditions = null;
-                if (committed && !turn.postconditions().isEmpty() && !requestCancelled()) {
-                    ui(() -> setActivity("Checking the expected model results…"));
-                    postconditions = ModelPostconditions.check(session, turn.postconditions());
-                    String checks = postconditions.markdownSummary();
-                    feedback += "\n" + checks;
-                    ui(() -> {
-                        appendMessage("Model result checks", checks);
-                        conversation.addOutcome(checks);
-                        persistConversation();
-                    });
-                }
-                ModelVerification.Comparison verification = null;
-                if (committed && (changes == null || !changes.available() || changed)) {
-                    ui(() -> setActivity("Checking the applied change with Capella…"));
-                    ModelVerification.Snapshot after = requestCancelled()
-                        ? ModelVerification.Snapshot.unavailable("The request stopped after execution; post-change validation was not run.")
-                        : ModelVerification.snapshot(session);
-                    verification = ModelVerification.compare(baseline[0], after);
-                    String validationText = verification.markdownSummary();
-                    feedback += "\n" + validationText;
-                    ui(() -> {
-                        appendMessage("Capella validation", validationText);
-                        conversation.addOutcome(validationText);
-                        persistConversation();
-                    });
-                }
-                Set<String> completed = changed && postconditions != null && verification != null
-                    && verification.verdict() == ModelVerification.Verdict.NO_ADDITIONAL_ERROR_DIAGNOSTICS
-                    ? postconditions.completedStepIds() : Set.of();
-                ArcadiaAgent.ExecutionOutcome outcome = new ArcadiaAgent.ExecutionOutcome(changed, committed,
-                    committed && result.executionResult.success(), feedback, completed);
+                ScriptRouter.Result result = edit.result();
+                boolean committed = edit.committed();
+                ModelChangeSummary.ChangeReport changes = edit.changes();
+                ArcadiaAgent.ExecutionOutcome outcome = edit.execution();
                 recordedOutcome = outcome;
                 if (requestCancelled() || !result.codeExecuted
                     || result.executionResult.code() == ExecutionResult.ErrorCode.SAVE_FAILED_AFTER_COMMIT) {
@@ -1246,11 +1211,6 @@ public class ChatView extends ViewPart {
             if (!turn.postconditions().isEmpty()) text += "\n\n**Expected model checks**\n" + describePostconditions(turn.postconditions());
         }
         return text == null ? "" : text;
-    }
-
-    private static String actionNote(String result, String original) {
-        return result != null && original != null && result.startsWith(original)
-            ? result.substring(original.length()).strip() : "The proposal was not run.";
     }
 
     private void showAgentProgress(ArcadiaAgent.Progress event) {
