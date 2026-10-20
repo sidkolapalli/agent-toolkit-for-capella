@@ -64,6 +64,15 @@ public class CodePreviewDialogTest {
     }
 
     @Test
+    public void tabContentTakesTheThemedTabBackground() throws Exception {
+        dialog = create("println 'themed'", "Vehicle", "");
+        var themed = new org.eclipse.swt.graphics.Color(display, 41, 41, 41);
+        tabs().setBackground(themed);
+        Control script = tabs().getItem(1).getControl();
+        assertEquals("The theme styles the tab folder but not plain composites inside it", themed, script.getBackground());
+    }
+
+    @Test
     public void onlyTheApplyChangesActionApprovesAReviewableScript() throws Exception {
         dialog = create("println 'reviewed'", "Vehicle", "SA");
         assertTrue(button(IDialogConstants.OK_ID).getEnabled());

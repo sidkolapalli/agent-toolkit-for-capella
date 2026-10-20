@@ -116,6 +116,8 @@ public final class CodePreviewDialog extends Dialog {
 
         // Custom-drawn tabs follow the workbench theme; the native Win32 strip stays light in dark mode.
         tabs = new CTabFolder(area, SWT.BORDER);
+        // The theme styles the folder, not plain composites inside it.
+        tabs.setBackgroundMode(SWT.INHERIT_DEFAULT);
         GridData tabsData = new GridData(SWT.FILL, SWT.FILL, true, true);
         tabsData.widthHint = 0;
         tabsData.heightHint = 0;
