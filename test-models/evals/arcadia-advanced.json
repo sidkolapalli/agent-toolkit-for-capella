@@ -407,6 +407,55 @@
               }
             }
           }
+        },
+        {
+          "kind": "native_structure",
+          "check": {
+            "kind": "diagram_shows",
+            "diagram": "BMS Logical View",
+            "elements": [
+              {
+                "type": "LogicalComponent",
+                "name": "Battery Controller",
+                "layer": "LA"
+              },
+              {
+                "type": "LogicalComponent",
+                "name": "Cell Monitor",
+                "layer": "LA"
+              },
+              {
+                "type": "LogicalComponent",
+                "name": "Contactor Driver",
+                "layer": "LA"
+              },
+              {
+                "type": "LogicalFunction",
+                "name": "Supervise Pack",
+                "layer": "LA"
+              },
+              {
+                "type": "LogicalFunction",
+                "name": "Measure Cells",
+                "layer": "LA"
+              },
+              {
+                "type": "LogicalFunction",
+                "name": "Drive Contactors",
+                "layer": "LA"
+              },
+              {
+                "type": "ComponentExchange",
+                "name": "Cell Bus",
+                "layer": "LA"
+              },
+              {
+                "type": "FunctionalExchange",
+                "name": "Cell Data",
+                "layer": "LA"
+              }
+            ]
+          }
         }
       ]
     }
