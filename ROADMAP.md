@@ -6,6 +6,7 @@ Measured with `test-models/evals/` on the bundled Codex runtime (see the README'
 
 | Date | Build | Runtime | Starter | Advanced | Total |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-20 | 0.2.1.202610200823 on the FSAE 2027 project (copy, Windows) | bundled Codex 0.160.1, default model | 12/12 | 9/9 | **21/21**, every plan step verified |
 | 2026-10-20 | 0.2.1.202610200823 on Linux (WSL2) | external Codex 0.160.1 Linux release, default model | 12/12 | 9/9 | **21/21**, every plan step verified |
 | 2026-10-20 | 0.2.1.202610200642 | bundled Codex 0.160.1, default model | 12/12 | 9/9 | **21/21**, every plan step verified |
 | 2026-10-20 | 0.2.1.202610200353 | bundled Codex 0.160.1, default model | 12/12 | 9/9 | 21/21, 2 tasks left a step pending |
