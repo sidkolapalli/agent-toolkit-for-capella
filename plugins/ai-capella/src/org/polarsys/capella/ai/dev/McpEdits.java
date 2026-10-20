@@ -50,9 +50,11 @@ public final class McpEdits {
     private static final class Proposal {
         final String id, key;
         final long created = System.nanoTime();
-        volatile String status = "awaiting_review";
+        /** queued until its review dialog opens, so a client never waits on a dialog that is not shown yet. */
+        volatile String status = "queued";
         volatile Map<String, Object> receipt;
         Proposal(String id, String key) { this.id = id; this.key = key; }
+        boolean pending() { return "queued".equals(status) || "awaiting_review".equals(status) || "running".equals(status); }
         Map<String, Object> view() {
             Map<String, Object> view = new LinkedHashMap<>();
             view.put("proposal_id", id);
@@ -77,7 +79,8 @@ public final class McpEdits {
                     "properties", Map.of("summary", Map.of("type", "string", "minLength", 1, "maxLength", 2400),
                         "script", Map.of("type", "string", "minLength", 1, "maxLength", 120_000), "postconditions", checks))),
             Map.of("name", "edit_status",
-                "description", "Status of a proposed edit: awaiting_review, running, rejected, committed, not_applied or failed. "
+                "description", "Status of a proposed edit: queued (behind another review), awaiting_review (dialog open in Capella), "
+                    + "running, rejected, committed, not_applied or failed. "
                     + "committed includes the receipt: applied, committed, saved, completedStepIds and verification feedback.",
                 "inputSchema", Map.of("type", "object", "additionalProperties", false, "required", List.of("proposal_id"),
                     "properties", Map.of("proposal_id", Map.of("type", "string", "maxLength", 80))),
@@ -126,6 +129,7 @@ public final class McpEdits {
     private static void run(Session session, Proposal proposal, String summary, String code, List<ArcadiaAgent.Postcondition> checks) {
         try {
             // Always reviewed here, independently of the chat's "review before running" preference.
+            proposal.status = "awaiting_review";
             if (!reviewer.approve(session, summary, code, NativeCheckDescription.describeAll(checks))) {
                 proposal.status = "rejected";
                 return;
@@ -190,12 +194,12 @@ public final class McpEdits {
     private static void prune() {
         long now = System.nanoTime();
         BY_ID.values().removeIf(old -> {
-            boolean expired = now - old.created > RETENTION_NANOS && !"awaiting_review".equals(old.status) && !"running".equals(old.status);
+            boolean expired = now - old.created > RETENTION_NANOS && !old.pending();
             if (expired) BY_KEY.remove(old.key);
             return expired;
         });
         while (BY_ID.size() >= MAX_PROPOSALS) {
-            var oldest = BY_ID.values().stream().filter(old -> !"awaiting_review".equals(old.status) && !"running".equals(old.status)).findFirst();
+            var oldest = BY_ID.values().stream().filter(old -> !old.pending()).findFirst();
             if (oldest.isEmpty()) throw new IllegalArgumentException("Too many proposals are awaiting review in Capella");
             BY_ID.remove(oldest.get().id);
             BY_KEY.remove(oldest.get().key);

@@ -93,7 +93,7 @@ public class McpEditsTest {
     @Test public void approvedProposalRunsOnceAndReportsTheVerifiedReceipt() throws Exception {
         review(true);
         Map<?, ?> proposed = toolJson(call("propose_model_edit", proposal("McpProbe")));
-        assertEquals("awaiting_review", proposed.get("status"));
+        assertEquals("Queued until its review dialog opens", "queued", proposed.get("status"));
         Map<?, ?> status = await((String) proposed.get("proposal_id"));
         assertEquals("committed", status.get("status"));
         Map<?, ?> receipt = (Map<?, ?>) status.get("receipt");
@@ -136,6 +136,25 @@ public class McpEditsTest {
         assertEquals(Boolean.TRUE, unknown.get("isError"));
     }
 
+    @Test public void aProposalWaitingBehindAnotherReviewSaysQueuedNotAwaitingReview() throws Exception {
+        var release = new java.util.concurrent.CountDownLatch(1);
+        reviewerField().set(null, (McpEdits.Reviewer) (reviewed, summary, code, checks) -> {
+            reviews.incrementAndGet();
+            try { release.await(30, TimeUnit.SECONDS); } catch (InterruptedException stopped) { Thread.currentThread().interrupt(); }
+            return false;
+        });
+        String first = (String) toolJson(call("propose_model_edit", proposal("McpFirst"))).get("proposal_id");
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
+        while (!"awaiting_review".equals(toolJson(call("edit_status", Map.of("proposal_id", first))).get("status"))) {
+            assertTrue("The first review never opened", System.nanoTime() < deadline);
+            Thread.sleep(5);
+        }
+        String second = (String) toolJson(call("propose_model_edit", proposal("McpSecond"))).get("proposal_id");
+        assertEquals("queued", toolJson(call("edit_status", Map.of("proposal_id", second))).get("status"));
+        release.countDown();
+        assertEquals("rejected", await(second).get("status"));
+    }
+
     @Test public void toolsListOffersTheReviewedWriteTools() {
         List<?> tools = (List<?>) ((Map<?, ?>) response(Map.of("jsonrpc", "2.0", "id", 1, "method", "tools/list")).get("result")).get("tools");
         var names = tools.stream().map(tool -> ((Map<?, ?>) tool).get("name")).toList();
@@ -173,7 +192,7 @@ public class McpEditsTest {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(40);
         while (System.nanoTime() < deadline) {
             Map<?, ?> status = toolJson(call("edit_status", Map.of("proposal_id", id)));
-            if (!List.of("awaiting_review", "running").contains(status.get("status"))) return status;
+            if (!List.of("queued", "awaiting_review", "running").contains(status.get("status"))) return status;
             if (!display.readAndDispatch()) Thread.sleep(2);
         }
         throw new AssertionError("Proposal did not finish");
