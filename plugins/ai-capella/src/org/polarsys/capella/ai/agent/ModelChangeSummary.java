@@ -129,6 +129,7 @@ public final class ModelChangeSummary {
                 }
             }
         };
+        private final Set<Resource> semanticResources = Collections.newSetFromMap(new IdentityHashMap<>());
         private boolean available = true;
         private boolean active;
         private boolean closed;
@@ -143,7 +144,7 @@ public final class ModelChangeSummary {
             }
             var domainResources = session.getTransactionalEditingDomain().getResourceSet();
             Collection<Resource> semantic = session.getSemanticResources();
-            if (semantic != null) resources.addAll(semantic);
+            if (semantic != null) { resources.addAll(semantic); semanticResources.addAll(semantic); }
             Resource primary = session.getSessionResource();
             if (primary != null) resources.add(primary);
             Collection<Resource> all = session.getAllSessionResources();
@@ -183,7 +184,9 @@ public final class ModelChangeSummary {
                 }
                 if (event.getFeatureID(Resource.class) == Resource.RESOURCE__CONTENTS) {
                     if (!SessionSafeguards.isInManagedTransaction()) {
-                        unavailable("Resource contents changed outside the reviewed script; attribution is unavailable."); return;
+                        if (!semanticResources.contains(resource)) return; // see below: representation data
+                        unavailable("Resource contents changed outside the reviewed script (" + resource.getURI().lastSegment()
+                            + "); attribution is unavailable."); return;
                     }
                     observeContainment(event, null, null, resource);
                 }
@@ -191,7 +194,12 @@ public final class ModelChangeSummary {
                 if (structural.isDerived() || structural.isTransient() || !structural.isChangeable()) return;
                 if (!baseline.contains(object) && !resources.contains(object.eResource())) return;
                 if (!SessionSafeguards.isInManagedTransaction()) {
-                    unavailable("The model changed outside the reviewed script while capture was active; attribution is unavailable.");
+                    // An opened diagram editor arranges new views and updates its descriptor in its own
+                    // commands after the script. Representation data outside the semantic resources is
+                    // presentation: it is neither script evidence nor a reason to distrust semantic evidence.
+                    if (object.eResource() != null && !semanticResources.contains(object.eResource())) return;
+                    unavailable("The model changed outside the reviewed script while capture was active (" + object.eClass().getName()
+                        + "." + structural.getName() + "); attribution is unavailable.");
                     return;
                 }
                 Touch touch = touch(object, null, null, null, false);

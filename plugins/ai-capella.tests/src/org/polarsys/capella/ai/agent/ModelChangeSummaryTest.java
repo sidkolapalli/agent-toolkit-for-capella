@@ -245,6 +245,7 @@ public class ModelChangeSummaryTest {
         var report = recorder.finish(true);
         assertFalse(report.available()); assertEquals(-1, report.editedCount());
         assertTrue(report.note().contains("outside the reviewed script")); assertDetached();
+        assertTrue("The note names what changed: " + report.note(), report.note().contains("SystemFunction.name"));
     }
 
     @Test public void preCommitTriggersOfTheScriptTransactionAreAttributedToTheScript() {
@@ -263,6 +264,21 @@ public class ModelChangeSummaryTest {
         assertTrue(report.note(), report.available());
         assertEquals("The script edit and its diagram refresh", 2, report.editedCount());
         assertEquals(40, diagram.eGet(heightFeature)); assertDetached();
+    }
+
+    @Test public void editorUpdatesToRepresentationDataDoNotVoidScriptEvidence() {
+        // An opened diagram editor arranges new views in its own command after the script.
+        var bounds = org.eclipse.gmf.runtime.notation.NotationFactory.eINSTANCE.createBounds();
+        var node = org.eclipse.gmf.runtime.notation.NotationFactory.eINSTANCE.createNode(); node.setLayoutConstraint(bounds);
+        write(() -> aird.getContents().add(node));
+        var recorder = ModelChangeSummary.capture(session);
+        write(() -> first.setName("Script edit"));
+        domain.getCommandStack().execute(new RecordingCommand(domain) { @Override protected void doExecute() {
+            bounds.setX(120); diagram.eSet(diagram.eClass().getEStructuralFeature("headerHeight"), 30);
+        } });
+        var report = recorder.finish(true);
+        assertTrue(report.note(), report.available());
+        assertEquals(1, report.editedCount()); assertDetached();
     }
 
     @Test public void closeWithoutFinishDetachesAndCannotReturnFalseZeroCounts() {
