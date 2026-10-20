@@ -136,6 +136,14 @@ public class EvalRunnerTest {
         assertEquals(result.detail(), result.json().get("detail"));
     }
 
+    @Test public void theAgentsOwnBlockedReasonIsReported() throws Exception {
+        String blocked = AgentJson.write(Map.of("kind", "final", "message", "Cannot finish.",
+            "task", Map.of("state", "blocked", "reason", "The diagram tool rejected the exchange")));
+        var result = run(task("Probe"), plan(), proposal("Probe"), blocked);
+        assertEquals("blocked", result.ending());
+        assertTrue(result.detail(), result.detail().contains("diagram tool rejected"));
+    }
+
     @Test public void compileFailureIsRepairedBeforeReviewAndCounted() throws Exception {
         String broken = AgentJson.write(Map.of("kind", "proposal", "message", "Broken", "script", "def x = (", "stepIds", List.of("edit")));
         var result = run(task("Probe"), plan(), broken, proposal("Probe"), finalReply());

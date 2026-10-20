@@ -129,7 +129,10 @@ public final class EvalRunner {
             }
             var next = TaskContinuation.prompt(turn.plan(), turn.termination());
             if (next.isEmpty() || continuations == MAX_CONTINUATIONS) {
-                ending = turn.termination() == null ? ending : turn.termination().state().name().toLowerCase(java.util.Locale.ROOT);
+                if (turn.termination() != null) {
+                    ending = turn.termination().state().name().toLowerCase(java.util.Locale.ROOT);
+                    if (turn.termination().state() != TaskTermination.State.COMPLETE) detail = bounded(turn.termination().reason());
+                }
                 break;
             }
             continuations++;
