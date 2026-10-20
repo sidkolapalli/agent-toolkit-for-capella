@@ -59,6 +59,8 @@ import org.polarsys.capella.ai.session.SessionSafeguards;
 public final class DevServer {
 
     private static HttpServer server;
+    private static volatile String token;
+    private static java.nio.file.Path tokenFile;
     private static ExecutorService requestExecutor;
     private static final int DEFAULT_PORT = 8765;
     private static final Logger LOG = Logger.getLogger(DevServer.class.getName());
@@ -125,6 +127,7 @@ public final class DevServer {
                 return worker;
             });
             server.setExecutor(requestExecutor);
+            publishToken(server.getAddress().getPort());
 
             // Endpoints
             addLocalContext("/execute", DevServer::handleExecute);
@@ -143,6 +146,7 @@ public final class DevServer {
             System.out.println(
                 "[DevServer] Started on http://localhost:" + server.getAddress().getPort()
             );
+            System.out.println("[DevServer] Send Authorization: Bearer <token> from " + tokenFile);
             System.out.println("[DevServer] Endpoints:");
             System.out.println("  POST /execute - Execute Groovy code");
             System.out.println("  POST /inspect - Fixed native read tools (JSON data only)");
@@ -177,6 +181,11 @@ public final class DevServer {
             server = null;
             System.out.println("[DevServer] Stopped");
         }
+        token = null;
+        if (tokenFile != null) {
+            try { java.nio.file.Files.deleteIfExists(tokenFile); } catch (IOException ignored) { }
+            tokenFile = null;
+        }
         if (requestExecutor != null) {
             requestExecutor.shutdownNow();
             requestExecutor = null;
@@ -196,13 +205,52 @@ public final class DevServer {
         return server != null ? server.getAddress() : null;
     }
 
+    /** Bearer token local clients must send; null while stopped. */
+    public static String token() {
+        return token;
+    }
+
+    /** Where a running server on this port writes its token for local clients such as MCP hosts. */
+    public static java.nio.file.Path tokenFile(int port) {
+        return java.nio.file.Path.of(System.getProperty("user.home"), ".capella-ai", "devserver-" + port + ".token");
+    }
+
+    private static void publishToken(int port) throws IOException {
+        String configured = System.getenv("CAPELLA_AI_DEVSERVER_TOKEN");
+        if (configured != null && configured.matches("[A-Za-z0-9._~+/=-]{16,256}")) token = configured;
+        else {
+            byte[] random = new byte[32];
+            new java.security.SecureRandom().nextBytes(random);
+            token = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(random);
+        }
+        java.nio.file.Path file = tokenFile(port);
+        java.nio.file.Files.createDirectories(file.getParent());
+        java.nio.file.Files.writeString(file, token + "\n", StandardCharsets.UTF_8);
+        tokenFile = file;
+        if (file.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+            java.nio.file.Files.setPosixFilePermissions(file, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+        }
+    }
+
+    private static boolean authorized(String header) {
+        String expected = token;
+        return expected != null && header != null && header.startsWith("Bearer ") && java.security.MessageDigest.isEqual(
+            header.substring(7).getBytes(StandardCharsets.UTF_8), expected.getBytes(StandardCharsets.UTF_8));
+    }
+
     private static void addLocalContext(String path, com.sun.net.httpserver.HttpHandler handler) {
         server.createContext(path, exchange -> {
-            // This unauthenticated development interface is for local tools.
+            // This development interface is for local tools that can read the user's token file.
             // A webpage must not be able to submit scripts through the user's browser.
             if (!exchange.getRemoteAddress().getAddress().isLoopbackAddress()
                 || exchange.getRequestHeaders().getFirst("Origin") != null) {
                 sendResponse(exchange, 403, "{\"error\":\"Only local non-browser clients are allowed\"}");
+                return;
+            }
+            if (!authorized(exchange.getRequestHeaders().getFirst("Authorization"))) {
+                exchange.getResponseHeaders().set("WWW-Authenticate", "Bearer");
+                sendResponse(exchange, 401, "{\"error\":\"Send Authorization: Bearer <token> from "
+                    + escapeJson(String.valueOf(tokenFile)) + "\"}");
                 return;
             }
             handler.handle(exchange);

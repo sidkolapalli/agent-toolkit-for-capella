@@ -64,8 +64,11 @@ public class DevServerView extends ViewPart {
             "POST /chat - Send to LLM, execute result\n" +
             "GET /status - Check status\n" +
             "GET /prompt - Get system prompt\n\n" +
+            "Every request needs Authorization: Bearer <token>;\n" +
+            "the running server writes it to ~/.capella-ai/devserver-<port>.token.\n\n" +
             "Example:\n" +
             "curl -X POST http://localhost:8765/execute \\\n" +
+            "  -H \"Authorization: Bearer $(cat ~/.capella-ai/devserver-8765.token)\" \\\n" +
             "  -d 'api.findAll(\"SystemFunction\")'"
         );
         instructions.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 2, 1));

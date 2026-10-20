@@ -2,6 +2,8 @@ param(
     [ValidateSet('inspect', 'create-edit', 'repair-sa', 'verify', 'rename', 'verify-rename', 'delete', 'verify-deleted', 'diagram', 'verify-diagrams', 'delete-diagram', 'native-validation')]
     [string[]]$Phases = @('inspect'),
     [string]$Endpoint = 'http://127.0.0.1:8765',
+    # Written by the running dev server; CAPELLA_AI_DEVSERVER_TOKEN overrides it.
+    [string]$Token = $env:CAPELLA_AI_DEVSERVER_TOKEN,
     [string]$Conversation = 'capella-ai-native-integration',
     [ValidateSet('OA', 'SA', 'LA', 'PA', 'EPBS')]
     [string]$DiagramLayer = 'LA',
@@ -25,6 +27,7 @@ $taskScripts = @{
     'delete-diagram' = '60-delete-diagram.groovy'
     'native-validation' = '80-native-validation.groovy'
 }
+if (!$Token) { $Token = (Get-Content -LiteralPath (Join-Path $HOME ".capella-ai/devserver-$(([uri]$Endpoint).Port).token") -Raw).Trim() }
 New-Item -ItemType Directory -Path $ReportDirectory -Force | Out-Null
 foreach ($taskPhase in $Phases) {
     $taskSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot $taskScripts[$taskPhase]) -Raw
@@ -33,7 +36,7 @@ foreach ($taskPhase in $Phases) {
     }
     $taskResponse = Invoke-WebRequest -Uri ($Endpoint.TrimEnd('/') + '/execute') -Method Post `
         -ContentType 'text/plain; charset=utf-8' -Body ([System.Text.Encoding]::UTF8.GetBytes($taskSource)) `
-        -Headers @{ 'X-Conversation-Id' = $Conversation } -TimeoutSec 60 -SkipHttpErrorCheck
+        -Headers @{ 'X-Conversation-Id' = $Conversation; Authorization = "Bearer $Token" } -TimeoutSec 60 -SkipHttpErrorCheck
     $taskResult = $taskResponse.Content | ConvertFrom-Json
     $taskStamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
     $taskLabel = if ($taskPhase -eq 'diagram') { "$taskPhase-$DiagramLayer-$DiagramKind" } else { $taskPhase }

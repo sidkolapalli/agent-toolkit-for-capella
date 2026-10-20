@@ -35,7 +35,7 @@ cat <<MSG
 Capella launched.
 - Workspace: $WORKSPACE
 - Sample: $WORKSPACE/$SAMPLE_NAME
-- Dev server port: $PORT (auto-start via env)
+- Dev server port: $PORT (auto-start via env); token in ~/.capella-ai/devserver-$PORT.token
 - Log: $LOG_FILE
 
 If the model is not already open, open the project in Capella and load the .aird.

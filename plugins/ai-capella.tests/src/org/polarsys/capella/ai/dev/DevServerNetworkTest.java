@@ -31,17 +31,39 @@ public class DevServerNetworkTest {
             "/execute", null, null);
         HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
-        HttpResponse<String> blocked = client.send(HttpRequest.newBuilder(endpoint)
-            .timeout(Duration.ofSeconds(5)).header("Origin", "https://example.invalid")
+        HttpResponse<String> blocked = client.send(request(endpoint).header("Origin", "https://example.invalid")
             .POST(HttpRequest.BodyPublishers.ofString("throw new IllegalStateException('must not run')"))
             .build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(403, blocked.statusCode());
         assertTrue(blocked.body().contains("non-browser"));
         assertFalse(blocked.headers().firstValue("Access-Control-Allow-Origin").isPresent());
 
-        HttpResponse<String> local = client.send(HttpRequest.newBuilder(endpoint)
-            .timeout(Duration.ofSeconds(5)).GET().build(), HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> local = client.send(request(endpoint).GET().build(), HttpResponse.BodyHandlers.ofString());
         assertEquals("Local command-line clients must still reach the endpoint", 405, local.statusCode());
+    }
+
+    @Test
+    public void everyEndpointNeedsTheBearerTokenWrittenForLocalClients() throws Exception {
+        DevServer.start(0);
+        InetSocketAddress address = DevServer.getAddress();
+        String token = DevServer.token();
+        assertTrue("A generated token is long and URL-safe", token.matches("[A-Za-z0-9_-]{43}"));
+        java.nio.file.Path file = DevServer.tokenFile(address.getPort());
+        assertEquals(token, java.nio.file.Files.readString(file).trim());
+        HttpClient client = HttpClient.newHttpClient();
+        for (String path : new String[] {"/status", "/execute", "/mcp"}) {
+            URI endpoint = new URI("http", null, address.getAddress().getHostAddress(), address.getPort(), path, null, null);
+            for (String header : new String[] {null, "Bearer wrong", "Bearer " + token + "x", token}) {
+                var request = HttpRequest.newBuilder().uri(endpoint).timeout(Duration.ofSeconds(5))
+                    .POST(HttpRequest.BodyPublishers.ofString("throw new IllegalStateException('must not run')"));
+                if (header != null) request.header("Authorization", header);
+                HttpResponse<String> refused = client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+                assertEquals(path + " with " + header, 401, refused.statusCode());
+                assertEquals("Bearer", refused.headers().firstValue("WWW-Authenticate").orElse(""));
+            }
+        }
+        DevServer.stop();
+        assertFalse("The token file is removed with the server", java.nio.file.Files.exists(file));
     }
 
     @Test
@@ -52,23 +74,23 @@ public class DevServerNetworkTest {
         HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
         String initialize = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\"}}";
 
-        HttpResponse<String> ok = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5))
+        HttpResponse<String> ok = client.send(request(endpoint)
             .header("Content-Type", "application/json").header("Accept", "application/json, text/event-stream")
             .POST(HttpRequest.BodyPublishers.ofString(initialize)).build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(200, ok.statusCode());
         assertTrue(ok.headers().firstValue("Content-Type").orElse("").startsWith("application/json"));
         assertTrue(ok.body().contains("\"protocolVersion\""));
 
-        HttpResponse<String> note = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5))
+        HttpResponse<String> note = client.send(request(endpoint)
             .POST(HttpRequest.BodyPublishers.ofString("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}")).build(),
             HttpResponse.BodyHandlers.ofString());
         assertEquals("Notifications are accepted without a body", 202, note.statusCode());
 
-        HttpResponse<String> stream = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5)).GET().build(),
+        HttpResponse<String> stream = client.send(request(endpoint).GET().build(),
             HttpResponse.BodyHandlers.ofString());
         assertEquals("No server-initiated stream is offered", 405, stream.statusCode());
 
-        HttpResponse<String> browser = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5))
+        HttpResponse<String> browser = client.send(request(endpoint)
             .header("Origin", "https://example.invalid").POST(HttpRequest.BodyPublishers.ofString(initialize)).build(),
             HttpResponse.BodyHandlers.ofString());
         assertEquals(403, browser.statusCode());
@@ -81,8 +103,7 @@ public class DevServerNetworkTest {
             DevServer.start(0);
             InetSocketAddress address = DevServer.getAddress();
             URI endpoint = new URI("http", null, address.getAddress().getHostAddress(), address.getPort(), "/eval", null, null);
-            HttpResponse<String> refused = HttpClient.newHttpClient().send(HttpRequest.newBuilder(endpoint)
-                .timeout(Duration.ofSeconds(5)).POST(HttpRequest.BodyPublishers.ofString("{\"tasks\":[]}")).build(),
+            HttpResponse<String> refused = HttpClient.newHttpClient().send(request(endpoint).POST(HttpRequest.BodyPublishers.ofString("{\"tasks\":[]}")).build(),
                 HttpResponse.BodyHandlers.ofString());
             assertEquals("Auto-approved evaluation needs an explicit opt-in", 403, refused.statusCode());
             assertTrue(refused.body().contains("capella.ai.eval"));
@@ -106,6 +127,10 @@ public class DevServerNetworkTest {
         DevServer.start(0);
         assertTrue(DevServer.isRunning());
         assertNotSame(executor, field.get(null));
+    }
+
+    private static HttpRequest.Builder request(URI endpoint) {
+        return HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5)).header("Authorization", "Bearer " + DevServer.token());
     }
 
     @Test

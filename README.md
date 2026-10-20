@@ -116,19 +116,19 @@ The FSAE acceptance project imports all 3,197 pinned 2027 source records and con
 
 1. Open a **disposable copy** of a Capella project. Evaluation approves every proposal automatically, and approved edits commit and save.
 2. Start Capella with `-Dcapella.ai.eval=true` (or `CAPELLA_AI_EVAL=1`) and the dev server enabled. Without this opt-in `/eval` returns 403.
-3. `curl -X POST http://127.0.0.1:8765/eval --data-binary @test-models/evals/arcadia-starter.json`
+3. `curl -X POST http://127.0.0.1:8765/eval -H "Authorization: Bearer $(cat ~/.capella-ai/devserver-8765.token)" --data-binary @test-models/evals/arcadia-starter.json`
 
 On 2026-10-20 the bundled Codex runtime passed all 21 starter and advanced tasks on a disposable copy of the native-integration project, including building a laid-out logical architecture diagram; see `ROADMAP.md` for the score history. Each task runs through the same loop as the chat (read continuation, compile repair, reviewed-edit pipeline, budget continuation). The report gives pass/fail per task with requests, tool calls, proposals, commits, repairs, continuations and duration. With `"restore": true` each task's changes are undone and saved before the next. Grow the task file toward the work you actually need from the agent; a change to prompts, tools or models is only an improvement if this score goes up.
 
 ## Local dev server
 
-Open **AI Dev Server** and click **Start**, or opt into startup with `CAPELLA_AI_DEVSERVER_AUTOSTART=1`. Its default port is 8765.
+Open **AI Dev Server** and click **Start**, or opt into startup with `CAPELLA_AI_DEVSERVER_AUTOSTART=1`. Its default port is 8765. It listens on loopback only, refuses requests that carry a browser `Origin`, and requires `Authorization: Bearer <token>` on every request. The running server writes a fresh random token to `~/.capella-ai/devserver-<port>.token` (owner-only on Linux and macOS) and deletes it on stop; set `CAPELLA_AI_DEVSERVER_TOKEN` to choose your own.
 
 - `GET /status`: server and session status.
 - `GET /prompt`: current code-generation prompt.
 - `GET /context`: active diagram and selection.
 - `POST /execute`: execute an explicitly submitted script.
-- `POST /mcp`: [Model Context Protocol](https://modelcontextprotocol.io) endpoint (JSON-RPC 2.0, Streamable HTTP without server streaming). It exposes the eight native read tools for the model open in Capella to any MCP client, for example `claude mcp add --transport http capella http://127.0.0.1:8765/mcp`. Reads never save or change the model. `propose_model_edit` submits a Groovy script and returns a `proposal_id` immediately; nothing runs until a person approves it in Capella's review dialog (always, whatever the chat's review preference), after which it runs once through the same transaction, change capture, declared checks and native validation comparison as chat edits. `edit_status` returns the review state and the execution receipt. Repeating an identical proposal returns the same proposal, so a client retry never runs a script twice.
+- `POST /mcp`: [Model Context Protocol](https://modelcontextprotocol.io) endpoint (JSON-RPC 2.0, Streamable HTTP without server streaming). It exposes the eight native read tools for the model open in Capella to any MCP client, for example `claude mcp add --transport http capella http://127.0.0.1:8765/mcp --header "Authorization: Bearer $(cat ~/.capella-ai/devserver-8765.token)"`. Reads never save or change the model. `propose_model_edit` submits a Groovy script and returns a `proposal_id` immediately; nothing runs until a person approves it in Capella's review dialog (always, whatever the chat's review preference), after which it runs once through the same transaction, change capture, declared checks and native validation comparison as chat edits. `edit_status` returns the review state and the execution receipt. Repeating an identical proposal returns the same proposal, so a client retry never runs a script twice.
 - `POST /chat`: generate a reply; automatically execute only when actions are enabled and confirmation is disabled. With confirmation enabled, the reply is returned for review.
 
 Use `test-dev-server.sh` for an opt-in smoke test against a disposable model. Telemetry and dataset logging are opt-in and local.

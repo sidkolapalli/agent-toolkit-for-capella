@@ -63,7 +63,7 @@ Bindings: `api`, `selection`, `activeDiagram`, `log`.
 - Generated code never runs without review; review cannot be skipped for MCP edits.
 - `GroovyExecutor` is an in-process executor with a sandbox (blocked classes such as `java.lang.System`) and cooperative cancellation. It is not an isolation boundary for hostile code, and effects outside the EMF model are not undone by rollback.
 - The Codex child runtime has shell, filesystem, patch, MCP, browser and web-search tools disabled, runs read-only with network access disabled, and generic approval requests are declined.
-- The dev server binds loopback only and rejects browser requests (`Origin`). It is unauthenticated: any local process can use `/execute`.
+- The dev server binds loopback only, rejects browser requests (`Origin`) and requires a bearer token on every request. The token is random per start and written to `~/.capella-ai/devserver-<port>.token`, so a local process needs read access to the user's home to call `/execute` or `/mcp`.
 - Optional tokenization (`privacy/Tokenizer`) replaces quoted names and UUIDs before anything reaches a provider.
 
 ## Measuring quality

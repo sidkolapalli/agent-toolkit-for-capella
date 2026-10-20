@@ -249,19 +249,19 @@ public class DevServerInspectionTest {
         assertTrue(address.getAddress().isLoopbackAddress());
         var endpoint = new java.net.URI("http", null, address.getAddress().getHostAddress(), address.getPort(), "/inspect", null, null);
         var client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-        var get = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5)).GET().build(), HttpResponse.BodyHandlers.ofString());
+        var get = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5)).header("Authorization", "Bearer " + DevServer.token()).GET().build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(405, get.statusCode());
-        var browser = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5))
+        var browser = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5)).header("Authorization", "Bearer " + DevServer.token())
             .header("Origin", "https://example.invalid").POST(HttpRequest.BodyPublishers.ofString(request("model_summary", Map.of())))
             .build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(403, browser.statusCode()); assertFalse(browser.headers().firstValue("Access-Control-Allow-Origin").isPresent());
         for (String body : List.of("api.delete(...)", request("execute_groovy", Map.of("code", "api.delete(...)")),
             AgentJson.write(Map.of("session_uri", views.getURI().toString(), "tool", "model_summary", "code", "eSet(...)")))) {
-            var response = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5))
+            var response = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5)).header("Authorization", "Bearer " + DevServer.token())
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
             assertEquals(body, 400, response.statusCode());
         }
-        var large = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5))
+        var large = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5)).header("Authorization", "Bearer " + DevServer.token())
             .POST(HttpRequest.BodyPublishers.ofString(" ".repeat(32769))).build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(413, large.statusCode()); assertEquals(0, saves.get());
         assertNull(domain.getCommandStack().getUndoCommand()); assertNull(domain.getCommandStack().getRedoCommand());
