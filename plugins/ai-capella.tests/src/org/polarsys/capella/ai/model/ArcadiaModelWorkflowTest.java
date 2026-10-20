@@ -52,6 +52,18 @@ import org.polarsys.capella.core.model.handler.helpers.CapellaProjectHelper.Proj
 
 /** Uses the real Capella metamodel and EMF transactions; only Sirius Session is a proxy. */
 public class ArcadiaModelWorkflowTest {
+    /** Live eval: an agent's api.set(component, 'nature', 'NODE') failed with a ClassCastException. */
+    @Test
+    public void enumAttributesAcceptTheirLiteralNames() {
+        EObject node = api.create("PA", "PhysicalComponent", "Vehicle Control Unit");
+        assertTrue(api.set(node, "nature", "NODE"));
+        assertEquals("NODE", String.valueOf(api.get(node, "nature")));
+        assertTrue(api.set(node, "nature", "behavior"));
+        assertEquals("Literal names match case-insensitively", "BEHAVIOR", String.valueOf(api.get(node, "nature")));
+        var invalid = assertThrows(IllegalArgumentException.class, () -> api.set(node, "nature", "ROCKET"));
+        assertTrue(invalid.getMessage(), invalid.getMessage().contains("NODE") && invalid.getMessage().contains("BEHAVIOR"));
+    }
+
     @Test
     public void facadePersistentIdChangeRemainsResolvableAfterUndoRedoAndReload() throws Exception {
         EObject function = api.create("LA", "LogicalFunction", "Stable identity function");

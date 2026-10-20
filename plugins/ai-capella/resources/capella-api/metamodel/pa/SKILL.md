@@ -16,12 +16,14 @@ api.set(func, "description", "Real-time control loop execution")
 Physical hardware/software components.
 
 ```groovy
-// Hardware component
+// Hardware (NODE) component: hosts behaviour and carries physical links
 def board = api.create("PA", "PhysicalComponent", "Main Control Board")
+api.set(board, "nature", "NODE")
 api.set(board, "description", "Primary MCU board")
 
-// Software component
+// Software (BEHAVIOR) component: deployed onto a NODE
 def firmware = api.create("PA", "PhysicalComponent", "Flight Firmware")
+api.set(firmware, "nature", "BEHAVIOR")
 api.set(firmware, "description", "Embedded flight control software")
 ```
 

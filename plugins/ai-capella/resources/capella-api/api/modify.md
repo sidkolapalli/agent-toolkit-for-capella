@@ -12,6 +12,9 @@ api.set(element, "propertyName", value)
 api.set(func, "description", "Handles sensor data processing")
 api.set(func, "name", "New Name")
 api.set(comp, "abstract", true)
+
+// Enumerations take their literal name as text (case-insensitive)
+api.set(physicalComponent, "nature", "NODE")      // or "BEHAVIOR"
 ```
 
 ## Get Property

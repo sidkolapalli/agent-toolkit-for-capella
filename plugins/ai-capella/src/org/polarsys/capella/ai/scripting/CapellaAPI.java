@@ -677,6 +677,13 @@ public final class CapellaAPI {
                     throw new IllegalArgumentException("Persistent model ID must be a nonblank String");
                 }
                 PersistentIds.setId(element, identifier);
+            } else if (feature.getEType() instanceof org.eclipse.emf.ecore.EEnum type && value instanceof String text) {
+                // Scripts name enum values as text, e.g. api.set(component, 'nature', 'NODE').
+                org.eclipse.emf.ecore.EEnumLiteral literal = type.getELiterals().stream()
+                    .filter(candidate -> candidate.getName().equalsIgnoreCase(text) || candidate.getLiteral().equalsIgnoreCase(text))
+                    .findFirst().orElseThrow(() -> new IllegalArgumentException("'" + text + "' is not a " + type.getName()
+                        + " value. Use one of " + type.getELiterals().stream().map(org.eclipse.emf.ecore.EEnumLiteral::getName).toList()));
+                element.eSet(feature, literal.getInstance());
             } else {
                 element.eSet(feature, value);
             }
