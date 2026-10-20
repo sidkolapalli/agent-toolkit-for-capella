@@ -211,6 +211,29 @@ public class ModelChangeSummaryTest {
         assertDetached();
     }
 
+    @Test public void diagramInternalsRollUpIntoTheirDiagram() {
+        var existing = DiagramFactory.eINSTANCE.createDNode();
+        write(() -> ((org.eclipse.sirius.diagram.DSemanticDiagram) diagram).getOwnedDiagramElements().add(existing));
+        var recorder = ModelChangeSummary.capture(session);
+        write(() -> {
+            existing.setOwnedStyle(DiagramFactory.eINSTANCE.createSquare());
+            var annotation = org.eclipse.sirius.viewpoint.description.DescriptionFactory.eINSTANCE.createAnnotationEntry();
+            var details = org.eclipse.emf.ecore.EcoreFactory.eINSTANCE.createEAnnotation();
+            details.getDetails().put("layout", "auto");
+            annotation.setData(details);
+            ((org.eclipse.sirius.diagram.DSemanticDiagram) diagram).getOwnedAnnotationEntries().add(annotation);
+            first.setName("Shown function");
+        });
+        var report = recorder.finish(true);
+        assertTrue(report.note(), report.available());
+        assertEquals("Styles and views are not listed one by one", 0, report.createdCount());
+        assertEquals(2, report.editedCount());
+        var diagramEdit = report.edited().stream().filter(change -> "DSemanticDiagram".equals(change.type())).findFirst().orElseThrow();
+        assertTrue(diagramEdit.features().toString(), diagramEdit.features().contains("views"));
+        assertTrue(report.edited().stream().anyMatch(change -> "first".equals(change.id())));
+        assertTrue(report.hasChanges()); assertDetached();
+    }
+
     @Test public void ownedDiagramEditsAreIncludedAndForeignResourcesAreExcluded() {
         var recorder = ModelChangeSummary.capture(session);
         write(() -> {

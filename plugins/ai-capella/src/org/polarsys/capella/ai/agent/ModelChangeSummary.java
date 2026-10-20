@@ -286,8 +286,15 @@ public final class ModelChangeSummary {
             }
             List<ElementChange> created = new ArrayList<>(), edited = new ArrayList<>(), deleted = new ArrayList<>();
             Map<String, Map<String, Map<String, Integer>>> byLayer = new java.util.TreeMap<>(Comparator.comparingInt(LAYER_ORDER::indexOf));
+            // Views, styles and layout inside a diagram are reported once, as an edit of that diagram.
+            Set<EObject> diagramsWithViewChanges = identitySet();
             for (var entry : touched.entrySet()) {
                 EObject object = entry.getKey(); Touch touch = entry.getValue();
+                EObject owner = representationInternal(object) ? representationOf(object) : null;
+                if (owner != null || representationInternal(object)) {
+                    if (owner != null && baseline.contains(owner) && resources.contains(owner.eResource())) diagramsWithViewChanges.add(owner);
+                    continue;
+                }
                 boolean existed = baseline.contains(object), remains = resources.contains(object.eResource());
                 if (!existed && remains) {
                     created.add(withFeatures(describe(object, object.eResource(), null), List.of()));
@@ -309,6 +316,17 @@ public final class ModelChangeSummary {
                     }
                 }
             }
+            for (EObject diagram : diagramsWithViewChanges) {
+                int index = -1;
+                for (int i = 0; i < edited.size(); i++) if (edited.get(i).id().equals(describe(diagram, diagram.eResource(), null).id())) index = i;
+                if (index >= 0) {
+                    List<String> features = new ArrayList<>(edited.get(index).features()); features.add("views");
+                    edited.set(index, withFeatures(edited.get(index), features));
+                } else {
+                    edited.add(withFeatures(describe(diagram, diagram.eResource(), null), List.of("views")));
+                    count(byLayer, layer(diagram, diagram.eResource()), "edited", diagram.eClass().getName());
+                }
+            }
             Comparator<ElementChange> order = Comparator.comparing(ElementChange::type, Comparator.nullsFirst(String::compareTo))
                 .thenComparing(ElementChange::name, Comparator.nullsFirst(String::compareTo))
                 .thenComparing(ElementChange::id, Comparator.nullsFirst(String::compareTo));
@@ -322,7 +340,7 @@ public final class ModelChangeSummary {
             return new ChangeReport(true, true, createdCount, editedCount, deletedCount, created, edited, deleted,
                 createdCount + editedCount + deletedCount > MAX_DISPLAY_ITEMS,
                 saveFailed ? "Committed in memory; saving failed. Do not repeat the script." :
-                    "Includes semantic elements and owned diagram data. Disk save status is reported separately.", byLayer);
+                    "Includes semantic elements and diagrams; changes inside a diagram are reported as that diagram. Disk save status is reported separately.", byLayer);
         }
 
         private ChangeReport unknown(boolean committed) {
@@ -433,6 +451,25 @@ public final class ModelChangeSummary {
         return result;
     }
 
+    /** Sirius views, styles, GMF notation and Ecore annotation data: diagram internals, not elements a reviewer names. */
+    private static boolean representationInternal(EObject object) {
+        if (object instanceof org.eclipse.sirius.viewpoint.DRepresentation
+            || object instanceof org.eclipse.sirius.viewpoint.DRepresentationDescriptor) return false;
+        String namespace = object.eClass().getEPackage().getNsURI();
+        return namespace != null && (namespace.startsWith("http://www.eclipse.org/sirius") || namespace.startsWith("http://www.eclipse.org/gmf")
+            || namespace.equals(org.eclipse.emf.ecore.EcorePackage.eNS_URI));
+    }
+
+    private static EObject representationOf(EObject object) {
+        for (EObject current = object; current != null; current = current.eContainer()) {
+            if (current instanceof org.eclipse.sirius.viewpoint.DRepresentation) return current;
+            // GMF notation is held by an annotation entry on the representation.
+            if (current instanceof org.eclipse.gmf.runtime.notation.View view && view.getElement() instanceof org.eclipse.sirius.viewpoint.DRepresentation representation
+                && current.eContainer() == null) return representation;
+        }
+        return null;
+    }
+
     private static ElementChange describe(EObject object, Resource resource, Object previousName) {
         String id = null, name = previousName == null ? null : concise(String.valueOf(previousName), 180);
         EAttribute identifier = object.eClass().getEIDAttribute();
@@ -446,6 +483,13 @@ public final class ModelChangeSummary {
                 Object value = object.eGet(feature, false);
                 if (value instanceof String text && !text.isBlank()) { name = concise(text, 180); break; }
             }
+        }
+        if (name == null && object instanceof org.eclipse.sirius.viewpoint.DRepresentation representation) {
+            // Sirius keeps a diagram's name on its descriptor.
+            try {
+                var descriptor = new org.eclipse.sirius.business.api.query.DRepresentationQuery(representation).getRepresentationDescriptor();
+                if (descriptor != null && descriptor.getName() != null) name = concise(descriptor.getName(), 180);
+            } catch (RuntimeException unavailable) { /* keep the unnamed fallback */ }
         }
         return new ElementChange(id, concise(object.eClass().getName(), 100), name, List.of());
     }
