@@ -2,6 +2,7 @@ package org.polarsys.capella.ai.codex;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,25 @@ public final class CodexLaunchConfig {
         command.add("--listen");
         command.add("stdio://");
         return List.copyOf(command);
+    }
+
+    /**
+     * Capella's tools reach the model through Code Mode, which runs in the codex-code-mode-host companion
+     * shipped beside codex. Without it the model only sees "host unavailable", so fail early and say why.
+     * A launcher script (npm) finds its own packaged binaries and is not checked.
+     */
+    public static void requireCodeModeHost(Path binary) throws IOException {
+        Path directory = binary.toAbsolutePath().getParent();
+        if (directory != null && (Files.isRegularFile(directory.resolve("codex-code-mode-host"))
+                || Files.isRegularFile(directory.resolve("codex-code-mode-host.exe")))) return;
+        String name = String.valueOf(binary.getFileName()).toLowerCase(java.util.Locale.ROOT);
+        if (name.endsWith(".cmd") || name.endsWith(".bat") || name.endsWith(".ps1") || name.endsWith(".js")) return;
+        try (var input = Files.newInputStream(binary)) {
+            byte[] start = input.readNBytes(2);
+            if (start.length == 2 && start[0] == '#' && start[1] == '!') return;
+        }
+        throw new IOException("The Codex executable at " + directory + " has no codex-code-mode-host beside it, and Capella's tools need it."
+            + " Install the complete Codex release for this platform (codex and codex-code-mode-host in the same folder), or select Direct provider.");
     }
 
     public static void verifyVersion(Path binary) throws IOException, InterruptedException {

@@ -229,7 +229,9 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
                 } else result = "OK: " + LLMService.get().testConnection();
             } catch (Exception exception) {
                 if (exception instanceof InterruptedException) Thread.currentThread().interrupt();
-                result = codex ? "ERROR: Codex runtime could not be checked. Select Codex "
+                String detail = String.valueOf(exception.getMessage());
+                result = codex && detail.contains("codex-code-mode-host") ? "ERROR: " + detail
+                    : codex ? "ERROR: Codex runtime could not be checked. Select Codex "
                     + CodexLaunchConfig.SUPPORTED_VERSION + " or reinstall Capella AI, then try again."
                     : "ERROR: " + exception.getMessage();
             } finally {
@@ -254,6 +256,7 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
     /** Runs only on the connection-test worker; tests can supply a deterministic version check. */
     protected void verifyCodexRuntime(Path binary) throws Exception {
         CodexLaunchConfig.verifyVersion(binary);
+        CodexLaunchConfig.requireCodeModeHost(binary);
     }
 
     @Override

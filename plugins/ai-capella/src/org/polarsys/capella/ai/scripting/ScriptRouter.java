@@ -248,6 +248,11 @@ public final class ScriptRouter {
             throw new IllegalStateException("Codex could not start. This integration requires Codex "
                 + CodexLaunchConfig.SUPPORTED_VERSION + ". Check the executable in Settings.", incompatibleRuntime);
         }
+        try {
+            CodexLaunchConfig.requireCodeModeHost(binary);
+        } catch (java.io.IOException incomplete) {
+            throw new IllegalStateException(incomplete.getMessage(), incomplete);
+        }
         Path workspace = Path.of(System.getProperty("capella.ai.workspace.dir",
             Path.of(System.getProperty("user.home"), ".capella-ai", "workspace").toString())).toAbsolutePath();
         Files.createDirectories(workspace);
