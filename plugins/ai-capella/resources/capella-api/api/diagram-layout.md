@@ -21,6 +21,11 @@ api.diagram.layout(diagram, "radial")
 api.diagram.layout(diagram, "layered")
 ```
 
+Every layout also tidies the wiring in the same undoable command: connections switch to
+orthogonal (Manhattan) routing, stale manual bendpoints are removed, and connected border
+ports move to the side of their parent that faces what they connect to. Run `layout` after
+adding elements rather than positioning ports or bendpoints by hand.
+
 ## Alignment
 
 Aligns the **selected** elements (or passed list).
