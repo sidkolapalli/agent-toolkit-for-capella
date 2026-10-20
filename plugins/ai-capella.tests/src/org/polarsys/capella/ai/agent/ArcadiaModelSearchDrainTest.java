@@ -164,10 +164,21 @@ public class ArcadiaModelSearchDrainTest {
                 } catch (Exception failure) { throw new AssertionError(failure); }
             });
         });
-        Throwable failure = workerFailure(tools, Map.of("query", "Absent name"));
-        assertTrue(failure instanceof IllegalStateException); assertTrue(failure.getMessage().contains("Model changed"));
+        // A fresh search restarts from scratch, so its single result reflects one consistent model state.
+        Map<?, ?> page = result(onWorker(tools, Map.of("query", "Changed without Undo")));
+        assertEquals("The restarted search sees the write", 1, ((List<?>) page.get("matches")).size());
+        assertEquals(Boolean.TRUE, page.get("complete"));
         assertNull("The revision guard must work even when command-stack identity is unchanged", domain.getCommandStack().getUndoCommand());
         assertEquals("Changed without Undo", functions.get(3099).getName());
+    }
+
+    @Test public void aModelThatKeepsChangingStillFailsAfterBoundedRestarts() throws Exception {
+        createModel(3100); activateDomain(); AtomicInteger slices = new AtomicInteger();
+        var tools = tools(250000, 2_000_000_000L, System::nanoTime, () -> SessionSafeguards.runOnUiThread(() ->
+            write(() -> functions.get(3099).setName("Write " + slices.incrementAndGet()))));
+        Throwable failure = workerFailure(tools, Map.of("query", "Absent name"));
+        assertTrue(failure instanceof IllegalStateException); assertTrue(failure.getMessage().contains("Model changed"));
+        assertTrue("Restarts are bounded", slices.get() <= 4);
     }
 
     @Test public void committedEditAndDomainChangeInvalidateRetainedCursors() throws Exception {

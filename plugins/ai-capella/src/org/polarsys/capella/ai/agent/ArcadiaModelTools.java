@@ -210,7 +210,24 @@ public final class ArcadiaModelTools {
             "scope", "Architecture roots and direct containment counts only; these are not whole-model element totals.");
     }
 
+    /**
+     * A fresh search that spans several read slices restarts when the model is written in between (for example
+     * the save and refresh after a reviewed edit on a large model), so one result never mixes model states.
+     * A resumed cursor cannot restart: its earlier pages described the old state.
+     */
     private Map<String, Object> search(String query, String type, String layer, int limit, String cursor) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return searchOnce(query, type, layer, limit, cursor);
+            } catch (IllegalStateException changed) {
+                if (cursor != null || attempt == SEARCH_RESTARTS || !String.valueOf(changed.getMessage()).startsWith("Model changed during native search")) throw changed;
+            }
+        }
+    }
+
+    private static final int SEARCH_RESTARTS = 3;
+
+    private Map<String, Object> searchOnce(String query, String type, String layer, int limit, String cursor) {
         String signature = "search:" + query + ":" + type + ":" + layer;
         long started = searchClock.getAsLong();
         Thread requester = Thread.currentThread();
