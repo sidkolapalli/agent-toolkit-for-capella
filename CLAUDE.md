@@ -66,9 +66,9 @@ When you add or change API methods, update the matching docs in `resources/capel
 - `session/`: `SessionSafeguards` (`runWrite`, `runWriteWithResult`, `deferSaves`, `requestSave`, `runOnUiThread`, cancellation control), `SessionBridge`, `SelectionContext`.
 - `presentation/`: `ConversationStore` and `ConversationState` hold the per-model history, draft, plan and Codex thread ID saved in workspace plug-in metadata. Approvals and live model references are never saved.
 - `privacy/Tokenizer`: optional best-effort tokenization of quoted names and UUIDs before anything is sent to a provider.
-- `model/`: `ModelSummary` (cached, invalidated after mutations), `Finders`, `ArchitectureLocator`, `ModelAnalytics`, `MethodologyCoach`.
+- `model/`: `ModelSummary` (cached, invalidated after mutations), `Finders`, `ArchitectureLocator`, `ModelAnalytics`.
 - `preferences/`: `LLMPreferences` (provider, keys in Eclipse secure storage), `codex/CodexPreferences` (runtime selection, binary, model), plus Advanced, Output and Skill preferences.
-- `dev/DevServer`, `importer/` (Draw.io), `telemetry/` (opt-in and local only), `views/` (AI Diagrams, AI Log Inspector).
+- `dev/DevServer`, `importer/SpecImporter`, `telemetry/` (opt-in and local only), `views/` (AI Diagrams, AI Log Inspector).
 
 ## Invariants: do not break these
 
