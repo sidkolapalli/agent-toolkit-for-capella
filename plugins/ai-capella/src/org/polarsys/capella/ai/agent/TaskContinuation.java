@@ -13,6 +13,16 @@ public final class TaskContinuation {
 
     private TaskContinuation() {}
 
+    /**
+     * A request that used its last allowed proposal and still has edit steps pending was stopped by the
+     * budget, however the model phrased its ending. A question for the user is never overridden.
+     */
+    public static TaskTermination afterRequest(TaskTermination ending, List<ArcadiaAgent.Step> plan, int proposalsUsed, int proposalBudget) {
+        if (ending == null || proposalsUsed < proposalBudget || ending.state() != TaskTermination.State.BLOCKED) return ending;
+        boolean editPending = plan.stream().anyMatch(step -> "edit".equals(step.type()) && !"completed".equals(step.status()));
+        return editPending ? TaskTermination.budget("All " + proposalBudget + " proposals of this request were used; the remaining planned edits continue in a fresh request.", plan) : ending;
+    }
+
     public static Optional<String> prompt(List<ArcadiaAgent.Step> plan, TaskTermination termination) {
         if (termination == null || termination.state() != TaskTermination.State.BUDGET_EXHAUSTED) return Optional.empty();
         Optional<ArcadiaAgent.Step> next = plan.stream()

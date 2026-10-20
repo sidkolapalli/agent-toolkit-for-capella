@@ -284,7 +284,9 @@ public final class ArcadiaAgent implements AgentRuntime {
 
     /** Shared by every runtime: steps are completed by evidence, never by the model. */
     public static final String EDIT_STEP_COMPLETION = "An edit step completes only when its own postconditions pass after review, so give every proposed stepId at least one postcondition; "
-        + "an edit step without one stays pending. Do not plan separate verification steps: postconditions are the verification. ";
+        + "an edit step without one stays pending. Do not plan separate verification steps: postconditions are the verification. "
+        + "If this request's proposal limit is reached with edits still pending, leave them pending and say so briefly; "
+        + "Capella continues them in a fresh reviewed request, so do not ask the user to start a new task. ";
 
     public String protocolGuidance() {
         return "\n\n## Arcadia agent protocol (applies to every response)\n"

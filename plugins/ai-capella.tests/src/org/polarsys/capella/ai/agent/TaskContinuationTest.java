@@ -30,6 +30,21 @@ public class TaskContinuationTest {
         assertTrue(TaskContinuation.prompt(PLAN, null).isEmpty());
     }
 
+    /** Live Codex stopped by itself after the third proposal ("D requires a new task"); the host knows why. */
+    @Test public void aStopAfterTheLastAllowedProposalIsTheBudgetNotABlocker() {
+        TaskTermination modelStopped = TaskTermination.blocked("D requires a new task.", PLAN);
+        TaskTermination ending = TaskContinuation.afterRequest(modelStopped, PLAN, 3, 3);
+        assertEquals(TaskTermination.State.BUDGET_EXHAUSTED, ending.state());
+        assertTrue(TaskContinuation.prompt(PLAN, ending).isPresent());
+        assertSame("Budget left: the model's own ending stands", modelStopped, TaskContinuation.afterRequest(modelStopped, PLAN, 2, 3));
+        TaskTermination question = new TaskTermination(TaskTermination.State.NEEDS_INPUT, "Which component owns the relay?", TaskTermination.Scope.DECLARED_PLAN);
+        assertSame("A question for the user is never skipped", question, TaskContinuation.afterRequest(question, PLAN, 3, 3));
+        var done = List.of(new ArcadiaAgent.Step("edit", "Edit", "completed", "edit"));
+        TaskTermination complete = TaskTermination.fromFinal(java.util.Map.of("state", "complete"), done);
+        assertSame(complete, TaskContinuation.afterRequest(complete, done, 3, 3));
+        assertNull(TaskContinuation.afterRequest(null, PLAN, 3, 3));
+    }
+
     @Test public void budgetExhaustionWithOnlyReadsOrNothingPendingStops() {
         var reads = List.of(new ArcadiaAgent.Step("inspect", "Inspect", "pending", "read"));
         assertTrue(TaskContinuation.prompt(reads, TaskTermination.budget("Out of reads.", reads)).isEmpty());

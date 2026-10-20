@@ -116,6 +116,8 @@ public class ChatView extends ViewPart {
     private TaskTermination taskTermination;
     /** Fresh requests started for one user message when a task runs out of budget with edits pending. */
     static final int MAX_AUTOMATIC_CONTINUATIONS = 4;
+    /** A correction receives its own review; no prompt can silently run an unbounded sequence. */
+    static final int MAX_PROPOSALS_PER_REQUEST = 3;
     private int automaticContinuations;
     private Session terminationSession;
     private ConversationState terminationConversation;
@@ -934,21 +936,25 @@ public class ChatView extends ViewPart {
                 }
                 ArcadiaAgent.Turn displayed = turn;
                 proposalReceived |= turn.hasProposal();
+                TaskTermination ending = displayed.hasProposal() ? displayed.termination()
+                    : TaskContinuation.afterRequest(displayed.termination(), displayed.plan(), proposals, MAX_PROPOSALS_PER_REQUEST);
                 display.syncExec(() -> {
                     if (!isUsable()) return;
                     conversation.restoreHistory(displayed.messages());
                     appendMessage("Capella AI", displayedReply(displayed));
                     saveTaskPlan(displayed.plan());
-                    rememberTaskTermination(session, requestConversation, displayed.termination());
-                    if (!displayed.hasProposal() && displayed.termination() != null) {
+                    if (ending != displayed.termination()) appendMessage("Request budget reached", "All " + MAX_PROPOSALS_PER_REQUEST
+                        + " proposals of this request were used. The remaining planned edits continue in a fresh request; each proposal still needs your review.");
+                    rememberTaskTermination(session, requestConversation, ending);
+                    if (!displayed.hasProposal() && ending != null) {
                         conversation.addOutcome("TASK STATUS (declared plan or response only; no engineering completeness claim)\n"
-                            + AgentJson.write(displayed.termination().feedback()));
+                            + AgentJson.write(ending.feedback()));
                         persistConversation();
                     }
                 });
                 if (!turn.hasProposal()) return;
                 // A correction receives its own review. No prompt can silently run an unbounded sequence.
-                if (proposals >= 3) {
+                if (proposals >= MAX_PROPOSALS_PER_REQUEST) {
                     ui(() -> {
                         appendMessage("Request budget reached", "Three proposals were handled in this request. Remaining planned edits continue in a fresh request; each proposal still needs your review.");
                         rememberTaskTermination(session, requestConversation, TaskTermination.budget("Three proposals were handled. Review the results and send a follow-up to continue; no additional proposal was run.", displayed.plan()));

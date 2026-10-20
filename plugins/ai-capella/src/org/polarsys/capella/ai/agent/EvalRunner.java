@@ -88,8 +88,8 @@ public final class EvalRunner {
         requests:
         for (;;) {
             ArcadiaAgent.Turn turn = null;
+            int requestProposals = 0;
             try (AgentRuntime agent = runtimes.get()) {
-                int requestProposals = 0;
                 turn = agent.run(systemPrompt, history, input, () -> false, progress -> {});
                 for (;;) {
                     if (!turn.hasProposal()) {
@@ -138,6 +138,8 @@ public final class EvalRunner {
             } finally {
                 if (turn != null) { requests += turn.requests(); toolCalls += turn.toolCalls(); }
             }
+            if (turn != null && !turn.hasProposal()) turn = withTermination(turn, TaskContinuation.afterRequest(turn.termination(), turn.plan(),
+                requestProposals, MAX_PROPOSALS));
             var next = TaskContinuation.prompt(turn.plan(), turn.termination());
             if (next.isEmpty() || continuations == MAX_CONTINUATIONS) {
                 if (turn.termination() != null) {
