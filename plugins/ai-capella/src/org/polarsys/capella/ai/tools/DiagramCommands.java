@@ -578,10 +578,10 @@ public final class DiagramCommands {
         return scores;
     }
 
-    /** The diagram must belong to this session's editing domain and owned resources. */
     /**
      * Creates the GMF notation of a diagram that has never been opened and brings an existing one in
      * line with views added since (Sirius only does this when an editor opens). Layout needs both.
+     * The diagram must belong to this session's editing domain and owned resources.
      */
     public static boolean ensureNotation(Session session, DRepresentation rep) {
         if (session == null || !(rep instanceof DDiagram diagram) || !ownsRepresentation(session, rep)) return false;

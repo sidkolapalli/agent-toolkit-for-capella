@@ -112,6 +112,27 @@ public class ElkDiagramLayoutTest {
     }
 
     @Test
+    public void notationIsOnlySynchronizedForDiagramsTheSessionOwns() {
+        assertFalse(DiagramCommands.ensureNotation(null, semantic));
+        Resource foreign = new ResourceImpl(URI.createURI("memory:/foreign.aird"));
+        new ResourceSetImpl().getResources().add(foreign);
+        DSemanticDiagram other = DiagramFactory.eINSTANCE.createDSemanticDiagram();
+        foreign.getContents().add(other);
+        assertFalse(DiagramCommands.ensureNotation(session, other));
+        assertTrue("Nothing was added to the foreign diagram", other.getOwnedAnnotationEntries().isEmpty());
+    }
+
+    @Test
+    public void synchronizingAnOpenedDiagramKeepsItsExistingNotation() {
+        DiagramCommands.ensureNotation(session, semantic);
+        var gmf = semantic.getOwnedAnnotationEntries().stream().filter(entry -> "GMF_DIAGRAMS".equals(entry.getSource())).toList();
+        assertEquals(1, gmf.size());
+        assertSame(notation, gmf.get(0).getData());
+        assertEquals("Existing views are not replaced", 2, notation.getPersistedChildren().size());
+        assertSame(containers.get(0), notation.getPersistedChildren().get(0));
+    }
+
+    @Test
     public void containersFitTheirChildrenBelowTheTitleBandWithoutOverlap() {
         assertTrue(DiagramCommands.arrangeSelection(session, semantic, "layered"));
         for (Node container : containers) {
