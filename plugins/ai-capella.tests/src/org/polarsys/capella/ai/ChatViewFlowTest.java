@@ -220,6 +220,17 @@ public class ChatViewFlowTest {
         assertFalse(signIn.getVisible());
     }
 
+    @Test public void aConfirmedChatgptAccountIsNotAskedToSignInAgainUntilItExpires() throws Exception {
+        CodexPreferences.setRuntime("codex");
+        call("refreshContext", new Class<?>[] {});
+        Button signIn = (Button) field("signInButton");
+        call("accountConfirmed", new Class<?>[] {boolean.class}, true);
+        assertEquals("ChatGPT account", signIn.getText());
+        assertTrue("Switching or reconnecting stays possible", signIn.getVisible() && signIn.getEnabled());
+        call("accountConfirmed", new Class<?>[] {boolean.class}, false);
+        assertEquals("Sign in with ChatGPT", signIn.getText());
+    }
+
     @Test public void accountSetupDisablesModelSendSettingsAndDuplicateSignIn() throws Exception {
         CodexPreferences.setRuntime("codex");
         call("refreshContext", new Class<?>[] {});

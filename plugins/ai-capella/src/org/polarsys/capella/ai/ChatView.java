@@ -511,6 +511,7 @@ public class ChatView extends ViewPart {
             connectionStatus = "chatgpt".equals(connected[0].authMode())
                 ? "ChatGPT connected" : "OpenAI connected";
             message = connectionStatus + ". You can now send a message about your model.";
+            accountConfirmed(true);
         } catch (InterruptedException cancelled) {
             message = "ChatGPT sign-in cancelled. Your existing connection was kept.";
         } catch (InvocationTargetException failure) {
@@ -522,6 +523,15 @@ public class ChatView extends ViewPart {
             refreshContext();
             setActivity(message);
         }
+    }
+
+    /** The header button keeps sign-in reachable but stops asking a working account to sign in. */
+    private void accountConfirmed(boolean confirmed) {
+        if (signInButton == null || signInButton.isDisposed()) return;
+        signInButton.setText(confirmed ? "ChatGPT account" : "Sign in with ChatGPT");
+        signInButton.setToolTipText(confirmed ? "Connected. Sign in again to reconnect or switch accounts."
+            : "Use your existing OpenAI connection or sign in through your browser");
+        signInButton.getParent().layout(true);
     }
 
     private static String signInFailureMessage(Throwable failure) {
@@ -918,6 +928,7 @@ public class ChatView extends ViewPart {
             if (stopRequested || disposed) return;
             ArcadiaAgent.Turn turn = agent.run(ScriptRouter.agentSystemPrompt(session, conversationId, context),
                 history, input, this::requestCancelled, this::showAgentProgress);
+            if (usesCodexRuntime()) ui(() -> accountConfirmed(true));
             int proposals = 0;
             for (;;) {
                 latestPlan = turn.plan();
@@ -1068,8 +1079,10 @@ public class ChatView extends ViewPart {
                 List<ArcadiaAgent.Step> failedPlan = latestPlan;
                 boolean anyApplied = applied;
                 boolean retrySafe = !proposalReceived && !anyApplied;
+                String failure = LLMService.userFacingError(ex);
                 ui(() -> {
-                    appendMessage(anyApplied ? "Changes applied · Task could not finish" : "Request could not finish", LLMService.userFacingError(ex));
+                    if (failure.contains("sign-in has expired") || failure.contains("Sign in with ChatGPT")) accountConfirmed(false);
+                    appendMessage(anyApplied ? "Changes applied · Task could not finish" : "Request could not finish", failure);
                     if (!(ex instanceof ArcadiaAgent.AgentException)) rememberTaskTermination(session, requestConversation,
                         TaskTermination.blocked(anyApplied ? "Changes committed, but the task could not finish. Check the preceding execution/save facts; do not replay the change."
                             : "The request could not finish. Review the reported connection or model action error.", failedPlan));
