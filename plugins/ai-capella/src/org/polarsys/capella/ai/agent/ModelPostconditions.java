@@ -60,7 +60,7 @@ public final class ModelPostconditions {
             target = Collections.unmodifiableMap(new LinkedHashMap<>(target));
             expected = boundedValue(expected);
             actual = boundedValue(actual);
-            note = clip(note, 400);
+            note = Text.clip(note, 400);
         }
 
         public Map<String, Object> feedback() {
@@ -82,7 +82,7 @@ public final class ModelPostconditions {
 
         private Report(List<Result> results, String note) {
             this.results = List.copyOf(results);
-            this.note = clip(note, 400);
+            this.note = Text.clip(note, 400);
         }
 
         public List<Result> results() {
@@ -208,7 +208,7 @@ public final class ModelPostconditions {
                                     unavailable(
                                             declarations,
                                             "The captured Capella model is closed or has no editing"
-                                                + " domain."));
+                                                    + " domain."));
                             return;
                         }
                         TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
@@ -221,7 +221,7 @@ public final class ModelPostconditions {
                                                     unavailable(
                                                             declarations,
                                                             "The captured model closed or its read"
-                                                                + " was cancelled."));
+                                                                    + " was cancelled."));
                                             return;
                                         }
                                         List<Resource> resources =
@@ -242,8 +242,8 @@ public final class ModelPostconditions {
                                                     unavailable(
                                                             declarations,
                                                             "Complete semantic resources in the"
-                                                                + " captured editing domain are"
-                                                                + " required."));
+                                                                    + " captured editing domain are"
+                                                                    + " required."));
                                             return;
                                         }
                                         report.set(
@@ -358,7 +358,7 @@ public final class ModelPostconditions {
                         complete = false;
                         incompleteReason =
                                 "The bounded native search did not finish; absence and uniqueness"
-                                    + " are unverified.";
+                                        + " are unverified.";
                         break outer;
                     }
                     EObject candidate = iterator.next();
@@ -368,7 +368,7 @@ public final class ModelPostconditions {
                         complete = false;
                         incompleteReason =
                                 "Unresolved or foreign semantic containment prevents a complete"
-                                    + " search.";
+                                        + " search.";
                         continue;
                     }
                     for (Query query : queries)
@@ -388,7 +388,7 @@ public final class ModelPostconditions {
         return new Report(
                 results,
                 "Evidence is scoped to the captured session; execution, saving and engineering"
-                    + " intent are checked separately.");
+                        + " intent are checked separately.");
     }
 
     private static final class Query {
@@ -444,7 +444,7 @@ public final class ModelPostconditions {
                 valid = false;
                 note =
                         "The declared native selector or stored attribute is invalid or"
-                            + " unsupported.";
+                                + " unsupported.";
             }
         }
 
@@ -513,7 +513,7 @@ public final class ModelPostconditions {
                         expected,
                         null,
                         "Only a single stored EAttribute can be compared; references and derived"
-                            + " attributes are unsupported.");
+                                + " attributes are unsupported.");
             }
             Object raw = first.eGet(feature, false);
             Object actual = raw instanceof Enumerator literal ? literal.getLiteral() : raw;
@@ -688,7 +688,7 @@ public final class ModelPostconditions {
     }
 
     private static Object boundedValue(Object value) {
-        if (value instanceof String text) return clip(text, 320);
+        if (value instanceof String text) return Text.clip(text, 320);
         if (value instanceof Map<?, ?> map) {
             Map<String, Object> bounded = new LinkedHashMap<>();
             map.forEach((key, entry) -> bounded.put((String) key, boundedValue(entry)));
@@ -719,7 +719,7 @@ public final class ModelPostconditions {
                     .append(": ")
                     .append(shown);
         }
-        return clip(text.toString(), 400);
+        return Text.clip(text.toString(), 400);
     }
 
     private static String targetDescription(Result result) {
@@ -732,7 +732,7 @@ public final class ModelPostconditions {
         if (target.containsKey("type")) {
             return target.get("type")
                     + " “"
-                    + clip(String.valueOf(target.get("name")), 320)
+                    + Text.clip(String.valueOf(target.get("name")), 320)
                     + "”"
                     + (target.containsKey("layer") ? " in " + target.get("layer") : "");
         }
@@ -745,21 +745,13 @@ public final class ModelPostconditions {
                     + ("".equals(actual.get("layer")) ? "" : " in " + actual.get("layer"));
         }
         return "Native element UUID “"
-                + clip(String.valueOf(target.getOrDefault("id", "unavailable")), 320)
+                + Text.clip(String.valueOf(target.getOrDefault("id", "unavailable")), 320)
                 + "”";
     }
 
     private static String displayValue(Object value) {
         if (value == null) return "null";
         return value instanceof String text ? "“" + text + "”" : String.valueOf(value);
-    }
-
-    private static String clip(String value, int limit) {
-        if (value == null) return "";
-        if (value.length() <= limit) return value;
-        int end = limit;
-        if (Character.isHighSurrogate(value.charAt(end - 1))) end--;
-        return value.substring(0, end) + " [truncated]";
     }
 
     private static String markdown(String value) {

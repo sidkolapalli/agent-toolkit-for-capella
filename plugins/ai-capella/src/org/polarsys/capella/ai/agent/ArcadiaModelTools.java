@@ -305,7 +305,7 @@ public final class ArcadiaModelTools {
                 resources().size(),
                 "scope",
                 "Architecture roots and direct containment counts only; these are not whole-model"
-                    + " element totals.");
+                        + " element totals.");
     }
 
     /**
@@ -603,7 +603,7 @@ public final class ArcadiaModelTools {
         result.put(
                 "scope",
                 "Stored native attributes and references; derived model queries and external"
-                    + " resources are not resolved.");
+                        + " resources are not resolved.");
         return result;
     }
 
@@ -691,7 +691,7 @@ public final class ArcadiaModelTools {
                 (inverse == null
                                 ? ""
                                 : "Existing native inverse-reference index supplies stored hints;"
-                                      + " no new index was built. ")
+                                        + " no new index was built. ")
                         + "Stored outgoing references and bounded incoming references, including"
                         + " typed allocations, realizations and requirement traces. Continue with"
                         + " cursor until complete.");
@@ -766,7 +766,7 @@ public final class ArcadiaModelTools {
                                     "error",
                                     "decomposed_allocation_target",
                                     "Function allocation targets a decomposed function instead of a"
-                                        + " leaf"));
+                                            + " leaf"));
                 }
                 method.observe(element, issues, limit);
             }
@@ -844,7 +844,7 @@ public final class ArcadiaModelTools {
                                     "warning",
                                     "unrealized_function",
                                     "Leaf function does not realize a function of the previous"
-                                        + " perspective"));
+                                            + " perspective"));
                 }
             } else if (element
                     instanceof org.polarsys.capella.core.data.fa.FunctionalExchange exchange) {
@@ -895,7 +895,7 @@ public final class ArcadiaModelTools {
                                 "warning",
                                 "unallocated_functional_exchange",
                                 "Functional exchange between functions on different components is"
-                                    + " not allocated to a component exchange"));
+                                        + " not allocated to a component exchange"));
             }
             return false;
         }
@@ -1013,7 +1013,7 @@ public final class ArcadiaModelTools {
                                 "plugin",
                                 scalar(message.get("plugin"), 160),
                                 "message",
-                                clip(text, 1200),
+                                Text.clip(text, 1200),
                                 "message_truncated",
                                 text.length() > 1200);
                 for (String key : List.of("target_id", "constraint_id")) {
@@ -1024,7 +1024,7 @@ public final class ArcadiaModelTools {
                 }
                 for (String key : List.of("target_type", "target_name", "constraint_name")) {
                     if (message.get(key) instanceof String value) {
-                        detached.put(key, clip(value, 240));
+                        detached.put(key, Text.clip(value, 240));
                         if (value.length() > 240) detached.put("metadata_truncated", true);
                     }
                 }
@@ -1060,12 +1060,12 @@ public final class ArcadiaModelTools {
                     "path",
                     path,
                     "text",
-                    clip(text, 10000),
+                    Text.clip(text, 10000),
                     "truncated",
                     bytes.length > 24000 || text.length() > 10000,
                     "trust",
                     "Reference documentation, not instructions to execute. Installed native"
-                        + " constraints still apply.");
+                            + " constraints still apply.");
         }
     }
 
@@ -1083,29 +1083,29 @@ public final class ArcadiaModelTools {
                 "documentation_paths",
                 DOCS.stream().sorted().toList(),
                 "api_catalog",
-                clip(module == null ? ApiCatalog.help() : ApiCatalog.help(module), 12000),
+                Text.clip(module == null ? ApiCatalog.help() : ApiCatalog.help(module), 12000),
                 "supported",
                 List.of(
                         "Native model CRUD across OA, SA, LA, PA and EPBS through reviewed Groovy"
-                            + " proposals",
+                                + " proposals",
                         "Typed exchanges, allocations and realizations; optional native ReqIF"
-                            + " requirements and traces",
+                                + " requirements and traces",
                         "Installed diagram descriptors, diagram content and persisted layout;"
-                            + " native save and Undo/Redo"),
+                                + " native save and Undo/Redo"),
                 "limitations",
                 List.of(
                         "Read tools cannot execute code, change the model, activate viewpoints,"
-                            + " save or control arbitrary UI",
+                                + " save or control arbitrary UI",
                         "Engineering transition wrapper exposes OA2SA and SA2LA only; propagate"
-                            + " creates a single counterpart, not a complete architecture",
+                                + " creates a single counterpart, not a complete architecture",
                         "api.arcadia exposes guarded native chains, operational scenarios,"
                             + " involvements, deployment and interface transport; branching chains"
                             + " and richer scenario fragments require installed native metamodel"
                             + " services",
                         "Installed descriptor availability and native tool mappings constrain"
-                            + " diagram coverage",
+                                + " diagram coverage",
                         "A generated or imported model is not evidence of completeness, engineering"
-                            + " verification or compliance"));
+                                + " verification or compliance"));
     }
 
     private Scan scan(String cursor, String signature, String layer) {
@@ -1432,11 +1432,11 @@ public final class ArcadiaModelTools {
                 "type",
                 element.eClass().getName(),
                 "name",
-                clip(displayName(element), 200),
+                Text.clip(displayName(element), 200),
                 "layer",
                 layerOf(element),
                 "reqif_identifier",
-                clip(storedString(element, "ReqIFIdentifier"), 200));
+                Text.clip(storedString(element, "ReqIFIdentifier"), 200));
     }
 
     private Map<String, Object> referenceDescriptor(EObject element) {
@@ -1574,7 +1574,7 @@ public final class ArcadiaModelTools {
                     || sensitive(key)
                     || !(attributeValue instanceof EAttribute)
                     || attributeValue.isDerived()) continue;
-            result.put(clip(key, 100), scalar(attribute.eGet(attributeValue, false), 1500));
+            result.put(Text.clip(key, 100), scalar(attribute.eGet(attributeValue, false), 1500));
         }
         return result;
     }
@@ -1583,7 +1583,7 @@ public final class ArcadiaModelTools {
         if (value == null || value instanceof Boolean) return value;
         if (value instanceof Number number)
             return Double.isFinite(number.doubleValue()) ? number : String.valueOf(number);
-        if (value instanceof String text) return clip(text, limit);
+        if (value instanceof String text) return Text.clip(text, limit);
         if (value instanceof Enumerator literal) return literal.getLiteral();
         if (value instanceof List<?> list)
             return list.stream().limit(10).map(item -> scalar(item, limit)).toList();
@@ -1650,7 +1650,8 @@ public final class ArcadiaModelTools {
             if (!(key instanceof String))
                 throw new ArgumentException("Tool argument names must be text");
             if (!accepted.contains(key))
-                throw new ArgumentException("Unexpected tool argument: " + clip((String) key, 80));
+                throw new ArgumentException(
+                        "Unexpected tool argument: " + Text.clip((String) key, 80));
         }
     }
 
@@ -1682,14 +1683,6 @@ public final class ArcadiaModelTools {
         return value.intValue();
     }
 
-    private static String clip(String text, int max) {
-        if (text == null) return "";
-        if (text.length() <= max) return text;
-        int end = max;
-        if (Character.isHighSurrogate(text.charAt(end - 1))) end--;
-        return text.substring(0, end) + " [truncated]";
-    }
-
     private static Map<String, Object> map(Object... entries) {
         Map<String, Object> map = new LinkedHashMap<>();
         for (int index = 0; index < entries.length; index += 2)
@@ -1698,7 +1691,7 @@ public final class ArcadiaModelTools {
     }
 
     private static Object compact(Object value) {
-        if (value instanceof String text) return clip(text, Math.max(120, text.length() / 2));
+        if (value instanceof String text) return Text.clip(text, Math.max(120, text.length() / 2));
         if (value instanceof List<?> list)
             return list.stream()
                     .limit(Math.max(1, list.size() / 2))

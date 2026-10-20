@@ -45,7 +45,7 @@ public final class ModelChangeSummary {
             SessionSafeguards.runOnUiThread(recorder::attach);
         } catch (RuntimeException failure) {
             recorder.unavailable(
-                    "Change capture could not start: " + concise(failure.getMessage(), 240));
+                    "Change capture could not start: " + Text.oneLine(failure.getMessage(), 240));
             recorder.close();
         }
         return recorder;
@@ -169,7 +169,7 @@ public final class ModelChangeSummary {
                         } catch (RuntimeException failure) {
                             unavailable(
                                     "Change evidence is incomplete: "
-                                            + concise(failure.getMessage(), 240));
+                                            + Text.oneLine(failure.getMessage(), 240));
                         } finally {
                             super.notifyChanged(notification);
                         }
@@ -280,7 +280,7 @@ public final class ModelChangeSummary {
                             && !semanticResources.contains(object.eResource())) return;
                     unavailable(
                             "The model changed outside the reviewed script while capture was active"
-                                + " ("
+                                    + " ("
                                     + object.eClass().getName()
                                     + "."
                                     + structural.getName()
@@ -398,7 +398,7 @@ public final class ModelChangeSummary {
             } catch (RuntimeException failure) {
                 unavailable(
                         "Change evidence could not be finalized: "
-                                + concise(failure.getMessage(), 240));
+                                + Text.oneLine(failure.getMessage(), 240));
                 result.set(unknown(committed));
             } finally {
                 close();
@@ -539,8 +539,8 @@ public final class ModelChangeSummary {
                     saveFailed
                             ? "Committed in memory; saving failed. Do not repeat the script."
                             : "Includes semantic elements and diagrams; changes inside a diagram"
-                                  + " are reported as that diagram. Disk save status is reported"
-                                  + " separately.",
+                                    + " are reported as that diagram. Disk save status is reported"
+                                    + " separately.",
                     byLayer);
         }
 
@@ -579,7 +579,7 @@ public final class ModelChangeSummary {
                 } catch (RuntimeException cleanupFailure) {
                     unavailable(
                             "Change capture cleanup could not complete: "
-                                    + concise(cleanupFailure.getMessage(), 240));
+                                    + Text.oneLine(cleanupFailure.getMessage(), 240));
                 }
             } finally {
                 closed = true;
@@ -727,12 +727,15 @@ public final class ModelChangeSummary {
 
     private static ElementChange describe(EObject object, Resource resource, Object previousName) {
         String id = null,
-                name = previousName == null ? null : concise(String.valueOf(previousName), 180);
+                name =
+                        previousName == null
+                                ? null
+                                : Text.oneLine(String.valueOf(previousName), 180);
         EAttribute identifier = object.eClass().getEIDAttribute();
         if (identifier != null) {
             Object value = object.eGet(identifier, false);
-            if (value != null) id = concise(String.valueOf(value), 100);
-        } else if (resource instanceof XMLResource xml) id = concise(xml.getID(object), 100);
+            if (value != null) id = Text.oneLine(String.valueOf(value), 100);
+        } else if (resource instanceof XMLResource xml) id = Text.oneLine(xml.getID(object), 100);
         if (name == null)
             for (String candidate : List.of("name", "ReqIFLongName", "ReqIFIdentifier")) {
                 EStructuralFeature feature = object.eClass().getEStructuralFeature(candidate);
@@ -741,7 +744,7 @@ public final class ModelChangeSummary {
                         && !feature.isTransient()) {
                     Object value = object.eGet(feature, false);
                     if (value instanceof String text && !text.isBlank()) {
-                        name = concise(text, 180);
+                        name = Text.oneLine(text, 180);
                         break;
                     }
                 }
@@ -755,12 +758,12 @@ public final class ModelChangeSummary {
                                         representation)
                                 .getRepresentationDescriptor();
                 if (descriptor != null && descriptor.getName() != null)
-                    name = concise(descriptor.getName(), 180);
+                    name = Text.oneLine(descriptor.getName(), 180);
             } catch (RuntimeException unavailable) {
                 /* keep the unnamed fallback */
             }
         }
-        return new ElementChange(id, concise(object.eClass().getName(), 100), name, List.of());
+        return new ElementChange(id, Text.oneLine(object.eClass().getName(), 100), name, List.of());
     }
 
     private static ElementChange withFeatures(ElementChange value, List<String> features) {
@@ -772,7 +775,7 @@ public final class ModelChangeSummary {
                         .distinct()
                         .sorted()
                         .limit(10)
-                        .map(feature -> concise(feature, 80))
+                        .map(feature -> Text.oneLine(feature, 80))
                         .toList());
     }
 
@@ -890,11 +893,5 @@ public final class ModelChangeSummary {
                         .replace("`", "\\`")
                         .replace("[", "\\[")
                         .replace("]", "\\]");
-    }
-
-    private static String concise(String text, int max) {
-        if (text == null) return null;
-        String singleLine = text.replaceAll("[\\r\\n\\t\\p{Cntrl}]", " ");
-        return singleLine.length() > max ? singleLine.substring(0, max) + "…" : singleLine;
     }
 }

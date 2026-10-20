@@ -91,7 +91,7 @@ public final class ModelVerification {
             result.put(
                     "scope",
                     "Installed Capella validator diagnostics. This does not verify requirements,"
-                        + " safety or compliance.");
+                            + " safety or compliance.");
             return Collections.unmodifiableMap(result);
         }
 
@@ -150,7 +150,7 @@ public final class ModelVerification {
                         snapshot.set(
                                 Snapshot.unavailable(
                                         "An open Capella model and its editing domain are"
-                                            + " required."));
+                                                + " required."));
                         return;
                     }
                     try {
@@ -225,7 +225,7 @@ public final class ModelVerification {
                 truncated,
                 truncated
                         ? "Native diagnostic details were truncated; counts cover the complete"
-                              + " validator result."
+                                + " validator result."
                         : "");
     }
 
@@ -266,8 +266,6 @@ public final class ModelVerification {
     }
 
     private static String clip(String text, int max) {
-        if (text == null) return "";
-        String line = text.replaceAll("[\\r\\n\\t\\p{Cntrl}]", " ");
-        return line.length() > max ? line.substring(0, max) + "…" : line;
+        return text == null ? "" : Text.oneLine(text, max);
     }
 }
