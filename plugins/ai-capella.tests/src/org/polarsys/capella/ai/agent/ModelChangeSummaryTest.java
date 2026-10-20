@@ -234,6 +234,16 @@ public class ModelChangeSummaryTest {
         assertTrue(report.hasChanges()); assertDetached();
     }
 
+    @Test public void anEditedElementWithoutAnIdDoesNotLoseDiagramRollUpEvidence() {
+        var existing = DiagramFactory.eINSTANCE.createDNode();
+        write(() -> { ((org.eclipse.sirius.diagram.DSemanticDiagram) diagram).getOwnedDiagramElements().add(existing); second.setId(null); });
+        var recorder = ModelChangeSummary.capture(session);
+        write(() -> { second.setName("No id"); existing.setOwnedStyle(DiagramFactory.eINSTANCE.createSquare()); });
+        var report = recorder.finish(true);
+        assertTrue(report.note(), report.available());
+        assertEquals(2, report.editedCount()); assertDetached();
+    }
+
     @Test public void ownedDiagramEditsAreIncludedAndForeignResourcesAreExcluded() {
         var recorder = ModelChangeSummary.capture(session);
         write(() -> {

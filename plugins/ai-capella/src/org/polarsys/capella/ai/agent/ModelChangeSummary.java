@@ -317,13 +317,14 @@ public final class ModelChangeSummary {
                 }
             }
             for (EObject diagram : diagramsWithViewChanges) {
+                ElementChange described = describe(diagram, diagram.eResource(), null);
                 int index = -1;
-                for (int i = 0; i < edited.size(); i++) if (edited.get(i).id().equals(describe(diagram, diagram.eResource(), null).id())) index = i;
+                for (int i = 0; i < edited.size(); i++) if (described.id() != null && described.id().equals(edited.get(i).id())) index = i;
                 if (index >= 0) {
                     List<String> features = new ArrayList<>(edited.get(index).features()); features.add("views");
                     edited.set(index, withFeatures(edited.get(index), features));
                 } else {
-                    edited.add(withFeatures(describe(diagram, diagram.eResource(), null), List.of("views")));
+                    edited.add(withFeatures(described, List.of("views")));
                     count(byLayer, layer(diagram, diagram.eResource()), "edited", diagram.eClass().getName());
                 }
             }
