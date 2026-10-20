@@ -74,4 +74,4 @@ def comms = api.create("LA", "LogicalComponent", "Communications")
 
 - `SAB` - System Architecture Blank (components)
 - `SDFB` - System Data Flow Blank (functions)
-- `ES` - Exchange Scenario (sequences)
+- `ES` - Component Exchanges Scenario (sequences). Creating it on a capability also creates the scenario: `api.diagram.create("ES", "Scenario name", capability)`

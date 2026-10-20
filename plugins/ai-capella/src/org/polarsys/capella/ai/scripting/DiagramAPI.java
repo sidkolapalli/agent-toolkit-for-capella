@@ -1238,9 +1238,9 @@ public final class DiagramAPI {
             sb.append("  SAB  - System Architecture Blank\n");
             sb.append("  SDFB - System Data Flow Blank\n");
             sb.append("  SFB  - System Function Breakdown\n");
-            sb.append("  ES   - Exchange Scenario\n");
+            sb.append("  ES   - Component Exchanges Scenario (on a capability; also creates the scenario)\n");
             sb.append("  FS   - Functional Scenario\n");
-            sb.append("  IS   - Interface Scenario\n");
+            sb.append("  IS   - Component Interfaces Scenario\n");
         }
         if (layer == null || "LA".equalsIgnoreCase(layer)) {
             sb.append("Logical Architecture (LA):\n");
@@ -1300,9 +1300,10 @@ public final class DiagramAPI {
             case "PDFB" -> "Physical Data Flow Blank";
             case "PFB" -> "[PFBD] Physical Function Breakdown";
             case "CDB" -> "Class Diagram Blank";
-            case "ES", "SCENARIO" -> "Exchange Scenario";
+            // Capella 7 names; the old display names stay accepted.
+            case "ES", "SCENARIO", "EXCHANGE SCENARIO" -> "Component Exchanges Scenario";
             case "FS" -> "Functional Scenario";
-            case "IS" -> "Interface Scenario";
+            case "IS", "INTERFACE SCENARIO" -> "Component Interfaces Scenario";
             default -> null; // Unknown type
         };
     }

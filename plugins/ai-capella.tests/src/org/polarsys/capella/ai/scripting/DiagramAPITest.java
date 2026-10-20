@@ -30,6 +30,19 @@ public class DiagramAPITest {
         }
     }
 
+    /** Live FSAE run: the agent created an "Exchange Scenario" diagram, a name Capella 7 does not have. */
+    @Test
+    public void scenarioDiagramShortcutsUseCapella7DescriptionNames() throws Exception {
+        DiagramAPI api = new DiagramAPI(null);
+        var resolve = DiagramAPI.class.getDeclaredMethod("resolveDiagramDescription", String.class);
+        resolve.setAccessible(true);
+        org.junit.Assert.assertEquals("Component Exchanges Scenario", resolve.invoke(api, "ES"));
+        org.junit.Assert.assertEquals("Component Interfaces Scenario", resolve.invoke(api, "IS"));
+        org.junit.Assert.assertEquals("Functional Scenario", resolve.invoke(api, "FS"));
+        org.junit.Assert.assertEquals("Earlier docs used this name", "Component Exchanges Scenario", resolve.invoke(api, "Exchange Scenario"));
+        org.junit.Assert.assertEquals("Component Interfaces Scenario", resolve.invoke(api, "Interface Scenario"));
+    }
+
     @Test
     public void testDistributeValidShortcuts() {
         DiagramAPI api = new DiagramAPI(null);
