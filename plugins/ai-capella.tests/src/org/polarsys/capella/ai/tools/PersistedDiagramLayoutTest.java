@@ -126,6 +126,19 @@ public class PersistedDiagramLayoutTest {
     }
 
     @Test
+    public void autoSizedPortsGetSiriusDefaultSizeCentredOnTheBorder() {
+        Fixture target = fixture(true);
+        for (Node port : target.ports) { bounds(port).setWidth(-1); bounds(port).setHeight(-1); }
+        startDomain();
+        assertTrue(DiagramCommands.arrangeSelection(session, target.semantic, "layered"));
+        Bounds source = bounds(target.ports[0]), sink = bounds(target.ports[2]);
+        assertEquals(10, source.getWidth());
+        assertEquals(10, source.getHeight());
+        assertEquals("Centred on the east border", 320 - 5, source.getX());
+        assertEquals("Centred on the west border", -5, sink.getX());
+    }
+
+    @Test
     public void autoAppliesActualLayoutToPersistedNotationWithoutAnEditor() {
         Fixture target = fixture(true);
         startDomain();

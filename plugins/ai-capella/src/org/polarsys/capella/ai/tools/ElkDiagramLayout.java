@@ -59,6 +59,8 @@ final class ElkDiagramLayout {
     // ponytail: label width is estimated from character count, measure with SWT font metrics if labels clip.
     private static final int CHAR_WIDTH = 8, LABEL_PADDING = 50, MIN_WIDTH = 120, MAX_WIDTH = 640;
     private static final int CONTAINER_HEIGHT = 60, NODE_HEIGHT = 50, LABEL_HEIGHT = 21;
+    /** Default Sirius border node size used by Capella ports. */
+    private static final int PORT_SIZE = 10;
     private static final int GAP = 20;
 
     private ElkDiagramLayout() {}
@@ -246,10 +248,13 @@ final class ElkDiagramLayout {
                 Bounds bounds = bounds(child);
                 ElkNode shape = view instanceof Node node ? graph.shapes.get(node) : null;
                 if (bounds == null || shape == null) continue;
+                // Sirius stores -1 for its default size; lay out and write the size it draws.
+                if (bounds.getWidth() <= 0) bounds.setWidth(PORT_SIZE);
+                if (bounds.getHeight() <= 0) bounds.setHeight(PORT_SIZE);
                 ElkPort port = ElkGraphUtil.createPort(shape);
-                port.setDimensions(Math.max(1, bounds.getWidth()), Math.max(1, bounds.getHeight()));
+                port.setDimensions(bounds.getWidth(), bounds.getHeight());
                 // Sirius draws border nodes centred on the border.
-                port.setProperty(CoreOptions.PORT_BORDER_OFFSET, -Math.max(1, bounds.getWidth()) / 2.0);
+                port.setProperty(CoreOptions.PORT_BORDER_OFFSET, -bounds.getWidth() / 2.0);
                 graph.ports.put(child, port);
             } else if (isShape(element) && bounds(child) != null && !graph.isolated.contains(child)) {
                 Bounds bounds = bounds(child);
