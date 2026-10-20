@@ -182,7 +182,7 @@ public final class ModelChangeSummary {
                     unavailable("An observed resource was unloaded during execution."); return;
                 }
                 if (event.getFeatureID(Resource.class) == Resource.RESOURCE__CONTENTS) {
-                    if (!SessionSafeguards.isInWriteContext()) {
+                    if (!SessionSafeguards.isInManagedTransaction()) {
                         unavailable("Resource contents changed outside the reviewed script; attribution is unavailable."); return;
                     }
                     observeContainment(event, null, null, resource);
@@ -190,7 +190,7 @@ public final class ModelChangeSummary {
             } else if (notifier instanceof EObject object && feature instanceof EStructuralFeature structural) {
                 if (structural.isDerived() || structural.isTransient() || !structural.isChangeable()) return;
                 if (!baseline.contains(object) && !resources.contains(object.eResource())) return;
-                if (!SessionSafeguards.isInWriteContext()) {
+                if (!SessionSafeguards.isInManagedTransaction()) {
                     unavailable("The model changed outside the reviewed script while capture was active; attribution is unavailable.");
                     return;
                 }

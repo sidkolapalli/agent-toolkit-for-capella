@@ -42,6 +42,7 @@ public final class SessionSafeguards {
     private record WriteContext(Session session, TransactionalEditingDomain domain) {}
 
     private static final ThreadLocal<WriteContext> IN_WRITE = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> COMMITTING = new ThreadLocal<>();
     private static final ThreadLocal<Integer> DEFER_SAVE_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Boolean> SAVE_DIRTY = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static final ThreadLocal<ExecutionControl> EXECUTION = new ThreadLocal<>();
@@ -202,6 +203,15 @@ public final class SessionSafeguards {
         return IN_WRITE.get() != null;
     }
 
+    /**
+     * True inside a managed write or while its transaction commits on this thread. Pre-commit
+     * triggers (Sirius diagram refresh) run after the supplier returns but belong to the same
+     * transaction and Undo, so they are part of the reviewed change.
+     */
+    public static boolean isInManagedTransaction() {
+        return IN_WRITE.get() != null || COMMITTING.get() != null;
+    }
+
     /** A managed command may only reuse its exact captured session and native domain. */
     private static boolean requireMatchingWriteContext(Session session, TransactionalEditingDomain domain) {
         WriteContext context = IN_WRITE.get();
@@ -300,6 +310,7 @@ public final class SessionSafeguards {
                             }
                         };
                         try {
+                            COMMITTING.set(Boolean.TRUE);
                             ((TransactionalCommandStack) domain.getCommandStack()).execute(command, dirtyState.options());
                         } catch (InterruptedException ex) {
                             Thread.currentThread().interrupt();
@@ -309,6 +320,8 @@ public final class SessionSafeguards {
                                 throw failure.get();
                             }
                             throw new IllegalStateException("Model transaction rolled back: " + ex.getMessage(), ex);
+                        } finally {
+                            COMMITTING.remove();
                         }
                         if (failure.get() != null) {
                             throw failure.get();
@@ -624,6 +637,7 @@ public final class SessionSafeguards {
     /** Clear ThreadLocal state to avoid leaks when the plug-in stops. */
     public static void cleanup() {
         IN_WRITE.remove();
+        COMMITTING.remove();
         DEFER_SAVE_DEPTH.remove();
         SAVE_DIRTY.remove();
         EXECUTION.remove();

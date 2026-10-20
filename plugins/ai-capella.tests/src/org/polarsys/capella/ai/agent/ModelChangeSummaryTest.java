@@ -247,6 +247,24 @@ public class ModelChangeSummaryTest {
         assertTrue(report.note().contains("outside the reviewed script")); assertDetached();
     }
 
+    @Test public void preCommitTriggersOfTheScriptTransactionAreAttributedToTheScript() {
+        // Sirius refreshes diagrams from pre-commit triggers: same transaction, same Undo, after doExecute returns.
+        var heightFeature = diagram.eClass().getEStructuralFeature("headerHeight");
+        domain.addResourceSetListener(new org.eclipse.emf.transaction.TriggerListener(
+                org.eclipse.emf.transaction.NotificationFilter.createFeatureFilter(
+                    org.polarsys.capella.common.data.modellingcore.ModellingcorePackage.Literals.ABSTRACT_NAMED_ELEMENT__NAME)) {
+            @Override protected org.eclipse.emf.common.command.Command trigger(TransactionalEditingDomain editing, org.eclipse.emf.common.notify.Notification notification) {
+                return new RecordingCommand(editing) { @Override protected void doExecute() { diagram.eSet(heightFeature, 40); } };
+            }
+        });
+        var recorder = ModelChangeSummary.capture(session);
+        write(() -> first.setName("Renamed with refresh"));
+        var report = recorder.finish(true);
+        assertTrue(report.note(), report.available());
+        assertEquals("The script edit and its diagram refresh", 2, report.editedCount());
+        assertEquals(40, diagram.eGet(heightFeature)); assertDetached();
+    }
+
     @Test public void closeWithoutFinishDetachesAndCannotReturnFalseZeroCounts() {
         var recorder = ModelChangeSummary.capture(session);
         assertTrue(semantic.eAdapters().stream().anyMatch(ModelChangeSummaryTest::isRecorderAdapter));
