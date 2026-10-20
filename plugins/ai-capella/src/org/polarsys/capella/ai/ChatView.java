@@ -1050,6 +1050,9 @@ public class ChatView extends ViewPart {
             }
         } catch (Exception ex) {
             if (ex instanceof ArcadiaAgent.AgentException failure) {
+                // The failing turn carries steps verified since the loop last saw the plan; a
+                // continuation built from the older plan would redo a committed edit.
+                if (!failure.turn().plan().isEmpty()) latestPlan = failure.turn().plan();
                 restoreRequestOutcome(requestHistory, failure.turn(), recordedOutcome);
                 ui(() -> rememberTaskTermination(session, requestConversation, failure.turn().termination()));
             } else if (recordedOutcome != null) {
