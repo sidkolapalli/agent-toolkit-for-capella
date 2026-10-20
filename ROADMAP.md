@@ -6,12 +6,13 @@ Measured with `test-models/evals/` on the bundled Codex runtime (see the README'
 
 | Date | Build | Runtime | Starter | Advanced | Total |
 | --- | --- | --- | --- | --- | --- |
-| 2026-10-20 | 0.2.1.202610200353 | bundled Codex 0.160.1, default model | 12/12 | 9/9 | **21/21** |
+| 2026-10-20 | 0.2.1.202610200642 | bundled Codex 0.160.1, default model | 12/12 | 9/9 | **21/21**, every plan step verified |
+| 2026-10-20 | 0.2.1.202610200353 | bundled Codex 0.160.1, default model | 12/12 | 9/9 | 21/21, 2 tasks left a step pending |
 
-A later run on build 0.2.1.202610200544 (diagram verification, root-component placement, change
-capture fixes) passed the 4 tasks that reached the model, 3 of them with every plan step verified;
-the other 17 got no model response because the ChatGPT plan hit its Codex usage limit. Re-run the
-full set on the current build before quoting a new score.
+On 0.2.1.202610200642 all 21 tasks ended complete with every declared plan step independently verified, including the
+laid-out BMS diagram (checked by `diagram_shows`). One task first got no model response ("model at capacity") and passed
+on retry. A chat request needing four reviewed proposals also continued automatically past the three-proposal limit
+with the real Codex runtime.
 
 Earlier runs the same day scored 11/12 (enum values could not be set by name), then 18/21 (logging a
 list aborted scripts; no API for interface exchange items). Single runs vary: a task that passes once
