@@ -58,4 +58,12 @@
          version="0.0.0"
          unpack="false"/>
 
+   <!-- xtext.xbase.lib (needed by ELK layered) requires Guava [30.1,31); Capella 7.0.0 ships only 21 and 31.1. -->
+   <plugin
+         id="com.google.guava"
+         download-size="0"
+         install-size="0"
+         version="30.1.0.v20221112-0806"
+         unpack="false"/>
+
 </feature>
