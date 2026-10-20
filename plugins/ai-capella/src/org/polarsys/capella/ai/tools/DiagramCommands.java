@@ -422,7 +422,8 @@ public final class DiagramCommands {
                         default:
                             throw new IllegalArgumentException("Unsupported layout strategy " + strat);
                     }
-                    DiagramWiring.tidy(notation);
+                    // ELK routes its own wiring; the geometric strategies get the generic tidy-up.
+                    if (!"layered".equals(strat)) DiagramWiring.tidy(notation);
                     // Native notation notifications update an open editor after commit.
                     // A semantic refresh is neither needed nor a substitute for layout.
                     // Telemetry post-metrics

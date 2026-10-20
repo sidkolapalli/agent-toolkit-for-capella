@@ -40,15 +40,20 @@ final class DiagramWiring {
     }
 
     private static void route(Edge edge) {
+        orthogonal(edge);
+        RelativeBendpoints anchors = NotationFactory.eINSTANCE.createRelativeBendpoints();
+        anchors.setPoints(List.of(new RelativeBendpoint(0, 0, 0, 0), new RelativeBendpoint(0, 0, 0, 0)));
+        edge.setBendpoints(anchors);
+    }
+
+    /** Rectilinear GMF routing and Manhattan Sirius routing, kept by Sirius refresh. */
+    static void orthogonal(Edge edge) {
         RoutingStyle routing = (RoutingStyle) edge.getStyle(NotationPackage.Literals.ROUTING_STYLE);
         if (routing == null) {
             routing = NotationFactory.eINSTANCE.createRoutingStyle();
             edge.getStyles().add(routing);
         }
         routing.setRouting(Routing.RECTILINEAR_LITERAL);
-        RelativeBendpoints anchors = NotationFactory.eINSTANCE.createRelativeBendpoints();
-        anchors.setPoints(List.of(new RelativeBendpoint(0, 0, 0, 0), new RelativeBendpoint(0, 0, 0, 0)));
-        edge.setBendpoints(anchors);
         EdgeStyle style = edge.getElement() instanceof DEdge view ? view.getOwnedStyle() : null;
         if (style != null) {
             style.setRoutingStyle(EdgeRouting.MANHATTAN_LITERAL);

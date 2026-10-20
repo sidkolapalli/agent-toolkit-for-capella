@@ -96,10 +96,10 @@ public class PersistedDiagramLayoutTest {
     }
 
     @Test
-    public void layoutRoutesWiringOrthogonallyAndClearsStaleBendpoints() {
+    public void geometricLayoutRoutesWiringOrthogonallyAndClearsStaleBendpoints() {
         Fixture target = fixture(true);
         startDomain();
-        assertTrue(DiagramCommands.arrangeSelection(session, target.semantic, "layered"));
+        assertTrue(DiagramCommands.arrangeSelection(session, target.semantic, "grid"));
         for (Edge edge : target.edges) {
             RoutingStyle routing = (RoutingStyle) edge.getStyle(NotationPackage.Literals.ROUTING_STYLE);
             assertNotNull("GMF edge needs a routing style", routing);
