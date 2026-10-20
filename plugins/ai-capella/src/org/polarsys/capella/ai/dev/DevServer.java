@@ -44,6 +44,7 @@ import org.polarsys.capella.ai.session.SessionSafeguards;
  *   <li>POST /execute - Execute Groovy code directly</li>
  *   <li>POST /inspect - Fixed model read tools with JSON arguments; no script execution</li>
  *   <li>POST /mcp - Model Context Protocol (JSON-RPC 2.0) exposing the same read tools</li>
+ *   <li>POST /eval - Score agent tasks headlessly on a disposable model; requires -Dcapella.ai.eval=true</li>
  *   <li>POST /chat - Send prompt to LLM and execute generated code</li>
  *   <li>GET /status - Check server and session status</li>
  *   <li>GET /prompt - Get the system prompt for code generation</li>
@@ -129,6 +130,7 @@ public final class DevServer {
             addLocalContext("/execute", DevServer::handleExecute);
             addLocalContext("/inspect", DevServer::handleInspect);
             addLocalContext("/mcp", DevServer::handleMcp);
+            addLocalContext("/eval", DevServer::handleEval);
             addLocalContext("/chat", DevServer::handleChat);
             addLocalContext("/status", DevServer::handleStatus);
             addLocalContext("/prompt", DevServer::handlePrompt);
@@ -145,6 +147,7 @@ public final class DevServer {
             System.out.println("  POST /execute - Execute Groovy code");
             System.out.println("  POST /inspect - Fixed native read tools (JSON data only)");
             System.out.println("  POST /mcp     - Model Context Protocol (JSON-RPC) read tools");
+            System.out.println("  POST /eval    - Score agent tasks on a disposable model (opt-in)");
             System.out.println(
                 "  POST /chat    - Send prompt to LLM, execute result"
             );
@@ -275,6 +278,58 @@ public final class DevServer {
         } else {
             sendResponse(exchange, 200, response);
         }
+    }
+
+    /**
+     * POST /eval runs eval tasks through the agent with every proposal auto-approved and scores them by
+     * native checks. Because nothing is reviewed by a person, it is refused unless Capella was started
+     * with -Dcapella.ai.eval=true or CAPELLA_AI_EVAL=1. Body: an eval file; "restore": true undoes each
+     * task's changes and saves before the next. Use a disposable copy of a model.
+     */
+    private static void handleEval(HttpExchange exchange) throws IOException {
+        if (!"true".equals(System.getProperty("capella.ai.eval")) && !"1".equals(System.getenv("CAPELLA_AI_EVAL"))) {
+            sendResponse(exchange, 403, "{\"error\":\"Evaluation auto-approves model edits; start Capella with -Dcapella.ai.eval=true (or CAPELLA_AI_EVAL=1) on a disposable model\"}");
+            return;
+        }
+        if (!"POST".equals(exchange.getRequestMethod())) {
+            sendResponse(exchange, 405, "{\"error\":\"Method not allowed\"}");
+            return;
+        }
+        Session session = SessionBridge.getActiveSession();
+        if (session == null || !session.isOpen()) {
+            sendResponse(exchange, 400, "{\"error\":\"Open the disposable evaluation model first\"}");
+            return;
+        }
+        String body = readBody(exchange);
+        List<org.polarsys.capella.ai.agent.EvalRunner.Task> tasks;
+        try { tasks = org.polarsys.capella.ai.agent.EvalRunner.parse(body); }
+        catch (IllegalArgumentException invalid) {
+            sendResponse(exchange, 400, "{\"error\":\"" + escapeJson(invalid.getMessage()) + "\"}");
+            return;
+        }
+        boolean restore = AgentJson.parse(body, 2_000_000) instanceof Map<?, ?> file && Boolean.TRUE.equals(file.get("restore"));
+        List<Object> results = new java.util.ArrayList<>();
+        int passed = 0;
+        for (var task : tasks) {
+            String conversation = "eval-" + task.id();
+            Object[] baseline = new Object[1];
+            SessionSafeguards.runOnUiThread(() -> baseline[0] = session.getTransactionalEditingDomain().getCommandStack().getUndoCommand());
+            var result = org.polarsys.capella.ai.agent.EvalRunner.run(session, task, () -> {
+                try { return ScriptRouter.createRuntime(session, conversation, null, id -> {}); }
+                catch (Exception failure) { throw new IllegalStateException("The agent runtime could not start", failure); }
+            }, ScriptRouter.agentSystemPrompt(session, conversation, SelectionContext.empty()),
+                org.polarsys.capella.ai.agent.ModelVerification::snapshot);
+            if (result.passed()) passed++;
+            results.add(result.json());
+            if (restore) {
+                SessionSafeguards.runOnUiThread(() -> {
+                    var stack = session.getTransactionalEditingDomain().getCommandStack();
+                    while (stack.canUndo() && stack.getUndoCommand() != baseline[0]) stack.undo();
+                });
+                try { SessionSafeguards.requestSave(session); } catch (Exception failure) { LOG.log(Level.WARNING, "Eval restore save failed", failure); }
+            }
+        }
+        sendResponse(exchange, 200, AgentJson.write(Map.of("passed", passed, "total", tasks.size(), "results", results)));
     }
 
     /** Package-local entry for isolated tests of the same data-only request path. */

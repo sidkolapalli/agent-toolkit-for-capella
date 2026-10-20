@@ -75,6 +75,23 @@ public class DevServerNetworkTest {
     }
 
     @Test
+    public void evalEndpointStaysOffUnlessCapellaWasStartedForEvaluation() throws Exception {
+        String previous = System.clearProperty("capella.ai.eval");
+        try {
+            DevServer.start(0);
+            InetSocketAddress address = DevServer.getAddress();
+            URI endpoint = new URI("http", null, address.getAddress().getHostAddress(), address.getPort(), "/eval", null, null);
+            HttpResponse<String> refused = HttpClient.newHttpClient().send(HttpRequest.newBuilder(endpoint)
+                .timeout(Duration.ofSeconds(5)).POST(HttpRequest.BodyPublishers.ofString("{\"tasks\":[]}")).build(),
+                HttpResponse.BodyHandlers.ofString());
+            assertEquals("Auto-approved evaluation needs an explicit opt-in", 403, refused.statusCode());
+            assertTrue(refused.body().contains("capella.ai.eval"));
+        } finally {
+            if (previous != null) System.setProperty("capella.ai.eval", previous);
+        }
+    }
+
+    @Test
     public void stoppingServerShutsDownWorkersAndAllowsRestart() throws Exception {
         DevServer.start(0);
         Field field = DevServer.class.getDeclaredField("requestExecutor");

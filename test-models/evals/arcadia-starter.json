@@ -1,0 +1,113 @@
+{
+  "description": "Starter Arcadia tasks scored only by native checks. Each task works on any Capella 7 project. Run them on a disposable copy with restore=true so each task starts from the same model.",
+  "restore": true,
+  "tasks": [
+    {
+      "id": "oa-activity-and-entity",
+      "prompt": "In the operational analysis, create an operational entity called 'Technical Inspector' and an operational activity called 'Inspect Vehicle', and allocate the activity to the entity.",
+      "checks": [
+        {"kind": "element_exists", "type": "Entity", "name": "Technical Inspector", "layer": "OA"},
+        {"kind": "element_exists", "type": "OperationalActivity", "name": "Inspect Vehicle", "layer": "OA"},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "ComponentFunctionalAllocation", "predicates": {
+          "sourceElement": {"type": "Entity", "name": "Technical Inspector", "layer": "OA"},
+          "targetElement": {"type": "OperationalActivity", "name": "Inspect Vehicle", "layer": "OA"}}}}
+      ]
+    },
+    {
+      "id": "sa-function",
+      "prompt": "Create a system function called 'Acquire Wheel Speed'.",
+      "checks": [
+        {"kind": "element_exists", "type": "SystemFunction", "name": "Acquire Wheel Speed", "layer": "SA"}
+      ]
+    },
+    {
+      "id": "sa-functions-and-exchange",
+      "prompt": "Create system functions 'Measure Pedal Position' and 'Compute Torque Request', connected by a functional exchange 'Pedal Position' that flows from the first to the second.",
+      "checks": [
+        {"kind": "element_exists", "type": "SystemFunction", "name": "Measure Pedal Position", "layer": "SA"},
+        {"kind": "element_exists", "type": "SystemFunction", "name": "Compute Torque Request", "layer": "SA"},
+        {"kind": "element_exists", "type": "FunctionalExchange", "name": "Pedal Position", "layer": "SA"}
+      ]
+    },
+    {
+      "id": "sa-rename",
+      "prompt": "Create a system function called 'Temporary Name', then rename it to 'Regulate Coolant Flow'.",
+      "checks": [
+        {"kind": "element_exists", "type": "SystemFunction", "name": "Regulate Coolant Flow", "layer": "SA"},
+        {"kind": "element_absent", "type": "SystemFunction", "name": "Temporary Name", "layer": "SA"}
+      ]
+    },
+    {
+      "id": "sa-actor",
+      "prompt": "Add an external actor called 'Driver' to the system analysis.",
+      "checks": [
+        {"kind": "element_exists", "type": "SystemComponent", "name": "Driver", "layer": "SA"},
+        {"kind": "attribute_equals", "type": "SystemComponent", "name": "Driver", "layer": "SA", "attribute": "actor", "expected": true}
+      ]
+    },
+    {
+      "id": "la-component-allocation",
+      "prompt": "Create a logical function 'Monitor Cell Voltage' and allocate it to a new logical component 'BMS Controller'.",
+      "checks": [
+        {"kind": "element_exists", "type": "LogicalFunction", "name": "Monitor Cell Voltage", "layer": "LA"},
+        {"kind": "element_exists", "type": "LogicalComponent", "name": "BMS Controller", "layer": "LA"},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "ComponentFunctionalAllocation", "predicates": {
+          "sourceElement": {"type": "LogicalComponent", "name": "BMS Controller", "layer": "LA"},
+          "targetElement": {"type": "LogicalFunction", "name": "Monitor Cell Voltage", "layer": "LA"}}}}
+      ]
+    },
+    {
+      "id": "la-realizes-sa",
+      "prompt": "Create a system function 'Estimate SOC' and a logical function 'Estimate State of Charge' that realizes it.",
+      "checks": [
+        {"kind": "element_exists", "type": "SystemFunction", "name": "Estimate SOC", "layer": "SA"},
+        {"kind": "element_exists", "type": "LogicalFunction", "name": "Estimate State of Charge", "layer": "LA"},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "FunctionRealization", "predicates": {
+          "sourceElement": {"type": "LogicalFunction", "name": "Estimate State of Charge", "layer": "LA"},
+          "targetElement": {"type": "SystemFunction", "name": "Estimate SOC", "layer": "SA"}}}}
+      ]
+    },
+    {
+      "id": "la-component-exchange",
+      "prompt": "Create logical components 'Inverter' and 'Vehicle Controller' connected by a component exchange named 'CAN Bus'.",
+      "checks": [
+        {"kind": "element_exists", "type": "LogicalComponent", "name": "Inverter", "layer": "LA"},
+        {"kind": "element_exists", "type": "LogicalComponent", "name": "Vehicle Controller", "layer": "LA"},
+        {"kind": "element_exists", "type": "ComponentExchange", "name": "CAN Bus", "layer": "LA"}
+      ]
+    },
+    {
+      "id": "pa-node",
+      "prompt": "In the physical architecture, create a node physical component called 'Vehicle Control Unit'.",
+      "checks": [
+        {"kind": "element_exists", "type": "PhysicalComponent", "name": "Vehicle Control Unit", "layer": "PA"},
+        {"kind": "attribute_equals", "type": "PhysicalComponent", "name": "Vehicle Control Unit", "layer": "PA", "attribute": "nature", "expected": "NODE"}
+      ]
+    },
+    {
+      "id": "pa-function-deleted",
+      "prompt": "Create a physical function called 'Obsolete Probe', then delete it again.",
+      "checks": [
+        {"kind": "element_absent", "type": "PhysicalFunction", "name": "Obsolete Probe", "layer": "PA"}
+      ]
+    },
+    {
+      "id": "pa-realizes-la",
+      "prompt": "Create a logical component 'Thermal Manager' and a physical component 'Thermal ECU' that realizes it.",
+      "checks": [
+        {"kind": "element_exists", "type": "LogicalComponent", "name": "Thermal Manager", "layer": "LA"},
+        {"kind": "element_exists", "type": "PhysicalComponent", "name": "Thermal ECU", "layer": "PA"},
+        {"kind": "native_structure", "check": {"kind": "relation_exists", "type": "ComponentRealization", "predicates": {
+          "sourceElement": {"type": "PhysicalComponent", "name": "Thermal ECU", "layer": "PA"},
+          "targetElement": {"type": "LogicalComponent", "name": "Thermal Manager", "layer": "LA"}}}}
+      ]
+    },
+    {
+      "id": "epbs-configuration-item",
+      "prompt": "Create an EPBS configuration item called 'Accumulator Container'.",
+      "checks": [
+        {"kind": "element_exists", "type": "ConfigurationItem", "name": "Accumulator Container", "layer": "EPBS"}
+      ]
+    }
+  ]
+}

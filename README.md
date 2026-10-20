@@ -110,6 +110,16 @@ The structured agent workflow additionally passed seven installed chat scenarios
 
 The FSAE acceptance project imports all 3,197 pinned 2027 source records and contains candidate architecture across the five perspectives. Its three detailed safety slices scope 588 records through 86 candidate derived obligations. The saved model reopened with 86,658 unique semantic IDs and no unresolved semantic references; nine overview diagrams and three detailed safety diagrams survived reload. Installed native validation reported zero errors and 517 warnings. These results establish the checked native structure and persistence; engineering completeness and competition compliance remain unresolved. See `test-models/fsae-acceptance/model-completeness.md` for the completion gates.
 
+## Evaluating agent quality
+
+`test-models/evals/arcadia-starter.json` holds tasks scored only by native checks (element existence, attributes, allocations and realizations), never by the agent's own claims. To score the configured runtime and model:
+
+1. Open a **disposable copy** of a Capella project. Evaluation approves every proposal automatically, and approved edits commit and save.
+2. Start Capella with `-Dcapella.ai.eval=true` (or `CAPELLA_AI_EVAL=1`) and the dev server enabled. Without this opt-in `/eval` returns 403.
+3. `curl -X POST http://127.0.0.1:8765/eval --data-binary @test-models/evals/arcadia-starter.json`
+
+Each task runs through the same loop as the chat (read continuation, compile repair, reviewed-edit pipeline, budget continuation). The report gives pass/fail per task with requests, tool calls, proposals, commits, repairs, continuations and duration. With `"restore": true` each task's changes are undone and saved before the next. Grow the task file toward the work you actually need from the agent; a change to prompts, tools or models is only an improvement if this score goes up.
+
 ## Local dev server
 
 Open **AI Dev Server** and click **Start**, or opt into startup with `CAPELLA_AI_DEVSERVER_AUTOSTART=1`. Its default port is 8765.
