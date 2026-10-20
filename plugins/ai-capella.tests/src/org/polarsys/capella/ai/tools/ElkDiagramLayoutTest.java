@@ -111,6 +111,60 @@ public class ElkDiagramLayoutTest {
         assertTrue(absolute(containers.get(0))[0] + bounds(containers.get(0)).getWidth() <= absolute(containers.get(1))[0]);
     }
 
+    /** Stress test: 20 chained components came out 90,604 px wide and 221 px tall, one unreadable row. */
+    @Test
+    public void longChainsWrapIntoRowsInsteadOfOneEndlessStrip() {
+        domain.getCommandStack().execute(new org.eclipse.emf.transaction.RecordingCommand(domain) {
+            @Override protected void doExecute() {
+                for (int c = 2; c < 12; c++) addContainer(c);
+                connect(functions.get(3), functions.get(4));
+                for (int i = 4; i + 1 < functions.size(); i++) connect(functions.get(i), functions.get(i + 1));
+            }
+        });
+        assertTrue(DiagramCommands.arrangeSelection(session, semantic, "auto"));
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+        for (Node container : containers) {
+            int[] at = absolute(container); Bounds size = bounds(container);
+            minX = Math.min(minX, at[0]); minY = Math.min(minY, at[1]);
+            maxX = Math.max(maxX, at[0] + size.getWidth()); maxY = Math.max(maxY, at[1] + size.getHeight());
+        }
+        double ratio = (maxX - minX) / (double) (maxY - minY);
+        assertTrue("12 chained components should wrap into rows; width/height was " + ratio, ratio < 6);
+        for (int a = 0; a < containers.size(); a++) for (int b = a + 1; b < containers.size(); b++) {
+            assertFalse("Wrapped rows must not overlap", overlapAbsolute(containers.get(a), containers.get(b)));
+        }
+    }
+
+    private boolean overlapAbsolute(Node a, Node b) {
+        int[] pa = absolute(a), pb = absolute(b); Bounds sa = bounds(a), sb = bounds(b);
+        return pa[0] < pb[0] + sb.getWidth() && pb[0] < pa[0] + sa.getWidth() && pa[1] < pb[1] + sb.getHeight() && pb[1] < pa[1] + sa.getHeight();
+    }
+
+    private void addContainer(int c) {
+        var component = LaFactory.eINSTANCE.createLogicalComponent();
+        component.setName("Component " + c);
+        resource.getContents().add(component);
+        DNodeContainer containerView = DiagramFactory.eINSTANCE.createDNodeContainer();
+        containerView.setTarget(component);
+        semantic.getOwnedDiagramElements().add(containerView);
+        Node container = node(containerView, 10, 10, 100, 100);
+        notation.getPersistedChildren().add(container);
+        containers.add(container);
+        Node compartment = NotationFactory.eINSTANCE.createNode();
+        container.getPersistedChildren().add(compartment);
+        for (int f = 0; f < 2; f++) {
+            var function = LaFactory.eINSTANCE.createLogicalFunction();
+            function.setName("Function " + c + "." + f);
+            resource.getContents().add(function);
+            DNode view = DiagramFactory.eINSTANCE.createDNode();
+            view.setTarget(function);
+            containerView.getOwnedDiagramElements().add(view);
+            Node shape = node(view, 5, 5, 140, 50);
+            compartment.getPersistedChildren().add(shape);
+            functions.add(shape);
+        }
+    }
+
     @Test
     public void notationIsOnlySynchronizedForDiagramsTheSessionOwns() {
         assertFalse(DiagramCommands.ensureNotation(null, semantic));

@@ -65,18 +65,56 @@ final class ElkDiagramLayout {
 
     private ElkDiagramLayout() {}
 
+    /** Wider than this (width / height) and wider than {@link #WRAP_MIN_WIDTH}, a layout is redone in rows. */
+    private static final double WRAP_RATIO = 8.0;
+    private static final double WRAP_MIN_WIDTH = 6000; // a few components in a row stay one readable row
+
     /** Lays out every shape of the diagram. Returns false when the diagram has no shapes. */
     static boolean apply(Diagram notation) {
         registerLayered();
         ElkNode root = ElkGraphUtil.createGraph();
+        Graph graph = layout(notation, root, false);
+        if (graph == null) return false;
+        // A long flow becomes one endless row (20 chained components measured 90,604 x 221 px).
+        // Only then wrap it into rows: wrapping small diagrams would break their left-to-right reading.
+        if (root.getWidth() > WRAP_MIN_WIDTH && root.getWidth() > WRAP_RATIO * root.getHeight()) {
+            root = ElkGraphUtil.createGraph();
+            graph = layout(notation, root, true);
+        }
+        write(root, graph);
+        return true;
+    }
+
+    private static void write(ElkNode root, Graph graph) {
+        graph.shapes.forEach((node, elk) -> {
+            Bounds bounds = bounds(node);
+            bounds.setX(round(elk.getX()));
+            bounds.setY(round(elk.getY()) - graph.offsets.get(node));
+            bounds.setWidth(round(elk.getWidth()));
+            bounds.setHeight(round(elk.getHeight()));
+        });
+        graph.ports.forEach((node, elk) -> {
+            Bounds bounds = bounds(node);
+            bounds.setX(round(elk.getX()));
+            bounds.setY(round(elk.getY()));
+        });
+        graph.edges.forEach((edge, elk) -> writeRoute(edge, elk, graph));
+        pack(graph.isolated, root);
+    }
+
+    private static Graph layout(Diagram notation, ElkNode root, boolean wrap) {
         root.setProperty(CoreOptions.ALGORITHM, LayeredOptions.ALGORITHM_ID);
         root.setProperty(CoreOptions.HIERARCHY_HANDLING, HierarchyHandling.INCLUDE_CHILDREN);
         root.setProperty(CoreOptions.PADDING, new ElkPadding(GAP));
+        if (wrap) {
+            root.setProperty(LayeredOptions.WRAPPING_STRATEGY, org.eclipse.elk.alg.layered.options.WrappingStrategy.MULTI_EDGE);
+            root.setProperty(CoreOptions.ASPECT_RATIO, 1.6);
+        }
         configure(root);
         Graph graph = new Graph();
         graph.isolated = isolatedShapes(notation);
         addChildren(notation, root, 0, graph);
-        if (graph.shapes.isEmpty() && graph.isolated.isEmpty()) return false;
+        if (graph.shapes.isEmpty() && graph.isolated.isEmpty()) return null;
         for (Object candidate : notation.getEdges()) {
             if (!(candidate instanceof Edge edge)) continue;
             ElkConnectableShape source = graph.end(edge.getSource()), target = graph.end(edge.getTarget());
@@ -95,21 +133,7 @@ final class ElkDiagramLayout {
             }
         }
         new RecursiveGraphLayoutEngine().layout(root, new BasicProgressMonitor());
-        graph.shapes.forEach((node, elk) -> {
-            Bounds bounds = bounds(node);
-            bounds.setX(round(elk.getX()));
-            bounds.setY(round(elk.getY()) - graph.offsets.get(node));
-            bounds.setWidth(round(elk.getWidth()));
-            bounds.setHeight(round(elk.getHeight()));
-        });
-        graph.ports.forEach((node, elk) -> {
-            Bounds bounds = bounds(node);
-            bounds.setX(round(elk.getX()));
-            bounds.setY(round(elk.getY()));
-        });
-        graph.edges.forEach((edge, elk) -> writeRoute(edge, elk, graph));
-        pack(graph.isolated, root);
-        return true;
+        return graph;
     }
 
     /** Top-level shapes with no wiring and no child shapes; ELK layered would stack them in one column. */
