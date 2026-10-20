@@ -1249,7 +1249,7 @@ public final class DiagramAPI {
             sb.append("  SAB  - System Architecture Blank\n");
             sb.append("  SDFB - System Data Flow Blank\n");
             sb.append("  SFB  - System Function Breakdown\n");
-            sb.append("  ES   - Component Exchanges Scenario (on a capability; also creates the scenario)\n");
+            sb.append("  ES   - Component Exchanges Scenario (on a scenario from api.arcadia.scenario)\n");
             sb.append("  FS   - Functional Scenario\n");
             sb.append("  IS   - Component Interfaces Scenario\n");
         }
