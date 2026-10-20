@@ -70,3 +70,12 @@ The ChatGPT Plus 5-hour Codex window ran out about 20 minutes into the scored ru
 seconds with "usage limit". Those 33 runs measured the account, not the agent, so they were deleted. From now on a
 run that hits the usage limit is not scored and is rerun when the window resets. All setups stop if the weekly
 window reaches 80%, so the account stays usable; repetitions finish in order, so a stop leaves whole repetitions.
+
+## Amendment 2 (2026-10-20, during the runs)
+
+Setup C's two failures so far both ended "blocked: proposal did not apply": the agent's script threw on its own
+assertion and rolled back, and `EvalRunner` stopped there. The chat does not stop there; it hands the receipt
+back to the agent, which can correct the script (each correction is reviewed again). So `/eval` measured C more
+strictly than the product behaves. Fixed in commit 1823063, but the fix is not installed during the runs: C
+stays on the frozen build and its scored results stand. After the runs, the C tasks that ended this way are
+rerun once on the fixed build and reported separately, never mixed into the scored table.
