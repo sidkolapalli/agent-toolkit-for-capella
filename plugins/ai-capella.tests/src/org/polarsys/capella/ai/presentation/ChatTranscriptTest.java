@@ -115,6 +115,25 @@ public class ChatTranscriptTest {
         for (int index = 0; index < 20; index++) append("Capella AI", "Response " + index + ": a readable line that wraps in this narrow native pane. ".repeat(3));
     }
 
+    /** Seen in Capella: the last wrapped lines of a reply stayed below the fold while following the chat. */
+    @Test
+    public void followingTheChatShowsTheLastWrappedLineEvenAfterTheTranscriptShrinks() throws Exception {
+        String paragraph = "The execution feedback and model reads describe the actual result and native validation diagnostics "
+            + "are reported separately, so this long reply must wrap across many lines in a narrow dock. ";
+        for (int i = 0; i < 6; i++) append(i % 2 == 0 ? "Capella AI" : "Model changes", paragraph.repeat(3));
+        while (Display.getCurrent().readAndDispatch()) { }
+        assertTrue("Scrolled to the very end after appending", atEnd());
+        shell.setSize(300, 140);
+        shell.layout(true, true);
+        while (Display.getCurrent().readAndDispatch()) { }
+        assertTrue("Still at the end after the transcript got shorter", atEnd());
+    }
+
+    private boolean atEnd() {
+        // getLinePixel is relative to the visible area: the end of the text must be within it.
+        return control.getLinePixel(control.getLineCount()) <= control.getClientArea().height + 2;
+    }
+
     private void append(String role, String text) throws Exception {
         invoke("append", new Class<?>[] {String.class, String.class}, role, text);
     }

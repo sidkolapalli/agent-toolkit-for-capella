@@ -39,6 +39,8 @@ final class ChatTranscript {
     private RGB background, foreground;
     private Consumer<Boolean> unreadListener = ignored -> {};
     private boolean unread, themeRefreshQueued;
+    /** The reader is following the newest message; resizes and late wrapping keep the end in view. */
+    private boolean pinned = true;
     private CodeBlock selectedCode;
 
     ChatTranscript(Composite parent) {
@@ -54,9 +56,10 @@ final class ChatTranscript {
             }
         });
         installCopyMenu();
-        if (control.getVerticalBar() != null) control.getVerticalBar().addListener(SWT.Selection, event -> clearUnreadAtBottom());
-        control.addListener(SWT.MouseWheel, event -> control.getDisplay().asyncExec(this::clearUnreadAtBottom));
-        control.addListener(SWT.KeyUp, event -> clearUnreadAtBottom());
+        if (control.getVerticalBar() != null) control.getVerticalBar().addListener(SWT.Selection, event -> readerScrolled());
+        control.addListener(SWT.MouseWheel, event -> control.getDisplay().asyncExec(this::readerScrolled));
+        control.addListener(SWT.KeyUp, event -> readerScrolled());
+        control.addListener(SWT.Resize, event -> { if (pinned) jumpToLatest(); });
         control.addListener(SWT.Paint, event -> {
             if (!control.getBackground().getRGB().equals(background) || !control.getForeground().getRGB().equals(foreground)) queueThemeRefresh();
         });
@@ -95,6 +98,7 @@ final class ChatTranscript {
         if (control.isDisposed()) return;
         // StyledText clamps to its final pixel, including soft-wrapped lines.
         control.setTopPixel(Integer.MAX_VALUE);
+        pinned = true;
         setUnread(false);
     }
 
@@ -122,6 +126,8 @@ final class ChatTranscript {
         } finally {
             control.setRedraw(true);
         }
+        // Wrapped line heights are exact only once painted; settle on the true end afterwards.
+        if (follow) control.getDisplay().asyncExec(() -> { if (!control.isDisposed() && pinned) jumpToLatest(); });
     }
 
     private void applyStyles(Message message) {
@@ -220,8 +226,11 @@ final class ChatTranscript {
         return scroll == null || scroll.getSelection() + scroll.getThumb() >= scroll.getMaximum() - 2;
     }
 
-    private void clearUnreadAtBottom() {
-        if (!control.isDisposed() && atBottom()) setUnread(false);
+    /** The reader moved: following resumes only when they are back at the end. */
+    private void readerScrolled() {
+        if (control.isDisposed()) return;
+        pinned = atBottom();
+        if (pinned) setUnread(false);
     }
 
     private void setUnread(boolean value) {
