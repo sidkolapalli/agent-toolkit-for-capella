@@ -132,6 +132,13 @@
       <unit id="org.codehaus.groovy" version="4.0.23.v202409302001-e2303"/>
       <repository id="groovy-eclipse" location="https://groovy.jfrog.io/artifactory/plugins-release-local/org/codehaus/groovy/groovy-eclipse-integration/5.5.0/e4.27"/>
     </location>
+    <location includeMode="planner" includeAllPlatforms="false" includeSource="true" includeConfigurePhase="false" type="InstallableUnit">
+      <unit id="org.eclipse.elk.core" version="0.10.0"/>
+      <unit id="org.eclipse.elk.graph" version="0.10.0"/>
+      <unit id="org.eclipse.elk.alg.common" version="0.10.0"/>
+      <unit id="org.eclipse.elk.alg.layered" version="0.10.0"/>
+      <repository id="elk" location="https://download.eclipse.org/elk/updates/releases/0.10.0/"/>
+    </location>
 
     <location includeMode="planner" includeAllPlatforms="false" includeSource="true" includeConfigurePhase="false" type="InstallableUnit">
       <unit id="org.polarsys.capella.rcp.feature.group" version="7.0.1.202503211540"/>
