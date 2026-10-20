@@ -22,7 +22,7 @@ export JAVA_TOOL_OPTIONS='-Djdk.xml.maxGeneralEntitySizeLimit=0 -Djdk.xml.totalE
 mvn -f plugins clean verify
 ```
 
-The update site is generated in `plugins/ai-capella-repository/target/repository`, with an archive in the same target directory. It includes the required Groovy 4 runtime. The build target includes Windows x64, Linux x64 and macOS Apple Silicon. On 2026-10-20 the full build and all tests also passed on Linux (Ubuntu under WSL2, JDK 17, GTK), and Capella 7.0.0 for Linux ran the chat review, diagram creation and MCP edit flows. With the official Codex 0.160.1 Linux release on `PATH` (the `codex` and `codex-code-mode-host` executables side by side), live Codex edits and two evaluation tasks, including the laid-out BMS diagram, passed on Linux. macOS has not been run.
+The update site is generated in `plugins/ai-capella-repository/target/repository`, with an archive in the same target directory. It includes the required Groovy 4 runtime. The build target includes Windows x64, Linux x64 and macOS Apple Silicon. On 2026-10-20 the full build and all tests also passed on Linux (Ubuntu under WSL2, JDK 17, GTK), and Capella 7.0.0 for Linux ran the chat review, diagram creation and MCP edit flows. With the official Codex 0.160.1 Linux release on `PATH` (the `codex` and `codex-code-mode-host` executables side by side), live Codex edits and the full 21-task evaluation (21/21, every plan step verified) passed on Linux. macOS has not been run.
 
 ## Install and configure
 
