@@ -280,6 +280,8 @@ public final class SessionSafeguards {
                                 WriteContext previous = IN_WRITE.get();
                                 requireMatchingWriteContext(session, domain);
                                 IN_WRITE.set(new WriteContext(session, domain));
+                                // Set once the transaction lock is held; it stays set through the commit's triggers.
+                                COMMITTING.set(Boolean.TRUE);
                                 boolean isRoot = OperationInferencer.begin();
                                 try {
                                     result.set(supplier.get());
@@ -309,8 +311,8 @@ public final class SessionSafeguards {
                                 }
                             }
                         };
+                        Boolean committingBefore = COMMITTING.get();
                         try {
-                            COMMITTING.set(Boolean.TRUE);
                             ((TransactionalCommandStack) domain.getCommandStack()).execute(command, dirtyState.options());
                         } catch (InterruptedException ex) {
                             Thread.currentThread().interrupt();
@@ -321,7 +323,8 @@ public final class SessionSafeguards {
                             }
                             throw new IllegalStateException("Model transaction rolled back: " + ex.getMessage(), ex);
                         } finally {
-                            COMMITTING.remove();
+                            // Restore rather than clear: this write may run nested in another command's commit.
+                            if (committingBefore == null) COMMITTING.remove(); else COMMITTING.set(committingBefore);
                         }
                         if (failure.get() != null) {
                             throw failure.get();
