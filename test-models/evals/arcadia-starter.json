@@ -86,9 +86,10 @@
     },
     {
       "id": "pa-function-deleted",
-      "prompt": "Create a physical function called 'Obsolete Probe', then delete it again.",
+      "prompt": "Create the physical functions 'Obsolete Probe' and 'Kept Probe', then delete 'Obsolete Probe' again.",
       "checks": [
-        {"kind": "element_absent", "type": "PhysicalFunction", "name": "Obsolete Probe", "layer": "PA"}
+        {"kind": "element_absent", "type": "PhysicalFunction", "name": "Obsolete Probe", "layer": "PA"},
+        {"kind": "element_exists", "type": "PhysicalFunction", "name": "Kept Probe", "layer": "PA"}
       ]
     },
     {
