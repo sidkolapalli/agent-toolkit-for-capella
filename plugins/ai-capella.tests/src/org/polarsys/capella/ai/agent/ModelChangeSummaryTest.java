@@ -5,6 +5,7 @@ import static org.junit.Assert.*;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Executors;
@@ -76,6 +77,40 @@ public class ModelChangeSummaryTest {
 
     @After public void tearDown() {
         if (domain != null) domain.dispose(); SessionSafeguards.cleanup();
+    }
+
+    @Test public void largeChangesGetAPerspectiveDigestThatCountsEveryElement() {
+        var sa = CtxFactory.eINSTANCE.createSystemAnalysis();
+        var saFunctions = CtxFactory.eINSTANCE.createSystemFunctionPkg(); sa.setOwnedFunctionPkg(saFunctions);
+        var la = org.polarsys.capella.core.data.la.LaFactory.eINSTANCE.createLogicalArchitecture();
+        var laFunctions = org.polarsys.capella.core.data.la.LaFactory.eINSTANCE.createLogicalFunctionPkg(); la.setOwnedFunctionPkg(laFunctions);
+        write(() -> semantic.getContents().addAll(List.of(sa, la)));
+        var recorder = ModelChangeSummary.capture(session);
+        write(() -> {
+            for (int i = 0; i < 30; i++) saFunctions.getOwnedSystemFunctions().add(function("sa-" + i, "SA function " + i));
+            for (int i = 0; i < 20; i++) {
+                var function = org.polarsys.capella.core.data.la.LaFactory.eINSTANCE.createLogicalFunction();
+                function.setId("la-" + i); function.setName("LA function " + i);
+                laFunctions.getOwnedLogicalFunctions().add(function);
+            }
+            first.setName("Renamed first");
+        });
+        var report = recorder.finish(ExecutionResult.success("done"));
+        assertTrue("More changes than the item list shows", report.truncated());
+        String text = report.markdownSummary();
+        assertTrue(text, text.contains("By perspective:"));
+        assertTrue(text, text.contains("- SA: 30 created (SystemFunction 30)"));
+        assertTrue(text, text.contains("- LA: 20 created (LogicalFunction 20)"));
+        assertTrue(text, text.contains("- Other: 1 edited (SystemFunction 1)"));
+        assertTrue(text.indexOf("By perspective:") < text.indexOf("Created:"));
+        var byLayer = report.feedback().get("by_layer");
+        assertEquals(Map.of("SystemFunction", 30), ((Map<?, ?>) ((Map<?, ?>) byLayer).get("SA")).get("created"));
+    }
+
+    @Test public void smallChangesKeepThePlainList() {
+        var recorder = ModelChangeSummary.capture(session);
+        write(() -> first.setName("Only rename"));
+        assertFalse(recorder.finish(ExecutionResult.success("done")).markdownSummary().contains("By perspective:"));
     }
 
     @Test public void nativeCreationResolvesIdsAssignedAfterContainmentAndDetaches() {

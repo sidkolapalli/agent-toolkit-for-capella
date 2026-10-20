@@ -64,9 +64,11 @@ public final class ModelChangeSummary {
     /** Counts are -1 when capture is unavailable; they must not be presented as zero. */
     public record ChangeReport(boolean available, boolean committed, int createdCount,
         int editedCount, int deletedCount, List<ElementChange> created,
-        List<ElementChange> edited, List<ElementChange> deleted, boolean truncated, String note) {
+        List<ElementChange> edited, List<ElementChange> deleted, boolean truncated, String note,
+        Map<String, Map<String, Map<String, Integer>>> byLayer) {
         public ChangeReport {
             created = List.copyOf(created); edited = List.copyOf(edited); deleted = List.copyOf(deleted);
+            byLayer = byLayer == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(byLayer));
         }
 
         public boolean hasChanges() {
@@ -82,6 +84,7 @@ public final class ModelChangeSummary {
             result.put("created", created.stream().map(ElementChange::feedback).toList());
             result.put("edited", edited.stream().map(ElementChange::feedback).toList());
             result.put("deleted", deleted.stream().map(ElementChange::feedback).toList());
+            result.put("by_layer", byLayer);
             result.put("note", note);
             return Collections.unmodifiableMap(result);
         }
@@ -93,6 +96,8 @@ public final class ModelChangeSummary {
                 .append(" created, ").append(editedCount).append(" edited, ").append(deletedCount)
                 .append(" deleted.");
             if (note != null && !note.isBlank()) text.append(' ').append(note);
+            // Large edits are reviewed per perspective first; the digest counts every observed change.
+            if (createdCount + editedCount + deletedCount > DIGEST_THRESHOLD) appendDigest(text, byLayer);
             appendItems(text, "Created", created); appendItems(text, "Edited", edited);
             appendItems(text, "Deleted", deleted);
             if (truncated) text.append("\n\nShowing at most ").append(MAX_DISPLAY_ITEMS)
@@ -266,18 +271,23 @@ public final class ModelChangeSummary {
 
         private ChangeReport report(boolean committed, boolean saveFailed) {
             if (!committed) return new ChangeReport(true, false, 0, 0, 0,
-                List.of(), List.of(), List.of(), false, "Tentative notifications were discarded.");
+                List.of(), List.of(), List.of(), false, "Tentative notifications were discarded.", Map.of());
             if (!available || closed) return unknown(committed);
             if (session == null || !session.isOpen()) {
                 unavailable("The session closed before final model changes could be read."); return unknown(true);
             }
             List<ElementChange> created = new ArrayList<>(), edited = new ArrayList<>(), deleted = new ArrayList<>();
+            Map<String, Map<String, Map<String, Integer>>> byLayer = new java.util.TreeMap<>(Comparator.comparingInt(LAYER_ORDER::indexOf));
             for (var entry : touched.entrySet()) {
                 EObject object = entry.getKey(); Touch touch = entry.getValue();
                 boolean existed = baseline.contains(object), remains = resources.contains(object.eResource());
-                if (!existed && remains) created.add(withFeatures(describe(object, object.eResource(), null), List.of()));
-                else if (existed && !remains) deleted.add(withFeatures(
-                    touch.lastDetached == null ? touch.original : touch.lastDetached, List.of()));
+                if (!existed && remains) {
+                    created.add(withFeatures(describe(object, object.eResource(), null), List.of()));
+                    count(byLayer, layer(object, object.eResource()), "created", object.eClass().getName());
+                } else if (existed && !remains) {
+                    deleted.add(withFeatures(touch.lastDetached == null ? touch.original : touch.lastDetached, List.of()));
+                    count(byLayer, layer(touch.parent, touch.resource), "deleted", object.eClass().getName());
+                }
                 else if (existed) {
                     List<String> features = new ArrayList<>();
                     for (var change : touch.features.entrySet()) {
@@ -285,7 +295,10 @@ public final class ModelChangeSummary {
                     }
                     if (object.eContainer() != touch.parent || object.eContainmentFeature() != touch.containment
                         || object.eResource() != touch.resource) features.add("containment");
-                    if (!features.isEmpty()) edited.add(withFeatures(describe(object, object.eResource(), null), features));
+                    if (!features.isEmpty()) {
+                        edited.add(withFeatures(describe(object, object.eResource(), null), features));
+                        count(byLayer, layer(object, object.eResource()), "edited", object.eClass().getName());
+                    }
                 }
             }
             Comparator<ElementChange> order = Comparator.comparing(ElementChange::type, Comparator.nullsFirst(String::compareTo))
@@ -301,12 +314,12 @@ public final class ModelChangeSummary {
             return new ChangeReport(true, true, createdCount, editedCount, deletedCount, created, edited, deleted,
                 createdCount + editedCount + deletedCount > MAX_DISPLAY_ITEMS,
                 saveFailed ? "Committed in memory; saving failed. Do not repeat the script." :
-                    "Includes semantic elements and owned diagram data. Disk save status is reported separately.");
+                    "Includes semantic elements and owned diagram data. Disk save status is reported separately.", byLayer);
         }
 
         private ChangeReport unknown(boolean committed) {
             return new ChangeReport(false, committed, -1, -1, -1, List.of(), List.of(), List.of(), true,
-                note.isBlank() ? "The recorder was closed before an execution outcome was supplied." : note);
+                note.isBlank() ? "The recorder was closed before an execution outcome was supplied." : note, Map.of());
         }
 
         private void unavailable(String reason) { available = false; note = reason; }
@@ -446,6 +459,48 @@ public final class ModelChangeSummary {
     }
 
     private static <T> Set<T> identitySet() { return Collections.newSetFromMap(new IdentityHashMap<>()); }
+
+    private static final int DIGEST_THRESHOLD = 10;
+    private static final List<String> LAYER_ORDER = List.of("OA", "SA", "LA", "PA", "EPBS", "Other", "Diagrams");
+
+    /** Perspective of an element, or of its former container for a deleted one; view data counts as Diagrams. */
+    private static String layer(EObject object, Resource resource) {
+        for (EObject current = object; current != null; current = current.eContainer()) {
+            switch (current.eClass().getName()) {
+                case "OperationalAnalysis": return "OA";
+                case "SystemAnalysis": return "SA";
+                case "LogicalArchitecture": return "LA";
+                case "PhysicalArchitecture": return "PA";
+                case "EPBSArchitecture": return "EPBS";
+                default:
+            }
+        }
+        return resource != null && resource.getURI() != null && "aird".equals(resource.getURI().fileExtension()) ? "Diagrams" : "Other";
+    }
+
+    private static void count(Map<String, Map<String, Map<String, Integer>>> byLayer, String layer, String change, String type) {
+        byLayer.computeIfAbsent(layer, key -> new LinkedHashMap<>()).computeIfAbsent(change, key -> new java.util.TreeMap<>())
+            .merge(type, 1, Integer::sum);
+    }
+
+    private static void appendDigest(StringBuilder text, Map<String, Map<String, Map<String, Integer>>> byLayer) {
+        if (byLayer.isEmpty()) return;
+        text.append("\n\nBy perspective:");
+        byLayer.forEach((layer, changes) -> {
+            text.append("\n- ").append(layer).append(": ");
+            List<String> parts = new ArrayList<>();
+            for (String change : List.of("created", "edited", "deleted")) {
+                Map<String, Integer> types = changes.get(change);
+                if (types == null) continue;
+                int total = types.values().stream().mapToInt(Integer::intValue).sum();
+                parts.add(total + " " + change + " (" + types.entrySet().stream()
+                    .sorted(Map.Entry.<String, Integer>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
+                    .limit(6).map(type -> plain(type.getKey()) + " " + type.getValue())
+                    .collect(java.util.stream.Collectors.joining(", ")) + (types.size() > 6 ? ", ..." : "") + ")");
+            }
+            text.append(String.join("; ", parts));
+        });
+    }
 
     private static void appendItems(StringBuilder text, String label, List<ElementChange> items) {
         if (items.isEmpty()) return;
