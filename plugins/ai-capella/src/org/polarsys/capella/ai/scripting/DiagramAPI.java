@@ -577,6 +577,11 @@ public final class DiagramAPI {
         if (element == null) {
             throw new IllegalArgumentException("Element to add cannot be null");
         }
+        if (diagram instanceof DDiagram dDiagram && org.polarsys.capella.ai.tools.CapellaDiagramShow.handles(dDiagram, element)) {
+            if (org.polarsys.capella.ai.tools.CapellaDiagramShow.show(session, dDiagram, element)) return true;
+            throw new IllegalArgumentException("Capella could not show " + element.eClass().getName() + " in diagram '"
+                + diagram.getName() + "'. Show its components or functions first, and make sure the exchange connects them.");
+        }
         boolean success = DiagramCommands.createNode(session, diagram, element);
         if (!success) {
             List<String> supported = supportedNodeTypes(diagram);
@@ -610,6 +615,10 @@ public final class DiagramAPI {
             throw new IllegalArgumentException("Element to add cannot be null");
         }
 
+        // Connectors and functions go through Capella's own show services, not node mappings.
+        if (diagram instanceof DDiagram dDiagram && org.polarsys.capella.ai.tools.CapellaDiagramShow.handles(dDiagram, element)) {
+            return add(diagram, element);
+        }
         List<String> supported = supportedNodeTypes(diagram);
         EObject adapted = adaptElementForDiagram(diagram, element, supported);
         EObject candidate = adapted != null ? adapted : element;
@@ -878,6 +887,8 @@ public final class DiagramAPI {
         if (diagram == null) {
             throw new IllegalArgumentException("Diagram cannot be null");
         }
+        // A diagram created or filled in this script has no up-to-date notation until it is synchronized.
+        DiagramCommands.ensureNotation(session, diagram);
         boolean success = DiagramCommands.arrangeSelection(
             session,
             diagram,

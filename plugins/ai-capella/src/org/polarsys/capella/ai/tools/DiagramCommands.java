@@ -579,6 +579,25 @@ public final class DiagramCommands {
     }
 
     /** The diagram must belong to this session's editing domain and owned resources. */
+    /**
+     * Creates the GMF notation of a diagram that has never been opened and brings an existing one in
+     * line with views added since (Sirius only does this when an editor opens). Layout needs both.
+     */
+    public static boolean ensureNotation(Session session, DRepresentation rep) {
+        if (session == null || !(rep instanceof DDiagram diagram) || !ownsRepresentation(session, rep)) return false;
+        return Boolean.TRUE.equals(SessionSafeguards.runWrite(session, "Synchronize diagram notation", () -> {
+            var util = new org.eclipse.sirius.diagram.business.api.refresh.DiagramCreationUtil(diagram);
+            if (!util.findAssociatedGMFDiagram()) util.createNewGMFDiagram();
+            org.eclipse.gmf.runtime.notation.Diagram notation = util.getAssociatedGMFDiagram();
+            if (notation == null) return false;
+            var synchronizer = org.eclipse.sirius.diagram.business.api.refresh.CanonicalSynchronizerFactory.INSTANCE
+                .createCanonicalSynchronizer(notation);
+            synchronizer.storeViewsToArrange(false);
+            synchronizer.synchronize();
+            return true;
+        }));
+    }
+
     private static boolean ownsRepresentation(Session session, DRepresentation rep) {
         return ownsLayoutResource(session, rep.eResource());
     }
