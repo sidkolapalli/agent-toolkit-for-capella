@@ -17,7 +17,7 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Shell;
-import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.custom.CTabFolder;
 import org.eclipse.swt.widgets.Text;
 import org.junit.After;
 import org.junit.Before;
@@ -213,10 +213,10 @@ public class CodePreviewDialogTest {
         return (Text) field.get(dialog);
     }
 
-    private TabFolder tabs() throws Exception {
+    private CTabFolder tabs() throws Exception {
         var field = type().getDeclaredField("tabs");
         field.setAccessible(true);
-        return (TabFolder) field.get(dialog);
+        return (CTabFolder) field.get(dialog);
     }
 
     private Button button(int id) throws Exception {

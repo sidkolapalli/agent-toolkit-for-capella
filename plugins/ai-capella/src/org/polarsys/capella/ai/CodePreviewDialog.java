@@ -11,6 +11,8 @@ import org.eclipse.swt.SWTError;
 import org.eclipse.swt.accessibility.AccessibleAdapter;
 import org.eclipse.swt.accessibility.AccessibleEvent;
 import org.eclipse.swt.accessibility.ACC;
+import org.eclipse.swt.custom.CTabFolder;
+import org.eclipse.swt.custom.CTabItem;
 import org.eclipse.swt.dnd.Clipboard;
 import org.eclipse.swt.dnd.DND;
 import org.eclipse.swt.dnd.TextTransfer;
@@ -25,8 +27,6 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
-import org.eclipse.swt.widgets.TabFolder;
-import org.eclipse.swt.widgets.TabItem;
 import org.eclipse.swt.widgets.Text;
 
 /** Review proposed model changes, with the exact immutable script available for inspection. */
@@ -36,7 +36,7 @@ public final class CodePreviewDialog extends Dialog {
     private final String contextSummary;
     private final String proposalSummary;
     private final String expectedChecks;
-    private TabFolder tabs;
+    private CTabFolder tabs;
     private Text changes;
     private Text preview;
 
@@ -114,21 +114,22 @@ public final class CodePreviewDialog extends Dialog {
         explanationData.widthHint = 0;
         explanation.setLayoutData(explanationData);
 
-        tabs = new TabFolder(area, SWT.NONE);
+        // Custom-drawn tabs follow the workbench theme; the native Win32 strip stays light in dark mode.
+        tabs = new CTabFolder(area, SWT.BORDER);
         GridData tabsData = new GridData(SWT.FILL, SWT.FILL, true, true);
         tabsData.widthHint = 0;
         tabsData.heightHint = 0;
         tabs.setLayoutData(tabsData);
         accessibleName(tabs, "Model change review tabs");
 
-        TabItem changesTab = new TabItem(tabs, SWT.NONE);
+        CTabItem changesTab = new CTabItem(tabs, SWT.NONE);
         changesTab.setText("&Changes");
         changes = new Text(tabs, SWT.BORDER | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL | SWT.READ_ONLY);
         changes.setText(changesText());
         accessibleName(changes, "Proposed model changes and checks after applying, read-only");
         changesTab.setControl(changes);
 
-        TabItem scriptTab = new TabItem(tabs, SWT.NONE);
+        CTabItem scriptTab = new CTabItem(tabs, SWT.NONE);
         scriptTab.setText("&Script");
         Composite script = new Composite(tabs, SWT.NONE);
         GridLayout scriptLayout = new GridLayout(1, false);
