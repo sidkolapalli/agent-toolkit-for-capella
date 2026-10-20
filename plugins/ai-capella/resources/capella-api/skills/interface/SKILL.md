@@ -69,10 +69,12 @@ api.set(commands, "name", "Sensor Commands")
 def dataType = api.create("ExchangeItem", "SensorReading")
 api.set(dataType, "description", "Temperature and pressure readings")
 
-// Associate with exchange
-def exchange = api.link(sensor, controller, "ComponentExchange")
-api.set(exchange, "name", "Sensor Data")
-// Exchange items can be linked to exchanges
+// An interface carries the exchange item (stored ExchangeItemAllocation; repeating it changes nothing)
+def iface = api.create("LA", "Interface", "Sensor Interface")
+api.arcadia.allocateExchangeItem(iface, dataType)
+
+// A functional exchange conveys the exchange item
+api.arcadia.exchangeItem(sensorReadingFlow, dataType)
 ```
 
 ## Multi-Component Interface

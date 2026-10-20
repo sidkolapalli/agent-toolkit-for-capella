@@ -125,6 +125,49 @@ public class ArcadiaInterfaceAPITest {
         SessionSafeguards.cleanup();
     }
 
+    /** Live eval: agents hand-built ExchangeItemAllocation through raw EMF and failed; this is the supported path. */
+    @Test public void interfacesAndExchangesCarryExchangeItemsIdempotentlyAsOneUndoableChange() {
+        var interfacePkg = id(org.polarsys.capella.core.data.cs.CsFactory.eINSTANCE.createInterfacePkg());
+        var dataPkg = id(InformationFactory.eINSTANCE.createDataPkg());
+        var iface = id(org.polarsys.capella.core.data.cs.CsFactory.eINSTANCE.createInterface());
+        iface.setName("Torque Command Interface");
+        var item = id(InformationFactory.eINSTANCE.createExchangeItem());
+        item.setName("Torque Setpoint");
+        var producer = id(LaFactory.eINSTANCE.createLogicalFunction());
+        var consumer = id(LaFactory.eINSTANCE.createLogicalFunction());
+        var out = id(FaFactory.eINSTANCE.createFunctionOutputPort());
+        var in = id(FaFactory.eINSTANCE.createFunctionInputPort());
+        var flow = id(FaFactory.eINSTANCE.createFunctionalExchange());
+        domain.getCommandStack().execute(new org.eclipse.emf.transaction.RecordingCommand(domain) {
+            @Override protected void doExecute() {
+                layers[2].setOwnedInterfacePkg(interfacePkg); layers[2].setOwnedDataPkg(dataPkg);
+                interfacePkg.getOwnedInterfaces().add(iface); dataPkg.getOwnedExchangeItems().add(item);
+                roots[2].getOwnedFunctions().addAll(List.of(producer, consumer));
+                producer.getOutputs().add(out); consumer.getInputs().add(in);
+                flow.setSource(out); flow.setTarget(in); roots[2].getOwnedFunctionalExchanges().add(flow);
+            }
+        });
+        int before = saves;
+        var allocation = interfaces.allocateExchangeItem(iface, item);
+        assertSame(item, allocation.getAllocatedItem());
+        assertNotNull("Stored with a persistent id", allocation.getId());
+        assertSame(flow, interfaces.exchangeItem(flow, item));
+        assertEquals(List.of(item), flow.getExchangedItems());
+        assertEquals(before + 2, saves);
+        domain.getCommandStack().undo();
+        assertTrue(flow.getExchangedItems().isEmpty());
+        domain.getCommandStack().undo();
+        assertTrue(iface.getOwnedExchangeItemAllocations().isEmpty());
+        domain.getCommandStack().redo();
+        domain.getCommandStack().redo();
+        int afterRedo = saves;
+        assertSame("Repeating it reuses the allocation", allocation, interfaces.allocateExchangeItem(iface, item));
+        interfaces.exchangeItem(flow, item);
+        assertEquals(1, iface.getOwnedExchangeItemAllocations().size());
+        assertEquals(List.of(item), flow.getExchangedItems());
+        assertEquals("Repeats change and save nothing", afterRedo, saves);
+    }
+
     @Test public void groupedSystemExchangeRealizesOperationalInteractionWithoutInventingOaPorts() throws Exception {
         Pair<Flow> pair = prepare(() -> functionPair(1));
         var relation = (AbstractTrace) interfaces.realizeInterface(pair.lower.exchange, pair.upper.exchange);

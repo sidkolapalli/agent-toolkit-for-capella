@@ -46,6 +46,10 @@ def link = api.arcadia.physicalLink("Control transport TBD",
 
 ```groovy
 def allocation = api.arcadia.allocateExchange(componentExchange, functionalExchange)
+
+// An interface carries an exchange item; a functional exchange conveys one
+api.arcadia.allocateExchangeItem(anInterface, exchangeItem)
+api.arcadia.exchangeItem(functionalExchange, exchangeItem)
 ```
 
 This creates the native ComponentExchangeFunctionalExchangeAllocation and component-port/function-port PortAllocations. Source/target component responsibilities must match the actual allocated leaf functions. Ports must have compatible directions; the helper supports native direct and instance-based exchange endpoints. Identical valid allocations are returned unchanged. Same-component function flows remain internal; do not invent component interfaces to carry them.

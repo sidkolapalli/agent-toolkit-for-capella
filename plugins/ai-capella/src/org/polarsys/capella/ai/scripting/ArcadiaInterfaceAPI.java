@@ -60,6 +60,32 @@ public final class ArcadiaInterfaceAPI {
         });
     }
 
+    /** An interface carries an exchange item: one stored ExchangeItemAllocation, reused when it already exists. */
+    public org.polarsys.capella.core.data.cs.ExchangeItemAllocation allocateExchangeItem(
+            org.polarsys.capella.core.data.cs.Interface carrier, org.polarsys.capella.core.data.information.ExchangeItem item) {
+        return write("Allocate exchange item to interface", () -> {
+            owned(carrier); owned(item);
+            for (var existing : carrier.getOwnedExchangeItemAllocations()) {
+                if (existing.getAllocatedItem() == item) return new Change<>(existing, false);
+            }
+            var allocation = org.polarsys.capella.core.data.cs.CsFactory.eINSTANCE.createExchangeItemAllocation();
+            allocation.setId(UUID.randomUUID().toString());
+            allocation.setAllocatedItem(item);
+            carrier.getOwnedExchangeItemAllocations().add(allocation);
+            return new Change<>(allocation, true);
+        });
+    }
+
+    /** A functional exchange conveys an exchange item (its stored exchangedItems). */
+    public FunctionalExchange exchangeItem(FunctionalExchange exchange, org.polarsys.capella.core.data.information.ExchangeItem item) {
+        return write("Convey exchange item", () -> {
+            owned(exchange); owned(item);
+            if (exchange.getExchangedItems().contains(item)) return new Change<>(exchange, false);
+            exchange.getExchangedItems().add(item);
+            return new Change<>(exchange, true);
+        });
+    }
+
     /** Realize the exchange and, where both layers have ports, both endpoint ports atomically. */
     public EObject realizeInterface(EObject lower, EObject upper) {
         return write("Realize exchange and endpoint ports", () -> {

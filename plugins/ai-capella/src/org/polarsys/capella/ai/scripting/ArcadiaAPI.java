@@ -81,6 +81,17 @@ public final class ArcadiaAPI {
         return change(() -> structure.allocateExchange(transport, flow));
     }
 
+    /** The interface carries the exchange item (ExchangeItemAllocation); repeating it changes nothing. */
+    public org.polarsys.capella.core.data.cs.ExchangeItemAllocation allocateExchangeItem(
+            org.polarsys.capella.core.data.cs.Interface carrier, org.polarsys.capella.core.data.information.ExchangeItem item) {
+        return change(() -> interfaces.allocateExchangeItem(carrier, item));
+    }
+
+    /** The functional exchange conveys the exchange item; repeating it changes nothing. */
+    public FunctionalExchange exchangeItem(FunctionalExchange exchange, org.polarsys.capella.core.data.information.ExchangeItem item) {
+        return change(() -> interfaces.exchangeItem(exchange, item));
+    }
+
     public EObject realizeInterface(EObject lowerExchange, EObject upperExchange) {
         return change(() -> interfaces.realizeInterface(lowerExchange, upperExchange));
     }
