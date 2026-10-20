@@ -20,7 +20,6 @@ public final class LLMPreferences {
     private static final String KEY_MAXTOK = "maxTokens";
     private static final String KEY_TIMEOUT = "timeoutSec";
     private static final String KEY_ENABLE_ACTIONS = "enableActions";
-    private static final String KEY_USE_LLM_MAPPING = "useLlmMapping";
     private static final String KEY_TELEMETRY = "telemetryEnabled";
     private static final String KEY_PRIVACY_TOKENIZE = "privacyTokenize";
     private static final String KEY_DATASET_DROP_ON_ERROR = "datasetDropOnError";
@@ -56,10 +55,6 @@ public final class LLMPreferences {
 
     public static boolean isToolActionsEnabled() {
         return getPrefs().getBoolean(KEY_ENABLE_ACTIONS, true);
-    }
-
-    public static boolean isUseLlmMapping() {
-        return getPrefs().getBoolean(KEY_USE_LLM_MAPPING, false);
     }
 
     public static boolean isTelemetryEnabled() {
@@ -111,10 +106,6 @@ public final class LLMPreferences {
 
     public static void setToolActionsEnabled(boolean value) {
         getPrefs().putBoolean(KEY_ENABLE_ACTIONS, value);
-    }
-
-    public static void setUseLlmMapping(boolean value) {
-        getPrefs().putBoolean(KEY_USE_LLM_MAPPING, value);
     }
 
     public static void setTelemetryEnabled(boolean value) {

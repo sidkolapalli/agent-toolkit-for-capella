@@ -19,11 +19,8 @@ public final class AdvancedPreferences {
     private static final String KEY_AUTOSAVE_INTERVAL_SEC = "autoSaveIntervalSec";
     private static final String KEY_SELF_HEAL = "selfHealingEnabled";
     private static final String KEY_SELF_HEAL_MAX_ITERS = "selfHealingMaxIters";
-    private static final String KEY_MAX_PLAN_TIME_MS = "maxPlanTimeMillis";
     private static final String KEY_ASYNC_INDEXING = "asyncIndexingEnabled";
     private static final String KEY_CONFIRM_BEFORE_APPLY = "confirmBeforeApply";
-    private static final String KEY_ATOMIC_APPLY = "atomicApplyEnabled";
-    private static final String KEY_ORCH_ROLLBACK_ON_FAILURE = "orchestratorRollbackOnFailure";
 
     private AdvancedPreferences() {}
 
@@ -111,20 +108,8 @@ public final class AdvancedPreferences {
         prefs().putInt(KEY_SELF_HEAL_MAX_ITERS, v);
     }
 
-    public static int getMaxPlanTimeMillis() {
-        return prefs().getInt(KEY_MAX_PLAN_TIME_MS, 0);
-    }
-
-    public static void setMaxPlanTimeMillis(int v) {
-        prefs().putInt(KEY_MAX_PLAN_TIME_MS, v);
-    }
-
     public static boolean isAsyncIndexingEnabled() {
         return prefs().getBoolean(KEY_ASYNC_INDEXING, true);
-    }
-
-    public static void setAsyncIndexingEnabled(boolean v) {
-        prefs().putBoolean(KEY_ASYNC_INDEXING, v);
     }
 
     // Confirmation gate: require explicit confirmation before applying any plan
@@ -134,24 +119,6 @@ public final class AdvancedPreferences {
 
     public static void setConfirmBeforeApplyEnabled(boolean v) {
         prefs().putBoolean(KEY_CONFIRM_BEFORE_APPLY, v);
-    }
-
-    // Atomic apply: if any step fails or budgets/timeouts are exceeded, rollback the whole apply
-    public static boolean isAtomicApplyEnabled() {
-        return prefs().getBoolean(KEY_ATOMIC_APPLY, false);
-    }
-
-    public static void setAtomicApplyEnabled(boolean v) {
-        prefs().putBoolean(KEY_ATOMIC_APPLY, v);
-    }
-
-    // Orchestrator: rollback last batch on failure
-    public static boolean isOrchestratorRollbackOnFailureEnabled() {
-        return prefs().getBoolean(KEY_ORCH_ROLLBACK_ON_FAILURE, true);
-    }
-
-    public static void setOrchestratorRollbackOnFailureEnabled(boolean v) {
-        prefs().putBoolean(KEY_ORCH_ROLLBACK_ON_FAILURE, v);
     }
 
     public static void flush() {

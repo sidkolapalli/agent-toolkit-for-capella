@@ -111,12 +111,6 @@ public final class SpecImporter {
         return generateDraft(session, specText, SessionBridge.getSelectionContext(), ROUTER);
     }
 
-    /** Generate code for a preview without applying changes. */
-    public static String generateCode(Session session, String specText) {
-        ImportResult draft = importSpec(session, specText);
-        return draft.success ? draft.generatedCode : null;
-    }
-
     /**
      * Show generatedCode to the caller's reviewer and apply precisely that draft only on
      * acceptance. Review is mandatory for imports, including when the general confirmation
@@ -235,17 +229,17 @@ public final class SpecImporter {
 
     static String buildUserPrompt(String specText) {
         return "Prepare a Groovy draft from the following specification for review. Cover relevant"
-                   + " Arcadia perspectives OA, SA, LA, PA and EPBS. Use native elements,"
-                   + " relationships and supported diagrams only; EPBS supports configuration items"
-                   + " and physical artifact realizations, not functions or exchanges. Preserve"
-                   + " source requirement identifiers and provenance where supplied. Separate"
-                   + " design requirements from submission, inspection and competition obligations."
-                   + " Do not invent missing source details, silently resolve applicability, or"
-                   + " claim compliance from imported identifiers. Mark unresolved clauses and"
-                   + " verification obligations explicitly. Do not execute changes or hide"
-                   + " follow-up edits. Return one complete fenced Groovy draft and state its scope"
-                   + " and unresolved decisions.\n\n"
-                   + "Specification:\n"
+                + " Arcadia perspectives OA, SA, LA, PA and EPBS. Use native elements,"
+                + " relationships and supported diagrams only; EPBS supports configuration items"
+                + " and physical artifact realizations, not functions or exchanges. Preserve"
+                + " source requirement identifiers and provenance where supplied. Separate"
+                + " design requirements from submission, inspection and competition obligations."
+                + " Do not invent missing source details, silently resolve applicability, or"
+                + " claim compliance from imported identifiers. Mark unresolved clauses and"
+                + " verification obligations explicitly. Do not execute changes or hide"
+                + " follow-up edits. Return one complete fenced Groovy draft and state its scope"
+                + " and unresolved decisions.\n\n"
+                + "Specification:\n"
                 + specText;
     }
 }

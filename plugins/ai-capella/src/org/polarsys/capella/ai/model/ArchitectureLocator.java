@@ -192,7 +192,7 @@ public final class ArchitectureLocator {
                         canonical,
                         List.of(),
                         "No architecture layers found in the model. Model may not be properly"
-                            + " initialized.");
+                                + " initialized.");
             }
             return FindResult.notFound(
                     "Layer",
@@ -235,10 +235,5 @@ public final class ArchitectureLocator {
                 yield VALID_LAYERS.contains(upper) ? upper : null;
             }
         };
-    }
-
-    /** Get list of valid layer identifiers. */
-    public static List<String> getValidLayers() {
-        return VALID_LAYERS;
     }
 }

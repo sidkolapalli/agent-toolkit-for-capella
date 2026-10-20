@@ -560,9 +560,8 @@ public final class ModelAnalytics {
         private final int requirementCount;
         private final int requirementsLinked;
         private final int functionCount;
-        private final int
-                functionsAllocated; // already covered by LayerStats; duplicated here for
-                                    // convenience
+        private final int functionsAllocated; // already covered by LayerStats; duplicated here for
+        // convenience
         private final int componentExchangeCount;
         private final int componentsWithExchanges; // components participating in exchanges
 
@@ -607,16 +606,6 @@ public final class ModelAnalytics {
 
         public double requirementLinkCoverage() {
             return requirementCount == 0 ? 100d : (requirementsLinked * 100d) / requirementCount;
-        }
-
-        public double exchangeParticipationCoverage() {
-            // Crude proxy: percent of components that appear in at least one exchange compared to
-            // unique components seen.
-            // If no components seen in exchanges, return 0; callers should interpret advisory only.
-            return componentsWithExchanges == 0
-                    ? (componentExchangeCount == 0 ? 100d : 0d)
-                    : 100d; // if we have any participation, we assume good — detailed ratio
-                            // requires full component set
         }
     }
 

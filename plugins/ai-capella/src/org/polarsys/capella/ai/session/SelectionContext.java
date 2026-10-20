@@ -99,10 +99,6 @@ public final class SelectionContext {
         return activeDiagramUid;
     }
 
-    public long getCapturedAtMs() {
-        return capturedAtMs;
-    }
-
     public boolean hasSelection() {
         return !selectedElements.isEmpty();
     }

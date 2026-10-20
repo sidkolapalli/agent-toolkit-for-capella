@@ -124,7 +124,7 @@ public final class DiagramCommands {
                     if (findDiagramDescription(session, descriptionName) != description[0]) {
                         throw new IllegalStateException(
                                 "The captured session's diagram description changed before"
-                                    + " creation");
+                                        + " creation");
                     }
                     DRepresentation created =
                             DialectManager.INSTANCE.createRepresentation(
@@ -1261,19 +1261,6 @@ public final class DiagramCommands {
         }
     }
 
-    /** Check whether a diagram has a mapping for the given semantic element. */
-    public static boolean supportsElement(DRepresentation rep, EObject semantic) {
-        if (!(rep instanceof DDiagram) || semantic == null) {
-            return false;
-        }
-        DDiagram diagram = (DDiagram) rep;
-        DiagramDescription desc = diagram.getDescription();
-        if (desc == null) {
-            return false;
-        }
-        return findNodeMapping(desc, semantic) != null;
-    }
-
     /** Check whether an element is displayable on a diagram, evaluating mapping preconditions. */
     public static boolean isDisplayable(Session session, DRepresentation rep, EObject semantic) {
         if (!(rep instanceof DDiagram) || semantic == null) {
@@ -1935,21 +1922,6 @@ public final class DiagramCommands {
         return null;
     }
 
-    /** Expose semantic lookup by id/uuid/fragment using the active session's resource set. */
-    public static EObject findSemanticById(Session session, String id) {
-        if (session == null || id == null || id.isBlank()) return null;
-        try {
-            var domain = session.getTransactionalEditingDomain();
-            if (domain == null) return null;
-            var rs = domain.getResourceSet();
-            if (rs == null) return null;
-            return findById(rs, id);
-        } catch (Exception ex) {
-            LOG.fine("[DiagramCommands] " + ex.getMessage());
-        }
-        return null;
-    }
-
     /** Find a representation by its UID in the active session. */
     public static DRepresentation findRepresentationByUid(Session session, String uid) {
         if (session == null || uid == null) return null;
@@ -2049,7 +2021,7 @@ public final class DiagramCommands {
                         if (descriptor.eContainer() != null || rep.eResource() != null) {
                             throw new IllegalStateException(
                                     "Sirius could not delete the diagram representation and"
-                                        + " descriptor");
+                                            + " descriptor");
                         }
                         requestDiagramSave(session);
                         return true;

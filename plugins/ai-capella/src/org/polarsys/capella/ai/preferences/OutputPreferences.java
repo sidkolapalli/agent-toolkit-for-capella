@@ -37,40 +37,20 @@ public final class OutputPreferences {
         return prefs().getInt(KEY_MAX_LOG_LINES, 200);
     }
 
-    public static void setMaxLogLines(int v) {
-        prefs().putInt(KEY_MAX_LOG_LINES, v);
-    }
-
     public static int getMaxLogLineChars() {
         return prefs().getInt(KEY_MAX_LOG_LINE_CHARS, 500);
-    }
-
-    public static void setMaxLogLineChars(int v) {
-        prefs().putInt(KEY_MAX_LOG_LINE_CHARS, v);
     }
 
     public static int getMaxValueChars() {
         return prefs().getInt(KEY_MAX_VALUE_CHARS, 8 * 1024);
     }
 
-    public static void setMaxValueChars(int v) {
-        prefs().putInt(KEY_MAX_VALUE_CHARS, v);
-    }
-
     public static int getMaxCollectionSample() {
         return prefs().getInt(KEY_MAX_COLLECTION_SAMPLE, 10);
     }
 
-    public static void setMaxCollectionSample(int v) {
-        prefs().putInt(KEY_MAX_COLLECTION_SAMPLE, v);
-    }
-
     public static boolean isRedactionEnabled() {
         return prefs().getBoolean(KEY_REDACTION_ENABLED, true);
-    }
-
-    public static void setRedactionEnabled(boolean v) {
-        prefs().putBoolean(KEY_REDACTION_ENABLED, v);
     }
 
     /**
@@ -96,10 +76,6 @@ public final class OutputPreferences {
             }
         }
         return List.copyOf(patterns);
-    }
-
-    public static void setRedactionRegexList(String v) {
-        prefs().put(KEY_REDACTION_REGEX_LIST, v != null ? v : "");
     }
 
     public static void flush() {

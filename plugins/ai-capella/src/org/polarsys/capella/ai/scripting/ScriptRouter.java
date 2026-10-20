@@ -73,10 +73,6 @@ public final class ScriptRouter {
             return (error == null && (executionResult == null || executionResult.success()));
         }
 
-        public boolean hasCode() {
-            return codeExecuted;
-        }
-
         public static Result chat(String reply) {
             return new Result(reply, false, 0, null, null);
         }
@@ -444,15 +440,6 @@ public final class ScriptRouter {
                             : LLMService.Message.user(content));
         }
         return result;
-    }
-
-    private static String diagramMethodList() {
-        return ApiCatalog.methodNames("diagram").stream()
-                .sorted(String::compareToIgnoreCase)
-                .reduce((a, b) -> a + ", " + b)
-                .orElse(
-                        "create, createSafe, find, add, addSafe, addAll, addByUuids, refresh,"
-                                + " layout, list, listAvailable, listAvailableFormatted");
     }
 
     /** Build the system prompt for code execution mode. */

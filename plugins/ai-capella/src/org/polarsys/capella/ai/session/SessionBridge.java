@@ -116,11 +116,6 @@ public final class SessionBridge {
         }
     }
 
-    /** Convenience: best-effort selected semantic elements. */
-    public static java.util.List<EObject> getSelectedSemanticElements() {
-        return getSelectionContext().getSelectedElements();
-    }
-
     /** Convenience: best-effort active diagram representation. */
     public static Optional<DRepresentation> getActiveDiagram() {
         return getSelectionContext().getActiveDiagram();
@@ -296,10 +291,6 @@ public final class SessionBridge {
         }
 
         return null;
-    }
-
-    private static Session findUiSession(IWorkbenchWindow window) {
-        return resolveUiSession(window).session();
     }
 
     private static UiResolution resolveUiSession(IWorkbenchWindow window) {
@@ -529,30 +520,5 @@ public final class SessionBridge {
             LOG.log(Level.WARNING, "Failed to open Capella session: " + airdUri, ex);
             return null;
         }
-    }
-
-    /** Close a Capella session if open. */
-    public static void closeSession(Session session) {
-        if (session == null) return;
-        try {
-            if (session.isOpen()) {
-                session.close(new NullProgressMonitor());
-            }
-        } catch (Exception ex) {
-            LOG.log(Level.WARNING, "Failed to close Capella session", ex);
-        }
-    }
-
-    /** List all open sessions. */
-    public static java.util.List<Session> listOpenSessions() {
-        java.util.List<Session> out = new java.util.ArrayList<>();
-        try {
-            for (Session s : SessionManager.INSTANCE.getSessions()) {
-                if (s != null && s.isOpen()) out.add(s);
-            }
-        } catch (Exception ex) {
-            LOG.log(Level.WARNING, "Error listing sessions", ex);
-        }
-        return out;
     }
 }

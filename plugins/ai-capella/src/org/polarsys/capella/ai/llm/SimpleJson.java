@@ -9,25 +9,6 @@ import java.util.Map;
 final class SimpleJson {
     private SimpleJson() {}
 
-    @SuppressWarnings("unchecked")
-    static List<Map<String, Object>> parseActions(String json) {
-        Object root = parse(json);
-        if (!(root instanceof Map)) {
-            return List.of();
-        }
-        Object actions = ((Map<String, Object>) root).get("actions");
-        if (actions instanceof List) {
-            List<Map<String, Object>> result = new ArrayList<>();
-            for (Object o : (List<?>) actions) {
-                if (o instanceof Map) {
-                    result.add((Map<String, Object>) o);
-                }
-            }
-            return result;
-        }
-        return List.of();
-    }
-
     static Object parse(String json) {
         Parser parser = new Parser(json);
         return parser.parseDocument();

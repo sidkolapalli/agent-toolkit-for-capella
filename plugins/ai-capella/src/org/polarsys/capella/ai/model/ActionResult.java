@@ -94,16 +94,6 @@ public record ActionResult(
                 Map.of());
     }
 
-    /** Create a failure result with full context for debugging. */
-    public static ActionResult failWithContext(
-            ErrorCode code,
-            String message,
-            String suggestion,
-            List<String> alternatives,
-            Map<String, Object> context) {
-        return new ActionResult(false, code, message, suggestion, alternatives, context);
-    }
-
     /**
      * Create a result with all fields specified (for partial success scenarios in batch
      * operations).

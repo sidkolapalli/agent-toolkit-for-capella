@@ -24,43 +24,10 @@ import java.util.logging.Logger;
 public final class Telemetry {
 
     private static final Logger LOG = Logger.getLogger(Telemetry.class.getName());
-    private static final ThreadLocal<String> CORRELATION = new ThreadLocal<>();
     private static final DateTimeFormatter TS =
             DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC);
 
     private Telemetry() {}
-
-    /** Record code execution result. */
-    public static void recordCodeExecution(String script, ExecutionResult result) {
-        if (!isEnabled() || result == null) {
-            return;
-        }
-        String status = result.success() ? "success" : result.code().name();
-        int logCount = result.logs() != null ? result.logs().size() : 0;
-        logInfo(
-                "code-execution",
-                String.format(
-                        "status=%s duration_ms=%d logs=%d", status, result.durationMs(), logCount));
-        writeJsonLine(
-                "code_execution",
-                "status",
-                status,
-                "duration_ms",
-                String.valueOf(result.durationMs()),
-                "log_count",
-                String.valueOf(logCount),
-                "script_length",
-                String.valueOf(script != null ? script.length() : 0));
-    }
-
-    /** Record code execution error. */
-    public static void recordCodeError(String context, String message) {
-        if (!isEnabled() || message == null || message.isBlank()) {
-            return;
-        }
-        logWarning("code-error", context + " -> " + message);
-        writeJsonLine("code_error", "context", safe(context), "message", safe(message));
-    }
 
     /**
      * Record a full LLM conversation (inputs and output) for diagnostics. The caller is responsible
@@ -134,7 +101,7 @@ public final class Telemetry {
         String msg =
                 String.format(
                         "diagram=%s strategy=%s size=%d overlaps %d->%d crossings %d->%d"
-                            + " duration_ms=%d",
+                                + " duration_ms=%d",
                         safe(diagram),
                         safe(strategy),
                         selectionSize,
@@ -246,19 +213,6 @@ public final class Telemetry {
         }
     }
 
-    /** Set/clear correlation id to group logs for a single interaction. */
-    public static void setCorrelationId(String id) {
-        CORRELATION.set(id);
-    }
-
-    public static void clearCorrelationId() {
-        CORRELATION.remove();
-    }
-
-    public static String getCorrelationId() {
-        return CORRELATION.get();
-    }
-
     private static String safe(String s) {
         return s == null ? "" : s;
     }
@@ -276,9 +230,7 @@ public final class Telemetry {
     }
 
     private static void log(int severity, String category, String message) {
-        String id = getCorrelationId();
-        String prefix = (id == null || id.isBlank()) ? category : ("id=" + id + "] [" + category);
-        String payload = String.format("[%s] %s", prefix, message);
+        String payload = String.format("[%s] %s", category, message);
         if (Activator.getDefault() != null) {
             Activator.getDefault().getLog().log(new Status(severity, Activator.PLUGIN_ID, payload));
         } else {
@@ -299,10 +251,6 @@ public final class Telemetry {
             StringBuilder sb = new StringBuilder(256);
             sb.append('{');
             sb.append("\"ts\":\"").append(jsonEscape(TS.format(Instant.now()))).append("\",");
-            String id = getCorrelationId();
-            if (id != null && !id.isBlank()) {
-                sb.append("\"id\":\"").append(jsonEscape(id)).append("\",");
-            }
             sb.append("\"event\":\"").append(jsonEscape(event)).append("\"");
             // kv pairs
             for (int i = 0; i + 1 < kv.length; i += 2) {
