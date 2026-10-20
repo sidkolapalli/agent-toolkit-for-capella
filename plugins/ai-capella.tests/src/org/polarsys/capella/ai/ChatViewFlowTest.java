@@ -71,6 +71,60 @@ public class ChatViewFlowTest {
         input.notifyListeners(SWT.KeyDown, enter); assertFalse(enter.doit);
     }
 
+    /** Seen in an installed Capella: the Send row was laid out with zero height and the button was clipped away. */
+    @Test public void sendAndComposerStayFullyVisibleAtNarrowAndTallDockSizes() throws Exception {
+        for (int[] size : new int[][] { { 340, 650 }, { 802, 1334 }, { 480, 420 } }) {
+            shell.setSize(size[0], size[1]);
+            shell.layout(true, true);
+            Display.getDefault().readAndDispatch();
+            Button send = (Button) field("sendButton");
+            Text input = (Text) field("inputField");
+            var area = shell.getClientArea();
+            var sendBounds = Display.getDefault().map(send.getParent(), shell, send.getBounds());
+            var row = send.getParent().getBounds();
+            assertTrue("Send row has height at " + size[0] + "x" + size[1] + ": " + row, row.height >= send.computeSize(SWT.DEFAULT, SWT.DEFAULT).y);
+            assertTrue("Send is inside the dock at " + size[0] + "x" + size[1] + ": " + sendBounds,
+                sendBounds.y >= 0 && sendBounds.y + sendBounds.height <= area.height && sendBounds.width > 0);
+            var inputBounds = Display.getDefault().map(input.getParent(), shell, input.getBounds());
+            assertTrue("Composer is above the Send row", inputBounds.y + inputBounds.height <= sendBounds.y + 2);
+            assertTrue("Composer keeps two lines", input.getBounds().height >= input.getLineHeight() * 2);
+        }
+    }
+
+    /** First launch: the view is created hidden at zero size, then shown at full size. */
+    @Test public void viewCreatedHiddenThenShownStillShowsSend() throws Exception {
+        view.dispose(); shell.dispose();
+        shell = new Shell(Display.getDefault()); shell.setLayout(new FillLayout()); shell.setSize(0, 0);
+        var toolbar = new ToolBarManager();
+        var site = stub(IViewSite.class, Map.of("getActionBars", stub(IActionBars.class, Map.of("getToolBarManager", toolbar)),
+            "getPage", stub(IWorkbenchPage.class, Map.of()), "getShell", shell,
+            "getWorkbenchWindow", stub(IWorkbenchWindow.class, Map.of("getSelectionService", stub(ISelectionService.class, Map.of())))));
+        view = new ChatView(); view.init(site); view.createPartControl(shell); set("conversationStore", null);
+        shell.layout(true, true);
+        for (int width = 8; width <= 64; width += 8) { shell.setSize(width, width); while (Display.getDefault().readAndDispatch()) { } }
+        shell.setSize(802, 1334);
+        while (Display.getDefault().readAndDispatch()) { }
+        Button send = (Button) field("sendButton");
+        var row = send.getParent();
+        assertTrue("Send row fits its composer: " + row.getBounds() + " in " + row.getParent().getBounds(),
+            row.getBounds().height > 0 && row.getBounds().y + row.getBounds().height <= row.getParent().getBounds().height);
+    }
+
+    @Test public void wrappingStatusAndReviewRowsNeverPushSendOutOfTheDock() throws Exception {
+        shell.setSize(340, 650);
+        shell.layout(true, true);
+        call("setActivity", new Class<?>[] {String.class},
+            "Waiting for your review · No code has run · The proposed change touches several layers and needs a careful look before it is applied");
+        call("showControl", new Class<?>[] {org.eclipse.swt.widgets.Control.class, boolean.class}, field("reviewArea"), true);
+        Display.getDefault().readAndDispatch();
+        Button send = (Button) field("sendButton");
+        var sendBounds = Display.getDefault().map(send.getParent(), shell, send.getBounds());
+        var row = send.getParent();
+        assertTrue("Send row is inside its composer: " + row.getBounds() + " in " + row.getParent().getBounds(),
+            row.getBounds().y + row.getBounds().height <= row.getParent().getBounds().height);
+        assertTrue("Send is inside the dock: " + sendBounds, sendBounds.y + sendBounds.height <= shell.getClientArea().height);
+    }
+
     @Test public void switchingModelsRestoresEachConversationAndDraft() throws Exception {
         var first = session("memory:/chat-test-first.aird"); var second = session("memory:/chat-test-second.aird");
         call("switchConversation", new Class<?>[] {Session.class}, first);

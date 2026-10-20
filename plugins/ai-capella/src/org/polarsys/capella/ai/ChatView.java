@@ -138,11 +138,25 @@ public class ChatView extends ViewPart {
         createContextHeader(container);
         createConversation(container);
         createTaskPlan(container);
-        createComposer(container);
+        // The composer owns the bottom rows and never yields height; only the conversation shrinks.
+        Composite composer = new Composite(container, SWT.NONE);
+        composer.setLayoutData(new GridData(SWT.FILL, SWT.BOTTOM, true, false));
+        GridLayout composerLayout = new GridLayout(1, false);
+        composerLayout.marginWidth = 0;
+        composerLayout.marginHeight = 0;
+        composerLayout.verticalSpacing = 8;
+        composer.setLayout(composerLayout);
+        // A resize re-lays the composer from cached child sizes; refresh them first (runs before that layout).
+        composer.addListener(SWT.Resize, event -> composer.layout(true, true));
+        createComposer(composer);
         createToolbar();
         installContextListeners();
         refreshContext();
         setBusy(false);
+        // The workbench theme restyles widgets after creation and resize layouts reuse cached sizes,
+        // which left the Send row clipped in a themed workbench. Flush on every resize and once styled.
+        container.addListener(SWT.Resize, event -> container.layout(true, true));
+        display.timerExec(500, () -> { if (!container.isDisposed()) container.layout(true, true); });
     }
 
     private void createContextHeader(Composite parent) {
@@ -187,7 +201,7 @@ public class ChatView extends ViewPart {
         conversationArea = new Composite(parent, SWT.NONE);
         GridData conversationData = new GridData(SWT.FILL, SWT.FILL, true, true);
         conversationData.heightHint = 180;
-        conversationData.minimumHeight = 60;
+        conversationData.minimumHeight = 0;
         conversationData.widthHint = 1;
         conversationArea.setLayoutData(conversationData);
         conversationLayout = new StackLayout();
@@ -764,8 +778,10 @@ public class ChatView extends ViewPart {
 
     private void renderActivity() {
         long seconds = busy && pendingReview == null ? (System.nanoTime() - requestStarted) / 1000000000L : 0;
-        activityLabel.setText(activityText + (seconds >= 3 ? " · " + seconds + "s" : ""));
-        activityLabel.getParent().getParent().layout(true, true);
+        String text = activityText + (seconds >= 3 ? " · " + seconds + "s" : "");
+        if (text.equals(activityLabel.getText())) return;
+        activityLabel.setText(text);
+        relayoutView(activityLabel);
     }
 
     private static void showControl(org.eclipse.swt.widgets.Control control, boolean visible) {
@@ -774,7 +790,18 @@ public class ChatView extends ViewPart {
         boolean changed = control.getVisible() != visible || ((GridData) control.getLayoutData()).exclude == visible;
         control.setVisible(visible);
         ((GridData) control.getLayoutData()).exclude = !visible;
-        if (changed) control.getParent().layout(true, true);
+        if (changed) relayoutView(control);
+    }
+
+    /**
+     * Flushes cached sizes and lays out the whole view. Composer rows change height (wrapped status,
+     * review, composer growth), and the workbench theme restyles widgets after creation, so laying out
+     * only the changed control's parent leaves stale positions that clip the Send row.
+     */
+    private static void relayoutView(org.eclipse.swt.widgets.Control control) {
+        Composite top = control instanceof Composite composite ? composite : control.getParent();
+        while (top.getParent() != null && top.getParent().getLayout() instanceof GridLayout) top = top.getParent();
+        top.layout(true, true);
     }
 
     private void stopRequest() {
@@ -1328,14 +1355,15 @@ public class ChatView extends ViewPart {
     }
 
     private void resizeComposer() {
-        if (inputField == null || inputField.isDisposed() || inputField.getClientArea().width <= 0) return;
+        // At creation a hidden view is a few pixels wide; sizing for wrapped text then would stick.
+        if (inputField == null || inputField.isDisposed() || inputField.getClientArea().width < 100) return;
         int lineHeight = inputField.getLineHeight();
         int preferred = inputField.computeSize(inputField.getSize().x, SWT.DEFAULT).y;
         int height = Math.max(lineHeight * 3, Math.min(lineHeight * 7, preferred));
         GridData data = (GridData) inputField.getLayoutData();
         if (data.heightHint != height) {
             data.heightHint = height;
-            inputField.getParent().layout(true, true);
+            relayoutView(inputField);
         }
     }
 
