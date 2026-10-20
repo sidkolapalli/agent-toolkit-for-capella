@@ -2,6 +2,16 @@
 
 Measured with `test-models/evals/` on the bundled Codex runtime (see the README's evaluation section). Update the scores whenever prompts, tools or models change.
 
+## Latest score
+
+| Date | Build | Runtime | Starter | Advanced | Total |
+| --- | --- | --- | --- | --- | --- |
+| 2026-10-20 | 0.2.1.202610200353 | bundled Codex 0.160.1, default model | 12/12 | 9/9 | **21/21** |
+
+Earlier runs the same day scored 11/12 (enum values could not be set by name), then 18/21 (logging a
+list aborted scripts; no API for interface exchange items). Single runs vary: a task that passes once
+can fail on the next run, so compare several runs before trusting a change.
+
 ## Working now
 
 - Reviewed model edits across OA, SA, LA, PA and EPBS from chat, MCP clients and evaluation, through one shared pipeline with independent checks and native validation.
