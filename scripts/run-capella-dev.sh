@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
+# Launch Capella with the dev server auto-started on a copy of a sample model.
+#   CAPELLA_HOME=/path/to/capella SAMPLE_SRC="/path/to/samples/In-Flight Entertainment System" scripts/run-capella-dev.sh
 set -euo pipefail
 
-CAPELLA_HOME=${CAPELLA_HOME:-<local-path>}
-WORKSPACE=${WORKSPACE:-<local-path>}
-SAMPLE_SRC=${SAMPLE_SRC:-<local-path> Entertainment System}
-SAMPLE_NAME=${SAMPLE_NAME:-In-Flight Entertainment System}
+: "${CAPELLA_HOME:?Set CAPELLA_HOME to the Capella installation directory}"
+: "${SAMPLE_SRC:?Set SAMPLE_SRC to the sample project directory to copy}"
+WORKSPACE=${WORKSPACE:-$PWD/.workspace-capella}
+SAMPLE_NAME=${SAMPLE_NAME:-$(basename "$SAMPLE_SRC")}
 PORT=${PORT:-8765}
 
 if [ ! -x "$CAPELLA_HOME/capella" ]; then

@@ -63,9 +63,8 @@ public class DevServerView extends ViewPart {
         instructions.setText(
                 "Dev Server Endpoints:\n\n"
                     + "POST /execute - Execute Groovy code\n"
-                    + "POST /chat - Send to LLM, execute result\n"
                     + "GET /status - Check status\n"
-                    + "GET /prompt - Get system prompt\n\n"
+                    + "POST /mcp - Model Context Protocol (reads; edits are reviewed)\n\n"
                     + "Every request needs Authorization: Bearer <token>;\n"
                     + "the running server writes it to ~/.capella-ai/devserver-<port>.token.\n\n"
                     + "Example:\n"

@@ -1,7 +1,6 @@
 package org.polarsys.capella.ai.scripting;
 
 import org.eclipse.sirius.business.api.session.Session;
-import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.privacy.Tokenizer;
 import org.polarsys.capella.ai.session.SelectionContext;
@@ -75,39 +74,13 @@ public final class CodeExecutionRouter {
                 || (llmResponse.contains("```") && llmResponse.contains("api.")));
     }
 
-    /**
-     * Execute Groovy code from an LLM response.
-     *
-     * @param session the Capella session
-     * @param llmResponse the full LLM response (may contain markdown, explanations, etc.)
-     * @return execution result
-     */
-    public static Result execute(Session session, String llmResponse) {
-        return execute(session, llmResponse, null);
-    }
-
-    public static Result execute(Session session, String llmResponse, String sessionId) {
-        return executeAttempt(session, llmResponse, null, 1, sessionId, null, false);
-    }
-
     /** Execute an already decoded reply, preserving the exact code the user reviewed. */
     public static Result executeReviewed(
             Session session,
-            String reply,
-            String labelHint,
+            String llmResponse,
             String sessionId,
             java.util.Map<String, Object> extraBindings) {
-        return executeAttempt(session, reply, labelHint, 1, sessionId, extraBindings, true);
-    }
-
-    private static Result executeAttempt(
-            Session session,
-            String llmResponse,
-            String labelHint,
-            int attempts,
-            String sessionId,
-            java.util.Map<String, Object> extraBindings,
-            boolean alreadyDecoded) {
+        int attempts = 1;
         if (session == null) {
             return Result.noCode("No active Capella session", llmResponse, attempts);
         }
@@ -130,13 +103,8 @@ public final class CodeExecutionRouter {
 
         // GroovyExecutor owns the script transaction. Reviewed source must keep
         // its original scope and field initializers as well as its exact text.
-        String wrapped = alreadyDecoded ? code : wrapInBatchIfNeeded(code, labelHint);
-
-        // Execute the code
         ExecutionResult execResult =
-                alreadyDecoded
-                        ? GroovyExecutor.executeDecoded(session, wrapped, extraBindings, sessionId)
-                        : GroovyExecutor.execute(session, wrapped, extraBindings, sessionId);
+                GroovyExecutor.executeDecoded(session, code, extraBindings, sessionId);
 
         if (execResult.success()) {
             StringBuilder output = new StringBuilder();
@@ -159,172 +127,6 @@ public final class CodeExecutionRouter {
         } else {
             return Result.failure(execResult.formatForLLM(), execResult, llmResponse, attempts);
         }
-    }
-
-    /**
-     * Execute with error retry - feeds errors back to LLM for self-correction.
-     *
-     * @param session the Capella session
-     * @param llmResponse the LLM response with code
-     * @param maxRetries maximum retry attempts
-     * @param llmCallback callback to get corrected code from LLM
-     * @return final execution result
-     */
-    public static Result executeWithRetry(
-            Session session,
-            String llmResponse,
-            int maxRetries,
-            java.util.function.BiFunction<String, String, String> llmCallback) {
-        return executeWithRetry(session, llmResponse, maxRetries, llmCallback, null, null);
-    }
-
-    public static Result executeWithRetry(
-            Session session,
-            String llmResponse,
-            int maxRetries,
-            java.util.function.BiFunction<String, String, String> llmCallback,
-            String labelHint) {
-        return executeWithRetry(session, llmResponse, maxRetries, llmCallback, labelHint, null);
-    }
-
-    public static Result executeWithRetry(
-            Session session,
-            String llmResponse,
-            int maxRetries,
-            java.util.function.BiFunction<String, String, String> llmCallback,
-            String labelHint,
-            String sessionId) {
-        return executeWithRetry(
-                session, llmResponse, maxRetries, llmCallback, labelHint, sessionId, null);
-    }
-
-    public static Result executeWithRetry(
-            Session session,
-            String llmResponse,
-            int maxRetries,
-            java.util.function.BiFunction<String, String, String> llmCallback,
-            String labelHint,
-            String sessionId,
-            java.util.Map<String, Object> extraBindings) {
-        String currentResponse = llmResponse;
-        int attemptCount = 1;
-        Result result =
-                executeAttempt(
-                        session,
-                        currentResponse,
-                        labelHint,
-                        attemptCount,
-                        sessionId,
-                        extraBindings,
-                        false);
-
-        int retriesUsed = 0;
-        while (!result.success
-                && retriesUsed < maxRetries
-                && result.executionResult != null
-                && result.executionResult.code()
-                        != ExecutionResult.ErrorCode.SAVE_FAILED_AFTER_COMMIT
-                && result.executionResult.code() != ExecutionResult.ErrorCode.TIMEOUT
-                && llmCallback != null) {
-            // Get error feedback for LLM
-            String errorFeedback = result.executionResult.formatForLLM();
-
-            // Ask LLM to fix the code
-            String correctedResponse = llmCallback.apply(currentResponse, errorFeedback);
-            if (correctedResponse == null || correctedResponse.equals(currentResponse)) {
-                break; // LLM couldn't fix it
-            }
-
-            // Try again with corrected code
-            retriesUsed++;
-            attemptCount++;
-            currentResponse = correctedResponse;
-            result =
-                    executeAttempt(
-                            session,
-                            currentResponse,
-                            labelHint,
-                            attemptCount,
-                            sessionId,
-                            extraBindings,
-                            false);
-        }
-
-        return result;
-    }
-
-    public static String wrapInBatchIfNeeded(String code, String labelHint) {
-        if (code == null || code.isBlank()) {
-            return code;
-        }
-
-        // If the script already batches itself, don't interfere.
-        if (code.matches("(?s).*\\bapi\\s*\\.\\s*batch\\s*\\(.*")
-                || code.matches("(?s).*\\bapi\\s*\\.\\s*tx\\s*\\(\\s*['\"].*")) {
-            return code;
-        }
-
-        String label = normalizeLabel(labelHint);
-        String escapedLabel = escapeGroovyString(label);
-
-        StringBuilder prefix = new StringBuilder();
-        StringBuilder body = new StringBuilder();
-        splitImports(code, prefix, body);
-
-        StringBuilder out = new StringBuilder(code.length() + 128);
-        out.append(prefix);
-        if (prefix.length() > 0 && !prefix.toString().endsWith("\n")) {
-            out.append("\n");
-        }
-        out.append("api.batch(\"").append(escapedLabel).append("\") {\n");
-        out.append(body);
-        if (body.length() > 0 && !body.toString().endsWith("\n")) {
-            out.append("\n");
-        }
-        out.append("}\n");
-        return out.toString();
-    }
-
-    private static void splitImports(String code, StringBuilder prefix, StringBuilder body) {
-        boolean inPrefix = true;
-        for (String line : code.split("\\R", -1)) {
-            String trimmed = line.trim();
-            boolean isPrefixLine =
-                    trimmed.isEmpty()
-                            || trimmed.startsWith("//")
-                            || trimmed.startsWith("/*")
-                            || trimmed.startsWith("*")
-                            || trimmed.startsWith("*/")
-                            || trimmed.startsWith("import ");
-
-            if (inPrefix && isPrefixLine) {
-                prefix.append(line).append("\n");
-            } else {
-                inPrefix = false;
-                body.append(line).append("\n");
-            }
-        }
-    }
-
-    private static String normalizeLabel(String labelHint) {
-        String base = labelHint != null ? labelHint.trim() : "";
-        if (base.isBlank()) {
-            return "LLM script";
-        }
-        // Keep undo labels short and stable.
-        String cleaned = base.replaceAll("\\s+", " ");
-        int max = 60;
-        if (cleaned.length() <= max) {
-            return cleaned;
-        }
-        return cleaned.substring(0, max - 3) + "...";
-    }
-
-    private static String escapeGroovyString(String s) {
-        if (s == null) {
-            return "";
-        }
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     /**
@@ -373,7 +175,7 @@ public final class CodeExecutionRouter {
         sb.append("- `api` - Capella API (find, create, link, diagram, etc.)\n");
         sb.append(
                 "- `api.fs` - Documentation discovery + safe workspace I/O (list, read, search,"
-                    + " write)\n");
+                        + " write)\n");
         sb.append("- `api.skills` - Reusable skill runtime (list, metadata, run)\n");
         sb.append("- `api.diagram` - Diagram operations\n");
         sb.append("- `api.ops` - Engineering operations (transitions, reuse)\n");
@@ -381,13 +183,13 @@ public final class CodeExecutionRouter {
         sb.append("- `selection` - List<EObject> of currently selected semantic elements\n");
         sb.append(
                 "- `activeDiagram` - DRepresentation for the active diagram editor (may be"
-                    + " null)\n");
+                        + " null)\n");
         sb.append("- `log` - Logger (log.info, log.warn, log.error)\n\n");
 
         sb.append("### Operations\n\n");
         sb.append(
                 "Use `api.ops.transition(selection, \"SA2LA\")` for system-to-logical"
-                    + " transitions.\n\n");
+                        + " transitions.\n\n");
 
         java.util.List<GroovyExecutor.VariableSummary> vars =
                 GroovyExecutor.describeSessionVariables(sessionId);
@@ -451,7 +253,7 @@ public final class CodeExecutionRouter {
         sb.append("// List available documentation\n");
         sb.append(
                 "api.fs.list(\"\")                    // Root: [\"api/\", \"metamodel/\","
-                    + " \"skills/\", \"workspace/\", \"SKILL.md\"]\n");
+                        + " \"skills/\", \"workspace/\", \"SKILL.md\"]\n");
         sb.append("api.fs.list(\"api/\")               // API methods\n");
         sb.append("api.fs.list(\"skills/\")            // Reusable patterns\n\n");
         sb.append("// Persist small state between steps (safe workspace)\n");
@@ -471,7 +273,7 @@ public final class CodeExecutionRouter {
         sb.append("def saLayer = api.layer(\"SA\")  // OA, SA, LA, PA, EPBS\n\n");
         sb.append(
                 "// EPBS uses ConfigurationItem breakdowns and PhysicalArtifactRealization links to"
-                    + " PA components.\n\n");
+                        + " PA components.\n\n");
         sb.append("// Optional: summarize current model (on-demand)\n");
         sb.append("log.info(api.summary())\n\n");
         sb.append("// Find an element (type + name)\n");
@@ -488,22 +290,22 @@ public final class CodeExecutionRouter {
         sb.append("### Guidance\n\n");
         sb.append(
                 "- Prefer discovery over guessing. Use `api.help(\"diagram\")` before diagram"
-                    + " operations.\n");
+                        + " operations.\n");
         sb.append(
                 "- Prefer skills for reusable tasks: `api.skills.list()` + `api.skills.run(name,"
-                    + " args)`.\n");
+                        + " args)`.\n");
         sb.append("- For complex tasks, load documentation first: `api.fs.read(\"SKILL.md\")`.\n");
         sb.append(
                 "- Use `api.create(\"LA\", \"LogicalFunction\", \"Name\")` or `api.createIn(\"LA\","
-                    + " \"LogicalFunction\", \"Name\")` to create in a layer.\n");
+                        + " \"LogicalFunction\", \"Name\")` to create in a layer.\n");
         sb.append(
                 "- Do NOT create allocation objects directly; use `api.allocate(function,"
-                    + " component)`.\n\n");
+                        + " component)`.\n\n");
         sb.append("- Use `api.describe(element)` to inspect an element before editing it.\n");
         sb.append("- After changes, use `api.validate()` to surface model issues early.\n\n");
         sb.append(
                 "- Execution context is stateful; call `api.reset()` to clear remembered"
-                    + " variables.\n\n");
+                        + " variables.\n\n");
         sb.append("- Use worked examples from skill files instead of inventing APIs.\n\n");
 
         sb.append("### Recipes (Load On Demand)\n\n");
@@ -517,75 +319,7 @@ public final class CodeExecutionRouter {
         sb.append("### Sandbox Constraints\n\n");
         sb.append(
                 "If you hit a `SECURITY_VIOLATION`, the sandbox blocked an unsafe operation. Follow"
-                    + " the hint in the error.\n");
-
-        return sb.toString();
-    }
-
-    /**
-     * Build the legacy detailed prompt (kept for backwards compatibility).
-     *
-     * @deprecated Use buildCodeExecutionPrompt() with filesystem discovery instead.
-     */
-    @Deprecated
-    public static String buildDetailedCodeExecutionPrompt(Session session) {
-        StringBuilder sb = new StringBuilder();
-
-        sb.append("## Code Execution Mode\n\n");
-        sb.append("You can execute Groovy scripts to modify the Capella model. ");
-        sb.append("Write your code in a ```groovy code block.\n\n");
-
-        sb.append("### Available API\n\n");
-        sb.append("```groovy\n");
-        sb.append("// === FINDING ELEMENTS ===\n");
-        sb.append("api.find(\"ElementName\")                      // Find by name (any type)\n");
-        sb.append("api.find(\"SystemFunction\", \"Process Data\")   // Find by type and name\n");
-        sb.append("api.findAll(\"LogicalComponent\")               // All elements of type\n");
-        sb.append("api.query { it.eClass().name.contains(\"Func\") } // Custom predicate\n");
-        sb.append("api.layer(\"SA\")                               // Get architecture root\n\n");
-
-        sb.append("// === CREATING ELEMENTS ===\n");
-        sb.append("api.create(\"SystemFunction\", \"My Function\")   // Auto-detect layer\n");
-        sb.append("api.create(\"SA\", \"SystemFunction\", \"Name\")    // In specific layer\n");
-        sb.append("api.create(\"SystemComponent\", \"Name\", parent) // Under specific parent\n\n");
-
-        sb.append("// === MODIFYING ELEMENTS ===\n");
-        sb.append("api.set(element, \"description\", \"New desc\")   // Set any property\n");
-        sb.append("api.rename(element, \"New Name\")                // Rename element\n");
-        sb.append("api.delete(element)                            // Delete element\n\n");
-
-        sb.append("// === CREATING RELATIONSHIPS ===\n");
-        sb.append("api.link(func1, func2, \"FunctionalExchange\")  // Create exchange\n");
-        sb.append("api.link(comp1, comp2, \"ComponentExchange\")   // Create interface\n");
-        sb.append("api.link(func, comp, \"allocation\")            // Allocate function\n\n");
-
-        sb.append("// === OPERATIONS ===\n");
-        sb.append(
-                "api.ops.transition([component], \"SA2LA\")      // System -> Logical"
-                    + " transition\n\n");
-
-        sb.append("// === NAVIGATION ===\n");
-        sb.append("api.parent(element)                            // Get parent\n");
-        sb.append("api.children(element)                          // Get children\n");
-        sb.append("api.descendants(element)                       // All descendants\n");
-        sb.append("api.type(element)                              // Get type name\n");
-        sb.append("api.name(element)                              // Get name\n\n");
-
-        sb.append("// === DIAGRAMS ===\n");
-        sb.append("def diagram = api.diagram.create(\"SAB\", \"Overview\", root)\n");
-        sb.append("api.diagram.add(diagram, element)              // Add element to diagram\n");
-        sb.append(
-                "api.diagram.layout(diagram, \"flow\")            // Layout:"
-                    + " auto/grid/flow/radial\n");
-        sb.append("```\n\n");
-
-        // Add current model context
-        if (session != null) {
-            sb.append("### Current Model State\n\n");
-            sb.append("```\n");
-            sb.append(ModelSummary.summarize(session));
-            sb.append("```\n");
-        }
+                        + " the hint in the error.\n");
 
         return sb.toString();
     }

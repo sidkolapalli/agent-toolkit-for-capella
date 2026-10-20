@@ -6,11 +6,8 @@ import com.sun.net.httpserver.HttpServer;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.transaction.TransactionalEditingDomain;
 import org.eclipse.sirius.business.api.session.Session;
-import org.eclipse.sirius.business.api.session.SessionManager;
 import org.polarsys.capella.ai.agent.AgentJson;
 import org.polarsys.capella.ai.agent.ArcadiaModelTools;
-import org.polarsys.capella.ai.preferences.LLMPreferences;
-import org.polarsys.capella.ai.scripting.CodeExecutionRouter;
 import org.polarsys.capella.ai.scripting.ExecutionResult;
 import org.polarsys.capella.ai.scripting.GroovyExecutor;
 import org.polarsys.capella.ai.scripting.RequirementsAPI;
@@ -148,12 +145,7 @@ public final class DevServer {
             addLocalContext("/inspect", DevServer::handleInspect);
             addLocalContext("/mcp", DevServer::handleMcp);
             addLocalContext("/eval", DevServer::handleEval);
-            addLocalContext("/chat", DevServer::handleChat);
             addLocalContext("/status", DevServer::handleStatus);
-            addLocalContext("/prompt", DevServer::handlePrompt);
-            addLocalContext("/debug", DevServer::handleDebug);
-            addLocalContext("/config", DevServer::handleConfig);
-            addLocalContext("/context", DevServer::handleContext);
             addLocalContext("/requirements/enable", DevServer::handleEnableRequirements);
 
             server.start();
@@ -231,7 +223,7 @@ public final class DevServer {
             if (configured != null && !configured.isBlank()) {
                 LOG.warning(
                         "CAPELLA_AI_DEVSERVER_TOKEN is ignored: use 16 to 256 URL-safe characters."
-                            + " A random token is used instead.");
+                                + " A random token is used instead.");
             }
             byte[] random = new byte[32];
             new java.security.SecureRandom().nextBytes(random);
@@ -402,8 +394,8 @@ public final class DevServer {
                     exchange,
                     403,
                     "{\"error\":\"Evaluation auto-approves model edits; start Capella with"
-                        + " -Dcapella.ai.eval=true (or CAPELLA_AI_EVAL=1) on a disposable"
-                        + " model\"}");
+                            + " -Dcapella.ai.eval=true (or CAPELLA_AI_EVAL=1) on a disposable"
+                            + " model\"}");
             return;
         }
         if (!"POST".equals(exchange.getRequestMethod())) {
@@ -662,59 +654,6 @@ public final class DevServer {
         }
     }
 
-    /**
-     * POST /chat - Send prompt to LLM and execute generated code Body: User message/prompt Returns:
-     * JSON with LLM response and execution result
-     */
-    private static void handleChat(HttpExchange exchange) throws IOException {
-        if (!"POST".equals(exchange.getRequestMethod())) {
-            sendResponse(exchange, 405, "{\"error\": \"Method not allowed\"}");
-            return;
-        }
-
-        Session session = SessionBridge.getActiveSession();
-        if (session == null) {
-            sendResponse(
-                    exchange,
-                    400,
-                    "{\"error\": \"No active Capella session. Open a model first.\"}");
-            return;
-        }
-
-        String prompt = readBody(exchange);
-        if (prompt == null || prompt.isBlank()) {
-            sendResponse(exchange, 400, "{\"error\": \"No prompt provided\"}");
-            return;
-        }
-
-        try {
-            String conversationId = getConversationId(exchange);
-            ScriptRouter.Result result =
-                    ScriptRouter.handleChat(session, prompt, List.of(), conversationId);
-
-            StringBuilder json = new StringBuilder();
-            json.append("{");
-            json.append("\"success\": ").append(result.success()).append(",");
-            json.append("\"reply\": \"").append(escapeJson(result.reply)).append("\",");
-            json.append("\"codeExecuted\": ").append(result.codeExecuted);
-            if (result.codeExecuted) {
-                json.append(",\"attempts\": ").append(result.attempts);
-            }
-
-            if (result.executionResult != null) {
-                json.append(",\"execution\": ").append(formatResult(result.executionResult));
-            }
-            if (result.error != null) {
-                json.append(",\"error\": \"").append(escapeJson(result.error)).append("\"");
-            }
-            json.append("}");
-
-            sendResponse(exchange, result.success() ? 200 : 400, json.toString());
-        } catch (Exception e) {
-            sendResponse(exchange, 500, "{\"error\": \"" + escapeJson(e.getMessage()) + "\"}");
-        }
-    }
-
     /** GET /status - Check server and session status */
     private static void handleStatus(HttpExchange exchange) throws IOException {
         if (!"GET".equals(exchange.getRequestMethod())) {
@@ -782,7 +721,7 @@ public final class DevServer {
                                         if (semantic.getResourceSet() != domain.getResourceSet()) {
                                             throw new IllegalStateException(
                                                     "Status semantic resource belongs to another"
-                                                        + " domain");
+                                                            + " domain");
                                         }
                                         Map<String, Object> flags = new LinkedHashMap<>();
                                         flags.put(
@@ -803,105 +742,6 @@ public final class DevServer {
                     }
                 });
         return AgentJson.write(state.get());
-    }
-
-    /** GET /prompt - Get the system prompt for code generation */
-    private static void handlePrompt(HttpExchange exchange) throws IOException {
-        if (!"GET".equals(exchange.getRequestMethod())) {
-            sendResponse(exchange, 405, "{\"error\": \"Method not allowed\"}");
-            return;
-        }
-
-        Session session = SessionBridge.getActiveSession();
-        String conversationId = getConversationId(exchange);
-        String sessionKey = GroovyExecutor.buildSessionKey(session, conversationId);
-        String prompt =
-                CodeExecutionRouter.buildCodeExecutionPrompt(
-                        session, sessionKey, SessionBridge.getSelectionContext());
-
-        StringBuilder json = new StringBuilder();
-        json.append("{");
-        json.append("\"prompt\": \"").append(escapeJson(prompt)).append("\"");
-        json.append("}");
-
-        sendResponse(exchange, 200, json.toString());
-    }
-
-    /** GET /context - return current UI selection + active diagram context. */
-    private static void handleContext(HttpExchange exchange) throws IOException {
-        if (!"GET".equals(exchange.getRequestMethod())) {
-            sendResponse(exchange, 405, "{\"error\": \"Method not allowed\"}");
-            return;
-        }
-
-        SelectionContext ctx = SessionBridge.getSelectionContext();
-        boolean loggedNameError = false;
-        boolean loggedIdError = false;
-        StringBuilder json = new StringBuilder();
-        json.append("{");
-        boolean hasDiag = ctx != null && ctx.hasDiagram();
-        boolean hasSel = ctx != null && ctx.hasSelection();
-        json.append("\"hasDiagram\": ").append(hasDiag).append(",");
-        json.append("\"hasSelection\": ").append(hasSel);
-        if (hasDiag) {
-            json.append(",\"activeDiagram\":{")
-                    .append("\"name\":\"")
-                    .append(escapeJson(ctx.getActiveDiagramName()))
-                    .append("\",\"uid\":\"")
-                    .append(escapeJson(ctx.getActiveDiagramUid()))
-                    .append("\",\"type\":\"")
-                    .append(escapeJson(ctx.getActiveDiagramType()))
-                    .append("\"}");
-        }
-        if (hasSel) {
-            json.append(",\"selection\":[");
-            List<org.eclipse.emf.ecore.EObject> sel = ctx.getSelectedElements();
-            for (int i = 0; i < sel.size(); i++) {
-                if (i > 0) json.append(",");
-                org.eclipse.emf.ecore.EObject eo = sel.get(i);
-                String type = eo != null && eo.eClass() != null ? eo.eClass().getName() : "EObject";
-                String name = "";
-                try {
-                    if (eo != null && eo.eClass() != null) {
-                        var f = eo.eClass().getEStructuralFeature("name");
-                        if (f != null) {
-                            Object v = eo.eGet(f);
-                            if (v != null) name = v.toString();
-                        }
-                    }
-                } catch (Exception ex) {
-                    if (!loggedNameError) {
-                        loggedNameError = true;
-                        LOG.log(Level.FINE, "Failed to read selection element 'name' feature", ex);
-                    }
-                }
-                String id = "";
-                try {
-                    if (eo != null && eo.eClass() != null) {
-                        var f = eo.eClass().getEStructuralFeature("id");
-                        if (f != null) {
-                            Object v = eo.eGet(f);
-                            if (v != null) id = v.toString();
-                        }
-                    }
-                } catch (Exception ex) {
-                    if (!loggedIdError) {
-                        loggedIdError = true;
-                        LOG.log(Level.FINE, "Failed to read selection element 'id' feature", ex);
-                    }
-                }
-                json.append("{\"type\":\"")
-                        .append(escapeJson(type))
-                        .append("\",\"name\":\"")
-                        .append(escapeJson(name))
-                        .append("\",\"id\":\"")
-                        .append(escapeJson(id))
-                        .append("\"}");
-            }
-            json.append("]");
-        }
-        json.append("}");
-        sendResponse(exchange, 200, json.toString());
     }
 
     private static String readBody(HttpExchange exchange) throws IOException {
@@ -988,116 +828,5 @@ public final class DevServer {
                 .replace("\n", "\\n")
                 .replace("\r", "\\r")
                 .replace("\t", "\\t");
-    }
-
-    /**
-     * GET/POST /config - Get or set LLM configuration GET: Returns current config POST: Set config
-     * (JSON body with provider, baseUrl, model, apiKey)
-     */
-    private static void handleConfig(HttpExchange exchange) throws IOException {
-        if ("GET".equals(exchange.getRequestMethod())) {
-            StringBuilder json = new StringBuilder();
-            json.append("{");
-            json.append("\"provider\": \"")
-                    .append(escapeJson(LLMPreferences.getProvider()))
-                    .append("\",");
-            json.append("\"baseUrl\": \"")
-                    .append(escapeJson(LLMPreferences.getBaseUrl()))
-                    .append("\",");
-            json.append("\"model\": \"")
-                    .append(escapeJson(LLMPreferences.getModel()))
-                    .append("\",");
-            json.append("\"maxTokens\": ").append(LLMPreferences.getMaxTokens()).append(",");
-            json.append("\"temperature\": ").append(LLMPreferences.getTemperature()).append(",");
-            json.append("\"hasApiKey\": ").append(!LLMPreferences.getApiKey().isEmpty());
-            json.append("}");
-            sendResponse(exchange, 200, json.toString());
-            return;
-        }
-
-        if ("POST".equals(exchange.getRequestMethod())) {
-            String body = readBody(exchange);
-            try {
-                // Simple JSON parsing for config
-                if (body.contains("\"provider\"")) {
-                    String provider = extractJsonString(body, "provider");
-                    if (provider != null) LLMPreferences.setProvider(provider);
-                }
-                if (body.contains("\"baseUrl\"")) {
-                    String baseUrl = extractJsonString(body, "baseUrl");
-                    if (baseUrl != null) LLMPreferences.setBaseUrl(baseUrl);
-                }
-                if (body.contains("\"model\"")) {
-                    String model = extractJsonString(body, "model");
-                    if (model != null) LLMPreferences.setModel(model);
-                }
-                if (body.contains("\"apiKey\"")) {
-                    String apiKey = extractJsonString(body, "apiKey");
-                    if (apiKey != null) LLMPreferences.setApiKey(apiKey);
-                }
-                if (body.contains("\"maxTokens\"")) {
-                    String maxTokens = extractJsonString(body, "maxTokens");
-                    if (maxTokens != null) LLMPreferences.setMaxTokens(Integer.parseInt(maxTokens));
-                }
-                LLMPreferences.flush();
-                sendResponse(exchange, 200, "{\"success\": true}");
-            } catch (Exception e) {
-                sendResponse(exchange, 400, "{\"error\": \"" + escapeJson(e.getMessage()) + "\"}");
-            }
-            return;
-        }
-
-        sendResponse(exchange, 405, "{\"error\": \"Method not allowed\"}");
-    }
-
-    private static String extractJsonString(String json, String key) {
-        String pattern = "\"" + key + "\"";
-        int idx = json.indexOf(pattern);
-        if (idx < 0) return null;
-        int colonIdx = json.indexOf(":", idx);
-        if (colonIdx < 0) return null;
-        int startQuote = json.indexOf("\"", colonIdx);
-        if (startQuote < 0) return null;
-        int endQuote = json.indexOf("\"", startQuote + 1);
-        if (endQuote < 0) return null;
-        return json.substring(startQuote + 1, endQuote);
-    }
-
-    /** GET /debug - Debug session manager state */
-    private static void handleDebug(HttpExchange exchange) throws IOException {
-        if (!"GET".equals(exchange.getRequestMethod())) {
-            sendResponse(exchange, 405, "{\"error\": \"Method not allowed\"}");
-            return;
-        }
-
-        StringBuilder json = new StringBuilder();
-        json.append("{");
-
-        try {
-            var sessions = SessionManager.INSTANCE.getSessions();
-            json.append("\"sessionCount\": ").append(sessions.size()).append(",");
-            json.append("\"sessions\": [");
-            int i = 0;
-            for (Session s : sessions) {
-                if (i > 0) json.append(",");
-                json.append("{");
-                json.append("\"isOpen\": ").append(s != null && s.isOpen()).append(",");
-                if (s != null && s.getSessionResource() != null) {
-                    json.append("\"uri\": \"")
-                            .append(escapeJson(s.getSessionResource().getURI().toString()))
-                            .append("\"");
-                } else {
-                    json.append("\"uri\": null");
-                }
-                json.append("}");
-                i++;
-            }
-            json.append("]");
-        } catch (Exception e) {
-            json.append("\"error\": \"").append(escapeJson(e.getMessage())).append("\"");
-        }
-
-        json.append("}");
-        sendResponse(exchange, 200, json.toString());
     }
 }

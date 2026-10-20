@@ -1,80 +1,31 @@
 #!/bin/bash
-# Test script for Capella AI Dev Server
+# Smoke test for the Capella AI dev server. Read-only: it never changes the model.
 #
-# USAGE:
-# 1. Launch Capella: <local-path>
-# 2. Import the IFE project: File -> Import -> Existing Projects
-# 3. Open the IFE model (double-click the .aird file)
-# 4. Start Dev Server: Window -> Show View -> Other -> Capella AI -> AI Dev Server -> Start
-# 5. Run this script: ./test-dev-server.sh
+# 1. Open a disposable copy of a Capella model.
+# 2. Start the dev server: Window -> Show View -> Other -> Capella AI -> AI Dev Server -> Start.
+# 3. ./test-dev-server.sh [port]
 
 PORT=${1:-8765}
 BASE_URL="http://localhost:$PORT"
-TOKEN=$(cat "$HOME/.capella-ai/devserver-$PORT.token")
+TOKEN=${CAPELLA_AI_DEVSERVER_TOKEN:-$(cat "$HOME/.capella-ai/devserver-$PORT.token")}
 CURL=(curl -s -H "Authorization: Bearer $TOKEN")
 
-echo "============================================"
-echo "  Capella AI Dev Server Test Suite"
-echo "============================================"
-echo ""
-
-# Test 1: Check status
-echo ">>> Test 1: Check server status"
+echo ">>> Status"
 STATUS=$("${CURL[@]}" "$BASE_URL/status")
 echo "$STATUS" | jq .
-echo ""
-
-if echo "$STATUS" | grep -q '"hasSession": false'; then
-    echo "ERROR: No active Capella session!"
-    echo "Please open a Capella model first."
+if ! echo "$STATUS" | jq -e '.hasSession' >/dev/null; then
+    echo "ERROR: open a Capella model first." >&2
     exit 1
 fi
 
-# Test 2: Get system prompt
-echo ">>> Test 2: Get system prompt (first 500 chars)"
-"${CURL[@]}" "$BASE_URL/prompt" | jq -r '.prompt' | head -c 500
-echo "..."
-echo ""
-
-# Test 3: Execute simple Groovy code
-echo ">>> Test 3: Execute Groovy - list all SystemFunctions"
+echo ">>> Execute: count SystemFunctions"
 "${CURL[@]}" -X POST "$BASE_URL/execute" \
     -H "Content-Type: text/plain" \
     -d 'def functions = api.findAll("SystemFunction")
-log.info("Found ${functions.size()} SystemFunctions")
 functions.take(5).each { f -> log.info("  - ${f.name}") }
 return functions.size()' | jq .
-echo ""
 
-# Test 4: Execute query on IFE model
-echo ">>> Test 4: Find 'Make Audio Announcement' activity"
-"${CURL[@]}" -X POST "$BASE_URL/execute" \
-    -H "Content-Type: text/plain" \
-    -d 'def activity = api.find("Make Audio Announcement")
-if (activity) {
-    log.info("Found: ${activity.name}")
-    log.info("Type: ${activity.eClass().name}")
-    return activity.name
-} else {
-    log.warn("Not found")
-    return null
-}' | jq .
-echo ""
-
-# Test 5: Full LLM chat flow
-echo ">>> Test 5: Full LLM Chat - ask to describe the model"
-"${CURL[@]}" -X POST "$BASE_URL/chat" \
-    -H "Content-Type: text/plain" \
-    -d "List the top 5 SystemFunctions in this model and their descriptions" | jq .
-echo ""
-
-# Test 6: LLM creates new element
-echo ">>> Test 6: Full LLM Chat - create new function"
-"${CURL[@]}" -X POST "$BASE_URL/chat" \
-    -H "Content-Type: text/plain" \
-    -d "Create a new SystemFunction called 'Stream Podcast Content' with description 'Allows passengers to stream podcast episodes during flight'" | jq .
-echo ""
-
-echo "============================================"
-echo "  Test Suite Complete!"
-echo "============================================"
+echo ">>> MCP: list tools"
+"${CURL[@]}" -X POST "$BASE_URL/mcp" \
+    -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '[.result.tools[].name]'
