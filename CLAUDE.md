@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Capella AI Assistant is an Eclipse plug-in for Capella 7 that lets a chat agent inspect a live Arcadia model (OA, SA, LA, PA, EPBS), keep a task plan, and propose **Groovy scripts** that the user reviews before they run. The LLM writes code against a curated API rather than calling one JSON tool per operation. `README.md` is the authoritative user-facing description; `AGENTS.md` holds the shared repository guidelines.
+Capella AI Assistant is an Eclipse plug-in for Capella 7 that lets a chat agent inspect a live Arcadia model (OA, SA, LA, PA, EPBS), keep a task plan, and propose **Groovy scripts** that the user reviews before they run. The LLM writes code against a curated API rather than calling one JSON tool per operation. `README.md` is the authoritative user-facing description; `CONTRIBUTING.md` holds the build, style and commit guidelines.
 
 ## Build and Test
 
@@ -89,7 +89,7 @@ Known traps: Capella 7.0.0 ships Guava 21 and 31.1 only, so bundled dependencies
 
 ## Conventions
 
-- Packages: `org.polarsys.capella.ai.*`. Java 17, 4-space indent, UTF-8.
+- Packages: `org.polarsys.capella.ai.*`. Java 17, UTF-8, google-java-format AOSP style (command in `CONTRIBUTING.md`). Test-called classes must be `public`: tests run in a separate OSGi bundle.
 - When adding views, pages or services, update `plugin.xml`, `build.properties` and `plugins/ai-capella-feature/feature.xml`. Bundle and feature versions follow `0.x.y.qualifier`; the reactor is `plugins/pom.xml`, and the target platform is `releng/capella-target`.
 - Tests go in `plugins/ai-capella.tests/src`, mirror the source package, are named `*Test`, and must be deterministic.
 - Commits use Conventional Commits (`feat:`, `fix(diagram):`, ...).
