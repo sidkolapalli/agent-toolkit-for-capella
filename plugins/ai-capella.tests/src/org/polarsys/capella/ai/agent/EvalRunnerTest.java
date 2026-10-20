@@ -117,6 +117,17 @@ public class EvalRunnerTest {
         assertEquals(1, result.committed());
         assertEquals(0, result.repairs());
         assertTrue(result.requests() >= 3);
+        assertEquals("Each applied proposal records what the agent declared and what was verified",
+            List.of(Map.of("step_ids", List.of("edit"), "declared_checks", 1, "verified_step_ids", List.of("edit"))), result.json().get("edits"));
+    }
+
+    @Test public void aProposalWithoutChecksLeavesItsStepUnverifiedAndSaysSo() throws Exception {
+        String unchecked = AgentJson.write(Map.of("kind", "proposal", "message", "Create Probe",
+            "script", "api.create('LA', 'LogicalFunction', 'Probe')", "stepIds", List.of("edit")));
+        var result = run(task("Probe"), plan(), unchecked, finalReply());
+        assertTrue(result.passed());
+        assertEquals("blocked", result.ending());
+        assertEquals(List.of(Map.of("step_ids", List.of("edit"), "declared_checks", 0, "verified_step_ids", List.of())), result.json().get("edits"));
     }
 
     @Test public void wrongModelChangeFailsEvenWhenTheAgentClaimsSuccess() throws Exception {

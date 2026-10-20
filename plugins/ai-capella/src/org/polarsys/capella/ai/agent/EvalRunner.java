@@ -32,15 +32,20 @@ public final class EvalRunner {
         }
     }
 
-    /** {@code detail} is the execution or preparation feedback behind a blocked ending, bounded; empty otherwise. */
+    /**
+     * {@code detail} is the execution or preparation feedback behind a blocked ending, bounded; empty otherwise.
+     * {@code edits} has one entry per applied proposal: its step IDs, how many checks the agent declared, and
+     * which steps those checks verified. It explains a plan left pending.
+     */
     public record Result(String id, boolean passed, String checks, int requests, int toolCalls, int proposals,
-            int committed, int repairs, int continuations, String ending, String detail, long durationMs) {
+            int committed, int repairs, int continuations, String ending, String detail, long durationMs,
+            List<Map<String, Object>> edits) {
         public Map<String, Object> json() {
             Map<String, Object> json = new LinkedHashMap<>();
             json.put("id", id); json.put("passed", passed); json.put("requests", requests); json.put("tool_calls", toolCalls);
             json.put("proposals", proposals); json.put("committed", committed); json.put("repairs", repairs);
             json.put("continuations", continuations); json.put("ending", ending); json.put("detail", detail);
-            json.put("duration_ms", durationMs);
+            json.put("duration_ms", durationMs); json.put("edits", edits);
             json.put("checks", checks);
             return json;
         }
@@ -78,6 +83,7 @@ public final class EvalRunner {
         int requests = 0, toolCalls = 0, proposals = 0, committed = 0, repairs = 0, continuations = 0;
         String ending = "complete", detail = "";
         List<Message> history = List.of();
+        List<Map<String, Object>> edits = new ArrayList<>();
         String input = task.prompt();
         requests:
         for (;;) {
@@ -111,6 +117,8 @@ public final class EvalRunner {
                         turn.proposalCode(), turn.postconditions(), "eval-" + task.id(), SelectionContext.empty(),
                         () -> true, () -> false, session::isOpen, validator), new ReviewedEdit.Listener() {});
                     if (edit.committed()) committed++;
+                    edits.add(Map.of("step_ids", List.copyOf(turn.proposalStepIds()), "declared_checks", turn.postconditions().size(),
+                        "verified_step_ids", List.copyOf(edit.execution().completedStepIds())));
                     if (!edit.result().codeExecuted || !edit.execution().saved()) {
                         agent.recordOutcome(turn, edit.execution());
                         ending = edit.committed() ? "blocked: committed but not saved" : "blocked: proposal did not apply";
@@ -141,7 +149,7 @@ public final class EvalRunner {
         }
         ModelPostconditions.Report checks = ModelPostconditions.check(session, task.checks());
         return new Result(task.id(), checks.allPassed(), checks.markdownSummary(), requests, toolCalls, proposals,
-            committed, repairs, continuations, ending, detail, (System.nanoTime() - started) / 1_000_000);
+            committed, repairs, continuations, ending, detail, (System.nanoTime() - started) / 1_000_000, List.copyOf(edits));
     }
 
     private static String bounded(String text) {
