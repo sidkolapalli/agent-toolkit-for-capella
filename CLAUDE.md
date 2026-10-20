@@ -27,7 +27,7 @@ mvn -f plugins clean verify -DskipTests           # refresh binaries only
 
 ### Manual testing in Capella
 
-Install the update site with **Help → Install New Software → Add → Local**, restart, and open **Window → Show View → Other → Capella AI Assistant**. The **AI Dev Server** view (port 8765, or `CAPELLA_AI_DEVSERVER_AUTOSTART=1`) exposes `GET /status`, `/prompt`, `/context` and `POST /execute`, `/chat` for testing without the UI, plus `POST /mcp` (`dev/McpServer`), an MCP endpoint offering the read tools to any MCP client. `test-dev-server.sh` is a smoke test; `scripts/run-capella-dev.sh` launches Capella with the dev server auto-started.
+Install the update site with **Help → Install New Software → Add → Local**, restart, and open **Window → Show View → Other → Capella AI Assistant**. The **AI Dev Server** view (port 8765, or `CAPELLA_AI_DEVSERVER_AUTOSTART=1`) exposes `GET /status`, `/prompt`, `/context` and `POST /execute`, `/chat` for testing without the UI. It also serves `POST /mcp` (`dev/McpServer`: read tools plus `propose_model_edit`/`edit_status` from `dev/McpEdits`, always reviewed by a person in Capella) and `POST /eval` (`agent/EvalRunner`, opt-in with `-Dcapella.ai.eval=true`; tasks in `test-models/evals/`). `test-dev-server.sh` is a smoke test; `scripts/run-capella-dev.sh` launches Capella with the dev server auto-started.
 
 ## Architecture
 
@@ -42,17 +42,18 @@ All code is under `plugins/ai-capella/src/org/polarsys/capella/ai/`.
 3. **`agent/ArcadiaModelTools`** runs the read-only tools (architecture summary, search, inspect element or relations, structural checks, native validation, docs, capabilities) on the captured session. These tools never evaluate scripts.
 4. Write proposals carry Groovy source and typed postconditions. **`scripting/GroovyCompilationValidator`** compiles them without running anything. Failures become bounded diagnostics (`agent/TaskPreparation`) that drive automatic corrections, counted against the task budget.
 5. The user reviews in **`CodePreviewDialog`** (Changes tab and Script tab) and chooses Apply or Cancel. Every corrective script needs a fresh review.
-6. **`scripting/GroovyExecutor`** runs the exact reviewed source in a single undoable EMF transaction with a deadline and cooperative cancellation, then saves after commit.
+6. **`agent/ReviewedEdit`** is the shared post-review pipeline used by the chat, MCP edits and evals: **`scripting/GroovyExecutor`** runs the exact reviewed source in a single undoable EMF transaction with a deadline and cooperative cancellation, then saves after commit.
 7. Verification:
    - `agent/ModelChangeSummary` records net created, edited and deleted elements.
    - `agent/ModelPostconditions` and `NativeStructuralAssertions` check the declared expectations.
    - `scripting/NativeValidationDiagnostics` diffs validator output before and after.
    - The resulting `ArcadiaAgent.ExecutionOutcome` is returned to the agent as an authoritative receipt, and the agent continues in a fresh bounded turn. A committed script is never replayed.
+8. A request that runs out of budget with edit steps pending continues as a fresh request (`agent/TaskContinuation`, at most `ChatView.MAX_AUTOMATIC_CONTINUATIONS` per user message). Blocked, needs-input and failed-save endings never continue.
 
 ### Script API (Groovy bindings: `api`, `selection`, `activeDiagram`, `log`)
 
 - `CapellaAPI`: the root `api`; find, create, link and modify across layers. `RelationFactory` and `model/ElementFactory` handle the low-level construction.
-- `api.diagram`: `DiagramAPI`, which builds on `tools/DiagramCommands`.
+- `api.diagram`: `DiagramAPI`, which builds on `tools/DiagramCommands`. `layout(d, "auto")` is `tools/ElkDiagramLayout` (Eclipse ELK layered, hierarchical, orthogonal routes and edge labels written back as GMF bendpoints and label offsets); the geometric strategies use `tools/DiagramWiring` for routing style and port sides.
 - `api.ops`: `OpsAPI`, the native engineering operations.
 - `api.arcadia`: `ArcadiaAPI` and `Arcadia{Structure,Behavior,Interface,Constraint}API`.
 - `api.fs`: `FileSystemAPI`, on-demand docs from `resources/capella-api/` (`SKILL.md`, `api/`, `metamodel/`, `skills/`).
@@ -66,6 +67,7 @@ When you add or change API methods, update the matching docs in `resources/capel
 - `session/`: `SessionSafeguards` (`runWrite`, `runWriteWithResult`, `deferSaves`, `requestSave`, `runOnUiThread`, cancellation control), `SessionBridge`, `SelectionContext`.
 - `presentation/`: `ConversationStore` and `ConversationState` hold the per-model history, draft, plan and Codex thread ID saved in workspace plug-in metadata. Approvals and live model references are never saved.
 - `privacy/Tokenizer`: optional best-effort tokenization of quoted names and UUIDs before anything is sent to a provider.
+- `model_validate` (in `ArcadiaModelTools`) also reports Arcadia method gaps as warnings with a `rule` id; absence rules only run on whole-layer reads (`methodology_scope`).
 - `model/`: `ModelSummary` (cached, invalidated after mutations), `Finders`, `ArchitectureLocator`, `ModelAnalytics`.
 - `preferences/`: `LLMPreferences` (provider, keys in Eclipse secure storage), `codex/CodexPreferences` (runtime selection, binary, model), plus Advanced, Output and Skill preferences.
 - `dev/DevServer`, `importer/SpecImporter`, `telemetry/` (opt-in and local only), `views/` (AI Diagrams, AI Log Inspector).
@@ -78,6 +80,12 @@ When you add or change API methods, update the matching docs in `resources/capel
 - **Codex sandbox:** shell, filesystem, patch, MCP, browser and web-search tools stay disabled in the child runtime, and generic approval requests are declined.
 - **Honest reporting:** rollback, a save failure after commit, and unavailable or incomplete evidence are reported as separate outcomes. A step stays pending until its result is independently confirmed.
 - Nested skills reuse the outer transaction and deadline; a failing nested skill rolls back the outer script.
+
+## Verifying in Capella
+
+Unit tests use a proxied `Session`; they cannot show rendering, OSGi wiring or install problems. For changes there, build, install into the Capella at `<local-path> with the p2 director (`capellac.exe -application org.eclipse.equinox.p2.director`), launch it on a scratch copy of a project from `capella-test-workspace/` with the dev server on, and drive it over `/execute`. Diagram changes: export PNGs with `DialectUIManager.INSTANCE.export(...)` and look at them. Chat-loop changes: run a scenario from `.build-tools/arcadia-agent/configure_scenario.py` against `mock_provider.py` with the Direct runtime.
+
+Known traps: Capella 7.0.0 ships Guava 21 and 31.1 only, so bundled dependencies must resolve against those (the feature ships Guava 30.1 for `xtext.xbase.lib`). Tycho's ECJ can hang on a ternary that binds the same pattern variable name in both branches; javac accepts it.
 
 ## Conventions
 
