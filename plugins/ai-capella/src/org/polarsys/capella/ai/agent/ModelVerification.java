@@ -9,7 +9,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.scripting.CapellaAPI;
-import org.polarsys.capella.ai.session.SessionSafeguards;
 
 /** Optional evidence from Capella's installed validator, never a compliance verdict. */
 public final class ModelVerification {
@@ -94,20 +93,29 @@ public final class ModelVerification {
      * is bounded; callers should not invoke it for every read or chat message.
      */
     public static Snapshot snapshot(Session session) {
+        return snapshot(session, open -> new CapellaAPI(open).validateNative());
+    }
+
+    /**
+     * A worker caller validates on its own thread under the domain's exclusive read, like Capella's own
+     * validation job: on a 312,000-object model a full pass takes about 48 s, which froze the UI when it ran
+     * there. A caller already on the UI thread keeps running there.
+     */
+    public static Snapshot snapshot(Session session, java.util.function.Function<Session, Map<String, Object>> nativeValidation) {
         AtomicReference<Snapshot> snapshot = new AtomicReference<>();
+        Runnable validate = () -> {
+            if (session == null || !session.isOpen() || session.getTransactionalEditingDomain() == null) {
+                snapshot.set(Snapshot.unavailable("An open Capella model and its editing domain are required.")); return;
+            }
+            try {
+                session.getTransactionalEditingDomain().runExclusive(() -> snapshot.set(fromNativeResult(nativeValidation.apply(session))));
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                snapshot.set(Snapshot.unavailable("Native validation was interrupted."));
+            }
+        };
         try {
-            SessionSafeguards.runOnUiThread(() -> {
-                if (session == null || !session.isOpen() || session.getTransactionalEditingDomain() == null) {
-                    snapshot.set(Snapshot.unavailable("An open Capella model and its editing domain are required.")); return;
-                }
-                try {
-                    session.getTransactionalEditingDomain().runExclusive(() ->
-                        snapshot.set(fromNativeResult(new CapellaAPI(session).validateNative())));
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                    snapshot.set(Snapshot.unavailable("Native validation was interrupted."));
-                }
-            });
+            validate.run();
         } catch (RuntimeException failure) {
             snapshot.set(Snapshot.unavailable("Native validation could not run: " + failure.getMessage()));
         }

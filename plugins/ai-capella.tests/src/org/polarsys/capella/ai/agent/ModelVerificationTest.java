@@ -47,6 +47,35 @@ public class ModelVerificationTest {
         assertEquals(-1, report.additionalErrorCount());
     }
 
+    /** Stress test: full validation of a 312,000-object model froze Capella for 48 s on the UI thread. */
+    @Test public void workerRequestsValidateOnTheWorkerUnderAnExclusiveRead() throws Exception {
+        org.eclipse.swt.widgets.Display ui = org.eclipse.swt.widgets.Display.getDefault();
+        var domain = org.eclipse.emf.transaction.TransactionalEditingDomain.Factory.INSTANCE.createEditingDomain();
+        try {
+            var session = (org.eclipse.sirius.business.api.session.Session) java.lang.reflect.Proxy.newProxyInstance(
+                org.eclipse.sirius.business.api.session.Session.class.getClassLoader(), new Class<?>[] {org.eclipse.sirius.business.api.session.Session.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getTransactionalEditingDomain" -> domain; case "isOpen" -> true;
+                    case "hashCode" -> System.identityHashCode(proxy); case "equals" -> proxy == args[0]; default -> null;
+                });
+            var ranOn = new java.util.concurrent.atomic.AtomicReference<Thread>();
+            var exclusive = new java.util.concurrent.atomic.AtomicBoolean();
+            var worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+            try {
+                var result = worker.submit(() -> ModelVerification.snapshot(session, ignored -> {
+                    ranOn.set(Thread.currentThread());
+                    exclusive.set(((org.eclipse.emf.transaction.impl.InternalTransactionalEditingDomain) domain).getActiveTransaction() != null);
+                    return Map.of("errors", 0L, "warnings", 2L, "issueCount", 2L, "issues", List.of(), "truncated", false);
+                }));
+                // The UI thread does not dispatch events here: a UI-thread validation could not finish.
+                var snapshot = result.get(20, java.util.concurrent.TimeUnit.SECONDS);
+                assertTrue(snapshot.available()); assertEquals(2, snapshot.warnings());
+                assertNotSame("Validation must not occupy the UI thread", ui.getThread(), ranOn.get());
+                assertTrue("It still reads under the domain's exclusive lock", exclusive.get());
+            } finally { worker.shutdownNow(); }
+        } finally { domain.dispose(); }
+    }
+
     @Test public void unavailableValidatorKeepsCountsUnknown() {
         var absent = ModelVerification.snapshot(null);
         assertFalse(absent.available()); assertEquals(-1, absent.errors());
