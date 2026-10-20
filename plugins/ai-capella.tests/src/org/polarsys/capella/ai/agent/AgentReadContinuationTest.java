@@ -30,6 +30,17 @@ public class AgentReadContinuationTest {
         assertThrows(IllegalArgumentException.class, () -> TaskTermination.fromFinal(Map.of("state", "complete", "cause", "premature_complete"), pending));
     }
 
+    @Test public void prematureCompletionNamesThePendingSteps() {
+        var plan = List.of(new ArcadiaAgent.Step("create", "Create components", "completed", "edit"),
+            new ArcadiaAgent.Step("diagram", "Lay out the BMS diagram", "pending", "edit"));
+        String reason = TaskTermination.fromFinal(Map.of("state", "complete"), plan).reason();
+        assertTrue(reason, reason.startsWith("1 declared plan step remains pending or unverified: 'Lay out the BMS diagram' (edit)."));
+        assertFalse(reason.contains("Create components"));
+        var many = new ArrayList<ArcadiaAgent.Step>();
+        for (int i = 0; i < 12; i++) many.add(new ArcadiaAgent.Step("s" + i, "x".repeat(240), "pending", "read"));
+        assertTrue(TaskTermination.fromFinal(Map.of("state", "complete"), many).reason().length() <= TaskTermination.MAX_REASON_CHARS);
+    }
+
     @Test public void oneReadContinuationUsesActualEvidenceAndCumulativeCounters() {
         Provider provider = new Provider(plan("read"), complete(), read(), complete()); AtomicInteger reads = new AtomicInteger();
         var agent = agent(provider, reads, ArcadiaAgent.Limits.defaults());

@@ -66,9 +66,10 @@ public record TaskTermination(State state, String reason, Scope scope, Cause cau
         if (proposal) return review(plan);
         if (value == null) return null; // Local execution receipt snapshot before another inference phase.
         if (value.state == State.COMPLETE && plan.stream().anyMatch(step -> !"completed".equals(step.status()))) {
-            long pending = plan.stream().filter(step -> !"completed".equals(step.status())).count();
-            return new TaskTermination(State.BLOCKED, pending + " declared plan step" + (pending == 1 ? " remains" : "s remain")
-                + " pending or unverified. The answer has not established completion of this plan.", Scope.DECLARED_PLAN, Cause.PREMATURE_COMPLETE);
+            var pending = plan.stream().filter(step -> !"completed".equals(step.status())).toList();
+            String names = String.join(", ", pending.stream().map(step -> "'" + step.title() + "' (" + step.type() + ")").toList());
+            return new TaskTermination(State.BLOCKED, hostReason(pending.size() + " declared plan step" + (pending.size() == 1 ? " remains" : "s remain")
+                + " pending or unverified: " + names + ". The answer has not established completion of this plan."), Scope.DECLARED_PLAN, Cause.PREMATURE_COMPLETE);
         }
         Cause cause = !plan.isEmpty() && plan.stream().anyMatch(step -> !"completed".equals(step.status())) ? value.cause : Cause.NONE;
         return new TaskTermination(value.state, value.reason, scope(plan), cause);
