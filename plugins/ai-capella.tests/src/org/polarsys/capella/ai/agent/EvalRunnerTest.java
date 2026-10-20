@@ -205,7 +205,7 @@ public class EvalRunnerTest {
     }
 
     @Test
-    public void aBlockedTaskReportsWhyItsProposalDidNotApply() throws Exception {
+    public void aRolledBackProposalGoesBackToTheAgentLikeInTheChat() throws Exception {
         String failing =
                 AgentJson.write(
                         Map.of(
@@ -217,13 +217,12 @@ public class EvalRunnerTest {
                                 "assert false : 'deliberate runtime failure'",
                                 "stepIds",
                                 List.of("edit")));
-        var result = run(task("Probe"), plan(), failing, finalReply());
-        assertFalse(result.passed());
-        assertTrue(result.ending(), result.ending().startsWith("blocked"));
-        assertTrue(
-                "The failure reason travels with the result: " + result.detail(),
-                result.detail().contains("deliberate runtime failure"));
-        assertEquals(result.detail(), result.json().get("detail"));
+        var result = run(task("Probe"), plan(), failing, proposal("Probe"), finalReply());
+        assertTrue(result.toString(), result.passed());
+        assertEquals(2, result.proposals());
+        assertEquals(1, result.committed());
+        assertEquals(
+                "Both attempts are on record", 2, ((List<?>) result.json().get("edits")).size());
     }
 
     @Test

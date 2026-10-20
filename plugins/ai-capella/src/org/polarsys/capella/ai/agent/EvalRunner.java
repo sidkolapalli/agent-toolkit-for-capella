@@ -199,7 +199,9 @@ public final class EvalRunner {
                                     List.copyOf(edit.execution().completedStepIds()),
                                     "checks_and_validation",
                                     bounded(checksAt < 0 ? "" : receipt.substring(checksAt))));
-                    if (!edit.result().codeExecuted || !edit.execution().saved()) {
+                    // As in the chat: a rolled-back script goes back to the agent with its receipt.
+                    if (!edit.result().codeExecuted
+                            || edit.committed() && !edit.execution().saved()) {
                         agent.recordOutcome(turn, edit.execution());
                         ending =
                                 edit.committed()
