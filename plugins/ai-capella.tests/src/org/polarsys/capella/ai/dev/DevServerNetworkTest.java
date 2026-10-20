@@ -45,6 +45,36 @@ public class DevServerNetworkTest {
     }
 
     @Test
+    public void mcpEndpointSpeaksJsonRpcOverPostOnlyAndRejectsBrowsers() throws Exception {
+        DevServer.start(0);
+        InetSocketAddress address = DevServer.getAddress();
+        URI endpoint = new URI("http", null, address.getAddress().getHostAddress(), address.getPort(), "/mcp", null, null);
+        HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        String initialize = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\"}}";
+
+        HttpResponse<String> ok = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5))
+            .header("Content-Type", "application/json").header("Accept", "application/json, text/event-stream")
+            .POST(HttpRequest.BodyPublishers.ofString(initialize)).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, ok.statusCode());
+        assertTrue(ok.headers().firstValue("Content-Type").orElse("").startsWith("application/json"));
+        assertTrue(ok.body().contains("\"protocolVersion\""));
+
+        HttpResponse<String> note = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5))
+            .POST(HttpRequest.BodyPublishers.ofString("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}")).build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals("Notifications are accepted without a body", 202, note.statusCode());
+
+        HttpResponse<String> stream = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5)).GET().build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals("No server-initiated stream is offered", 405, stream.statusCode());
+
+        HttpResponse<String> browser = client.send(HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5))
+            .header("Origin", "https://example.invalid").POST(HttpRequest.BodyPublishers.ofString(initialize)).build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals(403, browser.statusCode());
+    }
+
+    @Test
     public void stoppingServerShutsDownWorkersAndAllowsRestart() throws Exception {
         DevServer.start(0);
         Field field = DevServer.class.getDeclaredField("requestExecutor");

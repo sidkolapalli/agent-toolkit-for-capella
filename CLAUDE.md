@@ -27,7 +27,7 @@ mvn -f plugins clean verify -DskipTests           # refresh binaries only
 
 ### Manual testing in Capella
 
-Install the update site with **Help → Install New Software → Add → Local**, restart, and open **Window → Show View → Other → Capella AI Assistant**. The **AI Dev Server** view (port 8765, or `CAPELLA_AI_DEVSERVER_AUTOSTART=1`) exposes `GET /status`, `/prompt`, `/context` and `POST /execute`, `/chat` for testing without the UI. `test-dev-server.sh` is a smoke test; `scripts/run-capella-dev.sh` launches Capella with the dev server auto-started.
+Install the update site with **Help → Install New Software → Add → Local**, restart, and open **Window → Show View → Other → Capella AI Assistant**. The **AI Dev Server** view (port 8765, or `CAPELLA_AI_DEVSERVER_AUTOSTART=1`) exposes `GET /status`, `/prompt`, `/context` and `POST /execute`, `/chat` for testing without the UI, plus `POST /mcp` (`dev/McpServer`), an MCP endpoint offering the read tools to any MCP client. `test-dev-server.sh` is a smoke test; `scripts/run-capella-dev.sh` launches Capella with the dev server auto-started.
 
 ## Architecture
 

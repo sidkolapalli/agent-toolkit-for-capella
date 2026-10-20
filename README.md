@@ -118,6 +118,7 @@ Open **AI Dev Server** and click **Start**, or opt into startup with `CAPELLA_AI
 - `GET /prompt`: current code-generation prompt.
 - `GET /context`: active diagram and selection.
 - `POST /execute`: execute an explicitly submitted script.
+- `POST /mcp`: [Model Context Protocol](https://modelcontextprotocol.io) endpoint (JSON-RPC 2.0, Streamable HTTP without server streaming). It exposes the eight native read tools for the model open in Capella to any MCP client, for example `claude mcp add --transport http capella http://127.0.0.1:8765/mcp`. Reads never save or change the model.
 - `POST /chat`: generate a reply; automatically execute only when actions are enabled and confirmation is disabled. With confirmation enabled, the reply is returned for review.
 
 Use `test-dev-server.sh` for an opt-in smoke test against a disposable model. Telemetry and dataset logging are opt-in and local.

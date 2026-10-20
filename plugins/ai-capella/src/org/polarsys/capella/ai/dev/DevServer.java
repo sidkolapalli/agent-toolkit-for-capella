@@ -43,6 +43,7 @@ import org.polarsys.capella.ai.session.SessionSafeguards;
  * <ul>
  *   <li>POST /execute - Execute Groovy code directly</li>
  *   <li>POST /inspect - Fixed model read tools with JSON arguments; no script execution</li>
+ *   <li>POST /mcp - Model Context Protocol (JSON-RPC 2.0) exposing the same read tools</li>
  *   <li>POST /chat - Send prompt to LLM and execute generated code</li>
  *   <li>GET /status - Check server and session status</li>
  *   <li>GET /prompt - Get the system prompt for code generation</li>
@@ -127,6 +128,7 @@ public final class DevServer {
             // Endpoints
             addLocalContext("/execute", DevServer::handleExecute);
             addLocalContext("/inspect", DevServer::handleInspect);
+            addLocalContext("/mcp", DevServer::handleMcp);
             addLocalContext("/chat", DevServer::handleChat);
             addLocalContext("/status", DevServer::handleStatus);
             addLocalContext("/prompt", DevServer::handlePrompt);
@@ -142,6 +144,7 @@ public final class DevServer {
             System.out.println("[DevServer] Endpoints:");
             System.out.println("  POST /execute - Execute Groovy code");
             System.out.println("  POST /inspect - Fixed native read tools (JSON data only)");
+            System.out.println("  POST /mcp     - Model Context Protocol (JSON-RPC) read tools");
             System.out.println(
                 "  POST /chat    - Send prompt to LLM, execute result"
             );
@@ -250,9 +253,41 @@ public final class DevServer {
         }
     }
 
+    /** POST /mcp: one JSON-RPC message per request; no server-initiated stream (GET is refused). */
+    private static void handleMcp(HttpExchange exchange) throws IOException {
+        if (!"POST".equals(exchange.getRequestMethod())) {
+            exchange.getResponseHeaders().add("Allow", "POST");
+            sendResponse(exchange, 405, "{\"error\":\"Method not allowed\"}");
+            return;
+        }
+        byte[] body;
+        try (InputStream input = exchange.getRequestBody()) {
+            body = input.readNBytes(MAX_INSPECTION_BODY_BYTES + 1);
+        }
+        if (body.length > MAX_INSPECTION_BODY_BYTES) {
+            sendResponse(exchange, 413, "{\"error\":\"MCP message exceeds 32768 bytes\"}");
+            return;
+        }
+        String response = McpServer.handle(SessionBridge.getActiveSession(), new String(body, StandardCharsets.UTF_8));
+        if (response == null) {
+            exchange.sendResponseHeaders(202, -1);
+            exchange.close();
+        } else {
+            sendResponse(exchange, 200, response);
+        }
+    }
+
     /** Package-local entry for isolated tests of the same data-only request path. */
     static String inspect(Session session, String json) throws Exception {
         return inspect(session, inspectionRequest(json));
+    }
+
+    /** A fixed read tool on the given session, addressed by that session's own URI (used by MCP). */
+    static String read(Session session, String tool, Map<String, Object> arguments) throws Exception {
+        Resource resource = session.getSessionResource();
+        if (resource == null || resource.getURI() == null) throw new InspectionRequestException("The Capella model has no session resource");
+        return inspect(session, new InspectionRequest(resource.getURI().toString(), tool,
+            java.util.Collections.unmodifiableMap(new LinkedHashMap<>(arguments))));
     }
 
     private static String inspect(Session session, InspectionRequest request) throws Exception {
