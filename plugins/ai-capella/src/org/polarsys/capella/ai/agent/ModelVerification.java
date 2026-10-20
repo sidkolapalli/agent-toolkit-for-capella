@@ -13,6 +13,7 @@ import org.eclipse.emf.transaction.TransactionalEditingDomain;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.scripting.CapellaAPI;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -146,10 +147,11 @@ public final class ModelVerification {
         return reusingSnapshot(session, open -> new CapellaAPI(open).validateNative());
     }
 
+    /** Weak, so a closed model is not kept in memory; its domain keeps the watcher alive. */
     private record LastPass(
-            Session session,
-            TransactionalEditingDomain domain,
-            ResourceSetListener watcher,
+            WeakReference<Session> session,
+            WeakReference<TransactionalEditingDomain> domain,
+            WeakReference<ResourceSetListener> watcher,
             AtomicBoolean changed,
             Snapshot snapshot) {}
 
@@ -166,9 +168,11 @@ public final class ModelVerification {
             Session session, Function<Session, Map<String, Object>> nativeValidation) {
         LastPass last = LAST_PASS.get();
         if (last != null
-                && last.session() == session
+                && session != null
+                && last.session().get() == session
                 && session.isOpen()
-                && session.getTransactionalEditingDomain() == last.domain()
+                && session.getTransactionalEditingDomain() == last.domain().get()
+                && last.watcher().get() != null
                 && !last.changed().get()) return last.snapshot();
         forgetLastPass();
         TransactionalEditingDomain domain =
@@ -184,15 +188,23 @@ public final class ModelVerification {
         if (snapshot.available()
                 && !changed.get()
                 && LAST_PASS.compareAndSet(
-                        null, new LastPass(session, domain, watcher, changed, snapshot)))
-            return snapshot;
+                        null,
+                        new LastPass(
+                                new WeakReference<>(session),
+                                new WeakReference<>(domain),
+                                new WeakReference<>(watcher),
+                                changed,
+                                snapshot))) return snapshot;
         domain.removeResourceSetListener(watcher);
         return snapshot;
     }
 
     public static void forgetLastPass() {
         LastPass last = LAST_PASS.getAndSet(null);
-        if (last != null) last.domain().removeResourceSetListener(last.watcher());
+        if (last == null) return;
+        TransactionalEditingDomain domain = last.domain().get();
+        ResourceSetListener watcher = last.watcher().get();
+        if (domain != null && watcher != null) domain.removeResourceSetListener(watcher);
     }
 
     private static ResourceSetListener semanticChangeWatcher(

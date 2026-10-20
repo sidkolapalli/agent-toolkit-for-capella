@@ -135,6 +135,41 @@ public class ModelVerificationReuseTest {
         assertEquals(2, failures.get());
     }
 
+    /** A closed 300,000-object model must not stay in memory because its last pass is kept. */
+    @Test
+    public void theKeptPassDoesNotHoldTheModelInMemory() throws InterruptedException {
+        var model = keptPassOnAThrowawayModel();
+        for (int i = 0; i < 50 && model.get() != null; i++) {
+            System.gc();
+            Thread.sleep(20);
+        }
+        assertNull(model.get());
+    }
+
+    private java.lang.ref.WeakReference<Resource> keptPassOnAThrowawayModel() {
+        var resources = new ResourceSetImpl();
+        var model = new ResourceImpl(URI.createURI("memory:/throwaway.capella"));
+        resources.getResources().add(model);
+        var throwawayDomain =
+                TransactionalEditingDomain.Factory.INSTANCE.createEditingDomain(resources);
+        Session throwaway =
+                (Session)
+                        Proxy.newProxyInstance(
+                                Session.class.getClassLoader(),
+                                new Class<?>[] {Session.class},
+                                (proxy, method, args) ->
+                                        switch (method.getName()) {
+                                            case "getTransactionalEditingDomain" -> throwawayDomain;
+                                            case "getSemanticResources" -> List.of(model);
+                                            case "isOpen" -> true;
+                                            case "equals" -> proxy == args[0];
+                                            case "hashCode" -> System.identityHashCode(proxy);
+                                            default -> null;
+                                        });
+        assertTrue(ModelVerification.reusingSnapshot(throwaway, validation).available());
+        return new java.lang.ref.WeakReference<>(model);
+    }
+
     private void write(Runnable change) {
         domain.getCommandStack()
                 .execute(
