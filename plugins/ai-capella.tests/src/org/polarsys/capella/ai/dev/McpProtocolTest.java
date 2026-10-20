@@ -39,6 +39,17 @@ public class McpProtocolTest {
         assertEquals("No model open: a tool error, not a protocol error", Boolean.TRUE, result(call).get("isError"));
     }
 
+    @Test public void cacheableResultsCarryTheRequiredCachingHints() {
+        // Spec 2026-07-28 caching: discover and tools/list MUST carry ttlMs >= 0 and cacheScope.
+        for (String method : List.of("server/discover", "tools/list")) {
+            Map<?, ?> result = result(modern(method, Map.of(), MODERN, null));
+            assertEquals(method, 0L, ((Number) result.get("ttlMs")).longValue());
+            assertEquals(method, "private", result.get("cacheScope"));
+        }
+        var call = modern("tools/call", Map.of("name", "model_summary", "arguments", Map.of()), MODERN, "model_summary");
+        assertFalse("Tool results are not cacheable", result(call).containsKey("ttlMs"));
+    }
+
     @Test public void headersMustMatchTheBody() {
         var missingName = modern("tools/call", Map.of("name", "model_summary"), MODERN, null);
         assertEquals(400, missingName.status());

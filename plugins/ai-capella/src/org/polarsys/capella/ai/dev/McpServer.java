@@ -74,11 +74,11 @@ public final class McpServer {
             case "server/discover" -> {
                 List<String> supported = new ArrayList<>(List.of(MODERN_VERSION));
                 supported.addAll(LEGACY_VERSIONS);
-                yield ok(id, complete(Map.of("supportedVersions", supported, "capabilities", Map.of("tools", Map.of()),
+                yield ok(id, cacheable(Map.of("supportedVersions", supported, "capabilities", Map.of("tools", Map.of()),
                     "_meta", Map.of("io.modelcontextprotocol/serverInfo", serverInfo()), "instructions", INSTRUCTIONS)));
             }
             case "ping" -> ok(id, complete(Map.of()));
-            case "tools/list" -> ok(id, complete(Map.of("tools", tools())));
+            case "tools/list" -> ok(id, cacheable(Map.of("tools", tools())));
             case "tools/call" -> call(session, id, params, true);
             default -> new Response(404, error(id, -32601, "Method not found: " + method));
         };
@@ -163,6 +163,14 @@ public final class McpServer {
         complete.put("resultType", "complete");
         complete.putAll(result);
         return complete;
+    }
+
+    /** Caching hints the 2026-07-28 spec requires on discover and list results; always immediately stale. */
+    private static Map<String, Object> cacheable(Map<String, Object> result) {
+        Map<String, Object> cacheable = complete(result);
+        cacheable.put("ttlMs", 0);
+        cacheable.put("cacheScope", "private");
+        return cacheable;
     }
 
     private static Map<String, Object> serverInfo() { return Map.of("name", "capella-ai", "version", "0.2.1"); }
