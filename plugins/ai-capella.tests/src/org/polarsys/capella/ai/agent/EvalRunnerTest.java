@@ -117,8 +117,10 @@ public class EvalRunnerTest {
         assertEquals(1, result.committed());
         assertEquals(0, result.repairs());
         assertTrue(result.requests() >= 3);
-        assertEquals("Each applied proposal records what the agent declared and what was verified",
-            List.of(Map.of("step_ids", List.of("edit"), "declared_checks", 1, "verified_step_ids", List.of("edit"))), result.json().get("edits"));
+        var edit = edit(result);
+        assertEquals(List.of("edit"), edit.get("step_ids")); assertEquals(1, edit.get("declared_checks"));
+        assertEquals("Each applied proposal records what was verified", List.of("edit"), edit.get("verified_step_ids"));
+        assertTrue("and why: " + edit, String.valueOf(edit.get("checks_and_validation")).startsWith("Declared postconditions independently checked: 1/1 passed"));
     }
 
     @Test public void aProposalWithoutChecksLeavesItsStepUnverifiedAndSaysSo() throws Exception {
@@ -127,7 +129,8 @@ public class EvalRunnerTest {
         var result = run(task("Probe"), plan(), unchecked, finalReply());
         assertTrue(result.passed());
         assertEquals("blocked", result.ending());
-        assertEquals(List.of(Map.of("step_ids", List.of("edit"), "declared_checks", 0, "verified_step_ids", List.of())), result.json().get("edits"));
+        assertEquals(0, edit(result).get("declared_checks")); assertEquals(List.of(), edit(result).get("verified_step_ids"));
+        assertEquals("", edit(result).get("checks_and_validation"));
     }
 
     @Test public void wrongModelChangeFailsEvenWhenTheAgentClaimsSuccess() throws Exception {
@@ -178,6 +181,10 @@ public class EvalRunnerTest {
             if (!display.readAndDispatch()) Thread.sleep(2);
         }
         return work.get(1, TimeUnit.SECONDS);
+    }
+
+    private static Map<?, ?> edit(EvalRunner.Result result) {
+        List<?> edits = (List<?>) result.json().get("edits"); assertEquals(1, edits.size()); return (Map<?, ?>) edits.get(0);
     }
 
     private static java.util.Set<String> Set() { return java.util.Set.of("model_summary"); }

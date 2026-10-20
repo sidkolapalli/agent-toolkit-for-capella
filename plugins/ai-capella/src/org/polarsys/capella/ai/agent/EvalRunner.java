@@ -117,8 +117,11 @@ public final class EvalRunner {
                         turn.proposalCode(), turn.postconditions(), "eval-" + task.id(), SelectionContext.empty(),
                         () -> true, () -> false, session::isOpen, validator), new ReviewedEdit.Listener() {});
                     if (edit.committed()) committed++;
+                    String receipt = edit.execution().feedback();
+                    int checksAt = receipt.indexOf("Declared postconditions");
                     edits.add(Map.of("step_ids", List.copyOf(turn.proposalStepIds()), "declared_checks", turn.postconditions().size(),
-                        "verified_step_ids", List.copyOf(edit.execution().completedStepIds())));
+                        "verified_step_ids", List.copyOf(edit.execution().completedStepIds()),
+                        "checks_and_validation", bounded(checksAt < 0 ? "" : receipt.substring(checksAt))));
                     if (!edit.result().codeExecuted || !edit.execution().saved()) {
                         agent.recordOutcome(turn, edit.execution());
                         ending = edit.committed() ? "blocked: committed but not saved" : "blocked: proposal did not apply";
