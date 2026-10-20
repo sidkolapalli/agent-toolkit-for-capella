@@ -219,17 +219,27 @@ public final class DevServer {
         String configured = System.getenv("CAPELLA_AI_DEVSERVER_TOKEN");
         if (configured != null && configured.matches("[A-Za-z0-9._~+/=-]{16,256}")) token = configured;
         else {
+            if (configured != null && !configured.isBlank()) {
+                LOG.warning("CAPELLA_AI_DEVSERVER_TOKEN is ignored: use 16 to 256 URL-safe characters. A random token is used instead.");
+            }
             byte[] random = new byte[32];
             new java.security.SecureRandom().nextBytes(random);
             token = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(random);
         }
-        java.nio.file.Path file = tokenFile(port);
-        java.nio.file.Files.createDirectories(file.getParent());
-        java.nio.file.Files.writeString(file, token + "\n", StandardCharsets.UTF_8);
-        tokenFile = file;
+        java.nio.file.Path file = tokenFile(port), directory = file.getParent();
+        java.nio.file.Files.createDirectories(directory);
+        java.nio.file.Path draft;
         if (file.getFileSystem().supportedFileAttributeViews().contains("posix")) {
-            java.nio.file.Files.setPosixFilePermissions(file, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+            // Owner-only from creation: other local users must never be able to read the token.
+            java.nio.file.Files.setPosixFilePermissions(directory, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+            draft = java.nio.file.Files.createTempFile(directory, "devserver-", ".tmp",
+                java.nio.file.attribute.PosixFilePermissions.asFileAttribute(java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")));
+        } else {
+            draft = java.nio.file.Files.createTempFile(directory, "devserver-", ".tmp");
         }
+        java.nio.file.Files.writeString(draft, token + "\n", StandardCharsets.UTF_8);
+        java.nio.file.Files.move(draft, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        tokenFile = file;
     }
 
     private static boolean authorized(String header) {

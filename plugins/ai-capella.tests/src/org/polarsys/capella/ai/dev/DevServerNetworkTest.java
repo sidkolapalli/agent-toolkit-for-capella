@@ -62,6 +62,11 @@ public class DevServerNetworkTest {
                 assertEquals("Bearer", refused.headers().firstValue("WWW-Authenticate").orElse(""));
             }
         }
+        if (file.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+            assertEquals("Only the owner can read the token", "rw-------",
+                java.nio.file.attribute.PosixFilePermissions.toString(java.nio.file.Files.getPosixFilePermissions(file)));
+            assertEquals("rwx------", java.nio.file.attribute.PosixFilePermissions.toString(java.nio.file.Files.getPosixFilePermissions(file.getParent())));
+        }
         DevServer.stop();
         assertFalse("The token file is removed with the server", java.nio.file.Files.exists(file));
     }
