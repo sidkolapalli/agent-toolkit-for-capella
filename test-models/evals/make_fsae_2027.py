@@ -182,7 +182,8 @@ task("document-imd", f"Set the summary of the logical component '{C['IMD']}' to 
 
 data = {"description": "FSAE 2027 electric vehicle tasks for a disposable copy of the FSAE-2027-Electric-Arcadia project: requirements traceability, "
         "functional chains, interfaces and exchange items, modes and states, scenarios, architecture extensions, diagrams and model maintenance. "
-        "Scored only by native checks. Run with restore=true.", "restore": True, "tasks": tasks}
+        "Scored only by native checks. Run with restore=true. Needs the Requirements Viewpoint add-on.",
+        "requires": "http://www.polarsys.org/capella/requirements", "restore": True, "tasks": tasks}
 with open(sys.argv[1], "w", encoding="utf-8") as out:
     out.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 print(len(tasks), "tasks")

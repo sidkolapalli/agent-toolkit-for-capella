@@ -1,5 +1,6 @@
 {
-  "description": "FSAE 2027 electric vehicle tasks for a disposable copy of the FSAE-2027-Electric-Arcadia project: requirements traceability, functional chains, interfaces and exchange items, modes and states, scenarios, architecture extensions, diagrams and model maintenance. Scored only by native checks. Run with restore=true.",
+  "description": "FSAE 2027 electric vehicle tasks for a disposable copy of the FSAE-2027-Electric-Arcadia project: requirements traceability, functional chains, interfaces and exchange items, modes and states, scenarios, architecture extensions, diagrams and model maintenance. Scored only by native checks. Run with restore=true. Needs the Requirements Viewpoint add-on.",
+  "requires": "http://www.polarsys.org/capella/requirements",
   "restore": true,
   "tasks": [
     {

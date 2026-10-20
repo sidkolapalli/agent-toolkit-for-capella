@@ -101,8 +101,22 @@ public class EvalRunnerTest {
         try (var paths = java.nio.file.Files.list(dir)) {
             for (var file : paths.filter(path -> path.toString().endsWith(".json")).toList()) {
                 files++;
-                for (EvalRunner.Task task : EvalRunner.parse(java.nio.file.Files.readString(file))) {
-                    assertTrue("Task ids are unique across files: " + task.id(), ids.add(task.id()));
+                String json = java.nio.file.Files.readString(file);
+                var raw = (Map<?, ?>) AgentJson.parse(json, 2_000_000);
+                // A file can need an optional Capella add-on (the FSAE tasks trace to Requirements Viewpoint
+                // requirements); its native types exist only where that add-on is installed.
+                boolean typesAvailable = !(raw.get("requires") instanceof String namespace)
+                    || org.eclipse.emf.ecore.EPackage.Registry.INSTANCE.containsKey(namespace);
+                if (typesAvailable) {
+                    for (EvalRunner.Task task : EvalRunner.parse(json)) {
+                        assertTrue("Task ids are unique across files: " + task.id(), ids.add(task.id()));
+                    }
+                } else {
+                    for (Object task : (List<?>) raw.get("tasks")) {
+                        Map<?, ?> fields = (Map<?, ?>) task;
+                        assertTrue("Every task has a prompt and checks", fields.get("prompt") instanceof String && fields.get("checks") instanceof List<?> checks && !checks.isEmpty());
+                        assertTrue("Task ids are unique across files: " + fields.get("id"), ids.add(String.valueOf(fields.get("id"))));
+                    }
                 }
             }
         }
