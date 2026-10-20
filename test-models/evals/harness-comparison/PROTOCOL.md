@@ -63,3 +63,10 @@ Only disposable copies are used. Transcripts (`events.jsonl`), final messages an
 `grade.groovy` (the scorer), `NOTES.md` (what setup A is given), `analyze.py` (the tables above). Paths point at the
 author's machine; adjust `CAPELLA`, `CODEX`, the pristine model copy and the venv to rerun. Pilot (rep 0): one task,
 all three setups passed with no integrity change.
+
+## Amendment (2026-10-20, before any result was analysed)
+
+The ChatGPT Plus 5-hour Codex window ran out about 20 minutes into the scored runs; every later run failed in
+seconds with "usage limit". Those 33 runs measured the account, not the agent, so they were deleted. From now on a
+run that hits the usage limit is not scored and is rerun when the window resets. All setups stop if the weekly
+window reaches 80%, so the account stays usable; repetitions finish in order, so a stop leaves whole repetitions.

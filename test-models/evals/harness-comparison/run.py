@@ -141,17 +141,47 @@ def arm_c(task, rep):
         capella.stop(pid)
 
 
-if __name__ == "__main__":
-    arm, rep, chosen = sys.argv[1], int(sys.argv[2]), sys.argv[3:]
-    runner = {"A": arm_a, "B": arm_b, "C": arm_c}[arm]
-    for task in chosen or list(capella.TASKS):
-        target = RESULTS / arm / f"{task}-r{rep}.json"
-        if target.exists():
-            continue
+WEEKLY_CAP = 80  # percent of the weekly Codex window; stop there so the account stays usable
+
+
+def limited(arm, task, rep):
+    """True when the run hit the account's usage limit: an infrastructure failure, not the agent's."""
+    ws = RESULTS / arm / f"{task}-r{rep}"
+    text = "".join(path.read_text("utf-8", "replace") for path in (ws / "events.jsonl", ws / "eval.json")
+                   if path.exists())
+    return "usage limit" in text
+
+
+def wait_for_quota():
+    """False once the weekly cap is reached; otherwise waits until the 5-hour window allows work again."""
+    while True:
         try:
-            result = runner(task, rep)
-        except Exception as failure:  # one broken run must not stop the arm
-            result = {"id": task, "passed": False, "error": repr(failure)}
-        result.update(arm=arm, rep=rep, finished=time.strftime("%Y-%m-%d %H:%M:%S"))
-        target.write_text(json.dumps(result, indent=1), "utf-8")
-        print(arm, rep, task, result.get("passed"), result.get("agent_seconds"), flush=True)
+            five_hour, weekly, usable = capella.quota()
+        except Exception:
+            five_hour, weekly, usable = 100, 0, False
+        if weekly >= WEEKLY_CAP:
+            return False
+        if usable and five_hour < 100:
+            return True
+        time.sleep(300)
+
+
+if __name__ == "__main__":
+    arm, reps, chosen = sys.argv[1], [int(r) for r in sys.argv[2].split(",")], sys.argv[3:]
+    runner = {"A": arm_a, "B": arm_b, "C": arm_c}[arm]
+    for rep in reps:
+        for task in chosen or list(capella.TASKS):
+            target = RESULTS / arm / f"{task}-r{rep}.json"
+            while not target.exists():
+                if not wait_for_quota():
+                    print(arm, "stopped: weekly Codex cap reached", flush=True)
+                    sys.exit(0)
+                try:
+                    result = runner(task, rep)
+                except Exception as failure:  # one broken run must not stop the arm
+                    result = {"id": task, "passed": False, "error": repr(failure)}
+                if limited(arm, task, rep):
+                    continue  # rerun once the window resets
+                result.update(arm=arm, rep=rep, finished=time.strftime("%Y-%m-%d %H:%M:%S"))
+                target.write_text(json.dumps(result, indent=1), "utf-8")
+                print(arm, rep, task, result.get("passed"), result.get("agent_seconds"), flush=True)

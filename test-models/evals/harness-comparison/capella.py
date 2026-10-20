@@ -65,3 +65,25 @@ def grade(port, task_id):
     if status != 200 or not result.get("success", True):
         return {"id": task_id, "grade_error": body[:2000]}
     return json.loads("".join(line.split("G|", 1)[1] for line in result.get("logs", []) if "G|" in line))
+
+
+def quota():
+    """(5-hour %, weekly %, usable) from the Codex account; reading it uses no model quota."""
+    codex = r"<local-path>"
+    p = subprocess.Popen([codex, "app-server"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                         stderr=subprocess.DEVNULL, text=True, encoding="utf-8")
+    try:
+        def ask(message):
+            p.stdin.write(json.dumps(message) + "\n")
+            p.stdin.flush()
+            for line in p.stdout:
+                reply = json.loads(line)
+                if reply.get("id") == message.get("id"):
+                    return reply.get("result", {})
+        ask({"id": 1, "method": "initialize", "params": {"clientInfo": {"name": "doe_quota", "version": "1"}}})
+        p.stdin.write(json.dumps({"method": "initialized"}) + "\n")
+        limits = ask({"id": 2, "method": "account/rateLimits/read"})
+    finally:
+        p.kill()
+    window = limits["rateLimits"]
+    return window["primary"]["usedPercent"], window["secondary"]["usedPercent"], limits.get("ordinaryUsageAllowed", True)
