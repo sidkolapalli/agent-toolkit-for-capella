@@ -27,6 +27,8 @@ import org.eclipse.ui.IWorkbenchWindow;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.polarsys.capella.ai.agent.ArcadiaAgent;
+import org.polarsys.capella.ai.agent.TaskContinuation;
 import org.polarsys.capella.ai.agent.TaskTermination;
 import org.polarsys.capella.ai.codex.CodexPreferences;
 import org.polarsys.capella.ai.presentation.ConversationState;
@@ -87,6 +89,50 @@ public class ChatTaskTerminationTest {
         assertTrue(((Label) field("activityLabel")).getText().startsWith("Thinking"));
         assertEquals("", ((Text) field("inputField")).getText());
         var state = (ConversationState) field("conversation"); assertTrue(state.history().stream().anyMatch(message -> message.getContent().equals("Explain the architecture")));
+    }
+
+    private static final List<ArcadiaAgent.Step> PENDING_EDIT = List.of(
+        new ArcadiaAgent.Step("create", "Create shutdown functions", "completed", "edit"),
+        new ArcadiaAgent.Step("link", "Connect the shutdown chain", "pending", "edit"));
+
+    @Test public void budgetExhaustedTaskContinuesAutomaticallyAsAFreshReviewedRequest() throws Exception {
+        remember(TaskTermination.budget("Three proposals were handled.", PENDING_EDIT));
+        ((ExecutorService) field("requests")).shutdownNow(); var queue = new CapturingExecutor(); set("requests", queue);
+        set("busy", false);
+        continueTask(PENDING_EDIT);
+        assertEquals("Exactly one fresh request is queued", 1, queue.queued.size());
+        assertEquals(1, field("automaticContinuations"));
+        var state = (ConversationState) field("conversation");
+        assertTrue(state.history().get(state.history().size() - 1).getContent().startsWith(TaskContinuation.PREFIX));
+        assertTrue(((Label) field("activityLabel")).getText().startsWith("Thinking"));
+    }
+
+    @Test public void automaticContinuationStopsAtItsCapAndAsksTheUser() throws Exception {
+        remember(TaskTermination.budget("Out of requests.", PENDING_EDIT));
+        ((ExecutorService) field("requests")).shutdownNow(); var queue = new CapturingExecutor(); set("requests", queue);
+        set("busy", false); set("automaticContinuations", ChatView.MAX_AUTOMATIC_CONTINUATIONS);
+        continueTask(PENDING_EDIT);
+        assertTrue(queue.queued.isEmpty());
+        assertTrue(((Label) field("activityLabel")).getText().toLowerCase().contains("continue"));
+    }
+
+    @Test public void blockedStoppedOrOtherModelTasksNeverContinue() throws Exception {
+        ((ExecutorService) field("requests")).shutdownNow(); var queue = new CapturingExecutor(); set("requests", queue);
+        set("busy", false);
+        remember(TaskTermination.blocked("Saving failed after commit.", PENDING_EDIT));
+        continueTask(PENDING_EDIT);
+        remember(TaskTermination.budget("Out of requests.", PENDING_EDIT));
+        set("stopRequested", true);
+        continueTask(PENDING_EDIT);
+        set("stopRequested", false);
+        set("activeSession", session("memory:/another-model.aird"));
+        continueTask(PENDING_EDIT);
+        assertTrue(queue.queued.isEmpty());
+        assertEquals(0, field("automaticContinuations"));
+    }
+
+    private void continueTask(List<ArcadiaAgent.Step> plan) throws Exception {
+        call("continueTask", new Class<?>[] { Session.class, SelectionContext.class, List.class }, first, SelectionContext.empty(), plan);
     }
 
     private void remember(TaskTermination value) throws Exception { call("rememberTaskTermination", new Class<?>[] { Session.class, ConversationState.class, TaskTermination.class }, first, field("conversation"), value); }

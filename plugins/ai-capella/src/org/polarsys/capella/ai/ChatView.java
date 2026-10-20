@@ -47,6 +47,7 @@ import org.polarsys.capella.ai.llm.LLMService;
 import org.polarsys.capella.ai.agent.ArcadiaAgent;
 import org.polarsys.capella.ai.agent.AgentRuntime;
 import org.polarsys.capella.ai.agent.AgentJson;
+import org.polarsys.capella.ai.agent.TaskContinuation;
 import org.polarsys.capella.ai.agent.TaskTermination;
 import org.polarsys.capella.ai.codex.CodexPreferences;
 import org.polarsys.capella.ai.codex.BundledCodexRuntime;
@@ -112,6 +113,9 @@ public class ChatView extends ViewPart {
     private long requestStarted;
     private String activityText = "";
     private TaskTermination taskTermination;
+    /** Fresh requests started for one user message when a task runs out of budget with edits pending. */
+    static final int MAX_AUTOMATIC_CONTINUATIONS = 4;
+    private int automaticContinuations;
     private Session terminationSession;
     private ConversationState terminationConversation;
     private Runnable activityTimer;
@@ -803,10 +807,35 @@ public class ChatView extends ViewPart {
         }
         if (conversationSession != session) switchConversation(session);
         SelectionContext context = SessionBridge.getSelectionContext();
+        automaticContinuations = 0;
         startRequest(session, input, context, true);
     }
 
     private void startRequest(Session session, String input, SelectionContext context, boolean clearDraft) {
+        startRequest(session, input, context, clearDraft, "You", input);
+    }
+
+    /**
+     * Continues a task whose request ran out of budget with edit steps pending. It is a fresh request
+     * with its own budget and runtime; each proposal still needs its own review, and Stop ends the chain.
+     */
+    private void continueTask(Session session, SelectionContext context, List<ArcadiaAgent.Step> plan) {
+        if (busy || stopRequested || disposed || session != activeSession || session != conversationSession) return;
+        var next = TaskContinuation.prompt(plan, taskTermination);
+        if (next.isEmpty()) return;
+        if (automaticContinuations >= MAX_AUTOMATIC_CONTINUATIONS) {
+            setActivity("Task paused after " + MAX_AUTOMATIC_CONTINUATIONS
+                + " automatic continuations. Send “continue” to resume the remaining steps.");
+            return;
+        }
+        automaticContinuations++;
+        String step = plan.stream().filter(item -> "edit".equals(item.type()) && !"completed".equals(item.status()))
+            .map(ArcadiaAgent.Step::title).findFirst().orElse("");
+        startRequest(session, next.get(), context, false, "Continuing task", "Next step: " + step);
+    }
+
+    private void startRequest(Session session, String input, SelectionContext context, boolean clearDraft,
+            String role, String shown) {
         clearTaskTermination();
         List<LLMService.Message> history = new ArrayList<>(conversation.history());
         if (!conversation.taskPlan().isBlank()) history.add(LLMService.Message.user(
@@ -821,7 +850,7 @@ public class ChatView extends ViewPart {
         startedHistory.add(LLMService.Message.user(input));
         conversation.restoreHistory(startedHistory);
         setBusy(true);
-        appendMessage("You", input);
+        appendMessage(role, shown);
         setActivity("Thinking about your model…");
         requests.execute(() -> processRequest(session, input, history, context));
     }
@@ -893,7 +922,7 @@ public class ChatView extends ViewPart {
                 // A correction receives its own review. No prompt can silently run an unbounded sequence.
                 if (proposals >= 3) {
                     ui(() -> {
-                        appendMessage("Task paused", "Three proposals were handled. Review the results and send a follow-up to continue.");
+                        appendMessage("Request budget reached", "Three proposals were handled in this request. Remaining planned edits continue in a fresh request; each proposal still needs your review.");
                         rememberTaskTermination(session, requestConversation, TaskTermination.budget("Three proposals were handled. Review the results and send a follow-up to continue; no additional proposal was run.", displayed.plan()));
                     });
                     return;
@@ -1074,6 +1103,7 @@ public class ChatView extends ViewPart {
                 requestContext = null;
                 persistConversation();
                 setBusy(false);
+                continueTask(session, context, stoppedPlan);
             });
         }
     }
