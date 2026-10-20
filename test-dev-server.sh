@@ -10,7 +10,6 @@
 
 PORT=${1:-8765}
 BASE_URL="http://localhost:$PORT"
-API_KEY="sk-ant-REDACTED"
 
 echo "============================================"
 echo "  Capella AI Dev Server Test Suite"
