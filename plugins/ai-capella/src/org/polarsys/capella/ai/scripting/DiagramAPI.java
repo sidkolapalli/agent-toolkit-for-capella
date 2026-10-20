@@ -505,12 +505,11 @@ public final class DiagramAPI {
     // ========== Finding ==========
 
     /**
-     * Find a diagram by name.
+     * Find a diagram by name or UID, like {@code api.find}: null when there is none, so idempotent
+     * scripts can check before creating. Use {@link #list()} to see what exists.
      *
-     * @param name the diagram name or UID to find
-     * @return the found diagram representation
      * @throws IllegalStateException if no active session
-     * @throws IllegalArgumentException if name is null/blank or diagram not found
+     * @throws IllegalArgumentException if name is null or blank
      */
     public DRepresentation find(String name) {
         if (session == null) {
@@ -521,26 +520,7 @@ public final class DiagramAPI {
                 "Diagram name cannot be null or blank"
             );
         }
-        DRepresentation result = DiagramCommands.findRepresentationByNameOrUid(
-            session,
-            name
-        );
-        if (result == null) {
-            List<String> available = list()
-                .stream()
-                .map(d -> d.getName())
-                .limit(5)
-                .toList();
-            throw new IllegalArgumentException(
-                "Diagram '" +
-                    name +
-                    "' not found. " +
-                    (available.isEmpty()
-                        ? "No diagrams in model."
-                        : "Available: " + available)
-            );
-        }
-        return result;
+        return DiagramCommands.findRepresentationByNameOrUid(session, name);
     }
 
     /**

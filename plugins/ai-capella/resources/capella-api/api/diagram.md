@@ -29,6 +29,15 @@ def diagram = api.diagram.createSafe("SAB", "My Diagram", saRoot)
 | `PAB` | Physical Architecture Blank | PA |
 | `PDFB` | Physical Data Flow Blank | PA |
 
+## Find or Create
+
+`api.diagram.find(name)` returns null when no diagram has that name or UID, so a script can reuse an
+existing diagram instead of failing or creating a duplicate:
+
+```groovy
+def view = api.diagram.find("BMS Logical View") ?: api.diagram.create("LAB", "BMS Logical View", api.layer("LA").system)
+```
+
 ## Add Elements
 
 ```groovy

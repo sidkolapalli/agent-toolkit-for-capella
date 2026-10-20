@@ -69,6 +69,15 @@ public class DiagramSessionOwnershipTest {
         assertRejectedLifecycle();
     }
 
+    /** Live eval: an idempotent script checked find(name) == null before creating, and find threw instead. */
+    @Test
+    public void findReturnsNullForAMissingDiagramSoScriptsCanCheckBeforeCreating() throws Exception {
+        fixture = new Fixture(false, false);
+        DiagramAPI api = new DiagramAPI(fixture.session);
+        assertNull(api.find("A diagram that does not exist"));
+        assertThrows(IllegalArgumentException.class, () -> api.find(" "));
+    }
+
     @Test
     public void apiCreationUsesItsCapturedSessionsDescriptorsWithoutAnActiveEditor() throws Exception {
         fixture = new Fixture(false, false);
