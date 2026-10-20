@@ -95,10 +95,16 @@ public final class ModelPostconditions {
             for (Result result : results) {
                 text.append("\n- ").append(switch (result.status()) {
                     case PASSED -> "Passed"; case FAILED -> "Failed"; case UNAVAILABLE -> "Unavailable";
-                }).append(" · ").append(markdown(targetDescription(result)));
+                }).append(" · ");
                 if ("native_structure".equals(result.kind())) {
-                    text.append("; ").append(markdown(result.note()));
-                } else if ("attribute_equals".equals(result.kind())) {
+                    // Already escaped; say what was declared and, on failure, what the model holds.
+                    text.append(org.polarsys.capella.ai.presentation.NativeCheckDescription.describe(result.target().get("check")))
+                        .append("; ").append(markdown(result.note()));
+                    if (result.status() != Status.PASSED) text.append(markdown(observed(result.actual())));
+                    continue;
+                }
+                text.append(markdown(targetDescription(result)));
+                if ("attribute_equals".equals(result.kind())) {
                     text.append(": ").append(markdown(String.valueOf(result.target().get("attribute"))))
                         .append(" equals ").append(markdown(displayValue(result.expected())))
                         .append("; actual ").append(markdown(displayValue(result.actual())));
@@ -108,7 +114,7 @@ public final class ModelPostconditions {
                     else if (result.actual() instanceof Number count) text.append(" (").append(count).append(" matches observed)");
                     else if (result.actual() != null) text.append("; actual ").append(markdown(displayValue(result.actual())));
                 }
-                if (!result.note().isEmpty() && !"native_structure".equals(result.kind())) text.append(". ").append(markdown(result.note()));
+                if (!result.note().isEmpty()) text.append(". ").append(markdown(result.note()));
             }
             return text.append("\n").append(SCOPE).toString();
         }
@@ -397,6 +403,24 @@ public final class ModelPostconditions {
             return Collections.unmodifiableMap(bounded);
         }
         return value;
+    }
+
+    /** The decisive facts of a failed structural check, bounded. */
+    private static String observed(Object actual) {
+        if (!(actual instanceof Map<?, ?> facts)) return "";
+        StringBuilder text = new StringBuilder();
+        for (String key : List.of("matchCount", "diagrams", "missing", "count", "value", "container")) {
+            if (!facts.containsKey(key)) continue;
+            Object value = facts.get(key);
+            // Plain ifs: Tycho's ECJ hangs on pattern variables inside nested ternaries.
+            String shown = value == null ? "none" : String.valueOf(value);
+            if (value instanceof Map<?, ?> element) {
+                Object name = element.get("name");
+                shown = name instanceof String && !((String) name).isEmpty() ? element.get("type") + " " + name : "element " + element.get("id");
+            }
+            text.append(text.length() == 0 ? " Observed " : "; ").append(key).append(": ").append(shown);
+        }
+        return clip(text.toString(), 400);
     }
 
     private static String targetDescription(Result result) {

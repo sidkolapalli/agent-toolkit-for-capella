@@ -101,7 +101,9 @@ public class NativeStructuralPostconditionIntegrationTest {
             structural("edit", reference("realization", "sourceElement", id("system")))));
         assertEquals(List.of(Status.PASSED, Status.PASSED, Status.FAILED), statuses(report));
         assertFalse(report.allPassed()); assertTrue(report.completedStepIds().isEmpty());
-        assertTrue(report.markdownSummary().contains("Native structural check reference"));
+        String summary = report.markdownSummary();
+        assertTrue("A failed check says what was declared: " + summary, summary.contains("sourceElement points to element system"));
+        assertTrue("and what was found: " + summary, summary.contains("Observed value: LogicalFunction Authorize demand"));
         assertTrue(report.feedback().toString().contains("sourceElement"));
     }
 
