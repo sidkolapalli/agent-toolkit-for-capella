@@ -2,14 +2,15 @@ package org.polarsys.capella.ai.telemetry;
 
 import static org.junit.Assert.*;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.scripting.ExecutionResult;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 
 public class TelemetryDatasetFilterTest {
 
@@ -27,23 +28,18 @@ public class TelemetryDatasetFilterTest {
             LLMPreferences.setDatasetDropOnErrorEnabled(true);
             LLMPreferences.setDatasetDropOnWarnEnabled(false);
 
-            ExecutionResult okButLogicalFailure = ExecutionResult.success(
-                null,
-                List.of("[ERROR] Target not found"),
-                5
-            );
+            ExecutionResult okButLogicalFailure =
+                    ExecutionResult.success(null, List.of("[ERROR] Target not found"), 5);
 
             invokeRecordDatasetEntry(
-                "Connect \"A\" to \"B\"",
-                "log.error(\"Target not found\")",
-                okButLogicalFailure
-            );
+                    "Connect \"A\" to \"B\"",
+                    "log.error(\"Target not found\")",
+                    okButLogicalFailure);
 
             Path dataset = home.resolve(".capella-ai").resolve("dataset.jsonl");
             assertFalse(
-                "Dataset entry should be skipped when logs contain [ERROR]",
-                Files.exists(dataset)
-            );
+                    "Dataset entry should be skipped when logs contain [ERROR]",
+                    Files.exists(dataset));
         } finally {
             System.setProperty("user.home", originalHome);
             LLMPreferences.setTelemetryEnabled(originalTelemetry);
@@ -66,23 +62,17 @@ public class TelemetryDatasetFilterTest {
             LLMPreferences.setDatasetDropOnErrorEnabled(false);
             LLMPreferences.setDatasetDropOnWarnEnabled(true);
 
-            ExecutionResult okWithWarning = ExecutionResult.success(
-                null,
-                List.of("[WARN] Element already exists"),
-                5
-            );
+            ExecutionResult okWithWarning =
+                    ExecutionResult.success(null, List.of("[WARN] Element already exists"), 5);
 
             invokeRecordDatasetEntry(
-                "Create \"X\"",
-                "log.warn(\"Element already exists\")",
-                okWithWarning
-            );
+                    "Create \"X\"", "log.warn(\"Element already exists\")", okWithWarning);
 
             Path dataset = home.resolve(".capella-ai").resolve("dataset.jsonl");
             assertFalse(
-                "Dataset entry should be skipped when logs contain [WARN] and filtering is enabled",
-                Files.exists(dataset)
-            );
+                    "Dataset entry should be skipped when logs contain [WARN] and filtering is"
+                        + " enabled",
+                    Files.exists(dataset));
         } finally {
             System.setProperty("user.home", originalHome);
             LLMPreferences.setTelemetryEnabled(originalTelemetry);
@@ -91,23 +81,13 @@ public class TelemetryDatasetFilterTest {
         }
     }
 
-    private static void invokeRecordDatasetEntry(
-        String prompt,
-        String code,
-        ExecutionResult result
-    ) throws Exception {
+    private static void invokeRecordDatasetEntry(String prompt, String code, ExecutionResult result)
+            throws Exception {
         Bundle aiBundle = FrameworkUtil.getBundle(LLMPreferences.class);
         assertNotNull("Expected Capella AI bundle for LLMPreferences", aiBundle);
-        Class<?> telemetry = aiBundle.loadClass(
-            "org.polarsys.capella.ai.telemetry.Telemetry"
-        );
+        Class<?> telemetry = aiBundle.loadClass("org.polarsys.capella.ai.telemetry.Telemetry");
         telemetry
-            .getMethod(
-                "recordDatasetEntry",
-                String.class,
-                String.class,
-                ExecutionResult.class
-            )
-            .invoke(null, prompt, code, result);
+                .getMethod("recordDatasetEntry", String.class, String.class, ExecutionResult.class)
+                .invoke(null, prompt, code, result);
     }
 }

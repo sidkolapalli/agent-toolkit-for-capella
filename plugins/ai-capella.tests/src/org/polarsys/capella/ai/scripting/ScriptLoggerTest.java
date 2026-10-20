@@ -2,14 +2,12 @@ package org.polarsys.capella.ai.scripting;
 
 import static org.junit.Assert.*;
 
-import java.util.List;
-
 import org.junit.Before;
 import org.junit.Test;
 
-/**
- * Unit tests for ScriptLogger.
- */
+import java.util.List;
+
+/** Unit tests for ScriptLogger. */
 public class ScriptLoggerTest {
 
     private ScriptLogger logger;
@@ -29,7 +27,9 @@ public class ScriptLoggerTest {
         assertTrue(messages.get(0).contains("Test message"));
     }
 
-    /** Live eval: log.info(validationResults) aborted and rolled back two otherwise correct scripts. */
+    /**
+     * Live eval: log.info(validationResults) aborted and rolled back two otherwise correct scripts.
+     */
     @Test
     public void anyValueCanBeLoggedNotOnlyText() {
         logger.info((Object) java.util.List.of("Model validation: 3 errors", "Diagnostic"));
@@ -183,16 +183,20 @@ public class ScriptLoggerTest {
     @Test
     public void testThreadSafety() throws InterruptedException {
         // Basic concurrency test
-        Thread t1 = new Thread(() -> {
-            for (int i = 0; i < 100; i++) {
-                logger.info("Thread 1: " + i);
-            }
-        });
-        Thread t2 = new Thread(() -> {
-            for (int i = 0; i < 100; i++) {
-                logger.info("Thread 2: " + i);
-            }
-        });
+        Thread t1 =
+                new Thread(
+                        () -> {
+                            for (int i = 0; i < 100; i++) {
+                                logger.info("Thread 1: " + i);
+                            }
+                        });
+        Thread t2 =
+                new Thread(
+                        () -> {
+                            for (int i = 0; i < 100; i++) {
+                                logger.info("Thread 2: " + i);
+                            }
+                        });
 
         t1.start();
         t2.start();

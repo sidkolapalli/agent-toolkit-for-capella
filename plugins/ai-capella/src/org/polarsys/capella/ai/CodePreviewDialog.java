@@ -8,9 +8,9 @@ import org.eclipse.jface.window.Window;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.SWTError;
+import org.eclipse.swt.accessibility.ACC;
 import org.eclipse.swt.accessibility.AccessibleAdapter;
 import org.eclipse.swt.accessibility.AccessibleEvent;
-import org.eclipse.swt.accessibility.ACC;
 import org.eclipse.swt.custom.CTabFolder;
 import org.eclipse.swt.custom.CTabItem;
 import org.eclipse.swt.dnd.Clipboard;
@@ -41,21 +41,30 @@ public final class CodePreviewDialog extends Dialog {
     private Text preview;
 
     /**
-     * Modal review for proposals that do not come from the chat view, such as MCP clients.
-     * Runs on SWT; returns true only when the person chooses Apply.
+     * Modal review for proposals that do not come from the chat view, such as MCP clients. Runs on
+     * SWT; returns true only when the person chooses Apply.
      */
-    public static boolean review(Session session, String code, String origin, String summary, String expectedChecks) {
+    public static boolean review(
+            Session session, String code, String origin, String summary, String expectedChecks) {
         org.eclipse.swt.widgets.Display display = org.eclipse.swt.widgets.Display.getDefault();
         Shell shell = display.getActiveShell();
         if (shell == null && org.eclipse.ui.PlatformUI.isWorkbenchRunning()) {
             var window = org.eclipse.ui.PlatformUI.getWorkbench().getActiveWorkbenchWindow();
-            if (window == null && org.eclipse.ui.PlatformUI.getWorkbench().getWorkbenchWindowCount() > 0) {
+            if (window == null
+                    && org.eclipse.ui.PlatformUI.getWorkbench().getWorkbenchWindowCount() > 0) {
                 window = org.eclipse.ui.PlatformUI.getWorkbench().getWorkbenchWindows()[0];
             }
             if (window != null) shell = window.getShell();
         }
-        return new CodePreviewDialog(shell, code, ChatContextDetails.modelName(session), origin, summary, expectedChecks)
-            .open() == Window.OK;
+        return new CodePreviewDialog(
+                                shell,
+                                code,
+                                ChatContextDetails.modelName(session),
+                                origin,
+                                summary,
+                                expectedChecks)
+                        .open()
+                == Window.OK;
     }
 
     CodePreviewDialog(Shell parent, String code) {
@@ -66,11 +75,17 @@ public final class CodePreviewDialog extends Dialog {
         this(parent, code, modelName, contextSummary, "", "");
     }
 
-    CodePreviewDialog(Shell parent, String code, String modelName, String contextSummary,
-            String proposalSummary, String expectedChecks) {
+    CodePreviewDialog(
+            Shell parent,
+            String code,
+            String modelName,
+            String contextSummary,
+            String proposalSummary,
+            String expectedChecks) {
         super(parent);
         this.code = code == null ? "" : code;
-        this.modelName = modelName == null || modelName.isBlank() ? "Current Capella model" : modelName;
+        this.modelName =
+                modelName == null || modelName.isBlank() ? "Current Capella model" : modelName;
         this.contextSummary = contextSummary == null ? "" : contextSummary;
         this.proposalSummary = proposalSummary == null ? "" : proposalSummary;
         this.expectedChecks = expectedChecks == null ? "" : expectedChecks;
@@ -106,15 +121,21 @@ public final class CodePreviewDialog extends Dialog {
         if (!contextSummary.isBlank()) metadata(context, "Context", contextSummary);
 
         Label explanation = new Label(area, SWT.WRAP);
-        explanation.setText(code.indexOf('\0') >= 0
-            ? "The script contains a null character and cannot be applied. Cancel and request a corrected proposal."
-            : code.isBlank() ? "This proposal has no script to apply. Cancel and request a new proposal."
-            : "Review the proposed changes before applying them. Nothing has been applied yet.");
+        explanation.setText(
+                code.indexOf('\0') >= 0
+                        ? "The script contains a null character and cannot be applied. Cancel and"
+                              + " request a corrected proposal."
+                        : code.isBlank()
+                                ? "This proposal has no script to apply. Cancel and request a new"
+                                      + " proposal."
+                                : "Review the proposed changes before applying them. Nothing has"
+                                      + " been applied yet.");
         GridData explanationData = new GridData(SWT.FILL, SWT.TOP, true, false);
         explanationData.widthHint = 0;
         explanation.setLayoutData(explanationData);
 
-        // Custom-drawn tabs follow the workbench theme; the native Win32 strip stays light in dark mode.
+        // Custom-drawn tabs follow the workbench theme; the native Win32 strip stays light in dark
+        // mode.
         tabs = new CTabFolder(area, SWT.BORDER);
         // The theme styles the folder, not plain composites inside it.
         tabs.setBackgroundMode(SWT.INHERIT_DEFAULT);
@@ -157,23 +178,29 @@ public final class CodePreviewDialog extends Dialog {
         selectAll.setText("Select &all");
         selectAll.setToolTipText("Select the entire read-only script");
         selectAll.setEnabled(!code.isEmpty() && code.indexOf('\0') < 0);
-        selectAll.addListener(SWT.Selection, event -> {
-            preview.setFocus();
-            preview.selectAll();
-        });
+        selectAll.addListener(
+                SWT.Selection,
+                event -> {
+                    preview.setFocus();
+                    preview.selectAll();
+                });
         Button copy = new Button(toolbar, SWT.PUSH);
         copy.setText("&Copy code");
         copy.setToolTipText("Copy the exact generated script, preserving its original text");
         copy.setEnabled(!code.isEmpty() && code.indexOf('\0') < 0);
         copy.addListener(SWT.Selection, event -> copyCode(copy));
 
-        preview = new Text(script, SWT.BORDER | SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL | SWT.READ_ONLY);
+        preview =
+                new Text(
+                        script,
+                        SWT.BORDER | SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL | SWT.READ_ONLY);
         preview.setFont(JFaceResources.getTextFont());
         GridData previewData = new GridData(SWT.FILL, SWT.FILL, true, true);
         previewData.widthHint = 0;
         previewData.heightHint = 0;
         preview.setLayoutData(previewData);
-        // SWT's native Text control cannot display NUL faithfully. Never approve a truncated preview.
+        // SWT's native Text control cannot display NUL faithfully. Never approve a truncated
+        // preview.
         preview.setText(code.indexOf('\0') < 0 ? code : "");
         accessibleName(preview, "Exact generated Groovy script, read-only");
         tabs.setSelection(changesTab);
@@ -187,23 +214,30 @@ public final class CodePreviewDialog extends Dialog {
     }
 
     private String changesText() {
-        String summary = proposalSummary.isBlank()
-            ? "A model edit was proposed without a readable summary. Review the Script tab before applying, or cancel and ask the assistant to explain the changes."
-            : proposalSummary;
-        String checks = expectedChecks.isBlank()
-            ? "No specific model checks were declared for this proposal."
-            : expectedChecks;
+        String summary =
+                proposalSummary.isBlank()
+                        ? "A model edit was proposed without a readable summary. Review the Script"
+                              + " tab before applying, or cancel and ask the assistant to explain"
+                              + " the changes."
+                        : proposalSummary;
+        String checks =
+                expectedChecks.isBlank()
+                        ? "No specific model checks were declared for this proposal."
+                        : expectedChecks;
         // Native Text truncates at NUL; make any such display character visible instead.
-        return ("Proposed changes\n\n" + summary + "\n\nChecks after applying\n\n" + checks).replace('\0', '\uFFFD');
+        return ("Proposed changes\n\n" + summary + "\n\nChecks after applying\n\n" + checks)
+                .replace('\0', '\uFFFD');
     }
 
     private static void accessibleName(Control control, String name) {
-        control.getAccessible().addAccessibleListener(new AccessibleAdapter() {
-            @Override
-            public void getName(AccessibleEvent event) {
-                if (event.childID == ACC.CHILDID_SELF) event.result = name;
-            }
-        });
+        control.getAccessible()
+                .addAccessibleListener(
+                        new AccessibleAdapter() {
+                            @Override
+                            public void getName(AccessibleEvent event) {
+                                if (event.childID == ACC.CHILDID_SELF) event.result = name;
+                            }
+                        });
     }
 
     private void metadata(Composite parent, String name, String value) {
@@ -217,12 +251,14 @@ public final class CodePreviewDialog extends Dialog {
         GridData data = new GridData(SWT.FILL, SWT.CENTER, true, false);
         data.widthHint = 0;
         text.setLayoutData(data);
-        text.getAccessible().addAccessibleListener(new AccessibleAdapter() {
-            @Override
-            public void getName(AccessibleEvent event) {
-                event.result = name + ": " + value;
-            }
-        });
+        text.getAccessible()
+                .addAccessibleListener(
+                        new AccessibleAdapter() {
+                            @Override
+                            public void getName(AccessibleEvent event) {
+                                event.result = name + ": " + value;
+                            }
+                        });
     }
 
     private void copyCode(Button button) {
@@ -231,12 +267,18 @@ public final class CodePreviewDialog extends Dialog {
             // Do not copy preview.getText(): the native widget can normalize line delimiters.
             clipboard.setContents(new Object[] {code}, new Transfer[] {TextTransfer.getInstance()});
             button.setText("Copied");
-            button.getDisplay().timerExec(1800, () -> {
-                if (!button.isDisposed()) button.setText("&Copy code");
-            });
+            button.getDisplay()
+                    .timerExec(
+                            1800,
+                            () -> {
+                                if (!button.isDisposed()) button.setText("&Copy code");
+                            });
         } catch (SWTError error) {
             if (error.code != DND.ERROR_CANNOT_SET_CLIPBOARD) throw error;
-            MessageDialog.openError(getShell(), "Could not copy code", "The clipboard is unavailable. Try Copy code again.");
+            MessageDialog.openError(
+                    getShell(),
+                    "Could not copy code",
+                    "The clipboard is unavailable. Try Copy code again.");
         } finally {
             clipboard.dispose();
         }
@@ -282,12 +324,16 @@ public final class CodePreviewDialog extends Dialog {
         Shell parent = getParentShell();
         if (parent != null && !parent.isDisposed()) return parent.getMonitor().getClientArea();
         Shell shell = getShell();
-        Display display = shell != null && !shell.isDisposed() ? shell.getDisplay() : Display.getCurrent();
-        return (display != null ? display : Display.getDefault()).getPrimaryMonitor().getClientArea();
+        Display display =
+                shell != null && !shell.isDisposed() ? shell.getDisplay() : Display.getCurrent();
+        return (display != null ? display : Display.getDefault())
+                .getPrimaryMonitor()
+                .getClientArea();
     }
 
     static Point boundedSize(Point requested, Rectangle monitor) {
-        return new Point(Math.max(1, Math.min(requested.x, monitor.width - 32)),
-            Math.max(1, Math.min(requested.y, monitor.height - 32)));
+        return new Point(
+                Math.max(1, Math.min(requested.x, monitor.width - 32)),
+                Math.max(1, Math.min(requested.y, monitor.height - 32)));
     }
 }

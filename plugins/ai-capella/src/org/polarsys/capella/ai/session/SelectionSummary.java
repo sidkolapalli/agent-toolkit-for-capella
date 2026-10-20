@@ -1,27 +1,23 @@
 package org.polarsys.capella.ai.session;
 
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.polarsys.capella.ai.privacy.Tokenizer;
 
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 /** Formats {@link SelectionContext} for prompt injection. */
 public final class SelectionSummary {
 
-    private static final Logger LOG = Logger.getLogger(
-        SelectionSummary.class.getName()
-    );
+    private static final Logger LOG = Logger.getLogger(SelectionSummary.class.getName());
     private static final int MAX_ELEMENTS = 5;
     private static final int MAX_ID_CHARS = 18;
 
     private SelectionSummary() {}
 
-    public static String summarize(
-        SelectionContext context,
-        Tokenizer tokenizer
-    ) {
+    public static String summarize(SelectionContext context, Tokenizer tokenizer) {
         if (context == null || (!context.hasSelection() && !context.hasDiagram())) {
             return "";
         }
@@ -33,11 +29,12 @@ public final class SelectionSummary {
             String name = safe(context.getActiveDiagramName());
             String uid = safe(context.getActiveDiagramUid());
             String type = safe(context.getActiveDiagramType());
-            String diagLine = "Active Diagram: \"" +
-                (name.isBlank() ? "Unnamed" : name) +
-                "\"" +
-                (!uid.isBlank() ? " (uid: " + displayId(uid, tokenizer) + ")" : "") +
-                (!type.isBlank() ? " [" + type + "]" : "");
+            String diagLine =
+                    "Active Diagram: \""
+                            + (name.isBlank() ? "Unnamed" : name)
+                            + "\""
+                            + (!uid.isBlank() ? " (uid: " + displayId(uid, tokenizer) + ")" : "")
+                            + (!type.isBlank() ? " [" + type + "]" : "");
             sb.append(diagLine).append("\n\n");
         }
 
@@ -56,7 +53,9 @@ public final class SelectionSummary {
                 sb.append("- +").append(remaining).append(" more\n");
             }
             sb.append("\n");
-            sb.append("Use `selection` (List<EObject>) in scripts to reference these elements deterministically.\n");
+            sb.append(
+                    "Use `selection` (List<EObject>) in scripts to reference these elements"
+                        + " deterministically.\n");
         }
 
         String out = sb.toString();

@@ -1,8 +1,7 @@
 package org.polarsys.capella.ai.tools;
 
-import java.util.logging.Logger;
-import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.transaction.TransactionalEditingDomain;
@@ -20,19 +19,19 @@ import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.common.tools.api.interpreter.IInterpreter;
 import org.eclipse.sirius.diagram.DDiagram;
 import org.eclipse.sirius.diagram.DDiagramElement;
-import org.eclipse.sirius.diagram.DragAndDropTarget;
 import org.eclipse.sirius.diagram.DNode;
 import org.eclipse.sirius.diagram.DNodeContainer;
 import org.eclipse.sirius.diagram.DSemanticDiagram;
 import org.eclipse.sirius.diagram.DiagramFactory;
+import org.eclipse.sirius.diagram.DragAndDropTarget;
 import org.eclipse.sirius.diagram.business.api.query.DiagramElementMappingQuery;
 import org.eclipse.sirius.diagram.description.AbstractNodeMapping;
 import org.eclipse.sirius.diagram.description.ContainerMapping;
 import org.eclipse.sirius.diagram.description.DiagramDescription;
 import org.eclipse.sirius.diagram.description.DiagramElementMapping;
 import org.eclipse.sirius.diagram.description.NodeMapping;
-import org.eclipse.sirius.ui.business.api.dialect.DialectUIManager;
 import org.eclipse.sirius.tools.api.interpreter.InterpreterUtil;
+import org.eclipse.sirius.ui.business.api.dialect.DialectUIManager;
 import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.eclipse.sirius.viewpoint.DRepresentationDescriptor;
 import org.eclipse.sirius.viewpoint.DSemanticDecorator;
@@ -44,20 +43,20 @@ import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 import org.osgi.framework.Bundle;
-import org.polarsys.capella.core.data.cs.Part;
-import org.polarsys.capella.core.data.cs.Component;
-import org.polarsys.capella.core.data.fa.AbstractFunction;
-import org.polarsys.capella.core.model.helpers.AbstractFunctionExt;
 import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 import org.polarsys.capella.ai.telemetry.Telemetry;
+import org.polarsys.capella.core.data.cs.Component;
+import org.polarsys.capella.core.data.cs.Part;
+import org.polarsys.capella.core.data.fa.AbstractFunction;
+import org.polarsys.capella.core.model.helpers.AbstractFunctionExt;
+
+import java.util.logging.Logger;
 
 /** In‑process diagram helpers using Sirius UI APIs (arrange/layout visible). */
 public final class DiagramCommands {
 
-    private static final Logger LOG = Logger.getLogger(
-        DiagramCommands.class.getName()
-    );
+    private static final Logger LOG = Logger.getLogger(DiagramCommands.class.getName());
 
     private DiagramCommands() {}
 
@@ -69,98 +68,106 @@ public final class DiagramCommands {
 
     /** Create and open a diagram for the given target using a description name. */
     public static DRepresentation createAndOpenDiagram(
-        EObject target,
-        String descriptionName,
-        String diagramName
-    ) {
-        return createAndOpenDiagram(SessionBridge.getActiveSession(), target, descriptionName, diagramName);
+            EObject target, String descriptionName, String diagramName) {
+        return createAndOpenDiagram(
+                SessionBridge.getActiveSession(), target, descriptionName, diagramName);
     }
 
     /** Create and open a diagram in the explicitly captured session. */
     public static DRepresentation createAndOpenDiagram(
-        Session session,
-        EObject target,
-        String descriptionName,
-        String diagramName
-    ) {
+            Session session, EObject target, String descriptionName, String diagramName) {
         if (session == null) return null;
-        TransactionalEditingDomain domain =
-            session.getTransactionalEditingDomain();
+        TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
         if (domain == null) return null;
 
         final DRepresentation[] rep = new DRepresentation[1];
         final RepresentationDescription[] description = new RepresentationDescription[1];
-        SessionSafeguards.runOnUiThread(() -> {
-            requireCreationTarget(session, domain, target);
-            description[0] = findDiagramDescription(session, descriptionName);
-            if (description[0] == null) {
-                // Build helpful error message with available descriptors
-                java.util.List<String> available = getAvailableDiagramDescriptions(session);
-                java.util.List<String> similar = findSimilarDescriptors(available, descriptionName);
+        SessionSafeguards.runOnUiThread(
+                () -> {
+                    requireCreationTarget(session, domain, target);
+                    description[0] = findDiagramDescription(session, descriptionName);
+                    if (description[0] == null) {
+                        // Build helpful error message with available descriptors
+                        java.util.List<String> available = getAvailableDiagramDescriptions(session);
+                        java.util.List<String> similar =
+                                findSimilarDescriptors(available, descriptionName);
 
-                StringBuilder sb = new StringBuilder();
-                sb.append("Diagram description '").append(descriptionName).append("' not found.\n");
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("Diagram description '")
+                                .append(descriptionName)
+                                .append("' not found.\n");
 
-                if (!similar.isEmpty()) {
-                    sb.append("Did you mean: ").append(String.join(", ", similar)).append("?\n");
-                }
+                        if (!similar.isEmpty()) {
+                            sb.append("Did you mean: ")
+                                    .append(String.join(", ", similar))
+                                    .append("?\n");
+                        }
 
-                sb.append("Available descriptors (").append(available.size()).append("): ");
-                sb.append(available.isEmpty() ? "[none - check viewpoint activation]" : String.join(", ", available));
-                sb.append("\n\nTroubleshooting:\n");
-                sb.append("1. Ensure the correct Capella viewpoints are activated\n");
-                sb.append("2. Use api.diagram.listAvailable() to see available types\n");
-                sb.append("3. Try using the full descriptor name directly");
+                        sb.append("Available descriptors (").append(available.size()).append("): ");
+                        sb.append(
+                                available.isEmpty()
+                                        ? "[none - check viewpoint activation]"
+                                        : String.join(", ", available));
+                        sb.append("\n\nTroubleshooting:\n");
+                        sb.append("1. Ensure the correct Capella viewpoints are activated\n");
+                        sb.append("2. Use api.diagram.listAvailable() to see available types\n");
+                        sb.append("3. Try using the full descriptor name directly");
 
-                throw new IllegalArgumentException(sb.toString());
-            }
-        });
-        SessionSafeguards.runWrite(session, "Create diagram", () -> {
-            requireCreationTarget(session, domain, target);
-            if (findDiagramDescription(session, descriptionName) != description[0]) {
-                throw new IllegalStateException("The captured session's diagram description changed before creation");
-            }
-            DRepresentation created =
-                DialectManager.INSTANCE.createRepresentation(
-                    diagramName,
-                    target,
-                    description[0],
-                    session,
-                    new NullProgressMonitor()
-                );
-            rep[0] = created;
-            return created;
-        });
+                        throw new IllegalArgumentException(sb.toString());
+                    }
+                });
+        SessionSafeguards.runWrite(
+                session,
+                "Create diagram",
+                () -> {
+                    requireCreationTarget(session, domain, target);
+                    if (findDiagramDescription(session, descriptionName) != description[0]) {
+                        throw new IllegalStateException(
+                                "The captured session's diagram description changed before"
+                                    + " creation");
+                    }
+                    DRepresentation created =
+                            DialectManager.INSTANCE.createRepresentation(
+                                    diagramName,
+                                    target,
+                                    description[0],
+                                    session,
+                                    new NullProgressMonitor());
+                    rep[0] = created;
+                    return created;
+                });
 
         if (rep[0] != null) {
-            SessionSafeguards.runOnUiThread(() -> {
-                try {
-                    DialectUIManager.INSTANCE.openEditor(
-                        session,
-                        rep[0],
-                        new NullProgressMonitor()
-                    );
-                    lastOpened = rep[0];
-                } catch (Exception e) {
-                    LOG.warning(
-                        "Failed to open diagram editor: " + e.getMessage()
-                    );
-                }
-            });
+            SessionSafeguards.runOnUiThread(
+                    () -> {
+                        try {
+                            DialectUIManager.INSTANCE.openEditor(
+                                    session, rep[0], new NullProgressMonitor());
+                            lastOpened = rep[0];
+                        } catch (Exception e) {
+                            LOG.warning("Failed to open diagram editor: " + e.getMessage());
+                        }
+                    });
         }
         return rep[0];
     }
 
-    private static void requireCreationTarget(Session session, TransactionalEditingDomain domain, EObject target) {
+    private static void requireCreationTarget(
+            Session session, TransactionalEditingDomain domain, EObject target) {
         Resource resource = target == null ? null : target.eResource();
         java.util.Collection<Resource> semantic = session.getSemanticResources();
         if (!session.isOpen() || session.getTransactionalEditingDomain() != domain) {
-            throw new IllegalStateException("The captured diagram session or editing domain is no longer available");
+            throw new IllegalStateException(
+                    "The captured diagram session or editing domain is no longer available");
         }
-        if (target == null || target.eIsProxy() || resource == null
+        if (target == null
+                || target.eIsProxy()
+                || resource == null
                 || resource.getResourceSet() != domain.getResourceSet()
-                || semantic == null || !semantic.contains(resource)) {
-            throw new IllegalArgumentException("Diagram target must belong to the captured session's semantic resources");
+                || semantic == null
+                || !semantic.contains(resource)) {
+            throw new IllegalArgumentException(
+                    "Diagram target must belong to the captured session's semantic resources");
         }
     }
 
@@ -176,18 +183,13 @@ public final class DiagramCommands {
     }
 
     /**
-     * Arrange/align the requested representation using its persisted GMF shapes.
-     * Strategies: left, right, top, bottom, hcenter, vcenter, hspace, vspace, grid, auto.
+     * Arrange/align the requested representation using its persisted GMF shapes. Strategies: left,
+     * right, top, bottom, hcenter, vcenter, hspace, vspace, grid, auto.
      */
-    public static boolean arrangeSelection(
-        Session session,
-        DRepresentation rep,
-        String strategy
-    ) {
+    public static boolean arrangeSelection(Session session, DRepresentation rep, String strategy) {
         if (session == null || rep == null) return false;
-        String stratInit = (strategy == null || strategy.isBlank())
-            ? "auto"
-            : strategy.toLowerCase();
+        String stratInit =
+                (strategy == null || strategy.isBlank()) ? "auto" : strategy.toLowerCase();
         String layerHintInit = null;
         if (stratInit.matches("^(oa|sa|la|pa|lab)_(flow|radial)$")) {
             int idx = stratInit.indexOf('_');
@@ -195,8 +197,10 @@ public final class DiagramCommands {
             stratInit = stratInit.substring(idx + 1);
         }
         if ("auto".equals(stratInit)) stratInit = "layered";
-        if (!java.util.Set.of("left", "right", "top", "bottom", "hcenter", "vcenter",
-            "hspace", "vspace", "grid", "flow", "radial", "layered").contains(stratInit)) return false;
+        if (!java.util.Set.of(
+                        "left", "right", "top", "bottom", "hcenter", "vcenter", "hspace", "vspace",
+                        "grid", "flow", "radial", "layered")
+                .contains(stratInit)) return false;
         final String strat = stratInit;
         final String layerHint = layerHintInit;
         try {
@@ -206,250 +210,245 @@ public final class DiagramCommands {
             if (persisted == null || collectLayoutShapes(persisted).isEmpty()) return false;
             // Compute bounds and apply layout inside write tx
             return SessionSafeguards.runWrite(
-                session,
-                "Arrange diagram",
-                () -> {
-                    org.eclipse.gmf.runtime.notation.Diagram notation = findNotationDiagram(session, rep);
-                    if (notation == null) return false;
-                    java.util.List<Node> nodes = collectLayoutShapes(notation);
-                    if (nodes.isEmpty()) return false;
-                    java.util.List<Bounds> bounds = new java.util.ArrayList<>(
-                        nodes.size()
-                    );
-                    for (Node n : nodes) {
-                        LayoutConstraint lc = n.getLayoutConstraint();
-                        if (!(lc instanceof Bounds)) {
-                            n.setLayoutConstraint(
-                                NotationFactory.eINSTANCE.createBounds()
-                            );
-                            lc = n.getLayoutConstraint();
-                        }
-                        bounds.add((Bounds) lc);
-                    }
-                    if (bounds.size() < 2 && !"layered".equals(strat)) return true; // nothing to do; one container may still hold children
-                    int minX = Integer.MAX_VALUE,
-                        minY = Integer.MAX_VALUE;
-                    int maxR = Integer.MIN_VALUE,
-                        maxB = Integer.MIN_VALUE;
-                    for (Bounds b : bounds) {
-                        minX = Math.min(minX, b.getX());
-                        minY = Math.min(minY, b.getY());
-                        maxR = Math.max(
-                            maxR,
-                            b.getX() + Math.max(0, b.getWidth())
-                        );
-                        maxB = Math.max(
-                            maxB,
-                            b.getY() + Math.max(0, b.getHeight())
-                        );
-                    }
-                    // Telemetry pre-metrics
-                    String diagramName = null;
-                    try {
-                        if (rep instanceof DDiagram) {
-                            var dd = (DDiagram) rep;
-                            diagramName = dd.getDescription() != null
-                                ? dd.getDescription().getName()
-                                : "diagram";
-                        }
-                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                    int overlapsPre = countOverlaps(bounds);
-                    int crossingsPre = estimateCrossings(nodes);
-                    long t0 = System.nanoTime();
-                    switch (strat) {
-                        case "left":
-                            for (Bounds b : bounds) b.setX(minX);
-                            break;
-                        case "right":
-                            for (Bounds b : bounds)
-                                b.setX(maxR - Math.max(0, b.getWidth()));
-                            break;
-                        case "top":
-                            for (Bounds b : bounds) b.setY(minY);
-                            break;
-                        case "bottom":
-                            for (Bounds b : bounds)
-                                b.setY(maxB - Math.max(0, b.getHeight()));
-                            break;
-                        case "hcenter": {
-                            int mid = (minX + maxR) / 2;
-                            for (Bounds b : bounds)
-                                b.setX(mid - Math.max(0, b.getWidth()) / 2);
-                            break;
-                        }
-                        case "vcenter": {
-                            int mid = (minY + maxB) / 2;
-                            for (Bounds b : bounds)
-                                b.setY(mid - Math.max(0, b.getHeight()) / 2);
-                            break;
-                        }
-                        case "hspace": {
-                            // Sort by x and distribute across minX..maxR using equal gaps
-                            bounds.sort(
-                                java.util.Comparator.comparingInt(Bounds::getX)
-                            );
-                            int n = bounds.size();
-                            int totalWidth = bounds
-                                .stream()
-                                .mapToInt(b -> Math.max(0, b.getWidth()))
-                                .sum();
-                            int span = Math.max(0, maxR - minX - totalWidth);
-                            int gap = (n > 1) ? (span / (n - 1)) : 0;
-                            int cursor = minX;
-                            for (Bounds b : bounds) {
-                                b.setX(cursor);
-                                cursor += Math.max(0, b.getWidth()) + gap;
+                    session,
+                    "Arrange diagram",
+                    () -> {
+                        org.eclipse.gmf.runtime.notation.Diagram notation =
+                                findNotationDiagram(session, rep);
+                        if (notation == null) return false;
+                        java.util.List<Node> nodes = collectLayoutShapes(notation);
+                        if (nodes.isEmpty()) return false;
+                        java.util.List<Bounds> bounds = new java.util.ArrayList<>(nodes.size());
+                        for (Node n : nodes) {
+                            LayoutConstraint lc = n.getLayoutConstraint();
+                            if (!(lc instanceof Bounds)) {
+                                n.setLayoutConstraint(NotationFactory.eINSTANCE.createBounds());
+                                lc = n.getLayoutConstraint();
                             }
-                            break;
+                            bounds.add((Bounds) lc);
                         }
-                        case "vspace": {
-                            bounds.sort(
-                                java.util.Comparator.comparingInt(Bounds::getY)
-                            );
-                            int n = bounds.size();
-                            int totalHeight = bounds
-                                .stream()
-                                .mapToInt(b -> Math.max(0, b.getHeight()))
-                                .sum();
-                            int span = Math.max(0, maxB - minY - totalHeight);
-                            int gap = (n > 1) ? (span / (n - 1)) : 0;
-                            int cursor = minY;
-                            for (Bounds b : bounds) {
-                                b.setY(cursor);
-                                cursor += Math.max(0, b.getHeight()) + gap;
-                            }
-                            break;
+                        if (bounds.size() < 2 && !"layered".equals(strat))
+                            return true; // nothing to do; one container may still hold children
+                        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
+                        int maxR = Integer.MIN_VALUE, maxB = Integer.MIN_VALUE;
+                        for (Bounds b : bounds) {
+                            minX = Math.min(minX, b.getX());
+                            minY = Math.min(minY, b.getY());
+                            maxR = Math.max(maxR, b.getX() + Math.max(0, b.getWidth()));
+                            maxB = Math.max(maxB, b.getY() + Math.max(0, b.getHeight()));
                         }
-                        case "grid": {
-                            int n = bounds.size();
-                            int cols = (int) Math.ceil(Math.sqrt(n));
-                            int rows = (int) Math.ceil((double) n / cols);
-                            int cellW = Math.max(
-                                120,
-                                (maxR - minX) / Math.max(1, cols)
-                            );
-                            int cellH = Math.max(
-                                80,
-                                (maxB - minY) / Math.max(1, rows)
-                            );
-                            for (Bounds b : bounds) {
-                                cellW = Math.max(cellW, Math.max(120, b.getWidth()) + 60);
-                                cellH = Math.max(cellH, Math.max(80, b.getHeight()) + 40);
+                        // Telemetry pre-metrics
+                        String diagramName = null;
+                        try {
+                            if (rep instanceof DDiagram) {
+                                var dd = (DDiagram) rep;
+                                diagramName =
+                                        dd.getDescription() != null
+                                                ? dd.getDescription().getName()
+                                                : "diagram";
                             }
-                            int i = 0;
-                            for (Bounds b : bounds) {
-                                int c = i % cols;
-                                int r = i / cols;
-                                b.setX(minX + c * cellW);
-                                b.setY(minY + r * cellH);
-                                i++;
-                            }
-                            break;
+                        } catch (Throwable ex) {
+                            LOG.fine("[DiagramCommands] " + ex.getMessage());
                         }
-                        case "flow": {
-                            // Left-to-right flow with per-diagram spacing and a simple crossing-minimization heuristic
-                            int n = bounds.size();
-                            int rows = (int) Math.ceil(Math.sqrt(n));
-                            int cols = (int) Math.ceil(
-                                (double) n / Math.max(1, rows)
-                            );
-                            int[] spacing = (layerHint != null)
-                                ? computeSpacing(rep, layerHint)
-                                : computeSpacing(rep);
-                            int cellW = spacing[0];
-                            int cellH = spacing[1];
-                            // Compute a simple connectivity score and reorder to reduce crossings
-                            java.util.Map<Bounds, Integer> score =
-                                computeConnectivityScores(rep, nodes);
-                            bounds.sort((a, b) ->
-                                Integer.compare(
-                                    score.getOrDefault(b, 0),
-                                    score.getOrDefault(a, 0)
-                                )
-                            );
-                            int startX = minX;
-                            int startY = minY;
-                            int i = 0;
-                            for (Bounds b : bounds) {
-                                int r = i / cols;
-                                int c = i % cols;
-                                b.setX(startX + c * cellW);
-                                b.setY(startY + r * cellH);
-                                if (b.getWidth() <= 0) b.setWidth(
-                                    Math.max(120, cellW - 40)
-                                );
-                                if (b.getHeight() <= 0) b.setHeight(
-                                    Math.max(80, cellH - 40)
-                                );
-                                i++;
-                            }
-                            break;
-                        }
-                        case "radial": {
-                            // Arrange in a circle around the current center
-                            int n = bounds.size();
-                            if (n > 0) {
-                                double cx = (minX + maxR) / 2.0;
-                                double cy = (minY + maxB) / 2.0;
-                                // Radius scaled with area and count
-                                double spanX = Math.max(200.0, (maxR - minX));
-                                double spanY = Math.max(150.0, (maxB - minY));
-                                double radius =
-                                    Math.max(spanX, spanY) * 0.6 + n * 6.0;
-                                for (int i = 0; i < n; i++) {
-                                    Bounds b = bounds.get(i);
-                                    double theta = (2.0 * Math.PI * i) / n;
-                                    int w = Math.max(80, b.getWidth());
-                                    int h = Math.max(50, b.getHeight());
-                                    int x = (int) Math.round(
-                                        cx + radius * Math.cos(theta) - w / 2.0
-                                    );
-                                    int y = (int) Math.round(
-                                        cy + radius * Math.sin(theta) - h / 2.0
-                                    );
-                                    b.setX(x);
-                                    b.setY(y);
-                                    if (b.getWidth() <= 0) b.setWidth(w);
-                                    if (b.getHeight() <= 0) b.setHeight(h);
+                        int overlapsPre = countOverlaps(bounds);
+                        int crossingsPre = estimateCrossings(nodes);
+                        long t0 = System.nanoTime();
+                        switch (strat) {
+                            case "left":
+                                for (Bounds b : bounds) b.setX(minX);
+                                break;
+                            case "right":
+                                for (Bounds b : bounds) b.setX(maxR - Math.max(0, b.getWidth()));
+                                break;
+                            case "top":
+                                for (Bounds b : bounds) b.setY(minY);
+                                break;
+                            case "bottom":
+                                for (Bounds b : bounds) b.setY(maxB - Math.max(0, b.getHeight()));
+                                break;
+                            case "hcenter":
+                                {
+                                    int mid = (minX + maxR) / 2;
+                                    for (Bounds b : bounds)
+                                        b.setX(mid - Math.max(0, b.getWidth()) / 2);
+                                    break;
                                 }
-                            }
-                            break;
+                            case "vcenter":
+                                {
+                                    int mid = (minY + maxB) / 2;
+                                    for (Bounds b : bounds)
+                                        b.setY(mid - Math.max(0, b.getHeight()) / 2);
+                                    break;
+                                }
+                            case "hspace":
+                                {
+                                    // Sort by x and distribute across minX..maxR using equal gaps
+                                    bounds.sort(java.util.Comparator.comparingInt(Bounds::getX));
+                                    int n = bounds.size();
+                                    int totalWidth =
+                                            bounds.stream()
+                                                    .mapToInt(b -> Math.max(0, b.getWidth()))
+                                                    .sum();
+                                    int span = Math.max(0, maxR - minX - totalWidth);
+                                    int gap = (n > 1) ? (span / (n - 1)) : 0;
+                                    int cursor = minX;
+                                    for (Bounds b : bounds) {
+                                        b.setX(cursor);
+                                        cursor += Math.max(0, b.getWidth()) + gap;
+                                    }
+                                    break;
+                                }
+                            case "vspace":
+                                {
+                                    bounds.sort(java.util.Comparator.comparingInt(Bounds::getY));
+                                    int n = bounds.size();
+                                    int totalHeight =
+                                            bounds.stream()
+                                                    .mapToInt(b -> Math.max(0, b.getHeight()))
+                                                    .sum();
+                                    int span = Math.max(0, maxB - minY - totalHeight);
+                                    int gap = (n > 1) ? (span / (n - 1)) : 0;
+                                    int cursor = minY;
+                                    for (Bounds b : bounds) {
+                                        b.setY(cursor);
+                                        cursor += Math.max(0, b.getHeight()) + gap;
+                                    }
+                                    break;
+                                }
+                            case "grid":
+                                {
+                                    int n = bounds.size();
+                                    int cols = (int) Math.ceil(Math.sqrt(n));
+                                    int rows = (int) Math.ceil((double) n / cols);
+                                    int cellW = Math.max(120, (maxR - minX) / Math.max(1, cols));
+                                    int cellH = Math.max(80, (maxB - minY) / Math.max(1, rows));
+                                    for (Bounds b : bounds) {
+                                        cellW = Math.max(cellW, Math.max(120, b.getWidth()) + 60);
+                                        cellH = Math.max(cellH, Math.max(80, b.getHeight()) + 40);
+                                    }
+                                    int i = 0;
+                                    for (Bounds b : bounds) {
+                                        int c = i % cols;
+                                        int r = i / cols;
+                                        b.setX(minX + c * cellW);
+                                        b.setY(minY + r * cellH);
+                                        i++;
+                                    }
+                                    break;
+                                }
+                            case "flow":
+                                {
+                                    // Left-to-right flow with per-diagram spacing and a simple
+                                    // crossing-minimization heuristic
+                                    int n = bounds.size();
+                                    int rows = (int) Math.ceil(Math.sqrt(n));
+                                    int cols = (int) Math.ceil((double) n / Math.max(1, rows));
+                                    int[] spacing =
+                                            (layerHint != null)
+                                                    ? computeSpacing(rep, layerHint)
+                                                    : computeSpacing(rep);
+                                    int cellW = spacing[0];
+                                    int cellH = spacing[1];
+                                    // Compute a simple connectivity score and reorder to reduce
+                                    // crossings
+                                    java.util.Map<Bounds, Integer> score =
+                                            computeConnectivityScores(rep, nodes);
+                                    bounds.sort(
+                                            (a, b) ->
+                                                    Integer.compare(
+                                                            score.getOrDefault(b, 0),
+                                                            score.getOrDefault(a, 0)));
+                                    int startX = minX;
+                                    int startY = minY;
+                                    int i = 0;
+                                    for (Bounds b : bounds) {
+                                        int r = i / cols;
+                                        int c = i % cols;
+                                        b.setX(startX + c * cellW);
+                                        b.setY(startY + r * cellH);
+                                        if (b.getWidth() <= 0)
+                                            b.setWidth(Math.max(120, cellW - 40));
+                                        if (b.getHeight() <= 0)
+                                            b.setHeight(Math.max(80, cellH - 40));
+                                        i++;
+                                    }
+                                    break;
+                                }
+                            case "radial":
+                                {
+                                    // Arrange in a circle around the current center
+                                    int n = bounds.size();
+                                    if (n > 0) {
+                                        double cx = (minX + maxR) / 2.0;
+                                        double cy = (minY + maxB) / 2.0;
+                                        // Radius scaled with area and count
+                                        double spanX = Math.max(200.0, (maxR - minX));
+                                        double spanY = Math.max(150.0, (maxB - minY));
+                                        double radius = Math.max(spanX, spanY) * 0.6 + n * 6.0;
+                                        for (int i = 0; i < n; i++) {
+                                            Bounds b = bounds.get(i);
+                                            double theta = (2.0 * Math.PI * i) / n;
+                                            int w = Math.max(80, b.getWidth());
+                                            int h = Math.max(50, b.getHeight());
+                                            int x =
+                                                    (int)
+                                                            Math.round(
+                                                                    cx
+                                                                            + radius
+                                                                                    * Math.cos(
+                                                                                            theta)
+                                                                            - w / 2.0);
+                                            int y =
+                                                    (int)
+                                                            Math.round(
+                                                                    cy
+                                                                            + radius
+                                                                                    * Math.sin(
+                                                                                            theta)
+                                                                            - h / 2.0);
+                                            b.setX(x);
+                                            b.setY(y);
+                                            if (b.getWidth() <= 0) b.setWidth(w);
+                                            if (b.getHeight() <= 0) b.setHeight(h);
+                                        }
+                                    }
+                                    break;
+                                }
+                            case "layered":
+                                // Hierarchical: containers grow to fit their children; GMF routes
+                                // the wiring.
+                                ElkDiagramLayout.apply(notation);
+                                break;
+                            default:
+                                throw new IllegalArgumentException(
+                                        "Unsupported layout strategy " + strat);
                         }
-                        case "layered":
-                            // Hierarchical: containers grow to fit their children; GMF routes the wiring.
-                            ElkDiagramLayout.apply(notation);
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Unsupported layout strategy " + strat);
-                    }
-                    // ELK routes its own wiring; the geometric strategies get the generic tidy-up.
-                    if (!"layered".equals(strat)) DiagramWiring.tidy(notation);
-                    // Native notation notifications update an open editor after commit.
-                    // A semantic refresh is neither needed nor a substitute for layout.
-                    // Telemetry post-metrics
-                    int overlapsPost = countOverlaps(bounds);
-                    int crossingsPost = estimateCrossings(nodes);
-                    long durMs =
-                        java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
-                            System.nanoTime() - t0
-                        );
-                    String stratLabel = (layerHint != null &&
-                            !layerHint.isBlank())
-                        ? (layerHint.toLowerCase() + "_" + strat)
-                        : strat;
-                    Telemetry.recordLayout(
-                        diagramName == null ? "diagram" : diagramName,
-                        stratLabel,
-                        bounds.size(),
-                        overlapsPre,
-                        overlapsPost,
-                        crossingsPre,
-                        crossingsPost,
-                        durMs
-                    );
-                    return true;
-                }
-            );
+                        // ELK routes its own wiring; the geometric strategies get the generic
+                        // tidy-up.
+                        if (!"layered".equals(strat)) DiagramWiring.tidy(notation);
+                        // Native notation notifications update an open editor after commit.
+                        // A semantic refresh is neither needed nor a substitute for layout.
+                        // Telemetry post-metrics
+                        int overlapsPost = countOverlaps(bounds);
+                        int crossingsPost = estimateCrossings(nodes);
+                        long durMs =
+                                java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
+                                        System.nanoTime() - t0);
+                        String stratLabel =
+                                (layerHint != null && !layerHint.isBlank())
+                                        ? (layerHint.toLowerCase() + "_" + strat)
+                                        : strat;
+                        Telemetry.recordLayout(
+                                diagramName == null ? "diagram" : diagramName,
+                                stratLabel,
+                                bounds.size(),
+                                overlapsPre,
+                                overlapsPost,
+                                crossingsPre,
+                                crossingsPost,
+                                durMs);
+                        return true;
+                    });
         } catch (Exception e) {
             LOG.warning("arrangeSelection failed: " + e.getMessage());
             return false;
@@ -461,8 +460,7 @@ public final class DiagramCommands {
     }
 
     private static int[] computeSpacing(DRepresentation rep, String layerHint) {
-        int cellW = 200,
-            cellH = 140;
+        int cellW = 200, cellH = 140;
         if (layerHint != null) {
             String lh = layerHint.toUpperCase();
             if ("LA".equals(lh)) {
@@ -484,92 +482,77 @@ public final class DiagramCommands {
         }
         try {
             if (rep instanceof DDiagram) {
-                org.eclipse.sirius.diagram.DDiagram d =
-                    (org.eclipse.sirius.diagram.DDiagram) rep;
+                org.eclipse.sirius.diagram.DDiagram d = (org.eclipse.sirius.diagram.DDiagram) rep;
                 String name = null;
                 try {
-                    name = d.getDescription() != null
-                        ? d.getDescription().getName()
-                        : null;
-                } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+                    name = d.getDescription() != null ? d.getDescription().getName() : null;
+                } catch (Throwable ex) {
+                    LOG.fine("[DiagramCommands] " + ex.getMessage());
+                }
                 String n = name != null ? name.toLowerCase() : "";
                 if (n.contains("data flow") || n.contains("flow")) {
                     cellW = 240;
                     cellH = 160;
-                } else if (
-                    n.contains("function breakdown") || n.contains("fbd")
-                ) {
+                } else if (n.contains("function breakdown") || n.contains("fbd")) {
                     cellW = 220;
                     cellH = 170;
-                } else if (
-                    n.contains("logical architecture blank") ||
-                    n.contains("lab")
-                ) {
+                } else if (n.contains("logical architecture blank") || n.contains("lab")) {
                     cellW = 260;
                     cellH = 180;
-                } else if (
-                    n.contains("system architecture blank") || n.contains("sab")
-                ) {
+                } else if (n.contains("system architecture blank") || n.contains("sab")) {
                     cellW = 280;
                     cellH = 190;
-                } else if (
-                    n.contains("physical architecture blank") ||
-                    n.contains("pab")
-                ) {
+                } else if (n.contains("physical architecture blank") || n.contains("pab")) {
                     cellW = 300;
                     cellH = 200;
                 }
             }
-        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-        return new int[] { cellW, cellH };
+        } catch (Throwable ex) {
+            LOG.fine("[DiagramCommands] " + ex.getMessage());
+        }
+        return new int[] {cellW, cellH};
     }
 
     private static java.util.Map<Bounds, Integer> computeConnectivityScores(
-        DRepresentation rep,
-        java.util.List<Node> nodes
-    ) {
+            DRepresentation rep, java.util.List<Node> nodes) {
         java.util.Map<Bounds, Integer> scores = new java.util.HashMap<>();
         java.util.List<Object[]> pairs = new java.util.ArrayList<>();
         // Map each node to its semantic EObject (if available)
-        java.util.Map<Node, org.eclipse.emf.ecore.EObject> sem =
-            new java.util.HashMap<>();
+        java.util.Map<Node, org.eclipse.emf.ecore.EObject> sem = new java.util.HashMap<>();
         for (Node n : nodes) {
             org.eclipse.emf.ecore.EObject target = toSemantic(n);
             if (target != null) {
                 sem.put(n, target);
             }
         }
-        java.util.Set<org.eclipse.emf.ecore.EObject> all =
-            new java.util.HashSet<>(sem.values());
+        java.util.Set<org.eclipse.emf.ecore.EObject> all = new java.util.HashSet<>(sem.values());
         // For each element, count references to elements within the same set
         for (Node n : nodes) {
             int sc = 0;
             org.eclipse.emf.ecore.EObject t = sem.get(n);
             if (t != null) {
                 try {
-                    for (org.eclipse.emf.ecore.EStructuralFeature f : t
-                        .eClass()
-                        .getEAllStructuralFeatures()) {
+                    for (org.eclipse.emf.ecore.EStructuralFeature f :
+                            t.eClass().getEAllStructuralFeatures()) {
                         if (f instanceof org.eclipse.emf.ecore.EReference) {
                             org.eclipse.emf.ecore.EReference r =
-                                (org.eclipse.emf.ecore.EReference) f;
+                                    (org.eclipse.emf.ecore.EReference) f;
                             if (r.isContainment()) continue;
                             Object v = t.eGet(r);
                             if (v instanceof org.eclipse.emf.ecore.EObject e2) {
                                 if (all.contains(e2)) sc++;
                             } else if (v instanceof java.util.Collection<?>) {
                                 for (Object o : (java.util.Collection<?>) v) {
-                                    if (
-                                        o instanceof
-                                            org.eclipse.emf.ecore.EObject e3
-                                    ) {
+                                    if (o instanceof org.eclipse.emf.ecore.EObject e3) {
                                         if (all.contains(e3)) sc++;
                                     }
                                 }
                             }
                         }
                     }
-                } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+                } catch (Throwable ex) {
+                    LOG.fine("[DiagramCommands] " + ex.getMessage());
+                }
             }
             // Save by Bounds (from node)
             Bounds b = (Bounds) n.getLayoutConstraint();
@@ -579,23 +562,34 @@ public final class DiagramCommands {
     }
 
     /**
-     * Creates the GMF notation of a diagram that has never been opened and brings an existing one in
-     * line with views added since (Sirius only does this when an editor opens). Layout needs both.
-     * The diagram must belong to this session's editing domain and owned resources.
+     * Creates the GMF notation of a diagram that has never been opened and brings an existing one
+     * in line with views added since (Sirius only does this when an editor opens). Layout needs
+     * both. The diagram must belong to this session's editing domain and owned resources.
      */
     public static boolean ensureNotation(Session session, DRepresentation rep) {
-        if (session == null || !(rep instanceof DDiagram diagram) || !ownsRepresentation(session, rep)) return false;
-        return Boolean.TRUE.equals(SessionSafeguards.runWrite(session, "Synchronize diagram notation", () -> {
-            var util = new org.eclipse.sirius.diagram.business.api.refresh.DiagramCreationUtil(diagram);
-            if (!util.findAssociatedGMFDiagram()) util.createNewGMFDiagram();
-            org.eclipse.gmf.runtime.notation.Diagram notation = util.getAssociatedGMFDiagram();
-            if (notation == null) return false;
-            var synchronizer = org.eclipse.sirius.diagram.business.api.refresh.CanonicalSynchronizerFactory.INSTANCE
-                .createCanonicalSynchronizer(notation);
-            synchronizer.storeViewsToArrange(false);
-            synchronizer.synchronize();
-            return true;
-        }));
+        if (session == null
+                || !(rep instanceof DDiagram diagram)
+                || !ownsRepresentation(session, rep)) return false;
+        return Boolean.TRUE.equals(
+                SessionSafeguards.runWrite(
+                        session,
+                        "Synchronize diagram notation",
+                        () -> {
+                            var util =
+                                    new org.eclipse.sirius.diagram.business.api.refresh
+                                            .DiagramCreationUtil(diagram);
+                            if (!util.findAssociatedGMFDiagram()) util.createNewGMFDiagram();
+                            org.eclipse.gmf.runtime.notation.Diagram notation =
+                                    util.getAssociatedGMFDiagram();
+                            if (notation == null) return false;
+                            var synchronizer =
+                                    org.eclipse.sirius.diagram.business.api.refresh
+                                            .CanonicalSynchronizerFactory.INSTANCE
+                                            .createCanonicalSynchronizer(notation);
+                            synchronizer.storeViewsToArrange(false);
+                            synchronizer.synchronize();
+                            return true;
+                        }));
     }
 
     private static boolean ownsRepresentation(Session session, DRepresentation rep) {
@@ -604,34 +598,46 @@ public final class DiagramCommands {
 
     private static boolean ownsLayoutResource(Session session, Resource resource) {
         TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
-        if (resource == null || domain == null || resource.getResourceSet() != domain.getResourceSet()) return false;
+        if (resource == null
+                || domain == null
+                || resource.getResourceSet() != domain.getResourceSet()) return false;
         if (resource == session.getSessionResource()) return true;
         java.util.Collection<Resource> owned = session.getAllSessionResources();
         java.util.Collection<Resource> referenced = session.getReferencedSessionResources();
-        return owned != null && owned.contains(resource) && (referenced == null || !referenced.contains(resource));
+        return owned != null
+                && owned.contains(resource)
+                && (referenced == null || !referenced.contains(resource));
     }
 
     /** Sirius normally contains the GMF diagram in an annotation on the representation. */
-    private static org.eclipse.gmf.runtime.notation.Diagram findNotationDiagram(Session session, DRepresentation rep) {
+    private static org.eclipse.gmf.runtime.notation.Diagram findNotationDiagram(
+            Session session, DRepresentation rep) {
         var contents = rep.eAllContents();
         while (contents.hasNext()) {
             EObject element = contents.next();
-            if (element instanceof org.eclipse.gmf.runtime.notation.Diagram notation && notation.getElement() == rep) return notation;
+            if (element instanceof org.eclipse.gmf.runtime.notation.Diagram notation
+                    && notation.getElement() == rep) return notation;
         }
-        for (Resource resource : session.getTransactionalEditingDomain().getResourceSet().getResources()) {
+        for (Resource resource :
+                session.getTransactionalEditingDomain().getResourceSet().getResources()) {
             if (!ownsLayoutResource(session, resource)) continue;
             var resourceContents = resource.getAllContents();
             while (resourceContents.hasNext()) {
                 EObject element = resourceContents.next();
-                if (element instanceof org.eclipse.gmf.runtime.notation.Diagram notation && notation.getElement() == rep
-                    && ownsRepresentation(session, rep)) return notation;
+                if (element instanceof org.eclipse.gmf.runtime.notation.Diagram notation
+                        && notation.getElement() == rep
+                        && ownsRepresentation(session, rep)) return notation;
             }
         }
         return null;
     }
 
-    /** Keep outer semantic shapes; labels, compartment wrappers and border ports never move independently. */
-    private static java.util.List<Node> collectLayoutShapes(org.eclipse.gmf.runtime.notation.Diagram diagram) {
+    /**
+     * Keep outer semantic shapes; labels, compartment wrappers and border ports never move
+     * independently.
+     */
+    private static java.util.List<Node> collectLayoutShapes(
+            org.eclipse.gmf.runtime.notation.Diagram diagram) {
         java.util.List<Node> shapes = new java.util.ArrayList<>();
         collectLayoutShapes(diagram, shapes);
         return shapes;
@@ -641,11 +647,18 @@ public final class DiagramCommands {
         for (Object child : container.getChildren()) {
             if (!(child instanceof Node node)) continue;
             EObject semanticView = node.getElement();
-            boolean shape = semanticView instanceof DNode || semanticView instanceof DNodeContainer
-                || semanticView instanceof org.eclipse.sirius.diagram.DNodeList;
-            if (shape && semanticView instanceof DSemanticDecorator decorator && decorator.getTarget() != null
-                && !(decorator.getTarget() instanceof org.polarsys.capella.core.data.information.Port)
-                && (semanticView.eContainingFeature() == null || !"ownedBorderedNodes".equals(semanticView.eContainingFeature().getName()))) {
+            boolean shape =
+                    semanticView instanceof DNode
+                            || semanticView instanceof DNodeContainer
+                            || semanticView instanceof org.eclipse.sirius.diagram.DNodeList;
+            if (shape
+                    && semanticView instanceof DSemanticDecorator decorator
+                    && decorator.getTarget() != null
+                    && !(decorator.getTarget()
+                            instanceof org.polarsys.capella.core.data.information.Port)
+                    && (semanticView.eContainingFeature() == null
+                            || !"ownedBorderedNodes"
+                                    .equals(semanticView.eContainingFeature().getName()))) {
                 shapes.add(node);
             } else if (!(semanticView instanceof DSemanticDecorator)) {
                 // Only notation compartments may wrap top-level shapes. A port is never a wrapper.
@@ -654,11 +667,15 @@ public final class DiagramCommands {
         }
     }
 
-    /** Native GMF edges already carry the exact visible endpoints, including function-port views. */
-    private static java.util.Map<Node, java.util.Set<Node>> computeAdjacency(java.util.List<Node> nodes) {
+    /**
+     * Native GMF edges already carry the exact visible endpoints, including function-port views.
+     */
+    private static java.util.Map<Node, java.util.Set<Node>> computeAdjacency(
+            java.util.List<Node> nodes) {
         java.util.Map<Node, java.util.Set<Node>> adjacency = new java.util.LinkedHashMap<>();
         for (Node node : nodes) adjacency.put(node, new java.util.LinkedHashSet<>());
-        java.util.Set<org.eclipse.gmf.runtime.notation.Diagram> diagrams = new java.util.HashSet<>();
+        java.util.Set<org.eclipse.gmf.runtime.notation.Diagram> diagrams =
+                new java.util.HashSet<>();
         for (Node node : nodes) if (node.getDiagram() != null) diagrams.add(node.getDiagram());
         for (org.eclipse.gmf.runtime.notation.Diagram diagram : diagrams) {
             for (Object candidate : diagram.getEdges()) {
@@ -684,7 +701,9 @@ public final class DiagramCommands {
     }
 
     private static EObject toSemantic(Node node) {
-        return node.getElement() instanceof DSemanticDecorator decorator ? decorator.getTarget() : null;
+        return node.getElement() instanceof DSemanticDecorator decorator
+                ? decorator.getTarget()
+                : null;
     }
 
     /** Count rectangle overlaps among given bounds. */
@@ -724,7 +743,7 @@ public final class DiagramCommands {
             Node u = e.getKey();
             for (Node v : e.getValue()) {
                 if (System.identityHashCode(u) < System.identityHashCode(v)) {
-                    edges.add(new Node[] { u, v });
+                    edges.add(new Node[] {u, v});
                 }
             }
         }
@@ -737,72 +756,45 @@ public final class DiagramCommands {
             if (b == null) continue;
             double cx = b.getX() + Math.max(1, b.getWidth()) / 2.0;
             double cy = b.getY() + Math.max(1, b.getHeight()) / 2.0;
-            center.put(n, new double[] { cx, cy });
+            center.put(n, new double[] {cx, cy});
         }
         int crossings = 0;
         for (int i = 0; i < m; i++) {
             Node[] e1 = edges.get(i);
             for (int j = i + 1; j < m; j++) {
                 Node[] e2 = edges.get(j);
-                if (
-                    e1[0] == e2[0] ||
-                    e1[0] == e2[1] ||
-                    e1[1] == e2[0] ||
-                    e1[1] == e2[1]
-                ) continue;
+                if (e1[0] == e2[0] || e1[0] == e2[1] || e1[1] == e2[0] || e1[1] == e2[1]) continue;
                 double[] a1 = center.get(e1[0]);
                 double[] a2 = center.get(e1[1]);
                 double[] b1 = center.get(e2[0]);
                 double[] b2 = center.get(e2[1]);
-                if (
-                    a1 == null || a2 == null || b1 == null || b2 == null
-                ) continue;
-                if (
-                    segmentsIntersect(
-                        a1[0],
-                        a1[1],
-                        a2[0],
-                        a2[1],
-                        b1[0],
-                        b1[1],
-                        b2[0],
-                        b2[1]
-                    )
-                ) crossings++;
+                if (a1 == null || a2 == null || b1 == null || b2 == null) continue;
+                if (segmentsIntersect(a1[0], a1[1], a2[0], a2[1], b1[0], b1[1], b2[0], b2[1]))
+                    crossings++;
             }
         }
         return crossings;
     }
 
-    private static double orient(
-        double ax,
-        double ay,
-        double bx,
-        double by,
-        double cx,
-        double cy
-    ) {
+    private static double orient(double ax, double ay, double bx, double by, double cx, double cy) {
         return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
     }
 
     private static boolean segmentsIntersect(
-        double ax,
-        double ay,
-        double bx,
-        double by,
-        double cx,
-        double cy,
-        double dx,
-        double dy
-    ) {
+            double ax,
+            double ay,
+            double bx,
+            double by,
+            double cx,
+            double cy,
+            double dx,
+            double dy) {
         double o1 = orient(ax, ay, bx, by, cx, cy);
         double o2 = orient(ax, ay, bx, by, dx, dy);
         double o3 = orient(cx, cy, dx, dy, ax, ay);
         double o4 = orient(cx, cy, dx, dy, bx, by);
-        if (
-            ((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0)) &&
-            ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0))
-        ) {
+        if (((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0))
+                && ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0))) {
             return true;
         }
         return false;
@@ -810,13 +802,8 @@ public final class DiagramCommands {
 
     /** Best-effort: resolve elements by id/uuid/fragment and refresh the diagram editor. */
     public static int addElementsByUuid(
-        Session session,
-        DRepresentation rep,
-        java.util.List<String> ids
-    ) {
-        if (
-            session == null || rep == null || ids == null || ids.isEmpty()
-        ) return 0;
+            Session session, DRepresentation rep, java.util.List<String> ids) {
+        if (session == null || rep == null || ids == null || ids.isEmpty()) return 0;
         int resolved = 0;
         try {
             var domain = session.getTransactionalEditingDomain();
@@ -837,14 +824,10 @@ public final class DiagramCommands {
     }
 
     /**
-     * Create a node view for a semantic element on a diagram.
-     * Uses Sirius's DDiagramElementSynchronizer for proper synchronized diagram support.
+     * Create a node view for a semantic element on a diagram. Uses Sirius's
+     * DDiagramElementSynchronizer for proper synchronized diagram support.
      */
-    public static boolean createNode(
-        Session session,
-        DRepresentation rep,
-        EObject semantic
-    ) {
+    public static boolean createNode(Session session, DRepresentation rep, EObject semantic) {
         if (session == null || rep == null || semantic == null) return false;
         if (!(rep instanceof DDiagram)) return false;
 
@@ -857,202 +840,139 @@ public final class DiagramCommands {
                 return true;
             }
 
-            DSemanticDecorator containerView =
-                resolveContainerView(diagram, semantic);
-            if (
-                containerView != null &&
-                tryCreateViewTask(
-                    session,
-                    diagram,
-                    containerView,
-                    semantic
-                )
-            ) {
+            DSemanticDecorator containerView = resolveContainerView(diagram, semantic);
+            if (containerView != null
+                    && tryCreateViewTask(session, diagram, containerView, semantic)) {
                 return true;
             }
 
             // Use Sirius's proper element creation via DDiagramElementSynchronizer
             return SessionSafeguards.runWrite(
-                session,
-                "Add element to diagram",
-                () -> {
-                    try {
-                        // Get the diagram description
-                        DiagramDescription desc = diagram.getDescription();
-                        if (desc == null) {
-                            LOG.warning("Diagram has no description");
-                            return false;
-                        }
-
-                        // Find appropriate mapping for this element type
-                        AbstractNodeMapping mapping = findNodeMapping(
-                            desc,
-                            semantic
-                        );
-                        if (mapping == null) {
-                            LOG.warning(
-                                "No mapping found for: " +
-                                    semantic.eClass().getName()
-                            );
-                            return false;
-                        }
-
-                        // Use Sirius synchronizer to create element properly
-                        Class<?> syncClass = Class.forName(
-                            "org.eclipse.sirius.diagram.business.internal.sync.DDiagramElementSynchronizer"
-                        );
-
-                        // Get interpreter from session
-                        Object interpreter = null;
+                    session,
+                    "Add element to diagram",
+                    () -> {
                         try {
-                            var getInterpreter = session
-                                .getClass()
-                                .getMethod("getInterpreter");
-                            interpreter = getInterpreter.invoke(session);
-                        } catch (Exception e) {
-                            // Try alternative: get from Sirius runtime
-                            Class<?> siriusPlugin = Class.forName(
-                                "org.eclipse.sirius.business.api.componentization.ViewpointRegistry"
-                            );
-                            var getInstance = siriusPlugin.getMethod(
-                                "getInstance"
-                            );
-                            var registry = getInstance.invoke(null);
-                        }
-
-                        // Create synchronizer
-                        var syncConstructor = syncClass.getConstructor(
-                            DDiagram.class,
-                            Class.forName(
-                                "org.eclipse.sirius.common.tools.api.interpreter.IInterpreter"
-                            ),
-                            Class.forName(
-                                "org.eclipse.sirius.ecore.extender.business.api.accessor.ModelAccessor"
-                            )
-                        );
-
-                        // Get model accessor
-                        var getAccessor = session
-                            .getClass()
-                            .getMethod("getModelAccessor");
-                        var accessor = getAccessor.invoke(session);
-
-                        // Get interpreter
-                        var getInterp = session
-                            .getClass()
-                            .getMethod("getInterpreter");
-                        var interp = getInterp.invoke(session);
-
-                        var synchronizer = syncConstructor.newInstance(
-                            diagram,
-                            interp,
-                            accessor
-                        );
-
-                        // Call createNewNode method
-                        if (mapping instanceof ContainerMapping) {
-                            var createMethod = syncClass.getMethod(
-                                "createNewNode",
-                                Class.forName(
-                                    "org.eclipse.sirius.diagram.DDiagramElementContainer"
-                                ),
-                                EObject.class,
-                                ContainerMapping.class
-                            );
-                            // null parent = add to diagram root
-                            var result = createMethod.invoke(
-                                synchronizer,
-                                null,
-                                semantic,
-                                mapping
-                            );
-                            if (result != null) {
-                                diagram
-                                    .getOwnedDiagramElements()
-                                    .add((DDiagramElement) result);
-                                LOG.info(
-                                    "Created container for: " +
-                                        semantic.eClass().getName()
-                                );
+                            // Get the diagram description
+                            DiagramDescription desc = diagram.getDescription();
+                            if (desc == null) {
+                                LOG.warning("Diagram has no description");
+                                return false;
                             }
-                        } else if (mapping instanceof NodeMapping) {
-                            var createMethod = syncClass.getMethod(
-                                "createNewNode",
-                                Class.forName(
-                                    "org.eclipse.sirius.diagram.DDiagramElementContainer"
-                                ),
-                                EObject.class,
-                                NodeMapping.class
-                            );
-                            var result = createMethod.invoke(
-                                synchronizer,
-                                null,
-                                semantic,
-                                mapping
-                            );
-                            if (result != null) {
-                                diagram
-                                    .getOwnedDiagramElements()
-                                    .add((DDiagramElement) result);
-                                LOG.info(
-                                    "Created node for: " +
-                                        semantic.eClass().getName()
-                                );
+
+                            // Find appropriate mapping for this element type
+                            AbstractNodeMapping mapping = findNodeMapping(desc, semantic);
+                            if (mapping == null) {
+                                LOG.warning("No mapping found for: " + semantic.eClass().getName());
+                                return false;
                             }
-                        }
 
-                        // Refresh to apply styles
-                        DialectManager.INSTANCE.refresh(
-                            diagram,
-                            new NullProgressMonitor()
-                        );
-                        return isOnDiagram(diagram, semantic);
-                    } catch (Exception e) {
-                        LOG.warning(
-                            "Synchronizer approach failed: " + e.getMessage()
-                        );
+                            // Use Sirius synchronizer to create element properly
+                            Class<?> syncClass =
+                                    Class.forName(
+                                            "org.eclipse.sirius.diagram.business.internal.sync.DDiagramElementSynchronizer");
 
-                        // Fallback: manually create and add element to correct container
-                        DiagramDescription desc = diagram.getDescription();
-                        AbstractNodeMapping mapping = findNodeMapping(
-                            desc,
-                            semantic
-                        );
+                            // Get interpreter from session
+                            Object interpreter = null;
+                            try {
+                                var getInterpreter = session.getClass().getMethod("getInterpreter");
+                                interpreter = getInterpreter.invoke(session);
+                            } catch (Exception e) {
+                                // Try alternative: get from Sirius runtime
+                                Class<?> siriusPlugin =
+                                        Class.forName(
+                                                "org.eclipse.sirius.business.api.componentization.ViewpointRegistry");
+                                var getInstance = siriusPlugin.getMethod("getInstance");
+                                var registry = getInstance.invoke(null);
+                            }
 
-                        if (mapping != null) {
-                            DDiagramElement newElement = createDiagramElement(
-                                mapping,
-                                semantic
-                            );
-                            if (newElement != null) {
-                                // Find correct parent container based on allocations
-                                DNodeContainer parentContainer =
-                                    findParentContainer(diagram, semantic);
-                                if (parentContainer != null) {
-                                    parentContainer
-                                        .getOwnedDiagramElements()
-                                        .add(newElement);
+                            // Create synchronizer
+                            var syncConstructor =
+                                    syncClass.getConstructor(
+                                            DDiagram.class,
+                                            Class.forName(
+                                                    "org.eclipse.sirius.common.tools.api.interpreter.IInterpreter"),
+                                            Class.forName(
+                                                    "org.eclipse.sirius.ecore.extender.business.api.accessor.ModelAccessor"));
+
+                            // Get model accessor
+                            var getAccessor = session.getClass().getMethod("getModelAccessor");
+                            var accessor = getAccessor.invoke(session);
+
+                            // Get interpreter
+                            var getInterp = session.getClass().getMethod("getInterpreter");
+                            var interp = getInterp.invoke(session);
+
+                            var synchronizer =
+                                    syncConstructor.newInstance(diagram, interp, accessor);
+
+                            // Call createNewNode method
+                            if (mapping instanceof ContainerMapping) {
+                                var createMethod =
+                                        syncClass.getMethod(
+                                                "createNewNode",
+                                                Class.forName(
+                                                        "org.eclipse.sirius.diagram.DDiagramElementContainer"),
+                                                EObject.class,
+                                                ContainerMapping.class);
+                                // null parent = add to diagram root
+                                var result =
+                                        createMethod.invoke(synchronizer, null, semantic, mapping);
+                                if (result != null) {
+                                    diagram.getOwnedDiagramElements().add((DDiagramElement) result);
                                     LOG.info(
-                                        "Added to container: " +
-                                            parentContainer.getTarget()
-                                    );
-                                } else {
-                                    diagram
-                                        .getOwnedDiagramElements()
-                                        .add(newElement);
-                                    LOG.info("Added to diagram root");
+                                            "Created container for: "
+                                                    + semantic.eClass().getName());
                                 }
-                                DialectManager.INSTANCE.refresh(
-                                    diagram,
-                                    new NullProgressMonitor()
-                                );
-                                return isOnDiagram(diagram, semantic);
+                            } else if (mapping instanceof NodeMapping) {
+                                var createMethod =
+                                        syncClass.getMethod(
+                                                "createNewNode",
+                                                Class.forName(
+                                                        "org.eclipse.sirius.diagram.DDiagramElementContainer"),
+                                                EObject.class,
+                                                NodeMapping.class);
+                                var result =
+                                        createMethod.invoke(synchronizer, null, semantic, mapping);
+                                if (result != null) {
+                                    diagram.getOwnedDiagramElements().add((DDiagramElement) result);
+                                    LOG.info("Created node for: " + semantic.eClass().getName());
+                                }
                             }
+
+                            // Refresh to apply styles
+                            DialectManager.INSTANCE.refresh(diagram, new NullProgressMonitor());
+                            return isOnDiagram(diagram, semantic);
+                        } catch (Exception e) {
+                            LOG.warning("Synchronizer approach failed: " + e.getMessage());
+
+                            // Fallback: manually create and add element to correct container
+                            DiagramDescription desc = diagram.getDescription();
+                            AbstractNodeMapping mapping = findNodeMapping(desc, semantic);
+
+                            if (mapping != null) {
+                                DDiagramElement newElement =
+                                        createDiagramElement(mapping, semantic);
+                                if (newElement != null) {
+                                    // Find correct parent container based on allocations
+                                    DNodeContainer parentContainer =
+                                            findParentContainer(diagram, semantic);
+                                    if (parentContainer != null) {
+                                        parentContainer.getOwnedDiagramElements().add(newElement);
+                                        LOG.info(
+                                                "Added to container: "
+                                                        + parentContainer.getTarget());
+                                    } else {
+                                        diagram.getOwnedDiagramElements().add(newElement);
+                                        LOG.info("Added to diagram root");
+                                    }
+                                    DialectManager.INSTANCE.refresh(
+                                            diagram, new NullProgressMonitor());
+                                    return isOnDiagram(diagram, semantic);
+                                }
+                            }
+                            return false;
                         }
-                        return false;
-                    }
-                }
-            );
+                    });
         } catch (Exception e) {
             LOG.warning("createNode failed: " + e.getMessage());
             return false;
@@ -1060,60 +980,44 @@ public final class DiagramCommands {
     }
 
     private static boolean tryCreateViewTask(
-        Session session,
-        DDiagram diagram,
-        DSemanticDecorator containerView,
-        EObject semantic
-    ) {
-        Bundle bundle = Platform.getBundle(
-            "org.polarsys.capella.core.sirius.analysis"
-        );
+            Session session, DDiagram diagram, DSemanticDecorator containerView, EObject semantic) {
+        Bundle bundle = Platform.getBundle("org.polarsys.capella.core.sirius.analysis");
         if (bundle == null) {
             return false;
         }
         try {
-            Class<?> taskClass = bundle.loadClass(
-                "org.polarsys.capella.core.sirius.analysis.task.CreateViewTask"
-            );
+            Class<?> taskClass =
+                    bundle.loadClass(
+                            "org.polarsys.capella.core.sirius.analysis.task.CreateViewTask");
             return SessionSafeguards.runWrite(
-                session,
-                "Add element to diagram",
-                () -> {
-                    try {
-                        var ctor = taskClass.getConstructor(
-                            EObject.class,
-                            DSemanticDecorator.class,
-                            EObject.class,
-                            String.class,
-                            String.class
-                        );
-                        Object task = ctor.newInstance(
-                            semantic,
-                            containerView,
-                            semantic,
-                            null,
-                            "view"
-                        );
-                        taskClass.getMethod("execute").invoke(task);
-                    } catch (Exception ex) {
-                        LOG.fine(
-                            "CreateViewTask failed: " + ex.getMessage()
-                        );
-                        return false;
-                    }
-                    return isOnDiagram(diagram, semantic);
-                }
-            );
+                    session,
+                    "Add element to diagram",
+                    () -> {
+                        try {
+                            var ctor =
+                                    taskClass.getConstructor(
+                                            EObject.class,
+                                            DSemanticDecorator.class,
+                                            EObject.class,
+                                            String.class,
+                                            String.class);
+                            Object task =
+                                    ctor.newInstance(
+                                            semantic, containerView, semantic, null, "view");
+                            taskClass.getMethod("execute").invoke(task);
+                        } catch (Exception ex) {
+                            LOG.fine("CreateViewTask failed: " + ex.getMessage());
+                            return false;
+                        }
+                        return isOnDiagram(diagram, semantic);
+                    });
         } catch (Exception ex) {
             LOG.fine("CreateViewTask not available: " + ex.getMessage());
             return false;
         }
     }
 
-    private static DSemanticDecorator resolveContainerView(
-        DDiagram diagram,
-        EObject semantic
-    ) {
+    private static DSemanticDecorator resolveContainerView(DDiagram diagram, EObject semantic) {
         if (diagram == null || semantic == null) {
             return null;
         }
@@ -1140,13 +1044,10 @@ public final class DiagramCommands {
     }
 
     /**
-     * Find the parent container on the diagram for a semantic element.
-     * Looks for allocation relationships (e.g., activity allocated to entity).
+     * Find the parent container on the diagram for a semantic element. Looks for allocation
+     * relationships (e.g., activity allocated to entity).
      */
-    private static DNodeContainer findParentContainer(
-        DDiagram diagram,
-        EObject semantic
-    ) {
+    private static DNodeContainer findParentContainer(DDiagram diagram, EObject semantic) {
         EObject semanticParent = findSemanticParent(semantic);
 
         if (semanticParent != null) {
@@ -1169,24 +1070,20 @@ public final class DiagramCommands {
         return null;
     }
 
-    /**
-     * Find the semantic parent of an element via allocations.
-     */
+    /** Find the semantic parent of an element via allocations. */
     private static EObject findSemanticParent(EObject semantic) {
         try {
             try {
                 if (semantic instanceof AbstractFunction) {
                     java.util.List<Component> components =
-                        AbstractFunctionExt.getAllocatingComponents(
-                            (AbstractFunction) semantic
-                        );
+                            AbstractFunctionExt.getAllocatingComponents(
+                                    (AbstractFunction) semantic);
                     if (components != null && !components.isEmpty()) {
                         return components.get(0);
                     }
                     java.util.List<Component> parents =
-                        AbstractFunctionExt.getMotherAllFunctionAllocation(
-                            (AbstractFunction) semantic
-                        );
+                            AbstractFunctionExt.getMotherAllFunctionAllocation(
+                                    (AbstractFunction) semantic);
                     if (parents != null && !parents.isEmpty()) {
                         return parents.get(0);
                     }
@@ -1198,22 +1095,18 @@ public final class DiagramCommands {
             var eClass = semantic.eClass();
 
             // Check componentFunctionalAllocations and get source
-            var allocsRef = eClass.getEStructuralFeature(
-                "componentFunctionalAllocations"
-            );
+            var allocsRef = eClass.getEStructuralFeature("componentFunctionalAllocations");
             if (allocsRef != null) {
                 Object val = semantic.eGet(allocsRef);
                 if (val instanceof java.util.Collection<?>) {
                     for (Object alloc : (java.util.Collection<?>) val) {
                         if (alloc instanceof EObject) {
                             var sourceRef =
-                                ((EObject) alloc).eClass().getEStructuralFeature(
-                                    "sourceElement"
-                                );
+                                    ((EObject) alloc)
+                                            .eClass()
+                                            .getEStructuralFeature("sourceElement");
                             if (sourceRef != null) {
-                                Object source = ((EObject) alloc).eGet(
-                                    sourceRef
-                                );
+                                Object source = ((EObject) alloc).eGet(sourceRef);
                                 if (source instanceof EObject) {
                                     return (EObject) source;
                                 }
@@ -1228,36 +1121,25 @@ public final class DiagramCommands {
         return null;
     }
 
-    /**
-     * Find the appropriate node or container mapping for a semantic element.
-     */
-    private static AbstractNodeMapping findNodeMapping(
-        DiagramDescription desc,
-        EObject semantic
-    ) {
+    /** Find the appropriate node or container mapping for a semantic element. */
+    private static AbstractNodeMapping findNodeMapping(DiagramDescription desc, EObject semantic) {
         String targetClass = semantic.eClass().getName();
         String targetPackage = semantic.eClass().getEPackage().getName();
 
         // Check default layer's container mappings
         if (desc.getDefaultLayer() != null) {
-            for (ContainerMapping cm : desc
-                .getDefaultLayer()
-                .getContainerMappings()) {
+            for (ContainerMapping cm : desc.getDefaultLayer().getContainerMappings()) {
                 if (mappingMatchesClass(cm, targetClass, targetPackage)) {
                     return cm;
                 }
                 // Check sub-mappings
                 for (NodeMapping subNm : cm.getSubNodeMappings()) {
-                    if (
-                        mappingMatchesClass(subNm, targetClass, targetPackage)
-                    ) {
+                    if (mappingMatchesClass(subNm, targetClass, targetPackage)) {
                         return subNm;
                     }
                 }
                 for (ContainerMapping subCm : cm.getSubContainerMappings()) {
-                    if (
-                        mappingMatchesClass(subCm, targetClass, targetPackage)
-                    ) {
+                    if (mappingMatchesClass(subCm, targetClass, targetPackage)) {
                         return subCm;
                     }
                 }
@@ -1289,11 +1171,8 @@ public final class DiagramCommands {
     }
 
     private static java.util.List<AbstractNodeMapping> findNodeMappings(
-        DiagramDescription desc,
-        EObject semantic
-    ) {
-        java.util.List<AbstractNodeMapping> results =
-            new java.util.ArrayList<>();
+            DiagramDescription desc, EObject semantic) {
+        java.util.List<AbstractNodeMapping> results = new java.util.ArrayList<>();
         if (desc == null || semantic == null) {
             return results;
         }
@@ -1301,12 +1180,7 @@ public final class DiagramCommands {
         String targetPackage = semantic.eClass().getEPackage().getName();
 
         if (desc.getDefaultLayer() != null) {
-            collectNodeMappings(
-                desc.getDefaultLayer(),
-                targetClass,
-                targetPackage,
-                results
-            );
+            collectNodeMappings(desc.getDefaultLayer(), targetClass, targetPackage, results);
         }
 
         for (var layer : desc.getAdditionalLayers()) {
@@ -1317,11 +1191,10 @@ public final class DiagramCommands {
     }
 
     private static void collectNodeMappings(
-        org.eclipse.sirius.diagram.description.Layer layer,
-        String targetClass,
-        String targetPackage,
-        java.util.List<AbstractNodeMapping> results
-    ) {
+            org.eclipse.sirius.diagram.description.Layer layer,
+            String targetClass,
+            String targetPackage,
+            java.util.List<AbstractNodeMapping> results) {
         if (layer == null) {
             return;
         }
@@ -1347,12 +1220,8 @@ public final class DiagramCommands {
         }
     }
 
-    /**
-     * Return the list of domain classes supported by the diagram's node/container mappings.
-     */
-    public static java.util.List<String> getSupportedDomainClasses(
-        DRepresentation rep
-    ) {
+    /** Return the list of domain classes supported by the diagram's node/container mappings. */
+    public static java.util.List<String> getSupportedDomainClasses(DRepresentation rep) {
         if (!(rep instanceof DDiagram)) {
             return java.util.List.of();
         }
@@ -1376,30 +1245,23 @@ public final class DiagramCommands {
             return null;
         }
         try {
-            java.lang.reflect.Method m = DialectManager.class.getMethod(
-                "getRepresentationDescriptor",
-                DRepresentation.class
-            );
+            java.lang.reflect.Method m =
+                    DialectManager.class.getMethod(
+                            "getRepresentationDescriptor", DRepresentation.class);
             Object descriptor = m.invoke(DialectManager.INSTANCE, rep);
             if (descriptor == null) {
                 return null;
             }
-            java.lang.reflect.Method getTarget = descriptor
-                .getClass()
-                .getMethod("getTarget");
+            java.lang.reflect.Method getTarget = descriptor.getClass().getMethod("getTarget");
             Object target = getTarget.invoke(descriptor);
             return target instanceof EObject ? (EObject) target : null;
         } catch (Throwable ex) {
-            LOG.fine(
-                "[DiagramCommands] getDiagramTarget failed: " + ex.getMessage()
-            );
+            LOG.fine("[DiagramCommands] getDiagramTarget failed: " + ex.getMessage());
             return null;
         }
     }
 
-    /**
-     * Check whether a diagram has a mapping for the given semantic element.
-     */
+    /** Check whether a diagram has a mapping for the given semantic element. */
     public static boolean supportsElement(DRepresentation rep, EObject semantic) {
         if (!(rep instanceof DDiagram) || semantic == null) {
             return false;
@@ -1412,14 +1274,8 @@ public final class DiagramCommands {
         return findNodeMapping(desc, semantic) != null;
     }
 
-    /**
-     * Check whether an element is displayable on a diagram, evaluating mapping preconditions.
-     */
-    public static boolean isDisplayable(
-        Session session,
-        DRepresentation rep,
-        EObject semantic
-    ) {
+    /** Check whether an element is displayable on a diagram, evaluating mapping preconditions. */
+    public static boolean isDisplayable(Session session, DRepresentation rep, EObject semantic) {
         if (!(rep instanceof DDiagram) || semantic == null) {
             return false;
         }
@@ -1428,36 +1284,20 @@ public final class DiagramCommands {
         if (desc == null) {
             return false;
         }
-        DSemanticDecorator containerView =
-            resolveContainerView(diagram, semantic);
-        java.util.List<AbstractNodeMapping> mappings =
-            findNodeMappings(desc, semantic);
+        DSemanticDecorator containerView = resolveContainerView(diagram, semantic);
+        java.util.List<AbstractNodeMapping> mappings = findNodeMappings(desc, semantic);
         if (mappings.isEmpty()) {
             return false;
         }
         Object interpreter = getInterpreter(session);
         IInterpreter siriusInterpreter = getSiriusInterpreter(semantic);
         for (AbstractNodeMapping mapping : mappings) {
-            if (
-                !preconditionSatisfiedWithViewpointServices(
-                    mapping,
-                    semantic,
-                    containerView,
-                    interpreter
-                )
-            ) {
+            if (!preconditionSatisfiedWithViewpointServices(
+                    mapping, semantic, containerView, interpreter)) {
                 continue;
             }
-            if (
-                !candidatesSatisfiedWithViewpointServices(
-                    diagram,
-                    mapping,
-                    semantic,
-                    containerView,
-                    siriusInterpreter,
-                    interpreter
-                )
-            ) {
+            if (!candidatesSatisfiedWithViewpointServices(
+                    diagram, mapping, semantic, containerView, siriusInterpreter, interpreter)) {
                 continue;
             }
             return true;
@@ -1477,19 +1317,14 @@ public final class DiagramCommands {
     }
 
     private static boolean preconditionSatisfiedWithViewpointServices(
-        AbstractNodeMapping mapping,
-        EObject semantic,
-        DSemanticDecorator containerView,
-        Object legacyInterpreter
-    ) {
+            AbstractNodeMapping mapping,
+            EObject semantic,
+            DSemanticDecorator containerView,
+            Object legacyInterpreter) {
         if (mapping == null || semantic == null) {
             return false;
         }
-        Boolean evaluated = invokeSiriusPrecondition(
-            mapping,
-            semantic,
-            containerView
-        );
+        Boolean evaluated = invokeSiriusPrecondition(mapping, semantic, containerView);
         if (evaluated != null) {
             return evaluated.booleanValue();
         }
@@ -1497,32 +1332,24 @@ public final class DiagramCommands {
     }
 
     private static Boolean invokeSiriusPrecondition(
-        AbstractNodeMapping mapping,
-        EObject semantic,
-        DSemanticDecorator containerView
-    ) {
+            AbstractNodeMapping mapping, EObject semantic, DSemanticDecorator containerView) {
         try {
-            Class<?> ops = Class.forName(
-                "org.eclipse.sirius.diagram.business.internal.metamodel.description.operations.SiriusElementMappingSpecOperations"
-            );
-            var method = ops.getMethod(
-                "checkPrecondition",
-                DiagramElementMapping.class,
-                EObject.class,
-                EObject.class,
-                EObject.class
-            );
+            Class<?> ops =
+                    Class.forName(
+                            "org.eclipse.sirius.diagram.business.internal.metamodel.description.operations.SiriusElementMappingSpecOperations");
+            var method =
+                    ops.getMethod(
+                            "checkPrecondition",
+                            DiagramElementMapping.class,
+                            EObject.class,
+                            EObject.class,
+                            EObject.class);
             EObject containerSemantic = null;
             if (containerView != null) {
                 containerSemantic = containerView.getTarget();
             }
-            Object result = method.invoke(
-                null,
-                mapping,
-                semantic,
-                containerSemantic,
-                containerView
-            );
+            Object result =
+                    method.invoke(null, mapping, semantic, containerSemantic, containerView);
             if (result instanceof Boolean) {
                 return (Boolean) result;
             }
@@ -1533,37 +1360,31 @@ public final class DiagramCommands {
     }
 
     private static boolean candidatesSatisfiedWithViewpointServices(
-        DDiagram diagram,
-        AbstractNodeMapping mapping,
-        EObject semantic,
-        DSemanticDecorator containerView,
-        IInterpreter siriusInterpreter,
-        Object legacyInterpreter
-    ) {
-        if (diagram instanceof DSemanticDiagram &&
-            mapping instanceof DiagramElementMapping &&
-            siriusInterpreter != null) {
+            DDiagram diagram,
+            AbstractNodeMapping mapping,
+            EObject semantic,
+            DSemanticDecorator containerView,
+            IInterpreter siriusInterpreter,
+            Object legacyInterpreter) {
+        if (diagram instanceof DSemanticDiagram
+                && mapping instanceof DiagramElementMapping
+                && siriusInterpreter != null) {
             DiagramElementMappingQuery query =
-                new DiagramElementMappingQuery(
-                    (DiagramElementMapping) mapping
-                );
+                    new DiagramElementMappingQuery((DiagramElementMapping) mapping);
             if (!query.hasCandidatesExpression()) {
                 return true;
             }
             DragAndDropTarget target =
-                containerView instanceof DragAndDropTarget
-                    ? (DragAndDropTarget) containerView
-                    : diagram instanceof DragAndDropTarget
-                        ? (DragAndDropTarget) diagram
-                        : null;
+                    containerView instanceof DragAndDropTarget
+                            ? (DragAndDropTarget) containerView
+                            : diagram instanceof DragAndDropTarget
+                                    ? (DragAndDropTarget) diagram
+                                    : null;
             if (target != null) {
                 try {
                     java.util.Collection<EObject> candidates =
-                        query.evaluateCandidateExpression(
-                            (DSemanticDiagram) diagram,
-                            siriusInterpreter,
-                            target
-                        );
+                            query.evaluateCandidateExpression(
+                                    (DSemanticDiagram) diagram, siriusInterpreter, target);
                     if (candidates == null) {
                         return false;
                     }
@@ -1577,9 +1398,7 @@ public final class DiagramCommands {
     }
 
     private static void collectMappingDomains(
-        org.eclipse.sirius.diagram.description.Layer layer,
-        java.util.Set<String> results
-    ) {
+            org.eclipse.sirius.diagram.description.Layer layer, java.util.Set<String> results) {
         if (layer == null) {
             return;
         }
@@ -1592,9 +1411,7 @@ public final class DiagramCommands {
     }
 
     private static void collectMappingDomains(
-        ContainerMapping mapping,
-        java.util.Set<String> results
-    ) {
+            ContainerMapping mapping, java.util.Set<String> results) {
         if (mapping == null) {
             return;
         }
@@ -1607,10 +1424,7 @@ public final class DiagramCommands {
         }
     }
 
-    private static void addDomainClass(
-        AbstractNodeMapping mapping,
-        java.util.Set<String> results
-    ) {
+    private static void addDomainClass(AbstractNodeMapping mapping, java.util.Set<String> results) {
         if (mapping == null) {
             return;
         }
@@ -1633,10 +1447,7 @@ public final class DiagramCommands {
     }
 
     private static boolean preconditionSatisfied(
-        Object interpreter,
-        EObject semantic,
-        AbstractNodeMapping mapping
-    ) {
+            Object interpreter, EObject semantic, AbstractNodeMapping mapping) {
         String expr = getExpression(mapping, "getPreconditionExpression");
         if (expr == null || expr.isBlank()) {
             return true;
@@ -1652,11 +1463,7 @@ public final class DiagramCommands {
     }
 
     private static boolean candidatesSatisfied(
-        Object interpreter,
-        DDiagram diagram,
-        AbstractNodeMapping mapping,
-        EObject semantic
-    ) {
+            Object interpreter, DDiagram diagram, AbstractNodeMapping mapping, EObject semantic) {
         String expr = getExpression(mapping, "getSemanticCandidatesExpression");
         if (expr == null || expr.isBlank()) {
             return true;
@@ -1675,10 +1482,7 @@ public final class DiagramCommands {
         return result.equals(semantic);
     }
 
-    private static String getExpression(
-        Object mapping,
-        String methodName
-    ) {
+    private static String getExpression(Object mapping, String methodName) {
         if (mapping == null) {
             return null;
         }
@@ -1691,40 +1495,30 @@ public final class DiagramCommands {
         }
     }
 
-    private static Object evaluate(
-        Object interpreter,
-        EObject context,
-        String expression
-    ) {
+    private static Object evaluate(Object interpreter, EObject context, String expression) {
         if (interpreter == null || context == null || expression == null) {
             return null;
         }
         try {
-            var method = interpreter.getClass().getMethod(
-                "evaluateBoolean",
-                EObject.class,
-                String.class
-            );
+            var method =
+                    interpreter
+                            .getClass()
+                            .getMethod("evaluateBoolean", EObject.class, String.class);
             return method.invoke(interpreter, context, expression);
         } catch (Exception ignored) {
             // fallback to evaluateExpression if available
         }
         try {
-            var method = interpreter.getClass().getMethod(
-                "evaluateExpression",
-                EObject.class,
-                String.class
-            );
+            var method =
+                    interpreter
+                            .getClass()
+                            .getMethod("evaluateExpression", EObject.class, String.class);
             return method.invoke(interpreter, context, expression);
         } catch (Exception ignored) {
             // fallback to evaluate
         }
         try {
-            var method = interpreter.getClass().getMethod(
-                "evaluate",
-                EObject.class,
-                String.class
-            );
+            var method = interpreter.getClass().getMethod("evaluate", EObject.class, String.class);
             return method.invoke(interpreter, context, expression);
         } catch (Exception ignored) {
             return null;
@@ -1747,14 +1541,9 @@ public final class DiagramCommands {
         return null;
     }
 
-    /**
-     * Check if a mapping's domain class matches the element's class.
-     */
+    /** Check if a mapping's domain class matches the element's class. */
     private static boolean mappingMatchesClass(
-        AbstractNodeMapping mapping,
-        String className,
-        String packageName
-    ) {
+            AbstractNodeMapping mapping, String className, String packageName) {
         String domainClass = mapping.getDomainClass();
         if (domainClass == null || domainClass.isBlank()) return false;
 
@@ -1763,26 +1552,19 @@ public final class DiagramCommands {
         // - Qualified: "org.polarsys.capella.core.data.oa.OperationalActivity"
         // - EPackage:Class: "oa:OperationalActivity" or "oa::OperationalActivity"
 
-        return (
-            domainClass.equals(className) ||
-            domainClass.endsWith("." + className) ||
-            domainClass.endsWith(":" + className) ||
-            domainClass.endsWith("::" + className) ||
-            domainClass.equalsIgnoreCase(packageName + "." + className) ||
-            domainClass.equalsIgnoreCase(packageName + ":" + className)
-        );
+        return (domainClass.equals(className)
+                || domainClass.endsWith("." + className)
+                || domainClass.endsWith(":" + className)
+                || domainClass.endsWith("::" + className)
+                || domainClass.equalsIgnoreCase(packageName + "." + className)
+                || domainClass.equalsIgnoreCase(packageName + ":" + className));
     }
 
-    /**
-     * Create the appropriate DDiagramElement based on mapping type.
-     */
+    /** Create the appropriate DDiagramElement based on mapping type. */
     private static DDiagramElement createDiagramElement(
-        AbstractNodeMapping mapping,
-        EObject semantic
-    ) {
+            AbstractNodeMapping mapping, EObject semantic) {
         if (mapping instanceof ContainerMapping) {
-            DNodeContainer container =
-                DiagramFactory.eINSTANCE.createDNodeContainer();
+            DNodeContainer container = DiagramFactory.eINSTANCE.createDNodeContainer();
             container.setTarget(semantic);
             container.setActualMapping((ContainerMapping) mapping);
             return container;
@@ -1795,22 +1577,15 @@ public final class DiagramCommands {
         return null;
     }
 
-    /** Create an edge by relying on semantic link creation and revealing endpoints (no internal UI reflection). */
+    /**
+     * Create an edge by relying on semantic link creation and revealing endpoints (no internal UI
+     * reflection).
+     */
     public static boolean createEdge(
-        Session session,
-        DRepresentation rep,
-        EObject source,
-        EObject target
-    ) {
-        if (
-            session == null || rep == null || source == null || target == null
-        ) return false;
+            Session session, DRepresentation rep, EObject source, EObject target) {
+        if (session == null || rep == null || source == null || target == null) return false;
         try {
-            addElementsByUuid(
-                session,
-                rep,
-                java.util.List.of(tryUuid(source), tryUuid(target))
-            );
+            addElementsByUuid(session, rep, java.util.List.of(tryUuid(source), tryUuid(target)));
             DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
             return true;
         } catch (Exception e) {
@@ -1819,12 +1594,12 @@ public final class DiagramCommands {
         }
     }
 
-    /** Best-effort: remove a view element corresponding to a semantic EObject from the current diagram (no semantic delete). */
+    /**
+     * Best-effort: remove a view element corresponding to a semantic EObject from the current
+     * diagram (no semantic delete).
+     */
     public static boolean removeViewElement(
-        Session session,
-        DRepresentation rep,
-        EObject semantic
-    ) {
+            Session session, DRepresentation rep, EObject semantic) {
         if (session == null || rep == null || semantic == null) return false;
         try {
             if (!(rep instanceof DDiagram)) {
@@ -1832,61 +1607,50 @@ public final class DiagramCommands {
                 return false;
             }
             return SessionSafeguards.runWrite(
-                session,
-                "Remove view element",
-                () -> {
-                    DDiagram diagram = (DDiagram) rep;
-                    java.util.List<
-                        org.eclipse.sirius.diagram.DDiagramElement
-                    > toRemove = new java.util.ArrayList<>();
-                    var it = diagram.eAllContents();
-                    while (it.hasNext()) {
-                        Object obj = it.next();
-                        if (
-                            obj instanceof
-                                org.eclipse.sirius.diagram.DDiagramElement
-                        ) {
-                            org.eclipse.sirius.diagram.DDiagramElement el =
-                                (org.eclipse.sirius.diagram.DDiagramElement) obj;
-                            if (semantic.equals(el.getTarget())) {
-                                toRemove.add(el);
+                    session,
+                    "Remove view element",
+                    () -> {
+                        DDiagram diagram = (DDiagram) rep;
+                        java.util.List<org.eclipse.sirius.diagram.DDiagramElement> toRemove =
+                                new java.util.ArrayList<>();
+                        var it = diagram.eAllContents();
+                        while (it.hasNext()) {
+                            Object obj = it.next();
+                            if (obj instanceof org.eclipse.sirius.diagram.DDiagramElement) {
+                                org.eclipse.sirius.diagram.DDiagramElement el =
+                                        (org.eclipse.sirius.diagram.DDiagramElement) obj;
+                                if (semantic.equals(el.getTarget())) {
+                                    toRemove.add(el);
+                                }
                             }
                         }
-                    }
-                    if (toRemove.isEmpty()) return false;
-                    for (org.eclipse.sirius.diagram.DDiagramElement el : toRemove) {
+                        if (toRemove.isEmpty()) return false;
+                        for (org.eclipse.sirius.diagram.DDiagramElement el : toRemove) {
+                            try {
+                                org.eclipse.emf.ecore.util.EcoreUtil.delete(el, true);
+                            } catch (Exception ex) {
+                                LOG.fine("[DiagramCommands] " + ex.getMessage());
+                            }
+                        }
                         try {
-                            org.eclipse.emf.ecore.util.EcoreUtil.delete(
-                                el,
-                                true
-                            );
-                        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                    }
-                    try {
-                        DialectManager.INSTANCE.refresh(
-                            rep,
-                            new NullProgressMonitor()
-                        );
-                    } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                    return true;
-                }
-            );
+                            DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
+                        } catch (Exception ex) {
+                            LOG.fine("[DiagramCommands] " + ex.getMessage());
+                        }
+                        return true;
+                    });
         } catch (Exception e) {
             LOG.warning("removeViewElement failed: " + e.getMessage());
             return false;
         }
     }
 
-    /** Best-effort: set bounds for a view element (requires active editor/GMF). Placeholder returns false for now. */
+    /**
+     * Best-effort: set bounds for a view element (requires active editor/GMF). Placeholder returns
+     * false for now.
+     */
     public static boolean setViewBounds(
-        Session session,
-        DRepresentation rep,
-        EObject semantic,
-        int x,
-        int y,
-        int w,
-        int h
-    ) {
+            Session session, DRepresentation rep, EObject semantic, int x, int y, int w, int h) {
         if (session == null || rep == null || semantic == null) return false;
         if (!(rep instanceof DDiagram)) return false;
         try {
@@ -1906,18 +1670,12 @@ public final class DiagramCommands {
             }
             if (target == null) {
                 // Attempt reveal then search again
-                addElementsByUuid(
-                    session,
-                    rep,
-                    java.util.List.of(tryUuid(semantic))
-                );
+                addElementsByUuid(session, rep, java.util.List.of(tryUuid(semantic)));
                 DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
                 it = diagram.eAllContents();
                 while (it.hasNext()) {
                     Object o = it.next();
-                    if (
-                        o instanceof org.eclipse.sirius.diagram.DDiagramElement
-                    ) {
+                    if (o instanceof org.eclipse.sirius.diagram.DDiagramElement) {
                         var el = (org.eclipse.sirius.diagram.DDiagramElement) o;
                         if (semantic.equals(el.getTarget())) {
                             target = el;
@@ -1929,8 +1687,7 @@ public final class DiagramCommands {
             }
 
             // Locate the active Sirius diagram editor and its edit part
-            IWorkbenchWindow win =
-                PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+            IWorkbenchWindow win = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
             if (win == null) return false;
             IWorkbenchPage page = win.getActivePage();
             if (page == null) return false;
@@ -1939,16 +1696,18 @@ public final class DiagramCommands {
             org.eclipse.gef.EditPartViewer viewer = null;
             try {
                 // Try Sirius Diagram Editor API
-                Class<?> edClass = Class.forName(
-                    "org.eclipse.sirius.diagram.ui.tools.api.editor.DDiagramEditor"
-                );
+                Class<?> edClass =
+                        Class.forName(
+                                "org.eclipse.sirius.diagram.ui.tools.api.editor.DDiagramEditor");
                 if (edClass.isInstance(part)) {
                     var m = edClass.getMethod("getDiagramGraphicalViewer");
                     Object v = m.invoke(part);
-                    if (v instanceof org.eclipse.gef.EditPartViewer) viewer =
-                        (org.eclipse.gef.EditPartViewer) v;
+                    if (v instanceof org.eclipse.gef.EditPartViewer)
+                        viewer = (org.eclipse.gef.EditPartViewer) v;
                 }
-            } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+            } catch (Throwable ex) {
+                LOG.fine("[DiagramCommands] " + ex.getMessage());
+            }
             if (viewer == null) return false;
 
             IGraphicalEditPart found = null;
@@ -1969,7 +1728,9 @@ public final class DiagramCommands {
                                 break;
                             }
                         }
-                    } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+                    } catch (Exception ex) {
+                        LOG.fine("[DiagramCommands] " + ex.getMessage());
+                    }
                 }
             }
             if (found == null) return false;
@@ -1977,34 +1738,30 @@ public final class DiagramCommands {
             // Mutate notation bounds inside write transaction
             final IGraphicalEditPart epFound = found;
             return SessionSafeguards.runWrite(
-                session,
-                "Set view bounds",
-                () -> {
-                    Object model = epFound.getModel();
-                    if (!(model instanceof View)) return false;
-                    if (!(model instanceof Node)) return false; // only nodes have bounds
-                    Node node = (Node) model;
-                    LayoutConstraint lc = node.getLayoutConstraint();
-                    if (!(lc instanceof Bounds)) {
-                        node.setLayoutConstraint(
-                            NotationFactory.eINSTANCE.createBounds()
-                        );
-                        lc = node.getLayoutConstraint();
-                    }
-                    Bounds b = (Bounds) lc;
-                    if (x >= 0) b.setX(x);
-                    if (y >= 0) b.setY(y);
-                    if (w > 0) b.setWidth(w);
-                    if (h > 0) b.setHeight(h);
-                    try {
-                        DialectManager.INSTANCE.refresh(
-                            rep,
-                            new NullProgressMonitor()
-                        );
-                    } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                    return true;
-                }
-            );
+                    session,
+                    "Set view bounds",
+                    () -> {
+                        Object model = epFound.getModel();
+                        if (!(model instanceof View)) return false;
+                        if (!(model instanceof Node)) return false; // only nodes have bounds
+                        Node node = (Node) model;
+                        LayoutConstraint lc = node.getLayoutConstraint();
+                        if (!(lc instanceof Bounds)) {
+                            node.setLayoutConstraint(NotationFactory.eINSTANCE.createBounds());
+                            lc = node.getLayoutConstraint();
+                        }
+                        Bounds b = (Bounds) lc;
+                        if (x >= 0) b.setX(x);
+                        if (y >= 0) b.setY(y);
+                        if (w > 0) b.setWidth(w);
+                        if (h > 0) b.setHeight(h);
+                        try {
+                            DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
+                        } catch (Exception ex) {
+                            LOG.fine("[DiagramCommands] " + ex.getMessage());
+                        }
+                        return true;
+                    });
         } catch (Exception e) {
             LOG.warning("setViewBounds failed: " + e.getMessage());
             return false;
@@ -2012,13 +1769,10 @@ public final class DiagramCommands {
     }
 
     /**
-     * Find a diagram description by name with fuzzy matching support.
-     * Tries exact match first, then case-insensitive, then partial match.
+     * Find a diagram description by name with fuzzy matching support. Tries exact match first, then
+     * case-insensitive, then partial match.
      */
-    private static RepresentationDescription findDiagramDescription(
-        Session session,
-        String name
-    ) {
+    private static RepresentationDescription findDiagramDescription(Session session, String name) {
         java.util.List<String> available = new java.util.ArrayList<>();
         RepresentationDescription fuzzyMatch = null;
         String fuzzyMatchName = null;
@@ -2037,8 +1791,8 @@ public final class DiagramCommands {
                     }
 
                     // Case-insensitive match
-                    if (name.equalsIgnoreCase(rdName) ||
-                        (rdLabel != null && name.equalsIgnoreCase(rdLabel))) {
+                    if (name.equalsIgnoreCase(rdName)
+                            || (rdLabel != null && name.equalsIgnoreCase(rdLabel))) {
                         LOG.fine("[DiagramCommands] Case-insensitive match: " + rdName);
                         return rd;
                     }
@@ -2058,29 +1812,35 @@ public final class DiagramCommands {
 
         // Return fuzzy match if found (warn user about non-exact match)
         if (fuzzyMatch != null) {
-            LOG.warning("[DiagramCommands] No exact match for '" + name +
-                "'. Using fuzzy match: '" + fuzzyMatchName + "'");
+            LOG.warning(
+                    "[DiagramCommands] No exact match for '"
+                            + name
+                            + "'. Using fuzzy match: '"
+                            + fuzzyMatchName
+                            + "'");
             return fuzzyMatch;
         }
 
         // Not found - log helpful message
-        LOG.warning("[DiagramCommands] Description '" + name + "' not found. Available: " + available);
+        LOG.warning(
+                "[DiagramCommands] Description '" + name + "' not found. Available: " + available);
         return null;
     }
 
     /**
-     * Get list of available diagram description names from selected viewpoints.
-     * Only returns descriptions from viewpoints that are currently activated.
-     * If viewpoints are not activated, fewer descriptions will be available.
+     * Get list of available diagram description names from selected viewpoints. Only returns
+     * descriptions from viewpoints that are currently activated. If viewpoints are not activated,
+     * fewer descriptions will be available.
      *
      * @param session the Sirius session (must not be null for useful results)
-     * @return sorted list of available diagram description names, empty if session
-     *         is null or no viewpoints are selected
+     * @return sorted list of available diagram description names, empty if session is null or no
+     *     viewpoints are selected
      */
     public static java.util.List<String> getAvailableDiagramDescriptions(Session session) {
         java.util.List<String> available = new java.util.ArrayList<>();
         if (session == null) {
-            LOG.warning("[DiagramCommands] getAvailableDiagramDescriptions called with null session");
+            LOG.warning(
+                    "[DiagramCommands] getAvailableDiagramDescriptions called with null session");
             return available;
         }
 
@@ -2104,9 +1864,7 @@ public final class DiagramCommands {
      * @return list of similar names (max 3)
      */
     public static java.util.List<String> findSimilarDescriptors(
-        java.util.List<String> available,
-        String target
-    ) {
+            java.util.List<String> available, String target) {
         java.util.List<String> similar = new java.util.ArrayList<>();
         if (target == null || available == null) {
             return similar;
@@ -2145,10 +1903,7 @@ public final class DiagramCommands {
         return similar;
     }
 
-    private static EObject findById(
-        org.eclipse.emf.ecore.resource.ResourceSet rs,
-        String id
-    ) {
+    private static EObject findById(org.eclipse.emf.ecore.resource.ResourceSet rs, String id) {
         try {
             for (Resource res : rs.getResources()) {
                 if (res == null) continue;
@@ -2167,14 +1922,16 @@ public final class DiagramCommands {
                             Object v = eo.eGet(f2);
                             if (id.equals(v)) return eo;
                         }
-                        var uri = org.eclipse.emf.ecore.util.EcoreUtil.getURI(
-                            eo
-                        );
+                        var uri = org.eclipse.emf.ecore.util.EcoreUtil.getURI(eo);
                         if (uri != null && id.equals(uri.fragment())) return eo;
-                    } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+                    } catch (Exception ex) {
+                        LOG.fine("[DiagramCommands] " + ex.getMessage());
+                    }
                 }
             }
-        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+        } catch (Exception ex) {
+            LOG.fine("[DiagramCommands] " + ex.getMessage());
+        }
         return null;
     }
 
@@ -2187,84 +1944,79 @@ public final class DiagramCommands {
             var rs = domain.getResourceSet();
             if (rs == null) return null;
             return findById(rs, id);
-        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+        } catch (Exception ex) {
+            LOG.fine("[DiagramCommands] " + ex.getMessage());
+        }
         return null;
     }
 
     /** Find a representation by its UID in the active session. */
-    public static DRepresentation findRepresentationByUid(
-        Session session,
-        String uid
-    ) {
+    public static DRepresentation findRepresentationByUid(Session session, String uid) {
         if (session == null || uid == null) return null;
         try {
             java.util.Collection<DRepresentation> reps =
-                org.eclipse.sirius.business.api.dialect.DialectManager.INSTANCE.getAllRepresentations(
-                    session
-                );
+                    org.eclipse.sirius.business.api.dialect.DialectManager.INSTANCE
+                            .getAllRepresentations(session);
             for (DRepresentation r : reps) {
                 if (uid.equals(r.getUid())) return r;
             }
-        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+        } catch (Exception ex) {
+            LOG.fine("[DiagramCommands] " + ex.getMessage());
+        }
         return null;
     }
 
     /** Find a representation by name or UID. */
-    public static DRepresentation findRepresentationByNameOrUid(
-        Session session,
-        String idOrName
-    ) {
-        if (
-            session == null || idOrName == null || idOrName.isBlank()
-        ) return null;
+    public static DRepresentation findRepresentationByNameOrUid(Session session, String idOrName) {
+        if (session == null || idOrName == null || idOrName.isBlank()) return null;
         try {
             java.util.Collection<DRepresentation> reps =
-                org.eclipse.sirius.business.api.dialect.DialectManager.INSTANCE.getAllRepresentations(
-                    session
-                );
+                    org.eclipse.sirius.business.api.dialect.DialectManager.INSTANCE
+                            .getAllRepresentations(session);
             for (DRepresentation r : reps) {
                 if (idOrName.equals(r.getUid())) return r;
             }
             for (DRepresentation r : reps) {
                 try {
-                    java.lang.reflect.Method getName = r
-                        .getClass()
-                        .getMethod("getName");
+                    java.lang.reflect.Method getName = r.getClass().getMethod("getName");
                     Object n = getName.invoke(r);
                     if (idOrName.equals(String.valueOf(n))) return r;
-                } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+                } catch (Throwable ex) {
+                    LOG.fine("[DiagramCommands] " + ex.getMessage());
+                }
             }
-        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+        } catch (Exception ex) {
+            LOG.fine("[DiagramCommands] " + ex.getMessage());
+        }
         return null;
     }
 
     /** Rename a diagram representation. */
-    public static boolean renameDiagram(
-        Session session,
-        DRepresentation rep,
-        String newName
-    ) {
-        if (
-            session == null ||
-            rep == null ||
-            newName == null ||
-            newName.isBlank()
-        ) return false;
+    public static boolean renameDiagram(Session session, DRepresentation rep, String newName) {
+        if (session == null || rep == null || newName == null || newName.isBlank()) return false;
         boolean nested = SessionSafeguards.isInWriteContext();
         try {
             DRepresentationDescriptor expected = ownedDescriptorOnUiThread(session, rep);
             if (expected == null) return false;
-            return SessionSafeguards.runWrite(session, "Rename diagram", () -> {
-                DRepresentationDescriptor descriptor = ownedDescriptor(session, rep);
-                if (descriptor != expected) throw new IllegalStateException("The diagram's owned descriptor changed before rename");
-                RenameRepresentationCommand command = new RenameRepresentationCommand(
-                    session.getTransactionalEditingDomain(), descriptor, newName);
-                if (!command.canExecute()) return false;
-                // The enclosing RecordingCommand owns the single Undo operation.
-                command.execute();
-                requestDiagramSave(session);
-                return true;
-            });
+            return SessionSafeguards.runWrite(
+                    session,
+                    "Rename diagram",
+                    () -> {
+                        DRepresentationDescriptor descriptor = ownedDescriptor(session, rep);
+                        if (descriptor != expected)
+                            throw new IllegalStateException(
+                                    "The diagram's owned descriptor changed before rename");
+                        RenameRepresentationCommand command =
+                                new RenameRepresentationCommand(
+                                        session.getTransactionalEditingDomain(),
+                                        descriptor,
+                                        newName);
+                        if (!command.canExecute()) return false;
+                        // The enclosing RecordingCommand owns the single Undo operation.
+                        command.execute();
+                        requestDiagramSave(session);
+                        return true;
+                    });
         } catch (SessionSafeguards.SaveFailedAfterCommitException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -2281,18 +2033,27 @@ public final class DiagramCommands {
         try {
             DRepresentationDescriptor expected = ownedDescriptorOnUiThread(session, rep);
             if (expected == null) return false;
-            return SessionSafeguards.runWrite(session, "Delete diagram", () -> {
-                DRepresentationDescriptor descriptor = ownedDescriptor(session, rep);
-                if (descriptor != expected) throw new IllegalStateException("The diagram's owned descriptor changed before deletion");
-                DeleteRepresentationCommand command = new DeleteRepresentationCommand(session, java.util.Set.of(descriptor));
-                if (!command.canExecute()) return false;
-                command.execute();
-                if (descriptor.eContainer() != null || rep.eResource() != null) {
-                    throw new IllegalStateException("Sirius could not delete the diagram representation and descriptor");
-                }
-                requestDiagramSave(session);
-                return true;
-            });
+            return SessionSafeguards.runWrite(
+                    session,
+                    "Delete diagram",
+                    () -> {
+                        DRepresentationDescriptor descriptor = ownedDescriptor(session, rep);
+                        if (descriptor != expected)
+                            throw new IllegalStateException(
+                                    "The diagram's owned descriptor changed before deletion");
+                        DeleteRepresentationCommand command =
+                                new DeleteRepresentationCommand(
+                                        session, java.util.Set.of(descriptor));
+                        if (!command.canExecute()) return false;
+                        command.execute();
+                        if (descriptor.eContainer() != null || rep.eResource() != null) {
+                            throw new IllegalStateException(
+                                    "Sirius could not delete the diagram representation and"
+                                        + " descriptor");
+                        }
+                        requestDiagramSave(session);
+                        return true;
+                    });
         } catch (SessionSafeguards.SaveFailedAfterCommitException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -2302,18 +2063,25 @@ public final class DiagramCommands {
         }
     }
 
-    private static DRepresentationDescriptor ownedDescriptor(Session session, DRepresentation representation) {
+    private static DRepresentationDescriptor ownedDescriptor(
+            Session session, DRepresentation representation) {
         if (!session.isOpen() || !ownsRepresentation(session, representation)) return null;
-        DRepresentationDescriptor descriptor = new DRepresentationQuery(representation).getRepresentationDescriptor();
-        if (descriptor == null || descriptor.eContainer() == null || descriptor.eResource() == null
-            || !ownsLayoutResource(session, descriptor.eResource())
-            || descriptor.getRepresentation() != representation) return null;
+        DRepresentationDescriptor descriptor =
+                new DRepresentationQuery(representation).getRepresentationDescriptor();
+        if (descriptor == null
+                || descriptor.eContainer() == null
+                || descriptor.eResource() == null
+                || !ownsLayoutResource(session, descriptor.eResource())
+                || descriptor.getRepresentation() != representation) return null;
         return descriptor;
     }
 
-    private static DRepresentationDescriptor ownedDescriptorOnUiThread(Session session, DRepresentation representation) {
-        java.util.concurrent.atomic.AtomicReference<DRepresentationDescriptor> descriptor = new java.util.concurrent.atomic.AtomicReference<>();
-        SessionSafeguards.runOnUiThread(() -> descriptor.set(ownedDescriptor(session, representation)));
+    private static DRepresentationDescriptor ownedDescriptorOnUiThread(
+            Session session, DRepresentation representation) {
+        java.util.concurrent.atomic.AtomicReference<DRepresentationDescriptor> descriptor =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        SessionSafeguards.runOnUiThread(
+                () -> descriptor.set(ownedDescriptor(session, representation)));
         return descriptor.get();
     }
 
@@ -2326,75 +2094,63 @@ public final class DiagramCommands {
     }
 
     /** Duplicate a diagram representation (best-effort). */
-    public static boolean duplicateDiagram(
-        Session session,
-        DRepresentation rep,
-        String newName
-    ) {
-        if (
-            session == null ||
-            rep == null ||
-            newName == null ||
-            newName.isBlank()
-        ) return false;
+    public static boolean duplicateDiagram(Session session, DRepresentation rep, String newName) {
+        if (session == null || rep == null || newName == null || newName.isBlank()) return false;
         try {
-            // Best-effort: try to create a new representation with same description/target, then refresh.
+            // Best-effort: try to create a new representation with same description/target, then
+            // refresh.
             return SessionSafeguards.runWrite(
-                session,
-                "Duplicate diagram",
-                () -> {
-                    try {
-                        Object descriptor = null;
+                    session,
+                    "Duplicate diagram",
+                    () -> {
                         try {
-                            java.lang.reflect.Method m =
-                                DialectManager.class.getMethod(
-                                    "getRepresentationDescriptor",
-                                    DRepresentation.class
-                                );
-                            descriptor = m.invoke(DialectManager.INSTANCE, rep);
-                        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                        if (descriptor == null) return false;
-                        EObject target = null;
-                        RepresentationDescription desc = null;
-                        try {
-                            java.lang.reflect.Method getTarget = descriptor
-                                .getClass()
-                                .getMethod("getTarget");
-                            Object t = getTarget.invoke(descriptor);
-                            if (t instanceof EObject) target = (EObject) t;
-                        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                        try {
-                            java.lang.reflect.Method getDesc = descriptor
-                                .getClass()
-                                .getMethod("getDescription");
-                            Object d = getDesc.invoke(descriptor);
-                            if (d instanceof RepresentationDescription) desc =
-                                (RepresentationDescription) d;
-                        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                        if (target == null || desc == null) return false;
-                        DRepresentation copy =
-                            DialectManager.INSTANCE.createRepresentation(
-                                newName,
-                                target,
-                                desc,
-                                session,
-                                new NullProgressMonitor()
-                            );
-                        if (copy != null) {
-                            DialectManager.INSTANCE.refresh(
-                                copy,
-                                new NullProgressMonitor()
-                            );
-                            return true;
+                            Object descriptor = null;
+                            try {
+                                java.lang.reflect.Method m =
+                                        DialectManager.class.getMethod(
+                                                "getRepresentationDescriptor",
+                                                DRepresentation.class);
+                                descriptor = m.invoke(DialectManager.INSTANCE, rep);
+                            } catch (Throwable ex) {
+                                LOG.fine("[DiagramCommands] " + ex.getMessage());
+                            }
+                            if (descriptor == null) return false;
+                            EObject target = null;
+                            RepresentationDescription desc = null;
+                            try {
+                                java.lang.reflect.Method getTarget =
+                                        descriptor.getClass().getMethod("getTarget");
+                                Object t = getTarget.invoke(descriptor);
+                                if (t instanceof EObject) target = (EObject) t;
+                            } catch (Throwable ex) {
+                                LOG.fine("[DiagramCommands] " + ex.getMessage());
+                            }
+                            try {
+                                java.lang.reflect.Method getDesc =
+                                        descriptor.getClass().getMethod("getDescription");
+                                Object d = getDesc.invoke(descriptor);
+                                if (d instanceof RepresentationDescription)
+                                    desc = (RepresentationDescription) d;
+                            } catch (Throwable ex) {
+                                LOG.fine("[DiagramCommands] " + ex.getMessage());
+                            }
+                            if (target == null || desc == null) return false;
+                            DRepresentation copy =
+                                    DialectManager.INSTANCE.createRepresentation(
+                                            newName,
+                                            target,
+                                            desc,
+                                            session,
+                                            new NullProgressMonitor());
+                            if (copy != null) {
+                                DialectManager.INSTANCE.refresh(copy, new NullProgressMonitor());
+                                return true;
+                            }
+                        } catch (Throwable t) {
+                            LOG.warning("duplicateDiagram failed: " + t.getMessage());
                         }
-                    } catch (Throwable t) {
-                        LOG.warning(
-                            "duplicateDiagram failed: " + t.getMessage()
-                        );
-                    }
-                    return false;
-                }
-            );
+                        return false;
+                    });
         } catch (Exception e) {
             LOG.warning("duplicateDiagram failed: " + e.getMessage());
             return false;
@@ -2403,16 +2159,9 @@ public final class DiagramCommands {
 
     /** Reveal semantic elements in a diagram editor (reflection-based if needed). */
     public static boolean revealSemantics(
-        Session session,
-        DRepresentation rep,
-        java.util.List<EObject> semantics
-    ) {
-        if (
-            session == null ||
-            rep == null ||
-            semantics == null ||
-            semantics.isEmpty()
-        ) return false;
+            Session session, DRepresentation rep, java.util.List<EObject> semantics) {
+        if (session == null || rep == null || semantics == null || semantics.isEmpty())
+            return false;
         try {
             java.lang.reflect.Method m = null;
             for (java.lang.reflect.Method mm : DialectUIManager.class.getMethods()) {
@@ -2423,12 +2172,11 @@ public final class DiagramCommands {
             }
             if (m != null) {
                 m.invoke(
-                    DialectUIManager.INSTANCE,
-                    session,
-                    rep,
-                    semantics,
-                    new NullProgressMonitor()
-                );
+                        DialectUIManager.INSTANCE,
+                        session,
+                        rep,
+                        semantics,
+                        new NullProgressMonitor());
                 DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
                 return true;
             }
@@ -2440,13 +2188,12 @@ public final class DiagramCommands {
 
     /** Style a view element (colors) if supported by the underlying style. */
     public static boolean styleViewElement(
-        Session session,
-        DRepresentation rep,
-        EObject semantic,
-        Integer fg,
-        Integer bg,
-        Integer bd
-    ) {
+            Session session,
+            DRepresentation rep,
+            EObject semantic,
+            Integer fg,
+            Integer bg,
+            Integer bd) {
         if (session == null || rep == null || semantic == null) return false;
         if (!(rep instanceof DDiagram)) return false;
         try {
@@ -2465,107 +2212,119 @@ public final class DiagramCommands {
             }
             if (target == null) return false;
             final org.eclipse.sirius.viewpoint.Style[] styleHolder =
-                new org.eclipse.sirius.viewpoint.Style[1];
+                    new org.eclipse.sirius.viewpoint.Style[1];
             try {
-                java.lang.reflect.Method gs = target
-                    .getClass()
-                    .getMethod("getStyle");
+                java.lang.reflect.Method gs = target.getClass().getMethod("getStyle");
                 Object st = gs.invoke(target);
-                if (
-                    st instanceof org.eclipse.sirius.viewpoint.Style
-                ) styleHolder[0] = (org.eclipse.sirius.viewpoint.Style) st;
-            } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+                if (st instanceof org.eclipse.sirius.viewpoint.Style)
+                    styleHolder[0] = (org.eclipse.sirius.viewpoint.Style) st;
+            } catch (Throwable ex) {
+                LOG.fine("[DiagramCommands] " + ex.getMessage());
+            }
             if (styleHolder[0] == null) return false;
             RGBValues fgV = (fg != null && fg >= 0) ? toRgb(fg) : null;
             RGBValues bgV = (bg != null && bg >= 0) ? toRgb(bg) : null;
             RGBValues bdV = (bd != null && bd >= 0) ? toRgb(bd) : null;
             final org.eclipse.sirius.diagram.DDiagramElement targetRef = target;
             return SessionSafeguards.runWrite(
-                session,
-                "Style view element",
-                () -> {
-                    boolean changed = false;
-                    try {
-                        if (fgV != null) {
-                            var m = styleHolder[0].getClass().getMethod(
-                                "setLabelColor",
-                                RGBValues.class
-                            );
-                            m.invoke(styleHolder[0], fgV);
-                            changed = true;
-                        }
-                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                    try {
-                        if (bgV != null) {
-                            var m = styleHolder[0].getClass().getMethod(
-                                "setColor",
-                                RGBValues.class
-                            );
-                            m.invoke(styleHolder[0], bgV);
-                            changed = true;
-                        }
-                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                    try {
-                        if (bdV != null) {
-                            var m = styleHolder[0].getClass().getMethod(
-                                "setBorderColor",
-                                RGBValues.class
-                            );
-                            m.invoke(styleHolder[0], bdV);
-                            changed = true;
-                        }
-                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                    // Best-effort: show/hide icon if supported by style
-                    try {
-                        java.lang.reflect.Method m =
-                            styleHolder[0].getClass().getMethod(
-                                "setShowIcon",
-                                boolean.class
-                            );
-                        // If method exists, default to true unless explicitly set false by caller
-                        Boolean showIcon = null;
+                    session,
+                    "Style view element",
+                    () -> {
+                        boolean changed = false;
                         try {
-                            // Try to retrieve a cached value from a thread-local if present; otherwise skip (set below if provided)
-                            showIcon =
-                                (Boolean) org.polarsys.capella.ai.tools.DiagramCommands.ThreadLocalStyling.get(
-                                    "showIcon"
-                                );
-                        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                        if (showIcon != null) {
-                            m.invoke(styleHolder[0], showIcon.booleanValue());
-                            changed = true;
-                        }
-                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                    // Best-effort: set label text on representation element if supported
-                    try {
-                        String labelText = null;
-                        try {
-                            labelText =
-                                (String) org.polarsys.capella.ai.tools.DiagramCommands.ThreadLocalStyling.get(
-                                    "labelText"
-                                );
-                        } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                        if (labelText != null) {
-                            try {
-                                var m = targetRef
-                                    .getClass()
-                                    .getMethod("setName", String.class);
-                                m.invoke(targetRef, labelText);
+                            if (fgV != null) {
+                                var m =
+                                        styleHolder[0]
+                                                .getClass()
+                                                .getMethod("setLabelColor", RGBValues.class);
+                                m.invoke(styleHolder[0], fgV);
                                 changed = true;
-                            } catch (Throwable ex) { LOG.fine("[DiagramCommands] nested: " + ex.getMessage()); }
+                            }
+                        } catch (Throwable ex) {
+                            LOG.fine("[DiagramCommands] " + ex.getMessage());
                         }
-                    } catch (Throwable ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                    if (changed) {
                         try {
-                            DialectManager.INSTANCE.refresh(
-                                rep,
-                                new NullProgressMonitor()
-                            );
-                        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
-                    }
-                    return changed;
-                }
-            );
+                            if (bgV != null) {
+                                var m =
+                                        styleHolder[0]
+                                                .getClass()
+                                                .getMethod("setColor", RGBValues.class);
+                                m.invoke(styleHolder[0], bgV);
+                                changed = true;
+                            }
+                        } catch (Throwable ex) {
+                            LOG.fine("[DiagramCommands] " + ex.getMessage());
+                        }
+                        try {
+                            if (bdV != null) {
+                                var m =
+                                        styleHolder[0]
+                                                .getClass()
+                                                .getMethod("setBorderColor", RGBValues.class);
+                                m.invoke(styleHolder[0], bdV);
+                                changed = true;
+                            }
+                        } catch (Throwable ex) {
+                            LOG.fine("[DiagramCommands] " + ex.getMessage());
+                        }
+                        // Best-effort: show/hide icon if supported by style
+                        try {
+                            java.lang.reflect.Method m =
+                                    styleHolder[0]
+                                            .getClass()
+                                            .getMethod("setShowIcon", boolean.class);
+                            // If method exists, default to true unless explicitly set false by
+                            // caller
+                            Boolean showIcon = null;
+                            try {
+                                // Try to retrieve a cached value from a thread-local if present;
+                                // otherwise skip (set below if provided)
+                                showIcon =
+                                        (Boolean)
+                                                org.polarsys.capella.ai.tools.DiagramCommands
+                                                        .ThreadLocalStyling.get("showIcon");
+                            } catch (Throwable ex) {
+                                LOG.fine("[DiagramCommands] " + ex.getMessage());
+                            }
+                            if (showIcon != null) {
+                                m.invoke(styleHolder[0], showIcon.booleanValue());
+                                changed = true;
+                            }
+                        } catch (Throwable ex) {
+                            LOG.fine("[DiagramCommands] " + ex.getMessage());
+                        }
+                        // Best-effort: set label text on representation element if supported
+                        try {
+                            String labelText = null;
+                            try {
+                                labelText =
+                                        (String)
+                                                org.polarsys.capella.ai.tools.DiagramCommands
+                                                        .ThreadLocalStyling.get("labelText");
+                            } catch (Throwable ex) {
+                                LOG.fine("[DiagramCommands] " + ex.getMessage());
+                            }
+                            if (labelText != null) {
+                                try {
+                                    var m = targetRef.getClass().getMethod("setName", String.class);
+                                    m.invoke(targetRef, labelText);
+                                    changed = true;
+                                } catch (Throwable ex) {
+                                    LOG.fine("[DiagramCommands] nested: " + ex.getMessage());
+                                }
+                            }
+                        } catch (Throwable ex) {
+                            LOG.fine("[DiagramCommands] " + ex.getMessage());
+                        }
+                        if (changed) {
+                            try {
+                                DialectManager.INSTANCE.refresh(rep, new NullProgressMonitor());
+                            } catch (Exception ex) {
+                                LOG.fine("[DiagramCommands] " + ex.getMessage());
+                            }
+                        }
+                        return changed;
+                    });
         } catch (Exception e) {
             LOG.warning("styleViewElement failed: " + e.getMessage());
             return false;
@@ -2576,7 +2335,7 @@ public final class DiagramCommands {
     public static final class ThreadLocalStyling {
 
         private static final ThreadLocal<java.util.Map<String, Object>> TL =
-            ThreadLocal.withInitial(java.util.HashMap::new);
+                ThreadLocal.withInitial(java.util.HashMap::new);
 
         public static void put(String k, Object v) {
             TL.get().put(k, v);
@@ -2599,11 +2358,10 @@ public final class DiagramCommands {
     }
 
     private static void tryReveal(
-        Session session,
-        DRepresentation rep,
-        java.util.List<String> ids,
-        org.eclipse.emf.ecore.resource.ResourceSet rs
-    ) {
+            Session session,
+            DRepresentation rep,
+            java.util.List<String> ids,
+            org.eclipse.emf.ecore.resource.ResourceSet rs) {
         try {
             java.util.List<EObject> eos = new java.util.ArrayList<>();
             for (String id : ids) {
@@ -2620,15 +2378,11 @@ public final class DiagramCommands {
                 }
             }
             if (m != null) {
-                m.invoke(
-                    DialectUIManager.INSTANCE,
-                    session,
-                    rep,
-                    eos,
-                    new NullProgressMonitor()
-                );
+                m.invoke(DialectUIManager.INSTANCE, session, rep, eos, new NullProgressMonitor());
             }
-        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+        } catch (Exception ex) {
+            LOG.fine("[DiagramCommands] " + ex.getMessage());
+        }
     }
 
     private static boolean isVisualFor(DDiagramElement el, EObject semantic) {
@@ -2660,7 +2414,9 @@ public final class DiagramCommands {
                 Object v = eo.eGet(f);
                 if (v != null) return String.valueOf(v);
             }
-        } catch (Exception ex) { LOG.fine("[DiagramCommands] " + ex.getMessage()); }
+        } catch (Exception ex) {
+            LOG.fine("[DiagramCommands] " + ex.getMessage());
+        }
         return String.valueOf(eo.hashCode());
     }
 }

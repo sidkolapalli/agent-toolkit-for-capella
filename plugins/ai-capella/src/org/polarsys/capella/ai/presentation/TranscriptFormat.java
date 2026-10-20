@@ -14,17 +14,38 @@ public final class TranscriptFormat {
     private static final Style PLAIN = new Style(false, false, false, false, 0);
     private static final Style CODE = new Style(false, false, true, false, 0);
 
-    public enum LineKind { PROSE, HEADING, LIST, QUOTE, CODE }
-    public record Style(boolean bold, boolean italic, boolean code, boolean inlineCode, int headingLevel) {
-        Style bolded() { return new Style(true, italic, code, inlineCode, headingLevel); }
-        Style italicized() { return new Style(bold, true, code, inlineCode, headingLevel); }
-        Style inline() { return new Style(bold, italic, true, true, headingLevel); }
+    public enum LineKind {
+        PROSE,
+        HEADING,
+        LIST,
+        QUOTE,
+        CODE
     }
+
+    public record Style(
+            boolean bold, boolean italic, boolean code, boolean inlineCode, int headingLevel) {
+        Style bolded() {
+            return new Style(true, italic, code, inlineCode, headingLevel);
+        }
+
+        Style italicized() {
+            return new Style(bold, true, code, inlineCode, headingLevel);
+        }
+
+        Style inline() {
+            return new Style(bold, italic, true, true, headingLevel);
+        }
+    }
+
     public record Run(int offset, int length, Style style) {}
+
     public record Line(int offset, int length, LineKind kind, int indent) {}
+
     /** Source retains original code whitespace and line endings for exact copying. */
     public record CodeBlock(int offset, int length, String language, String source) {}
-    public record Formatted(String text, List<Run> runs, List<Line> lines, List<CodeBlock> codeBlocks) {
+
+    public record Formatted(
+            String text, List<Run> runs, List<Line> lines, List<CodeBlock> codeBlocks) {
         public Formatted {
             runs = List.copyOf(runs);
             lines = List.copyOf(lines);
@@ -44,18 +65,28 @@ public final class TranscriptFormat {
         int cursor = 0;
         while (cursor < input.length()) {
             int end = cursor;
-            while (end < input.length() && input.charAt(end) != '\r' && input.charAt(end) != '\n') end++;
+            while (end < input.length() && input.charAt(end) != '\r' && input.charAt(end) != '\n')
+                end++;
             int next = end;
             if (next < input.length()) {
-                if (input.charAt(next++) == '\r' && next < input.length() && input.charAt(next) == '\n') next++;
+                if (input.charAt(next++) == '\r'
+                        && next < input.length()
+                        && input.charAt(next) == '\n') next++;
             }
             String content = input.substring(cursor, end);
             String delimiter = input.substring(end, next);
             Matcher fence = FENCE.matcher(content);
             if (fenceCharacter != 0) {
-                if (fence.matches() && fence.group(1).charAt(0) == fenceCharacter
-                    && fence.group(1).length() >= fenceLength && fence.group(2).isBlank()) {
-                    output.blocks.add(new CodeBlock(codeStart, output.text.length() - codeStart, language, codeSource.toString()));
+                if (fence.matches()
+                        && fence.group(1).charAt(0) == fenceCharacter
+                        && fence.group(1).length() >= fenceLength
+                        && fence.group(2).isBlank()) {
+                    output.blocks.add(
+                            new CodeBlock(
+                                    codeStart,
+                                    output.text.length() - codeStart,
+                                    language,
+                                    codeSource.toString()));
                     fenceCharacter = 0;
                 } else {
                     int offset = output.text.length();
@@ -64,7 +95,8 @@ public final class TranscriptFormat {
                     if (!delimiter.isEmpty()) output.append("\n", CODE);
                     codeSource.append(content).append(delimiter);
                 }
-            } else if (fence.matches() && !(fence.group(1).charAt(0) == '`' && fence.group(2).contains("`"))) {
+            } else if (fence.matches()
+                    && !(fence.group(1).charAt(0) == '`' && fence.group(2).contains("`"))) {
                 fenceCharacter = fence.group(1).charAt(0);
                 fenceLength = fence.group(1).length();
                 language = fence.group(2).strip();
@@ -77,7 +109,12 @@ public final class TranscriptFormat {
             cursor = next;
         }
         if (fenceCharacter != 0) {
-            output.blocks.add(new CodeBlock(codeStart, output.text.length() - codeStart, language, codeSource.toString()));
+            output.blocks.add(
+                    new CodeBlock(
+                            codeStart,
+                            output.text.length() - codeStart,
+                            language,
+                            codeSource.toString()));
         }
         return new Formatted(output.text.toString(), output.runs, output.lines, output.blocks);
     }
@@ -119,8 +156,9 @@ public final class TranscriptFormat {
         int position = 0, plainStart = 0;
         while (position < content.length()) {
             char character = content.charAt(position);
-            if (character == '\\' && position + 1 < content.length()
-                && "\\`*_{}[]()>#+-.!".indexOf(content.charAt(position + 1)) >= 0) {
+            if (character == '\\'
+                    && position + 1 < content.length()
+                    && "\\`*_{}[]()>#+-.!".indexOf(content.charAt(position + 1)) >= 0) {
                 output.append(content.substring(plainStart, position), base);
                 output.append(content.substring(position + 1, position + 2), base);
                 position += 2;
@@ -129,7 +167,8 @@ public final class TranscriptFormat {
             }
             if (character == '`') {
                 int ticks = 1;
-                while (position + ticks < content.length() && content.charAt(position + ticks) == '`') ticks++;
+                while (position + ticks < content.length()
+                        && content.charAt(position + ticks) == '`') ticks++;
                 String marker = "`".repeat(ticks);
                 int close = closing(content, marker, position + ticks);
                 if (close >= 0) {
@@ -142,14 +181,24 @@ public final class TranscriptFormat {
                 position += ticks;
                 continue;
             }
-            String marker = content.startsWith("**", position) ? "**"
-                : content.startsWith("__", position) && (position == 0 || !Character.isLetterOrDigit(content.charAt(position - 1))) ? "__"
-                : character == '*' ? "*" : null;
+            String marker =
+                    content.startsWith("**", position)
+                            ? "**"
+                            : content.startsWith("__", position)
+                                            && (position == 0
+                                                    || !Character.isLetterOrDigit(
+                                                            content.charAt(position - 1)))
+                                    ? "__"
+                                    : character == '*' ? "*" : null;
             if (marker != null) {
                 int close = closing(content, marker, position + marker.length());
                 if (close > position + marker.length()) {
                     output.append(content.substring(plainStart, position), base);
-                    inline(content.substring(position + marker.length(), close), marker.length() == 2 ? base.bolded() : base.italicized(), output, depth + 1);
+                    inline(
+                            content.substring(position + marker.length(), close),
+                            marker.length() == 2 ? base.bolded() : base.italicized(),
+                            output,
+                            depth + 1);
                     position = close + marker.length();
                     plainStart = position;
                     continue;
@@ -176,10 +225,13 @@ public final class TranscriptFormat {
         int candidate = content.indexOf(marker, start);
         while (candidate >= 0) {
             int escapes = 0;
-            for (int index = candidate - 1; index >= 0 && content.charAt(index) == '\\'; index--) escapes++;
-            boolean runBoundary = marker.charAt(0) != '`'
-                || ((candidate == 0 || content.charAt(candidate - 1) != '`')
-                    && (candidate + marker.length() == content.length() || content.charAt(candidate + marker.length()) != '`'));
+            for (int index = candidate - 1; index >= 0 && content.charAt(index) == '\\'; index--)
+                escapes++;
+            boolean runBoundary =
+                    marker.charAt(0) != '`'
+                            || ((candidate == 0 || content.charAt(candidate - 1) != '`')
+                                    && (candidate + marker.length() == content.length()
+                                            || content.charAt(candidate + marker.length()) != '`'));
             if ((escapes & 1) == 0 && runBoundary) return candidate;
             candidate = content.indexOf(marker, candidate + marker.length());
         }
@@ -199,8 +251,11 @@ public final class TranscriptFormat {
             if (style.equals(PLAIN)) return;
             if (!runs.isEmpty()) {
                 Run previous = runs.get(runs.size() - 1);
-                if (previous.offset() + previous.length() == offset && previous.style().equals(style)) {
-                    runs.set(runs.size() - 1, new Run(previous.offset(), previous.length() + value.length(), style));
+                if (previous.offset() + previous.length() == offset
+                        && previous.style().equals(style)) {
+                    runs.set(
+                            runs.size() - 1,
+                            new Run(previous.offset(), previous.length() + value.length(), style));
                     return;
                 }
             }

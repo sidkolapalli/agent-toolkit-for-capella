@@ -27,57 +27,138 @@ public final class AdvancedPreferences {
 
     private AdvancedPreferences() {}
 
-    private static IEclipsePreferences prefs() { return InstanceScope.INSTANCE.getNode(NODE); }
+    private static IEclipsePreferences prefs() {
+        return InstanceScope.INSTANCE.getNode(NODE);
+    }
 
-    public static boolean isQuickValidationEnabled() { return prefs().getBoolean(KEY_QUICK_VALIDATION, true); }
-    public static void setQuickValidationEnabled(boolean v) { prefs().putBoolean(KEY_QUICK_VALIDATION, v); }
+    public static boolean isQuickValidationEnabled() {
+        return prefs().getBoolean(KEY_QUICK_VALIDATION, true);
+    }
 
-    public static boolean isCoverageGatesEnabled() { return prefs().getBoolean(KEY_COVERAGE_GATES, true); }
-    public static void setCoverageGatesEnabled(boolean v) { prefs().putBoolean(KEY_COVERAGE_GATES, v); }
+    public static void setQuickValidationEnabled(boolean v) {
+        prefs().putBoolean(KEY_QUICK_VALIDATION, v);
+    }
 
-    public static boolean isTraceabilityGatesEnabled() { return prefs().getBoolean(KEY_TRACEABILITY_GATES, true); }
-    public static void setTraceabilityGatesEnabled(boolean v) { prefs().putBoolean(KEY_TRACEABILITY_GATES, v); }
+    public static boolean isCoverageGatesEnabled() {
+        return prefs().getBoolean(KEY_COVERAGE_GATES, true);
+    }
 
-    public static boolean isAutoFixesEnabled() { return prefs().getBoolean(KEY_AUTO_FIXES, true); }
-    public static void setAutoFixesEnabled(boolean v) { prefs().putBoolean(KEY_AUTO_FIXES, v); }
+    public static void setCoverageGatesEnabled(boolean v) {
+        prefs().putBoolean(KEY_COVERAGE_GATES, v);
+    }
 
-    public static int getMaxPlanActions() { return prefs().getInt(KEY_MAX_PLAN_ACTIONS, 200); }
-    public static void setMaxPlanActions(int v) { prefs().putInt(KEY_MAX_PLAN_ACTIONS, v); }
+    public static boolean isTraceabilityGatesEnabled() {
+        return prefs().getBoolean(KEY_TRACEABILITY_GATES, true);
+    }
 
-    public static int getMaxAutoFixRemovals() { return prefs().getInt(KEY_MAX_AUTOFIX_REMOVALS, 25); }
-    public static void setMaxAutoFixRemovals(int v) { prefs().putInt(KEY_MAX_AUTOFIX_REMOVALS, v); }
+    public static void setTraceabilityGatesEnabled(boolean v) {
+        prefs().putBoolean(KEY_TRACEABILITY_GATES, v);
+    }
 
-    public static boolean isOrchestrationEnabled() { return prefs().getBoolean(KEY_ORCHESTRATION, true); }
-    public static void setOrchestrationEnabled(boolean v) { prefs().putBoolean(KEY_ORCHESTRATION, v); }
+    public static boolean isAutoFixesEnabled() {
+        return prefs().getBoolean(KEY_AUTO_FIXES, true);
+    }
 
-    public static int getAutoSaveIntervalSec() { return prefs().getInt(KEY_AUTOSAVE_INTERVAL_SEC, 30); }
-    public static void setAutoSaveIntervalSec(int v) { prefs().putInt(KEY_AUTOSAVE_INTERVAL_SEC, v); }
+    public static void setAutoFixesEnabled(boolean v) {
+        prefs().putBoolean(KEY_AUTO_FIXES, v);
+    }
 
-    public static boolean isSelfHealingEnabled() { return prefs().getBoolean(KEY_SELF_HEAL, true); }
-    public static void setSelfHealingEnabled(boolean v) { prefs().putBoolean(KEY_SELF_HEAL, v); }
+    public static int getMaxPlanActions() {
+        return prefs().getInt(KEY_MAX_PLAN_ACTIONS, 200);
+    }
 
-    public static int getSelfHealingMaxIters() { return prefs().getInt(KEY_SELF_HEAL_MAX_ITERS, 1); }
-    public static void setSelfHealingMaxIters(int v) { prefs().putInt(KEY_SELF_HEAL_MAX_ITERS, v); }
+    public static void setMaxPlanActions(int v) {
+        prefs().putInt(KEY_MAX_PLAN_ACTIONS, v);
+    }
 
-    public static int getMaxPlanTimeMillis() { return prefs().getInt(KEY_MAX_PLAN_TIME_MS, 0); }
-    public static void setMaxPlanTimeMillis(int v) { prefs().putInt(KEY_MAX_PLAN_TIME_MS, v); }
+    public static int getMaxAutoFixRemovals() {
+        return prefs().getInt(KEY_MAX_AUTOFIX_REMOVALS, 25);
+    }
 
-    public static boolean isAsyncIndexingEnabled() { return prefs().getBoolean(KEY_ASYNC_INDEXING, true); }
-    public static void setAsyncIndexingEnabled(boolean v) { prefs().putBoolean(KEY_ASYNC_INDEXING, v); }
+    public static void setMaxAutoFixRemovals(int v) {
+        prefs().putInt(KEY_MAX_AUTOFIX_REMOVALS, v);
+    }
+
+    public static boolean isOrchestrationEnabled() {
+        return prefs().getBoolean(KEY_ORCHESTRATION, true);
+    }
+
+    public static void setOrchestrationEnabled(boolean v) {
+        prefs().putBoolean(KEY_ORCHESTRATION, v);
+    }
+
+    public static int getAutoSaveIntervalSec() {
+        return prefs().getInt(KEY_AUTOSAVE_INTERVAL_SEC, 30);
+    }
+
+    public static void setAutoSaveIntervalSec(int v) {
+        prefs().putInt(KEY_AUTOSAVE_INTERVAL_SEC, v);
+    }
+
+    public static boolean isSelfHealingEnabled() {
+        return prefs().getBoolean(KEY_SELF_HEAL, true);
+    }
+
+    public static void setSelfHealingEnabled(boolean v) {
+        prefs().putBoolean(KEY_SELF_HEAL, v);
+    }
+
+    public static int getSelfHealingMaxIters() {
+        return prefs().getInt(KEY_SELF_HEAL_MAX_ITERS, 1);
+    }
+
+    public static void setSelfHealingMaxIters(int v) {
+        prefs().putInt(KEY_SELF_HEAL_MAX_ITERS, v);
+    }
+
+    public static int getMaxPlanTimeMillis() {
+        return prefs().getInt(KEY_MAX_PLAN_TIME_MS, 0);
+    }
+
+    public static void setMaxPlanTimeMillis(int v) {
+        prefs().putInt(KEY_MAX_PLAN_TIME_MS, v);
+    }
+
+    public static boolean isAsyncIndexingEnabled() {
+        return prefs().getBoolean(KEY_ASYNC_INDEXING, true);
+    }
+
+    public static void setAsyncIndexingEnabled(boolean v) {
+        prefs().putBoolean(KEY_ASYNC_INDEXING, v);
+    }
 
     // Confirmation gate: require explicit confirmation before applying any plan
-    public static boolean isConfirmBeforeApplyEnabled() { return prefs().getBoolean(KEY_CONFIRM_BEFORE_APPLY, true); }
-    public static void setConfirmBeforeApplyEnabled(boolean v) { prefs().putBoolean(KEY_CONFIRM_BEFORE_APPLY, v); }
+    public static boolean isConfirmBeforeApplyEnabled() {
+        return prefs().getBoolean(KEY_CONFIRM_BEFORE_APPLY, true);
+    }
+
+    public static void setConfirmBeforeApplyEnabled(boolean v) {
+        prefs().putBoolean(KEY_CONFIRM_BEFORE_APPLY, v);
+    }
 
     // Atomic apply: if any step fails or budgets/timeouts are exceeded, rollback the whole apply
-    public static boolean isAtomicApplyEnabled() { return prefs().getBoolean(KEY_ATOMIC_APPLY, false); }
-    public static void setAtomicApplyEnabled(boolean v) { prefs().putBoolean(KEY_ATOMIC_APPLY, v); }
+    public static boolean isAtomicApplyEnabled() {
+        return prefs().getBoolean(KEY_ATOMIC_APPLY, false);
+    }
+
+    public static void setAtomicApplyEnabled(boolean v) {
+        prefs().putBoolean(KEY_ATOMIC_APPLY, v);
+    }
 
     // Orchestrator: rollback last batch on failure
-    public static boolean isOrchestratorRollbackOnFailureEnabled() { return prefs().getBoolean(KEY_ORCH_ROLLBACK_ON_FAILURE, true); }
-    public static void setOrchestratorRollbackOnFailureEnabled(boolean v) { prefs().putBoolean(KEY_ORCH_ROLLBACK_ON_FAILURE, v); }
+    public static boolean isOrchestratorRollbackOnFailureEnabled() {
+        return prefs().getBoolean(KEY_ORCH_ROLLBACK_ON_FAILURE, true);
+    }
+
+    public static void setOrchestratorRollbackOnFailureEnabled(boolean v) {
+        prefs().putBoolean(KEY_ORCH_ROLLBACK_ON_FAILURE, v);
+    }
 
     public static void flush() {
-        try { prefs().flush(); } catch (BackingStoreException e) { /* ignore */ }
+        try {
+            prefs().flush();
+        } catch (BackingStoreException e) {
+            /* ignore */
+        }
     }
 }

@@ -1,5 +1,11 @@
 package org.polarsys.capella.ai.telemetry;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+import org.polarsys.capella.ai.Activator;
+import org.polarsys.capella.ai.preferences.LLMPreferences;
+import org.polarsys.capella.ai.scripting.ExecutionResult;
+
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,187 +16,157 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
-import org.polarsys.capella.ai.Activator;
-import org.polarsys.capella.ai.preferences.LLMPreferences;
-import org.polarsys.capella.ai.scripting.ExecutionResult;
 
 /**
- * Lightweight opt-in telemetry for understanding assistant usage patterns.
- * Updated for code execution architecture (Phase 4).
+ * Lightweight opt-in telemetry for understanding assistant usage patterns. Updated for code
+ * execution architecture (Phase 4).
  */
 public final class Telemetry {
 
-    private static final Logger LOG = Logger.getLogger(
-        Telemetry.class.getName()
-    );
+    private static final Logger LOG = Logger.getLogger(Telemetry.class.getName());
     private static final ThreadLocal<String> CORRELATION = new ThreadLocal<>();
     private static final DateTimeFormatter TS =
-        DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC);
+            DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC);
 
     private Telemetry() {}
 
-    /**
-     * Record code execution result.
-     */
-    public static void recordCodeExecution(
-        String script,
-        ExecutionResult result
-    ) {
+    /** Record code execution result. */
+    public static void recordCodeExecution(String script, ExecutionResult result) {
         if (!isEnabled() || result == null) {
             return;
         }
         String status = result.success() ? "success" : result.code().name();
         int logCount = result.logs() != null ? result.logs().size() : 0;
         logInfo(
-            "code-execution",
-            String.format(
-                "status=%s duration_ms=%d logs=%d",
-                status,
-                result.durationMs(),
-                logCount
-            )
-        );
+                "code-execution",
+                String.format(
+                        "status=%s duration_ms=%d logs=%d", status, result.durationMs(), logCount));
         writeJsonLine(
-            "code_execution",
-            "status",
-            status,
-            "duration_ms",
-            String.valueOf(result.durationMs()),
-            "log_count",
-            String.valueOf(logCount),
-            "script_length",
-            String.valueOf(script != null ? script.length() : 0)
-        );
+                "code_execution",
+                "status",
+                status,
+                "duration_ms",
+                String.valueOf(result.durationMs()),
+                "log_count",
+                String.valueOf(logCount),
+                "script_length",
+                String.valueOf(script != null ? script.length() : 0));
     }
 
-    /**
-     * Record code execution error.
-     */
+    /** Record code execution error. */
     public static void recordCodeError(String context, String message) {
         if (!isEnabled() || message == null || message.isBlank()) {
             return;
         }
         logWarning("code-error", context + " -> " + message);
-        writeJsonLine(
-            "code_error",
-            "context",
-            safe(context),
-            "message",
-            safe(message)
-        );
+        writeJsonLine("code_error", "context", safe(context), "message", safe(message));
     }
 
     /**
-     * Record a full LLM conversation (inputs and output) for diagnostics.
-     * The caller is responsible for redacting any sensitive data.
+     * Record a full LLM conversation (inputs and output) for diagnostics. The caller is responsible
+     * for redacting any sensitive data.
      */
     public static void recordConversation(
-        String provider,
-        String api,
-        String model,
-        String messages,
-        String reply,
-        boolean streaming,
-        String status,
-        long durationMs
-    ) {
+            String provider,
+            String api,
+            String model,
+            String messages,
+            String reply,
+            boolean streaming,
+            String status,
+            long durationMs) {
         if (!isEnabled()) {
             return;
         }
-        String meta = String.format(
-            "provider=%s api=%s model=%s streaming=%s duration_ms=%d status=%s",
-            safe(provider),
-            safe(api),
-            safe(model),
-            streaming,
-            durationMs,
-            safe(status)
-        );
-        String payload = new StringBuilder()
-            .append(meta)
-            .append(System.lineSeparator())
-            .append("-- messages --")
-            .append(System.lineSeparator())
-            .append(messages == null ? "" : messages)
-            .append(System.lineSeparator())
-            .append("-- reply --")
-            .append(System.lineSeparator())
-            .append(reply == null ? "" : reply)
-            .toString();
+        String meta =
+                String.format(
+                        "provider=%s api=%s model=%s streaming=%s duration_ms=%d status=%s",
+                        safe(provider),
+                        safe(api),
+                        safe(model),
+                        streaming,
+                        durationMs,
+                        safe(status));
+        String payload =
+                new StringBuilder()
+                        .append(meta)
+                        .append(System.lineSeparator())
+                        .append("-- messages --")
+                        .append(System.lineSeparator())
+                        .append(messages == null ? "" : messages)
+                        .append(System.lineSeparator())
+                        .append("-- reply --")
+                        .append(System.lineSeparator())
+                        .append(reply == null ? "" : reply)
+                        .toString();
         logInfo("conversation", payload);
         writeJsonLine(
-            "conversation",
-            "provider",
-            safe(provider),
-            "api",
-            safe(api),
-            "model",
-            safe(model),
-            "streaming",
-            String.valueOf(streaming),
-            "duration_ms",
-            String.valueOf(durationMs),
-            "status",
-            safe(status),
-            "messages",
-            safe(messages),
-            "reply",
-            safe(reply)
-        );
+                "conversation",
+                "provider",
+                safe(provider),
+                "api",
+                safe(api),
+                "model",
+                safe(model),
+                "streaming",
+                String.valueOf(streaming),
+                "duration_ms",
+                String.valueOf(durationMs),
+                "status",
+                safe(status),
+                "messages",
+                safe(messages),
+                "reply",
+                safe(reply));
     }
 
-    /**
-     * Record layout metrics for arrange operations (pre/post overlaps and crossings).
-     */
+    /** Record layout metrics for arrange operations (pre/post overlaps and crossings). */
     public static void recordLayout(
-        String diagram,
-        String strategy,
-        int selectionSize,
-        int overlapsPre,
-        int overlapsPost,
-        int crossingsPre,
-        int crossingsPost,
-        long durationMs
-    ) {
+            String diagram,
+            String strategy,
+            int selectionSize,
+            int overlapsPre,
+            int overlapsPost,
+            int crossingsPre,
+            int crossingsPost,
+            long durationMs) {
         if (!isEnabled()) return;
-        String msg = String.format(
-            "diagram=%s strategy=%s size=%d overlaps %d->%d crossings %d->%d duration_ms=%d",
-            safe(diagram),
-            safe(strategy),
-            selectionSize,
-            overlapsPre,
-            overlapsPost,
-            crossingsPre,
-            crossingsPost,
-            durationMs
-        );
+        String msg =
+                String.format(
+                        "diagram=%s strategy=%s size=%d overlaps %d->%d crossings %d->%d"
+                            + " duration_ms=%d",
+                        safe(diagram),
+                        safe(strategy),
+                        selectionSize,
+                        overlapsPre,
+                        overlapsPost,
+                        crossingsPre,
+                        crossingsPost,
+                        durationMs);
         logInfo("layout", msg);
         writeJsonLine(
-            "layout",
-            "diagram",
-            safe(diagram),
-            "strategy",
-            safe(strategy),
-            "selection_size",
-            String.valueOf(selectionSize),
-            "overlaps_pre",
-            String.valueOf(overlapsPre),
-            "overlaps_post",
-            String.valueOf(overlapsPost),
-            "crossings_pre",
-            String.valueOf(crossingsPre),
-            "crossings_post",
-            String.valueOf(crossingsPost),
-            "duration_ms",
-            String.valueOf(durationMs)
-        );
+                "layout",
+                "diagram",
+                safe(diagram),
+                "strategy",
+                safe(strategy),
+                "selection_size",
+                String.valueOf(selectionSize),
+                "overlaps_pre",
+                String.valueOf(overlapsPre),
+                "overlaps_post",
+                String.valueOf(overlapsPost),
+                "crossings_pre",
+                String.valueOf(crossingsPre),
+                "crossings_post",
+                String.valueOf(crossingsPost),
+                "duration_ms",
+                String.valueOf(durationMs));
     }
 
     /**
-     * Record a successful prompt-code pair for fine-tuning datasets.
-     * Only called when execution succeeds.
+     * Record a successful prompt-code pair for fine-tuning datasets. Only called when execution
+     * succeeds.
      */
     public static void recordDatasetEntry(String prompt, String code) {
         if (!isEnabled()) return;
@@ -198,27 +174,22 @@ public final class Telemetry {
     }
 
     /**
-     * Record a successful prompt-code pair for fine-tuning datasets, skipping
-     * entries that contain logical failures surfaced via script logs.
+     * Record a successful prompt-code pair for fine-tuning datasets, skipping entries that contain
+     * logical failures surfaced via script logs.
      */
-    public static void recordDatasetEntry(
-        String prompt,
-        String code,
-        ExecutionResult result
-    ) {
+    public static void recordDatasetEntry(String prompt, String code, ExecutionResult result) {
         if (!isEnabled()) {
             return;
         }
         if (shouldSkipDatasetEntry(result)) {
             writeJsonLine(
-                "dataset_skip",
-                "reason",
-                "script_logs",
-                "success",
-                String.valueOf(result != null && result.success()),
-                "log_count",
-                String.valueOf(result != null ? result.logs().size() : 0)
-            );
+                    "dataset_skip",
+                    "reason",
+                    "script_logs",
+                    "success",
+                    String.valueOf(result != null && result.success()),
+                    "log_count",
+                    String.valueOf(result != null ? result.logs().size() : 0));
             return;
         }
         writeDatasetEntry(prompt, code);
@@ -255,26 +226,21 @@ public final class Telemetry {
     private static void writeDatasetEntry(String prompt, String code) {
         if (!isEnabled()) return;
         try {
-            Path file = Paths.get(
-                System.getProperty("user.home"),
-                ".capella-ai",
-                "dataset.jsonl"
-            );
+            Path file = Paths.get(System.getProperty("user.home"), ".capella-ai", "dataset.jsonl");
             if (!Files.exists(file.getParent())) Files.createDirectories(file.getParent());
-            
+
             StringBuilder sb = new StringBuilder(1024);
             sb.append('{');
             sb.append("\"ts\":\"").append(jsonEscape(TS.format(Instant.now()))).append("\",");
             sb.append("\"prompt\":\"").append(jsonEscape(prompt)).append("\",");
             sb.append("\"code\":\"").append(jsonEscape(code)).append("\"");
             sb.append('}').append('\n');
-            
+
             Files.write(
-                file,
-                sb.toString().getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.CREATE,
-                StandardOpenOption.APPEND
-            );
+                    file,
+                    sb.toString().getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND);
         } catch (Exception ex) {
             System.err.println("[Telemetry] Error writing dataset entry: " + ex.getMessage());
         }
@@ -311,14 +277,10 @@ public final class Telemetry {
 
     private static void log(int severity, String category, String message) {
         String id = getCorrelationId();
-        String prefix = (id == null || id.isBlank())
-            ? category
-            : ("id=" + id + "] [" + category);
+        String prefix = (id == null || id.isBlank()) ? category : ("id=" + id + "] [" + category);
         String payload = String.format("[%s] %s", prefix, message);
         if (Activator.getDefault() != null) {
-            Activator.getDefault()
-                .getLog()
-                .log(new Status(severity, Activator.PLUGIN_ID, payload));
+            Activator.getDefault().getLog().log(new Status(severity, Activator.PLUGIN_ID, payload));
         } else {
             Level level = severity == IStatus.INFO ? Level.INFO : Level.WARNING;
             LOG.log(level, payload);
@@ -328,22 +290,15 @@ public final class Telemetry {
     private static void writeJsonLine(String event, String... kv) {
         if (!isEnabled()) return;
         try {
-            Path dir = Paths.get(
-                System.getProperty("user.home"),
-                ".capella-ai",
-                "logs"
-            );
+            Path dir = Paths.get(System.getProperty("user.home"), ".capella-ai", "logs");
             if (!Files.exists(dir)) Files.createDirectories(dir);
-            String date = java.time.LocalDate.now(ZoneOffset.UTC).format(
-                java.time.format.DateTimeFormatter.BASIC_ISO_DATE
-            );
+            String date =
+                    java.time.LocalDate.now(ZoneOffset.UTC)
+                            .format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
             Path file = dir.resolve("capella-ai-" + date + ".jsonl");
             StringBuilder sb = new StringBuilder(256);
             sb.append('{');
-            sb
-                .append("\"ts\":\"")
-                .append(jsonEscape(TS.format(Instant.now())))
-                .append("\",");
+            sb.append("\"ts\":\"").append(jsonEscape(TS.format(Instant.now()))).append("\",");
             String id = getCorrelationId();
             if (id != null && !id.isBlank()) {
                 sb.append("\"id\":\"").append(jsonEscape(id)).append("\",");
@@ -353,28 +308,24 @@ public final class Telemetry {
             for (int i = 0; i + 1 < kv.length; i += 2) {
                 String k = kv[i];
                 String v = kv[i + 1];
-                sb
-                    .append(',')
-                    .append('"')
-                    .append(jsonEscape(k))
-                    .append('"')
-                    .append(':')
-                    .append('"')
-                    .append(jsonEscape(v))
-                    .append('"');
+                sb.append(',')
+                        .append('"')
+                        .append(jsonEscape(k))
+                        .append('"')
+                        .append(':')
+                        .append('"')
+                        .append(jsonEscape(v))
+                        .append('"');
             }
             sb.append('}').append('\n');
             Files.write(
-                file,
-                sb.toString().getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.CREATE,
-                StandardOpenOption.APPEND
-            );
+                    file,
+                    sb.toString().getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND);
         } catch (Exception ex) {
             // Telemetry write failure - don't interrupt main flow
-            System.err.println(
-                "[Telemetry] Error writing log: " + ex.getMessage()
-            );
+            System.err.println("[Telemetry] Error writing log: " + ex.getMessage());
         }
     }
 

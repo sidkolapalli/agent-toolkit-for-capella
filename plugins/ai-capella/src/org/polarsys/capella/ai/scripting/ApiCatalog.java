@@ -13,84 +13,90 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Structured API catalog for LLM discovery and validation.
- * Provides a JSON view of available methods for api modules.
+ * Structured API catalog for LLM discovery and validation. Provides a JSON view of available
+ * methods for api modules.
  */
 public final class ApiCatalog {
 
-    private static final Set<String> OBJECT_METHODS = Set.of(
-        "getClass",
-        "hashCode",
-        "wait",
-        "notify",
-        "notifyAll",
-        "equals",
-        "toString"
-    );
+    private static final Set<String> OBJECT_METHODS =
+            Set.of("getClass", "hashCode", "wait", "notify", "notifyAll", "equals", "toString");
 
     /**
      * Module -> class name mapping.
      *
-     * <p>Use class names (not class literals) so ApiCatalog can still load even
-     * when optional dependencies (e.g., Groovy) are not present in the runtime
-     * classpath.
+     * <p>Use class names (not class literals) so ApiCatalog can still load even when optional
+     * dependencies (e.g., Groovy) are not present in the runtime classpath.
      */
-    private static final Map<String, String> MODULES = Map.of(
-        "api",
-        "org.polarsys.capella.ai.scripting.CapellaAPI",
-        "api.diagram",
-        "org.polarsys.capella.ai.scripting.DiagramAPI",
-        "api.fs",
-        "org.polarsys.capella.ai.scripting.FileSystemAPI",
-        "api.skills",
-        "org.polarsys.capella.ai.scripting.SkillsAPI",
-        "api.requirements",
-        "org.polarsys.capella.ai.scripting.RequirementsAPI",
-        "api.arcadia",
-        "org.polarsys.capella.ai.scripting.ArcadiaAPI"
-    );
+    private static final Map<String, String> MODULES =
+            Map.of(
+                    "api",
+                    "org.polarsys.capella.ai.scripting.CapellaAPI",
+                    "api.diagram",
+                    "org.polarsys.capella.ai.scripting.DiagramAPI",
+                    "api.fs",
+                    "org.polarsys.capella.ai.scripting.FileSystemAPI",
+                    "api.skills",
+                    "org.polarsys.capella.ai.scripting.SkillsAPI",
+                    "api.requirements",
+                    "org.polarsys.capella.ai.scripting.RequirementsAPI",
+                    "api.arcadia",
+                    "org.polarsys.capella.ai.scripting.ArcadiaAPI");
 
-    private static final Map<String, List<String>> MODULE_NOTES =
-        new LinkedHashMap<>();
+    private static final Map<String, List<String>> MODULE_NOTES = new LinkedHashMap<>();
 
     static {
         MODULE_NOTES.put(
-            "api",
-            List.of(
-                "Use api.diagram.find(...) to locate diagrams by name; do NOT use api.find(\"DRepresentationDescriptor\", ...).",
-                "Use api.help(\"diagram\") to inspect diagram methods before calling them."
-            )
-        );
+                "api",
+                List.of(
+                        "Use api.diagram.find(...) to locate diagrams by name; do NOT use"
+                            + " api.find(\"DRepresentationDescriptor\", ...).",
+                        "Use api.help(\"diagram\") to inspect diagram methods before calling"
+                            + " them."));
         MODULE_NOTES.put(
-            "api.diagram",
-            List.of(
-                "Valid methods include: create, createSafe, add, addSafe, addAll, addByUuids, refresh, layout, list, listAvailable, listAvailableFormatted.",
-                "Do NOT use addElement() or show() (they do not exist).",
-                "If add() fails, use addByUuids() with element UUIDs."
-            )
-        );
+                "api.diagram",
+                List.of(
+                        "Valid methods include: create, createSafe, add, addSafe, addAll,"
+                            + " addByUuids, refresh, layout, list, listAvailable,"
+                            + " listAvailableFormatted.",
+                        "Do NOT use addElement() or show() (they do not exist).",
+                        "If add() fails, use addByUuids() with element UUIDs."));
         MODULE_NOTES.put(
-            "api.skills",
-            List.of(
-                "Prefer api.skills.run(name, args) for reusable patterns instead of re-implementing the same code.",
-                "User-defined skills are trust-gated and may be disabled by default."
-            )
-        );
-        MODULE_NOTES.put("api.requirements", List.of(
-            "Requires the optional native Requirements viewpoint; check available() and viewpointEnabled().",
-            "Enable the viewpoint through the Assistant Requirements action before running semantic scripts.",
-            "Use native ReqIFIdentifier values for rule IDs; imported, satisfied and verified are distinct states.",
-            "Use satisfy(modelElement, requirement), verify(requirement, Constraint) and derive(derived, source)."
-        ));
-        MODULE_NOTES.put("api.arcadia", List.of(
-            "Typed native capability involvements and adjacent-layer capability realizations.",
-            "linearChain requires ordered leaf functions and matching exchanges; operationalScenario creates activity roles, messages, ends and events.",
-            "FunctionalChainInvolvementFunction/Link have no name attribute: use native IDs or stored involved references beneath the owning chain.",
-            "deploy requires BEHAVIOR and NODE Parts; physicalLink requires NODE Parts; allocateExchange creates native exchange and port allocations.",
-            "realizeInterface creates adjacent-layer exchange and endpoint port realizations atomically; realize the endpoint functions/components first.",
-            "constraint(owner, name, expression, subjects) stores a native owned Constraint/OpaqueExpression with 1..32 actual same-project subjects; a description alone is not its expression or scope.",
-            "All endpoints must belong to the captured model session. Inspect api/arcadia.md before creating engineering relationships."
-        ));
+                "api.skills",
+                List.of(
+                        "Prefer api.skills.run(name, args) for reusable patterns instead of"
+                            + " re-implementing the same code.",
+                        "User-defined skills are trust-gated and may be disabled by default."));
+        MODULE_NOTES.put(
+                "api.requirements",
+                List.of(
+                        "Requires the optional native Requirements viewpoint; check available() and"
+                            + " viewpointEnabled().",
+                        "Enable the viewpoint through the Assistant Requirements action before"
+                            + " running semantic scripts.",
+                        "Use native ReqIFIdentifier values for rule IDs; imported, satisfied and"
+                            + " verified are distinct states.",
+                        "Use satisfy(modelElement, requirement), verify(requirement, Constraint)"
+                            + " and derive(derived, source)."));
+        MODULE_NOTES.put(
+                "api.arcadia",
+                List.of(
+                        "Typed native capability involvements and adjacent-layer capability"
+                            + " realizations.",
+                        "linearChain requires ordered leaf functions and matching exchanges;"
+                            + " operationalScenario creates activity roles, messages, ends and"
+                            + " events.",
+                        "FunctionalChainInvolvementFunction/Link have no name attribute: use native"
+                            + " IDs or stored involved references beneath the owning chain.",
+                        "deploy requires BEHAVIOR and NODE Parts; physicalLink requires NODE Parts;"
+                            + " allocateExchange creates native exchange and port allocations.",
+                        "realizeInterface creates adjacent-layer exchange and endpoint port"
+                            + " realizations atomically; realize the endpoint functions/components"
+                            + " first.",
+                        "constraint(owner, name, expression, subjects) stores a native owned"
+                            + " Constraint/OpaqueExpression with 1..32 actual same-project"
+                            + " subjects; a description alone is not its expression or scope.",
+                        "All endpoints must belong to the captured model session. Inspect"
+                            + " api/arcadia.md before creating engineering relationships."));
     }
 
     private ApiCatalog() {}
@@ -110,10 +116,7 @@ public final class ApiCatalog {
         }
         Class<?> cls = loadModuleClass(normalized);
         List<ApiMethod> methods = collectMethods(cls);
-        return methods
-            .stream()
-            .map(m -> m.name)
-            .collect(java.util.stream.Collectors.toSet());
+        return methods.stream().map(m -> m.name).collect(java.util.stream.Collectors.toSet());
     }
 
     public static String validateCode(String code) {
@@ -127,52 +130,45 @@ public final class ApiCatalog {
             errors.add(blocked);
         }
 
-        String apiError = validateUnknownMethods(
-            code,
-            "api",
-            "api",
-            methodNames("api")
-        );
+        String apiError = validateUnknownMethods(code, "api", "api", methodNames("api"));
         if (apiError != null) {
             errors.add(apiError);
         }
 
-        String diagramError = validateUnknownMethods(
-            code,
-            "api.diagram",
-            "api\\s*\\.\\s*diagram",
-            methodNames("api.diagram")
-        );
+        String diagramError =
+                validateUnknownMethods(
+                        code, "api.diagram", "api\\s*\\.\\s*diagram", methodNames("api.diagram"));
         if (diagramError != null) {
             errors.add(diagramError);
         }
 
-        String fsError = validateUnknownMethods(
-            code,
-            "api.fs",
-            "api\\s*\\.\\s*fs",
-            methodNames("api.fs")
-        );
+        String fsError =
+                validateUnknownMethods(code, "api.fs", "api\\s*\\.\\s*fs", methodNames("api.fs"));
         if (fsError != null) {
             errors.add(fsError);
         }
 
-        String skillsError = validateUnknownMethods(
-            code,
-            "api.skills",
-            "api\\s*\\.\\s*skills",
-            methodNames("api.skills")
-        );
+        String skillsError =
+                validateUnknownMethods(
+                        code, "api.skills", "api\\s*\\.\\s*skills", methodNames("api.skills"));
         if (skillsError != null) {
             errors.add(skillsError);
         }
 
-        String requirementsError = validateUnknownMethods(code, "api.requirements",
-            "api\\s*\\.\\s*requirements(?:\\s*\\(\\s*\\))?", methodNames("api.requirements"));
+        String requirementsError =
+                validateUnknownMethods(
+                        code,
+                        "api.requirements",
+                        "api\\s*\\.\\s*requirements(?:\\s*\\(\\s*\\))?",
+                        methodNames("api.requirements"));
         if (requirementsError != null) errors.add(requirementsError);
 
-        String arcadiaError = validateUnknownMethods(code, "api.arcadia",
-            "api\\s*\\.\\s*arcadia(?:\\s*\\(\\s*\\))?", methodNames("api.arcadia"));
+        String arcadiaError =
+                validateUnknownMethods(
+                        code,
+                        "api.arcadia",
+                        "api\\s*\\.\\s*arcadia(?:\\s*\\(\\s*\\))?",
+                        methodNames("api.arcadia"));
         if (arcadiaError != null) errors.add(arcadiaError);
 
         String diagramFindMisuse = detectDiagramFindMisuse(code);
@@ -191,31 +187,29 @@ public final class ApiCatalog {
 
         // ClassLoader usage is blocked by the Groovy sandbox.
         if (lower.contains(".classloader")) {
-            return "Sandbox blocks ClassLoader usage. Avoid `api.class.classLoader.loadClass(...)`. " +
-                "Use pre-bound factories (CapellacoreFactory, OaFactory, CtxFactory, LaFactory, PaFactory, EpbsFactory, FaFactory, CsFactory, InformationFactory) " +
-                "or use the documented Capella APIs when needed.";
+            return "Sandbox blocks ClassLoader usage. Avoid `api.class.classLoader.loadClass(...)`."
+                       + " Use pre-bound factories (CapellacoreFactory, OaFactory, CtxFactory,"
+                       + " LaFactory, PaFactory, EpbsFactory, FaFactory, CsFactory,"
+                       + " InformationFactory) or use the documented Capella APIs when needed.";
         }
 
         // Java reflection is blocked / unreliable (Method/Field/Constructor receivers are blocked).
-        if (lower.contains("java.lang.reflect.") ||
-            lower.contains(".getmethod(") ||
-            lower.contains(".getdeclaredmethod(") ||
-            lower.contains(".getconstructor(") ||
-            lower.contains(".getdeclaredconstructor(") ||
-            lower.contains(".invoke(")) {
-            return "Sandbox blocks Java reflection (Method/Constructor/Field). " +
-                "Avoid getMethod()/invoke()/constructors via reflection; use CapellaAPI methods or pre-bound factories instead.";
+        if (lower.contains("java.lang.reflect.")
+                || lower.contains(".getmethod(")
+                || lower.contains(".getdeclaredmethod(")
+                || lower.contains(".getconstructor(")
+                || lower.contains(".getdeclaredconstructor(")
+                || lower.contains(".invoke(")) {
+            return "Sandbox blocks Java reflection (Method/Constructor/Field). Avoid"
+                       + " getMethod()/invoke()/constructors via reflection; use CapellaAPI methods"
+                       + " or pre-bound factories instead.";
         }
 
         return null;
     }
 
     private static String validateUnknownMethods(
-        String code,
-        String module,
-        String modulePattern,
-        Set<String> allowed
-    ) {
+            String code, String module, String modulePattern, Set<String> allowed) {
         List<String> unknown = findUnknownMethods(code, modulePattern, allowed);
         if (unknown.isEmpty()) {
             return null;
@@ -224,27 +218,24 @@ public final class ApiCatalog {
     }
 
     private static String detectDiagramFindMisuse(String code) {
-        // Guardrail: diagrams are not semantic elements, so they should be located via api.diagram.*,
+        // Guardrail: diagrams are not semantic elements, so they should be located via
+        // api.diagram.*,
         // not via the generic semantic search methods.
-        Pattern pattern = Pattern.compile(
-            "\\bapi\\s*\\.\\s*find(All)?\\s*\\(\\s*(['\"])\\s*(DRepresentationDescriptor|DRepresentation)\\s*\\2"
-        );
+        Pattern pattern =
+                Pattern.compile(
+                        "\\bapi\\s*\\.\\s*find(All)?\\s*\\(\\s*(['\"])\\s*(DRepresentationDescriptor|DRepresentation)\\s*\\2");
         Matcher matcher = pattern.matcher(code);
         if (matcher.find()) {
-            return "Diagram lookup should use api.diagram.find(\"<diagram name>\") or api.diagram.findByUid(\"<uid>\"). " +
-                "Do NOT use api.find(\"DRepresentationDescriptor\", ...).";
+            return "Diagram lookup should use api.diagram.find(\"<diagram name>\") or"
+                       + " api.diagram.findByUid(\"<uid>\"). Do NOT use"
+                       + " api.find(\"DRepresentationDescriptor\", ...).";
         }
         return null;
     }
 
     private static List<String> findUnknownMethods(
-        String code,
-        String modulePattern,
-        Set<String> allowed
-    ) {
-        Pattern pattern = Pattern.compile(
-            "\\b" + modulePattern + "\\s*\\.\\s*(\\w+)\\s*\\("
-        );
+            String code, String modulePattern, Set<String> allowed) {
+        Pattern pattern = Pattern.compile("\\b" + modulePattern + "\\s*\\.\\s*(\\w+)\\s*\\(");
         Matcher matcher = pattern.matcher(code);
         List<String> unknown = new ArrayList<>();
         while (matcher.find()) {
@@ -257,15 +248,14 @@ public final class ApiCatalog {
     }
 
     private static String buildUnknownMethodMessage(
-        String module,
-        List<String> unknown,
-        Set<String> allowed
-    ) {
+            String module, List<String> unknown, Set<String> allowed) {
         StringBuilder sb = new StringBuilder();
         sb.append("Unknown methods for ").append(module).append(": ");
         sb.append(String.join(", ", unknown)).append("\n");
         sb.append("Valid methods: ").append(String.join(", ", allowed)).append("\n");
-        sb.append("Use api.help(\"").append(module.replace("api.", "")).append("\") before calling methods.\n");
+        sb.append("Use api.help(\"")
+                .append(module.replace("api.", ""))
+                .append("\") before calling methods.\n");
         return sb.toString();
     }
 
@@ -277,10 +267,7 @@ public final class ApiCatalog {
             modules.put(normalized, collectMethods(loadModuleClass(normalized)));
         } else {
             for (Map.Entry<String, String> entry : MODULES.entrySet()) {
-                modules.put(
-                    entry.getKey(),
-                    collectMethods(loadModuleClass(entry.getKey()))
-                );
+                modules.put(entry.getKey(), collectMethods(loadModuleClass(entry.getKey())));
             }
         }
 
@@ -337,11 +324,7 @@ public final class ApiCatalog {
             return null;
         }
         try {
-            return Class.forName(
-                className,
-                false,
-                ApiCatalog.class.getClassLoader()
-            );
+            return Class.forName(className, false, ApiCatalog.class.getClassLoader());
         } catch (Throwable t) {
             return null;
         }
@@ -388,20 +371,17 @@ public final class ApiCatalog {
             }
             try {
                 methods.add(
-                    new ApiMethod(
-                        method.getName(),
-                        paramTypes(method),
-                        simpleName(method.getReturnType())
-                    )
-                );
+                        new ApiMethod(
+                                method.getName(),
+                                paramTypes(method),
+                                simpleName(method.getReturnType())));
             } catch (Throwable t) {
                 // Skip methods whose signatures are not resolvable in this runtime.
             }
         }
         methods.sort(
-            Comparator.comparing((ApiMethod m) -> m.name.toLowerCase(Locale.ROOT))
-                .thenComparing(m -> m.params.size())
-        );
+                Comparator.comparing((ApiMethod m) -> m.name.toLowerCase(Locale.ROOT))
+                        .thenComparing(m -> m.params.size()));
         return methods;
     }
 
@@ -428,12 +408,11 @@ public final class ApiCatalog {
         if (value == null) {
             return "";
         }
-        return value
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t");
+        return value.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
     private record ApiMethod(String name, List<String> params, String returns) {}

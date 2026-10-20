@@ -1,11 +1,5 @@
 package org.polarsys.capella.ai.tools;
 
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.eclipse.elk.alg.layered.options.LayeredMetaDataProvider;
 import org.eclipse.elk.alg.layered.options.LayeredOptions;
 import org.eclipse.elk.core.RecursiveGraphLayoutEngine;
@@ -46,28 +40,46 @@ import org.eclipse.sirius.diagram.DNodeList;
 import org.eclipse.sirius.viewpoint.DSemanticDecorator;
 import org.polarsys.capella.common.data.modellingcore.AbstractNamedElement;
 
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+
 /**
- * Hierarchical layered layout of a persisted Sirius/GMF diagram using Eclipse ELK: shapes flow
- * left to right along their connections, containers grow to fit their children, ports sit on the
- * border facing their wiring, and connections follow ELK's orthogonal routes around shapes.
- * Every laid-out shape gets an explicit size so the drawing matches the plan. Callers run this
- * inside a write transaction.
+ * Hierarchical layered layout of a persisted Sirius/GMF diagram using Eclipse ELK: shapes flow left
+ * to right along their connections, containers grow to fit their children, ports sit on the border
+ * facing their wiring, and connections follow ELK's orthogonal routes around shapes. Every laid-out
+ * shape gets an explicit size so the drawing matches the plan. Callers run this inside a write
+ * transaction.
  */
 final class ElkDiagramLayout {
-    /** Height of a Sirius container's title band above its compartment. Calibrate against real editors. */
+    /**
+     * Height of a Sirius container's title band above its compartment. Calibrate against real
+     * editors.
+     */
     static final int HEADER = 30;
-    // ponytail: label width is estimated from character count, measure with SWT font metrics if labels clip.
+
+    // ponytail: label width is estimated from character count, measure with SWT font metrics if
+    // labels clip.
     private static final int CHAR_WIDTH = 8, LABEL_PADDING = 50, MIN_WIDTH = 120, MAX_WIDTH = 640;
     private static final int CONTAINER_HEIGHT = 60, NODE_HEIGHT = 50, LABEL_HEIGHT = 21;
+
     /** Default Sirius border node size used by Capella ports. */
     private static final int PORT_SIZE = 10;
+
     private static final int GAP = 20;
 
     private ElkDiagramLayout() {}
 
-    /** Wider than this (width / height) and wider than {@link #WRAP_MIN_WIDTH}, a layout is redone in rows. */
+    /**
+     * Wider than this (width / height) and wider than {@link #WRAP_MIN_WIDTH}, a layout is redone
+     * in rows.
+     */
     private static final double WRAP_RATIO = 8.0;
-    private static final double WRAP_MIN_WIDTH = 6000; // a few components in a row stay one readable row
+
+    private static final double WRAP_MIN_WIDTH =
+            6000; // a few components in a row stay one readable row
 
     /** Lays out every shape of the diagram. Returns false when the diagram has no shapes. */
     static boolean apply(Diagram notation) {
@@ -76,7 +88,8 @@ final class ElkDiagramLayout {
         Graph graph = layout(notation, root, false);
         if (graph == null) return false;
         // A long flow becomes one endless row (20 chained components measured 90,604 x 221 px).
-        // Only then wrap it into rows: wrapping small diagrams would break their left-to-right reading.
+        // Only then wrap it into rows: wrapping small diagrams would break their left-to-right
+        // reading.
         if (root.getWidth() > WRAP_MIN_WIDTH && root.getWidth() > WRAP_RATIO * root.getHeight()) {
             root = ElkGraphUtil.createGraph();
             graph = layout(notation, root, true);
@@ -86,18 +99,20 @@ final class ElkDiagramLayout {
     }
 
     private static void write(ElkNode root, Graph graph) {
-        graph.shapes.forEach((node, elk) -> {
-            Bounds bounds = bounds(node);
-            bounds.setX(round(elk.getX()));
-            bounds.setY(round(elk.getY()) - graph.offsets.get(node));
-            bounds.setWidth(round(elk.getWidth()));
-            bounds.setHeight(round(elk.getHeight()));
-        });
-        graph.ports.forEach((node, elk) -> {
-            Bounds bounds = bounds(node);
-            bounds.setX(round(elk.getX()));
-            bounds.setY(round(elk.getY()));
-        });
+        graph.shapes.forEach(
+                (node, elk) -> {
+                    Bounds bounds = bounds(node);
+                    bounds.setX(round(elk.getX()));
+                    bounds.setY(round(elk.getY()) - graph.offsets.get(node));
+                    bounds.setWidth(round(elk.getWidth()));
+                    bounds.setHeight(round(elk.getHeight()));
+                });
+        graph.ports.forEach(
+                (node, elk) -> {
+                    Bounds bounds = bounds(node);
+                    bounds.setX(round(elk.getX()));
+                    bounds.setY(round(elk.getY()));
+                });
         graph.edges.forEach((edge, elk) -> writeRoute(edge, elk, graph));
         pack(graph.isolated, root);
     }
@@ -107,7 +122,9 @@ final class ElkDiagramLayout {
         root.setProperty(CoreOptions.HIERARCHY_HANDLING, HierarchyHandling.INCLUDE_CHILDREN);
         root.setProperty(CoreOptions.PADDING, new ElkPadding(GAP));
         if (wrap) {
-            root.setProperty(LayeredOptions.WRAPPING_STRATEGY, org.eclipse.elk.alg.layered.options.WrappingStrategy.MULTI_EDGE);
+            root.setProperty(
+                    LayeredOptions.WRAPPING_STRATEGY,
+                    org.eclipse.elk.alg.layered.options.WrappingStrategy.MULTI_EDGE);
             root.setProperty(CoreOptions.ASPECT_RATIO, 1.6);
         }
         configure(root);
@@ -117,7 +134,8 @@ final class ElkDiagramLayout {
         if (graph.shapes.isEmpty() && graph.isolated.isEmpty()) return null;
         for (Object candidate : notation.getEdges()) {
             if (!(candidate instanceof Edge edge)) continue;
-            ElkConnectableShape source = graph.end(edge.getSource()), target = graph.end(edge.getTarget());
+            ElkConnectableShape source = graph.end(edge.getSource()),
+                    target = graph.end(edge.getTarget());
             if (source == null || target == null || source == target) continue;
             ElkEdge elkEdge = ElkGraphUtil.createSimpleEdge(source, target);
             ElkGraphUtil.updateContainment(elkEdge);
@@ -136,7 +154,10 @@ final class ElkDiagramLayout {
         return graph;
     }
 
-    /** Top-level shapes with no wiring and no child shapes; ELK layered would stack them in one column. */
+    /**
+     * Top-level shapes with no wiring and no child shapes; ELK layered would stack them in one
+     * column.
+     */
     private static List<Node> isolatedShapes(Diagram notation) {
         java.util.Set<Node> wired = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
         for (Object candidate : notation.getEdges()) {
@@ -149,8 +170,11 @@ final class ElkDiagramLayout {
         }
         List<Node> isolated = new ArrayList<>();
         for (Object candidate : notation.getChildren()) {
-            if (candidate instanceof Node node && isShape(node.getElement()) && bounds(node) != null
-                && !wired.contains(node) && !hasChildShapes(node)) isolated.add(node);
+            if (candidate instanceof Node node
+                    && isShape(node.getElement())
+                    && bounds(node) != null
+                    && !wired.contains(node)
+                    && !hasChildShapes(node)) isolated.add(node);
         }
         return isolated;
     }
@@ -176,10 +200,16 @@ final class ElkDiagramLayout {
             area += (bounds.getWidth() + 40.0) * (bounds.getHeight() + 40.0);
         }
         int rowWidth = (int) Math.max(root.getWidth() - GAP, Math.sqrt(area * 2.5));
-        int x = GAP, y = root.getChildren().isEmpty() ? GAP : round(root.getHeight()) + GAP, rowHeight = 0;
+        int x = GAP,
+                y = root.getChildren().isEmpty() ? GAP : round(root.getHeight()) + GAP,
+                rowHeight = 0;
         for (Node node : isolated) {
             Bounds bounds = bounds(node);
-            if (x > GAP && x + bounds.getWidth() > rowWidth) { x = GAP; y += rowHeight + 40; rowHeight = 0; }
+            if (x > GAP && x + bounds.getWidth() > rowWidth) {
+                x = GAP;
+                y += rowHeight + 40;
+                rowHeight = 0;
+            }
             bounds.setX(x);
             bounds.setY(y);
             x += bounds.getWidth() + 40;
@@ -187,21 +217,31 @@ final class ElkDiagramLayout {
         }
     }
 
-    /** GMF bendpoints are offsets from the centres of the connected shapes; ELK points are made absolute first. */
+    /**
+     * GMF bendpoints are offsets from the centres of the connected shapes; ELK points are made
+     * absolute first.
+     */
     private static void writeRoute(Edge edge, ElkEdge elk, Graph graph) {
         DiagramWiring.orthogonal(edge);
         if (elk.getSections().isEmpty()) return;
         ElkEdgeSection section = elk.getSections().get(0);
         double[] offset = absolute(elk.getContainingNode());
         List<double[]> points = new ArrayList<>();
-        points.add(new double[] { section.getStartX(), section.getStartY() });
-        for (ElkBendPoint bend : section.getBendPoints()) points.add(new double[] { bend.getX(), bend.getY() });
-        points.add(new double[] { section.getEndX(), section.getEndY() });
-        double[] source = center((ElkShape) elk.getSources().get(0)), target = center((ElkShape) elk.getTargets().get(0));
+        points.add(new double[] {section.getStartX(), section.getStartY()});
+        for (ElkBendPoint bend : section.getBendPoints())
+            points.add(new double[] {bend.getX(), bend.getY()});
+        points.add(new double[] {section.getEndX(), section.getEndY()});
+        double[] source = center((ElkShape) elk.getSources().get(0)),
+                target = center((ElkShape) elk.getTargets().get(0));
         List<RelativeBendpoint> relative = new ArrayList<>();
         for (double[] point : points) {
             double x = point[0] + offset[0], y = point[1] + offset[1];
-            relative.add(new RelativeBendpoint(round(x - source[0]), round(y - source[1]), round(x - target[0]), round(y - target[1])));
+            relative.add(
+                    new RelativeBendpoint(
+                            round(x - source[0]),
+                            round(y - source[1]),
+                            round(x - target[0]),
+                            round(y - target[1])));
         }
         RelativeBendpoints bendpoints = NotationFactory.eINSTANCE.createRelativeBendpoints();
         bendpoints.setPoints(relative);
@@ -210,8 +250,13 @@ final class ElkDiagramLayout {
         ElkLabel placed = label == null ? null : graph.labels.get(label);
         if (placed != null) {
             List<double[]> absolute = new ArrayList<>();
-            for (double[] point : points) absolute.add(new double[] { point[0] + offset[0], point[1] + offset[1] });
-            placeLabel(label, absolute, placed.getX() + offset[0] + placed.getWidth() / 2, placed.getY() + offset[1] + placed.getHeight() / 2);
+            for (double[] point : points)
+                absolute.add(new double[] {point[0] + offset[0], point[1] + offset[1]});
+            placeLabel(
+                    label,
+                    absolute,
+                    placed.getX() + offset[0] + placed.getWidth() / 2,
+                    placed.getY() + offset[1] + placed.getHeight() / 2);
         }
     }
 
@@ -220,9 +265,14 @@ final class ElkDiagramLayout {
      * into the direction of the segment holding that point (measured in a live editor). Store the
      * inverse rotation of the wanted displacement.
      */
-    private static void placeLabel(Node label, List<double[]> route, double centerX, double centerY) {
+    private static void placeLabel(
+            Node label, List<double[]> route, double centerX, double centerY) {
         double total = 0;
-        for (int i = 1; i < route.size(); i++) total += Math.hypot(route.get(i)[0] - route.get(i - 1)[0], route.get(i)[1] - route.get(i - 1)[1]);
+        for (int i = 1; i < route.size(); i++)
+            total +=
+                    Math.hypot(
+                            route.get(i)[0] - route.get(i - 1)[0],
+                            route.get(i)[1] - route.get(i - 1)[1]);
         double remaining = total / 2;
         for (int i = 1; i < route.size(); i++) {
             double[] from = route.get(i - 1), to = route.get(i);
@@ -231,7 +281,10 @@ final class ElkDiagramLayout {
             if (remaining <= length || i == route.size() - 1) {
                 double t = Math.min(1, remaining / length), cos = dx / length, sin = dy / length;
                 double wantX = centerX - (from[0] + dx * t), wantY = centerY - (from[1] + dy * t);
-                Location location = label.getLayoutConstraint() instanceof Location existing ? existing : NotationFactory.eINSTANCE.createLocation();
+                Location location =
+                        label.getLayoutConstraint() instanceof Location existing
+                                ? existing
+                                : NotationFactory.eINSTANCE.createLocation();
                 location.setX(round(wantX * cos + wantY * sin));
                 location.setY(round(-wantX * sin + wantY * cos));
                 label.setLayoutConstraint(location);
@@ -243,7 +296,8 @@ final class ElkDiagramLayout {
 
     /** Sirius's edge name label (visual id 6001). */
     private static Node centerLabel(Edge edge) {
-        for (Object child : edge.getChildren()) if (child instanceof Node node && "6001".equals(node.getType())) return node;
+        for (Object child : edge.getChildren())
+            if (child instanceof Node node && "6001".equals(node.getType())) return node;
         return null;
     }
 
@@ -257,8 +311,8 @@ final class ElkDiagramLayout {
 
     /**
      * Adds the shapes under {@code view} to {@code parent}. Children reached through a compartment
-     * (a child view of the same element) sit below the container's title band, so their notation
-     * y is the ELK y minus {@code offset}.
+     * (a child view of the same element) sit below the container's title band, so their notation y
+     * is the ELK y minus {@code offset}.
      */
     private static void addChildren(View view, ElkNode parent, int offset, Graph graph) {
         EObject owner = view.getElement();
@@ -280,17 +334,24 @@ final class ElkDiagramLayout {
                 // Sirius draws border nodes centred on the border.
                 port.setProperty(CoreOptions.PORT_BORDER_OFFSET, -bounds.getWidth() / 2.0);
                 graph.ports.put(child, port);
-            } else if (isShape(element) && bounds(child) != null && !graph.isolated.contains(child)) {
+            } else if (isShape(element)
+                    && bounds(child) != null
+                    && !graph.isolated.contains(child)) {
                 Bounds bounds = bounds(child);
                 boolean container = !(element instanceof DNode);
                 int width = bounds.getWidth() > 0 ? bounds.getWidth() : labelWidth(element);
-                int height = bounds.getHeight() > 0 ? bounds.getHeight() : container ? CONTAINER_HEIGHT : NODE_HEIGHT;
+                int height =
+                        bounds.getHeight() > 0
+                                ? bounds.getHeight()
+                                : container ? CONTAINER_HEIGHT : NODE_HEIGHT;
                 ElkNode node = ElkGraphUtil.createNode(parent);
                 node.setDimensions(width, height);
-                node.setProperty(CoreOptions.NODE_SIZE_CONSTRAINTS, EnumSet.of(SizeConstraint.MINIMUM_SIZE));
+                node.setProperty(
+                        CoreOptions.NODE_SIZE_CONSTRAINTS, EnumSet.of(SizeConstraint.MINIMUM_SIZE));
                 node.setProperty(CoreOptions.NODE_SIZE_MINIMUM, new KVector(width, height));
                 node.setProperty(CoreOptions.PORT_CONSTRAINTS, PortConstraints.FREE);
-                node.setProperty(CoreOptions.PADDING, new ElkPadding(HEADER + GAP / 2.0, GAP, GAP, GAP));
+                node.setProperty(
+                        CoreOptions.PADDING, new ElkPadding(HEADER + GAP / 2.0, GAP, GAP, GAP));
                 configure(node);
                 graph.shapes.put(child, node);
                 graph.offsets.put(child, offset);
@@ -302,8 +363,10 @@ final class ElkDiagramLayout {
     private static int labelWidth(EObject element) {
         // Sirius fills the view name on refresh; fall back to the semantic name before that.
         String name = element instanceof DDiagramElement view ? view.getName() : null;
-        if ((name == null || name.isBlank()) && element instanceof DSemanticDecorator decorator
-            && decorator.getTarget() instanceof AbstractNamedElement named) name = named.getName();
+        if ((name == null || name.isBlank())
+                && element instanceof DSemanticDecorator decorator
+                && decorator.getTarget() instanceof AbstractNamedElement named)
+            name = named.getName();
         if (name == null) name = "";
         return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, name.length() * CHAR_WIDTH + LABEL_PADDING));
     }
@@ -314,23 +377,34 @@ final class ElkDiagramLayout {
             x += current.getX();
             y += current.getY();
         }
-        return new double[] { x, y };
+        return new double[] {x, y};
     }
 
     private static double[] center(ElkShape shape) {
         // A port is positioned relative to its node; a node relative to its parent.
-        double[] origin = absolute(shape instanceof ElkPort port ? port.getParent() : ((ElkNode) shape).getParent());
-        return new double[] { origin[0] + shape.getX() + shape.getWidth() / 2, origin[1] + shape.getY() + shape.getHeight() / 2 };
+        double[] origin =
+                absolute(
+                        shape instanceof ElkPort port
+                                ? port.getParent()
+                                : ((ElkNode) shape).getParent());
+        return new double[] {
+            origin[0] + shape.getX() + shape.getWidth() / 2,
+            origin[1] + shape.getY() + shape.getHeight() / 2
+        };
     }
 
     private static boolean isShape(EObject element) {
-        return element instanceof DSemanticDecorator decorator && decorator.getTarget() != null
-            && (element instanceof DNode || element instanceof DNodeContainer || element instanceof DNodeList);
+        return element instanceof DSemanticDecorator decorator
+                && decorator.getTarget() != null
+                && (element instanceof DNode
+                        || element instanceof DNodeContainer
+                        || element instanceof DNodeList);
     }
 
     private static boolean isBorderNode(EObject element) {
-        return element != null && element.eContainingFeature() != null
-            && "ownedBorderedNodes".equals(element.eContainingFeature().getName());
+        return element != null
+                && element.eContainingFeature() != null
+                && "ownedBorderedNodes".equals(element.eContainingFeature().getName());
     }
 
     private static Bounds bounds(Node node) {
@@ -343,7 +417,9 @@ final class ElkDiagramLayout {
         return created;
     }
 
-    private static int round(double value) { return (int) Math.round(value); }
+    private static int round(double value) {
+        return (int) Math.round(value);
+    }
 
     private static synchronized void registerLayered() {
         // OSGi hides ELK's ServiceLoader registration across bundles; register explicitly once.

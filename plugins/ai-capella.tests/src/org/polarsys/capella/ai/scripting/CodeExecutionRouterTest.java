@@ -8,14 +8,14 @@ public class CodeExecutionRouterTest {
 
     @Test
     public void testWrapInBatchIfNeededPreservesImports() {
-        String code = String.join(
-            "\n",
-            "import foo.Bar",
-            "// header comment",
-            "",
-            "def x = 1",
-            "api.fs.list(\".\")"
-        );
+        String code =
+                String.join(
+                        "\n",
+                        "import foo.Bar",
+                        "// header comment",
+                        "",
+                        "def x = 1",
+                        "api.fs.list(\".\")");
 
         String wrapped = CodeExecutionRouter.wrapInBatchIfNeeded(code, "My label");
 
@@ -45,39 +45,27 @@ public class CodeExecutionRouterTest {
     @Test
     public void testWrapInBatchIfNeededTruncatesLongLabel() {
         String code = "api.fs.list(\".\")";
-        String labelHint = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
+        String labelHint =
+                "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
         String wrapped = CodeExecutionRouter.wrapInBatchIfNeeded(code, labelHint);
 
-        assertTrue(wrapped.contains("api.batch(\"abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcde...\") {"));
+        assertTrue(
+                wrapped.contains(
+                        "api.batch(\"abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcde...\")"
+                            + " {"));
     }
 
     @Test
     public void testPromptMentionsAllocationAndLayerCreate() {
         String prompt = CodeExecutionRouter.buildCodeExecutionPrompt(null);
 
-        assertTrue(
-            prompt.contains("api.allocate(function, component)")
-        );
-        assertTrue(
-            prompt.contains("api.createIn(\"LA\", \"LogicalFunction\", \"Name\")")
-        );
-        assertTrue(
-            prompt.contains("api.create(\"LA\", \"LogicalFunction\", \"Name\")")
-        );
-        assertTrue(
-            prompt.contains("api.validate()")
-        );
-        assertTrue(
-            prompt.contains("api.reset()")
-        );
-        assertTrue(
-            prompt.contains("api.describe(element)")
-        );
-        assertTrue(
-            prompt.contains("api.ops")
-        );
-        assertTrue(
-            prompt.contains("api.ops.transition")
-        );
+        assertTrue(prompt.contains("api.allocate(function, component)"));
+        assertTrue(prompt.contains("api.createIn(\"LA\", \"LogicalFunction\", \"Name\")"));
+        assertTrue(prompt.contains("api.create(\"LA\", \"LogicalFunction\", \"Name\")"));
+        assertTrue(prompt.contains("api.validate()"));
+        assertTrue(prompt.contains("api.reset()"));
+        assertTrue(prompt.contains("api.describe(element)"));
+        assertTrue(prompt.contains("api.ops"));
+        assertTrue(prompt.contains("api.ops.transition"));
     }
 }

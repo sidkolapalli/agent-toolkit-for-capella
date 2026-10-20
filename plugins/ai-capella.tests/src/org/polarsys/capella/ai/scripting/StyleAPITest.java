@@ -9,7 +9,7 @@ public class StyleAPITest {
     @Test
     public void testSetColorValidation() {
         StyleAPI api = new StyleAPI(null, null);
-        
+
         try {
             api.setColor(null, null, "invalid-color-name");
             fail("Should throw IllegalArgumentException");

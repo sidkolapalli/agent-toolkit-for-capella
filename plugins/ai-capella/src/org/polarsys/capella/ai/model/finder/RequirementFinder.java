@@ -1,12 +1,13 @@
 package org.polarsys.capella.ai.model.finder;
 
-import java.util.ArrayList;
-import java.util.List;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.scripting.RequirementsAPI;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /** Finder for native ReqIF identifiers and titles, with legacy name support. */
 public final class RequirementFinder {
@@ -34,7 +35,9 @@ public final class RequirementFinder {
 
     public static EObject findByName(ResourceSet resources, String name) {
         EObject identified = findByIdentifier(resources, name);
-        return identified != null ? identified : find(resources, name, "ReqIFLongName", "ReqIFName", "name");
+        return identified != null
+                ? identified
+                : find(resources, name, "ReqIFLongName", "ReqIFName", "name");
     }
 
     public static List<EObject> listAll(Session session) {
@@ -46,9 +49,11 @@ public final class RequirementFinder {
         if (resources == null) return result;
         for (Resource resource : List.copyOf(resources.getResources())) {
             if (resource == null) continue;
-            resource.getAllContents().forEachRemaining(item -> {
-                if (isRequirement(item)) result.add(item);
-            });
+            resource.getAllContents()
+                    .forEachRemaining(
+                            item -> {
+                                if (isRequirement(item)) result.add(item);
+                            });
         }
         return result;
     }
@@ -74,12 +79,14 @@ public final class RequirementFinder {
 
     private static ResourceSet resources(Session session) {
         return session != null && session.getTransactionalEditingDomain() != null
-            ? session.getTransactionalEditingDomain().getResourceSet() : null;
+                ? session.getTransactionalEditingDomain().getResourceSet()
+                : null;
     }
 
     private static boolean isRequirement(EObject object) {
         if (object == null || "Folder".equals(object.eClass().getName())) return false;
-        return "Requirement".equals(object.eClass().getName()) || object.eClass().getEAllSuperTypes().stream()
-            .anyMatch(type -> "Requirement".equals(type.getName()));
+        return "Requirement".equals(object.eClass().getName())
+                || object.eClass().getEAllSuperTypes().stream()
+                        .anyMatch(type -> "Requirement".equals(type.getName()));
     }
 }

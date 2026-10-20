@@ -2,11 +2,6 @@ package org.polarsys.capella.ai.model;
 
 import static org.junit.Assert.*;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.lang.reflect.Proxy;
-import java.util.List;
-import java.util.Map;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
@@ -27,6 +22,7 @@ import org.polarsys.capella.core.data.capellamodeller.Project;
 import org.polarsys.capella.core.data.capellamodeller.SystemEngineering;
 import org.polarsys.capella.core.data.cs.BlockArchitecture;
 import org.polarsys.capella.core.data.cs.Component;
+import org.polarsys.capella.core.data.cs.ComponentRealization;
 import org.polarsys.capella.core.data.cs.Part;
 import org.polarsys.capella.core.data.ctx.CtxFactory;
 import org.polarsys.capella.core.data.epbs.ConfigurationItem;
@@ -35,13 +31,12 @@ import org.polarsys.capella.core.data.epbs.EpbsFactory;
 import org.polarsys.capella.core.data.epbs.PhysicalArtifactRealization;
 import org.polarsys.capella.core.data.fa.AbstractFunction;
 import org.polarsys.capella.core.data.fa.ComponentExchange;
-import org.polarsys.capella.core.data.fa.ComponentPort;
 import org.polarsys.capella.core.data.fa.ComponentFunctionalAllocation;
-import org.polarsys.capella.core.data.fa.FunctionalExchange;
+import org.polarsys.capella.core.data.fa.ComponentPort;
 import org.polarsys.capella.core.data.fa.FunctionInputPort;
 import org.polarsys.capella.core.data.fa.FunctionOutputPort;
 import org.polarsys.capella.core.data.fa.FunctionRealization;
-import org.polarsys.capella.core.data.cs.ComponentRealization;
+import org.polarsys.capella.core.data.fa.FunctionalExchange;
 import org.polarsys.capella.core.data.la.LaFactory;
 import org.polarsys.capella.core.data.oa.CommunicationMean;
 import org.polarsys.capella.core.data.oa.OaFactory;
@@ -50,32 +45,57 @@ import org.polarsys.capella.core.data.pa.PhysicalComponent;
 import org.polarsys.capella.core.model.handler.helpers.CapellaProjectHelper;
 import org.polarsys.capella.core.model.handler.helpers.CapellaProjectHelper.ProjectApproach;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Proxy;
+import java.util.List;
+import java.util.Map;
+
 /** Uses the real Capella metamodel and EMF transactions; only Sirius Session is a proxy. */
 public class ArcadiaModelWorkflowTest {
-    /** Live eval: an agent's api.set(component, 'nature', 'NODE') failed with a ClassCastException. */
+    /**
+     * Live eval: an agent's api.set(component, 'nature', 'NODE') failed with a ClassCastException.
+     */
     @Test
     public void enumAttributesAcceptTheirLiteralNames() {
         EObject node = api.create("PA", "PhysicalComponent", "Vehicle Control Unit");
         assertTrue(api.set(node, "nature", "NODE"));
         assertEquals("NODE", String.valueOf(api.get(node, "nature")));
         assertTrue(api.set(node, "nature", "behavior"));
-        assertEquals("Literal names match case-insensitively", "BEHAVIOR", String.valueOf(api.get(node, "nature")));
-        var invalid = assertThrows(IllegalArgumentException.class, () -> api.set(node, "nature", "ROCKET"));
-        assertTrue(invalid.getMessage(), invalid.getMessage().contains("NODE") && invalid.getMessage().contains("BEHAVIOR"));
+        assertEquals(
+                "Literal names match case-insensitively",
+                "BEHAVIOR",
+                String.valueOf(api.get(node, "nature")));
+        var invalid =
+                assertThrows(
+                        IllegalArgumentException.class, () -> api.set(node, "nature", "ROCKET"));
+        assertTrue(
+                invalid.getMessage(),
+                invalid.getMessage().contains("NODE") && invalid.getMessage().contains("BEHAVIOR"));
     }
 
-    /** A second component beside the Logical System is a second root and a Capella validation error. */
+    /**
+     * A second component beside the Logical System is a second root and a Capella validation error.
+     */
     @Test
     public void defaultComponentCreationGoesUnderTheLayerRootComponentButActorsStayBeside() {
         var la = (org.polarsys.capella.core.data.la.LogicalArchitecture) api.layer("LA");
         var system = la.getOwnedLogicalComponentPkg().getOwnedLogicalComponents().get(0);
-        assertEquals(List.of(system), List.copyOf(org.polarsys.capella.core.model.helpers.BlockArchitectureExt.getRootComponents(la)));
+        assertEquals(
+                List.of(system),
+                List.copyOf(
+                        org.polarsys.capella.core.model.helpers.BlockArchitectureExt
+                                .getRootComponents(la)));
         EObject controller = api.create("LA", "LogicalComponent", "Battery Controller");
         assertSame(system, controller.eContainer());
         EObject driver = api.create("LA", "LogicalActor", "Driver");
         assertSame(la.getOwnedLogicalComponentPkg(), driver.eContainer());
-        assertEquals("Still one root component", List.of(system),
-            List.copyOf(org.polarsys.capella.core.model.helpers.BlockArchitectureExt.getRootComponents(la)));
+        assertEquals(
+                "Still one root component",
+                List.of(system),
+                List.copyOf(
+                        org.polarsys.capella.core.model.helpers.BlockArchitectureExt
+                                .getRootComponents(la)));
     }
 
     @Test
@@ -96,20 +116,35 @@ public class ArcadiaModelWorkflowTest {
 
     @Test
     public void nativeValidationRejectsAnUnresolvedResourceBeforeRunningConstraints() {
-        resource.getErrors().add(new Resource.Diagnostic() {
-            public String getMessage() { return "Unresolved reference to missing function"; }
-            public String getLocation() { return resource.getURI().toString(); }
-            public int getLine() { return 1; }
-            public int getColumn() { return 1; }
-        });
-        IllegalStateException failure = assertThrows(IllegalStateException.class, api::validateNative);
+        resource.getErrors()
+                .add(
+                        new Resource.Diagnostic() {
+                            public String getMessage() {
+                                return "Unresolved reference to missing function";
+                            }
+
+                            public String getLocation() {
+                                return resource.getURI().toString();
+                            }
+
+                            public int getLine() {
+                                return 1;
+                            }
+
+                            public int getColumn() {
+                                return 1;
+                            }
+                        });
+        IllegalStateException failure =
+                assertThrows(IllegalStateException.class, api::validateNative);
         assertTrue(failure.getMessage().contains("Unresolved reference"));
     }
 
     @Test
     public void nativeConstraintsUseConcreteCapellaClassifier() {
-        assertSame(org.polarsys.capella.core.data.capellacore.CapellacorePackage.Literals.CONSTRAINT,
-            ElementFactory.findEClass("Constraint"));
+        assertSame(
+                org.polarsys.capella.core.data.capellacore.CapellacorePackage.Literals.CONSTRAINT,
+                ElementFactory.findEClass("Constraint"));
         assertFalse(ElementFactory.findEClass("Constraint").isAbstract());
     }
 
@@ -132,7 +167,8 @@ public class ArcadiaModelWorkflowTest {
         assertNull(api.find("LogicalFunction", "Renamed cached function"));
         assertFalse(api.findAll("LogicalFunction").contains(function));
     }
-    private static final String[] LAYERS = { "OA", "SA", "LA", "PA" };
+
+    private static final String[] LAYERS = {"OA", "SA", "LA", "PA"};
     private static final String[] FUNCTION_TYPES = {
         "OperationalActivity", "SystemFunction", "LogicalFunction", "PhysicalFunction"
     };
@@ -168,23 +204,29 @@ public class ArcadiaModelWorkflowTest {
         epbs.setOwnedConfigurationItemPkg(EpbsFactory.eINSTANCE.createConfigurationItemPkg());
         engineering.getOwnedArchitectures().add(epbs);
         domain = TransactionalEditingDomain.Factory.INSTANCE.createEditingDomain(resources);
-        session = (Session) Proxy.newProxyInstance(Session.class.getClassLoader(), new Class<?>[] { Session.class },
-            (proxy, method, args) -> switch (method.getName()) {
-                case "getTransactionalEditingDomain" -> domain;
-                case "getSemanticResources" -> List.of(resource);
-                case "getSessionResource" -> resource;
-                case "isOpen" -> true;
-                case "save" -> {
-                    ByteArrayOutputStream output = new ByteArrayOutputStream();
-                    resource.save(output, Map.of());
-                    savedModel = output.toByteArray();
-                    yield null;
-                }
-                case "hashCode" -> System.identityHashCode(proxy);
-                case "equals" -> proxy == args[0];
-                case "toString" -> "Arcadia workflow test session";
-                default -> null;
-            });
+        session =
+                (Session)
+                        Proxy.newProxyInstance(
+                                Session.class.getClassLoader(),
+                                new Class<?>[] {Session.class},
+                                (proxy, method, args) ->
+                                        switch (method.getName()) {
+                                            case "getTransactionalEditingDomain" -> domain;
+                                            case "getSemanticResources" -> List.of(resource);
+                                            case "getSessionResource" -> resource;
+                                            case "isOpen" -> true;
+                                            case "save" -> {
+                                                ByteArrayOutputStream output =
+                                                        new ByteArrayOutputStream();
+                                                resource.save(output, Map.of());
+                                                savedModel = output.toByteArray();
+                                                yield null;
+                                            }
+                                            case "hashCode" -> System.identityHashCode(proxy);
+                                            case "equals" -> proxy == args[0];
+                                            case "toString" -> "Arcadia workflow test session";
+                                            default -> null;
+                                        });
         api = new CapellaAPI(session);
     }
 
@@ -207,27 +249,31 @@ public class ArcadiaModelWorkflowTest {
         var sourceNode = org.eclipse.gmf.runtime.notation.NotationFactory.eINSTANCE.createNode();
         var targetNode = org.eclipse.gmf.runtime.notation.NotationFactory.eINSTANCE.createNode();
         var notationEdge = org.eclipse.gmf.runtime.notation.NotationFactory.eINSTANCE.createEdge();
-        SessionSafeguards.runWrite(session, "Create diagram fixture", () -> {
-            Resource views = resources.createResource(URI.createURI("memory:/deletion-views.xmi"));
-            diagram.setTarget(api.layer("LA"));
-            sourceView.setTarget(producer);
-            targetView.setTarget(consumer);
-            edge.setTarget(exchange);
-            edge.setSourceNode(sourceView);
-            edge.setTargetNode(targetView);
-            diagram.getOwnedDiagramElements().addAll(List.of(sourceView, targetView, edge));
-            views.getContents().add(diagram);
-            notation.setElement(diagram);
-            sourceNode.setElement(sourceView);
-            targetNode.setElement(targetView);
-            notationEdge.setElement(edge);
-            notationEdge.setSource(sourceNode);
-            notationEdge.setTarget(targetNode);
-            notation.getPersistedChildren().addAll(List.of(sourceNode, targetNode));
-            notation.getPersistedEdges().add(notationEdge);
-            views.getContents().add(notation);
-            return null;
-        });
+        SessionSafeguards.runWrite(
+                session,
+                "Create diagram fixture",
+                () -> {
+                    Resource views =
+                            resources.createResource(URI.createURI("memory:/deletion-views.xmi"));
+                    diagram.setTarget(api.layer("LA"));
+                    sourceView.setTarget(producer);
+                    targetView.setTarget(consumer);
+                    edge.setTarget(exchange);
+                    edge.setSourceNode(sourceView);
+                    edge.setTargetNode(targetView);
+                    diagram.getOwnedDiagramElements().addAll(List.of(sourceView, targetView, edge));
+                    views.getContents().add(diagram);
+                    notation.setElement(diagram);
+                    sourceNode.setElement(sourceView);
+                    targetNode.setElement(targetView);
+                    notationEdge.setElement(edge);
+                    notationEdge.setSource(sourceNode);
+                    notationEdge.setTarget(targetNode);
+                    notation.getPersistedChildren().addAll(List.of(sourceNode, targetNode));
+                    notation.getPersistedEdges().add(notationEdge);
+                    views.getContents().add(notation);
+                    return null;
+                });
         domain.getCommandStack().flush();
         assertTrue(api.delete(producer));
         assertFalse(diagram.getOwnedDiagramElements().contains(sourceView));
@@ -253,11 +299,19 @@ public class ArcadiaModelWorkflowTest {
     @Test
     public void createLinkAllocateRenameUndoAndReloadEveryLayer() throws Exception {
         for (int i = 0; i < LAYERS.length; i++) {
-            AbstractFunction source = (AbstractFunction) api.create(LAYERS[i], FUNCTION_TYPES[i], "Acquire " + LAYERS[i]);
-            AbstractFunction target = (AbstractFunction) api.create(LAYERS[i], FUNCTION_TYPES[i], "Process " + LAYERS[i]);
-            assertSame("New functions belong under the layer root", rootFunctions[i], source.eContainer());
+            AbstractFunction source =
+                    (AbstractFunction)
+                            api.create(LAYERS[i], FUNCTION_TYPES[i], "Acquire " + LAYERS[i]);
+            AbstractFunction target =
+                    (AbstractFunction)
+                            api.create(LAYERS[i], FUNCTION_TYPES[i], "Process " + LAYERS[i]);
+            assertSame(
+                    "New functions belong under the layer root",
+                    rootFunctions[i],
+                    source.eContainer());
             assertEquals("ownedFunctions", source.eContainingFeature().getName());
-            FunctionalExchange exchange = (FunctionalExchange) api.link(source, target, "FunctionalExchange");
+            FunctionalExchange exchange =
+                    (FunctionalExchange) api.link(source, target, "FunctionalExchange");
             assertSame(rootFunctions[i], exchange.eContainer());
             if (i == 0) {
                 assertSame(source, exchange.getSource());
@@ -273,15 +327,19 @@ public class ArcadiaModelWorkflowTest {
 
             EObject component = api.create(LAYERS[i], COMPONENT_TYPES[i], "Producer " + LAYERS[i]);
             EObject consumer = api.create(LAYERS[i], COMPONENT_TYPES[i], "Consumer " + LAYERS[i]);
-            assertEquals("Components must use semantic containment", switch (i) {
-                case 0 -> "ownedEntities";
-                case 1 -> "ownedSystemComponents";
-                case 2 -> "ownedLogicalComponents";
-                case 3 -> "ownedPhysicalComponents";
-                default -> throw new AssertionError(i);
-            }, component.eContainingFeature().getName());
+            assertEquals(
+                    "Components must use semantic containment",
+                    switch (i) {
+                        case 0 -> "ownedEntities";
+                        case 1 -> "ownedSystemComponents";
+                        case 2 -> "ownedLogicalComponents";
+                        case 3 -> "ownedPhysicalComponents";
+                        default -> throw new AssertionError(i);
+                    },
+                    component.eContainingFeature().getName());
             assertTrue(api.allocate(source, component));
-            ComponentExchange componentExchange = (ComponentExchange) api.link(component, consumer, "ComponentExchange");
+            ComponentExchange componentExchange =
+                    (ComponentExchange) api.link(component, consumer, "ComponentExchange");
             if (i == 0) {
                 assertTrue(componentExchange instanceof CommunicationMean);
                 assertSame(component, componentExchange.getSource());
@@ -311,14 +369,22 @@ public class ArcadiaModelWorkflowTest {
             assertFalse(persisted.getTarget().eIsProxy());
             EObject persistedSource = ModelOps.findById(reloaded, source.getId());
             assertEquals("Renamed " + LAYERS[i], ((AbstractFunction) persistedSource).getName());
-            EObject persistedComponent = ModelOps.findById(reloaded,
-                ((org.polarsys.capella.core.data.capellacore.CapellaElement) component).getId());
+            EObject persistedComponent =
+                    ModelOps.findById(
+                            reloaded,
+                            ((org.polarsys.capella.core.data.capellacore.CapellaElement) component)
+                                    .getId());
             @SuppressWarnings("unchecked")
-            List<ComponentFunctionalAllocation> persistedAllocations = (List<ComponentFunctionalAllocation>)
-                persistedComponent.eGet(persistedComponent.eClass().getEStructuralFeature("ownedFunctionalAllocation"));
+            List<ComponentFunctionalAllocation> persistedAllocations =
+                    (List<ComponentFunctionalAllocation>)
+                            persistedComponent.eGet(
+                                    persistedComponent
+                                            .eClass()
+                                            .getEStructuralFeature("ownedFunctionalAllocation"));
             assertEquals(1, persistedAllocations.size());
             assertSame(persistedSource, persistedAllocations.get(0).getTargetElement());
-            ComponentExchange persistedComponentExchange = (ComponentExchange) ModelOps.findById(reloaded, componentExchange.getId());
+            ComponentExchange persistedComponentExchange =
+                    (ComponentExchange) ModelOps.findById(reloaded, componentExchange.getId());
             assertNotNull(persistedComponentExchange.getSource());
             assertNotNull(persistedComponentExchange.getTarget());
             assertFalse(persistedComponentExchange.getSource().eIsProxy());
@@ -335,18 +401,23 @@ public class ArcadiaModelWorkflowTest {
             components[i] = api.create(LAYERS[i], COMPONENT_TYPES[i], "Component " + LAYERS[i]);
         }
         for (int i = 1; i < LAYERS.length; i++) {
-            FunctionRealization functionTrace = (FunctionRealization) api.link(functions[i], functions[i - 1], "realization");
-            ComponentRealization componentTrace = (ComponentRealization) api.link(components[i], components[i - 1], "realization");
+            FunctionRealization functionTrace =
+                    (FunctionRealization) api.link(functions[i], functions[i - 1], "realization");
+            ComponentRealization componentTrace =
+                    (ComponentRealization)
+                            api.link(components[i], components[i - 1], "realization");
             assertSame(functions[i], functionTrace.eContainer());
             assertSame(functions[i - 1], functionTrace.getTargetElement());
             assertSame(components[i], componentTrace.eContainer());
             save();
             ResourceSet reloaded = reload();
-            FunctionRealization persisted = (FunctionRealization) ModelOps.findById(reloaded, functionTrace.getId());
+            FunctionRealization persisted =
+                    (FunctionRealization) ModelOps.findById(reloaded, functionTrace.getId());
             assertNotNull(persisted);
             assertNotNull(persisted.getTargetElement());
             assertFalse(persisted.getTargetElement().eIsProxy());
-            ComponentRealization persistedComponent = (ComponentRealization) ModelOps.findById(reloaded, componentTrace.getId());
+            ComponentRealization persistedComponent =
+                    (ComponentRealization) ModelOps.findById(reloaded, componentTrace.getId());
             assertNotNull(persistedComponent.getTargetElement());
             assertFalse(persistedComponent.getTargetElement().eIsProxy());
         }
@@ -356,7 +427,8 @@ public class ArcadiaModelWorkflowTest {
     public void exchangeUndoAlsoRemovesNewPorts() {
         AbstractFunction source = (AbstractFunction) api.create("LA", "LogicalFunction", "Source");
         AbstractFunction target = (AbstractFunction) api.create("LA", "LogicalFunction", "Target");
-        FunctionalExchange exchange = (FunctionalExchange) api.link(source, target, "FunctionalExchange");
+        FunctionalExchange exchange =
+                (FunctionalExchange) api.link(source, target, "FunctionalExchange");
         domain.getCommandStack().undo();
         assertNotSame(resource, exchange.eResource());
         assertFalse(rootFunctions[2].getOwnedFunctionalExchanges().contains(exchange));
@@ -374,12 +446,18 @@ public class ArcadiaModelWorkflowTest {
         AbstractFunction target = (AbstractFunction) api.create("LA", "LogicalFunction", "Target");
         EObject component = api.create("LA", "LogicalComponent", "Producer");
         EObject realizingFunction = api.create("PA", "PhysicalFunction", "Realizing function");
-        FunctionalExchange exchange = (FunctionalExchange) api.link(source, target, "FunctionalExchange");
-        FunctionRealization trace = (FunctionRealization) api.link(realizingFunction, source, "FunctionRealization");
+        FunctionalExchange exchange =
+                (FunctionalExchange) api.link(source, target, "FunctionalExchange");
+        FunctionRealization trace =
+                (FunctionRealization) api.link(realizingFunction, source, "FunctionRealization");
         assertTrue(api.allocate(source, component));
         @SuppressWarnings("unchecked")
-        List<EObject> allocations = (List<EObject>) component.eGet(
-            component.eClass().getEStructuralFeature("ownedFunctionalAllocation"));
+        List<EObject> allocations =
+                (List<EObject>)
+                        component.eGet(
+                                component
+                                        .eClass()
+                                        .getEStructuralFeature("ownedFunctionalAllocation"));
         EObject allocation = allocations.get(0);
         String sourceId = source.getId();
         String exchangeId = exchange.getId();
@@ -409,21 +487,38 @@ public class ArcadiaModelWorkflowTest {
     public void linksExistingPortsWithoutCreatingDuplicatePorts() {
         AbstractFunction source = (AbstractFunction) api.create("PA", "PhysicalFunction", "Source");
         AbstractFunction target = (AbstractFunction) api.create("PA", "PhysicalFunction", "Target");
-        FunctionalExchange first = (FunctionalExchange) api.link(source, target, "FunctionalExchange");
-        FunctionalExchange second = (FunctionalExchange) api.link(first.getSource(), first.getTarget(), "FunctionalExchange");
+        FunctionalExchange first =
+                (FunctionalExchange) api.link(source, target, "FunctionalExchange");
+        FunctionalExchange second =
+                (FunctionalExchange)
+                        api.link(first.getSource(), first.getTarget(), "FunctionalExchange");
         assertSame(first.getSource(), second.getSource());
         assertSame(first.getTarget(), second.getTarget());
         assertEquals(1, source.getOutputs().size());
         assertEquals(1, target.getInputs().size());
-        assertThrows(IllegalArgumentException.class, () -> api.link(first.getTarget(), first.getSource(), "FunctionalExchange"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.link(first.getTarget(), first.getSource(), "FunctionalExchange"));
 
         EObject producer = api.create("PA", "PhysicalComponent", "Producer");
         EObject consumer = api.create("PA", "PhysicalComponent", "Consumer");
-        ComponentExchange firstComponent = (ComponentExchange) api.link(producer, consumer, "ComponentExchange");
-        ComponentExchange secondComponent = (ComponentExchange) api.link(firstComponent.getSource(), firstComponent.getTarget(), "ComponentExchange");
+        ComponentExchange firstComponent =
+                (ComponentExchange) api.link(producer, consumer, "ComponentExchange");
+        ComponentExchange secondComponent =
+                (ComponentExchange)
+                        api.link(
+                                firstComponent.getSource(),
+                                firstComponent.getTarget(),
+                                "ComponentExchange");
         assertSame(firstComponent.getSource(), secondComponent.getSource());
         assertSame(firstComponent.getTarget(), secondComponent.getTarget());
-        assertThrows(IllegalArgumentException.class, () -> api.link(firstComponent.getTarget(), firstComponent.getSource(), "ComponentExchange"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                        api.link(
+                                firstComponent.getTarget(),
+                                firstComponent.getSource(),
+                                "ComponentExchange"));
     }
 
     @Test
@@ -432,13 +527,27 @@ public class ArcadiaModelWorkflowTest {
         EObject logicalFunction = api.create("LA", "LogicalFunction", "Logical function");
         EObject logicalComponent = api.create("LA", "LogicalComponent", "Logical component");
         int count = elementCount();
-        assertThrows(IllegalArgumentException.class, () -> api.link(systemFunction, logicalFunction, "FunctionalExchange"));
-        assertThrows(IllegalArgumentException.class, () -> api.link(logicalComponent, logicalFunction, "FunctionalExchange"));
-        assertThrows(IllegalArgumentException.class, () -> api.link(systemFunction, logicalFunction, "FunctionRealization"));
-        assertThrows(IllegalArgumentException.class, () -> api.link(logicalFunction, logicalComponent, "ComponentExchange"));
-        assertThrows(IllegalArgumentException.class, () -> api.link(logicalFunction, logicalComponent, "Transition"));
-        assertThrows(IllegalArgumentException.class, () -> api.create("LA", "SystemFunction", "Wrong layer"));
-        assertThrows(IllegalArgumentException.class, () -> api.create("SystemFunction", "Wrong parent layer", rootFunctions[2]));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.link(systemFunction, logicalFunction, "FunctionalExchange"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.link(logicalComponent, logicalFunction, "FunctionalExchange"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.link(systemFunction, logicalFunction, "FunctionRealization"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.link(logicalFunction, logicalComponent, "ComponentExchange"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.link(logicalFunction, logicalComponent, "Transition"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.create("LA", "SystemFunction", "Wrong layer"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.create("SystemFunction", "Wrong parent layer", rootFunctions[2]));
         assertEquals(count, elementCount());
     }
 
@@ -449,7 +558,8 @@ public class ArcadiaModelWorkflowTest {
             assertEquals(LAYERS[i], ModelIndex.describe(session, function).layer);
         }
         for (int i = 0; i < LAYERS.length; i++) {
-            assertEquals(LAYERS[i], ModelIndex.search(session, "Indexed " + LAYERS[i], 1).get(0).layer);
+            assertEquals(
+                    LAYERS[i], ModelIndex.search(session, "Indexed " + LAYERS[i], 1).get(0).layer);
         }
     }
 
@@ -459,11 +569,15 @@ public class ArcadiaModelWorkflowTest {
         assertSame(architecture, api.root("EPBS"));
         assertSame(architecture, api.layer("end-product breakdown structure"));
         assertTrue(ArchitectureLocator.findLayerWithDiagnostic(session, "EPBS").success());
-        assertSame(architecture.getOwnedConfigurationItemPkg(), api.container("EPBS", "configuration-item"));
+        assertSame(
+                architecture.getOwnedConfigurationItemPkg(),
+                api.container("EPBS", "configuration-item"));
         ConfigurationItem product = (ConfigurationItem) api.create("ConfigurationItem", "Product");
-        ConfigurationItem software = (ConfigurationItem) api.create("ConfigurationItem", "Software", product);
+        ConfigurationItem software =
+                (ConfigurationItem) api.create("ConfigurationItem", "Software", product);
         EObject nestedPackage = api.create("ConfigurationItemPkg", "Equipment", product);
-        ConfigurationItem hardware = (ConfigurationItem) api.create("ConfigurationItem", "Hardware", nestedPackage);
+        ConfigurationItem hardware =
+                (ConfigurationItem) api.create("ConfigurationItem", "Hardware", nestedPackage);
         assertSame(architecture.getOwnedConfigurationItemPkg(), product.eContainer());
         assertEquals("ownedConfigurationItems", product.eContainingFeature().getName());
         assertSame(product, software.eContainer());
@@ -479,22 +593,28 @@ public class ArcadiaModelWorkflowTest {
         assertEquals("Software", software.getName());
         domain.getCommandStack().redo();
 
-        PhysicalComponent physical = (PhysicalComponent) api.create("PA", "PhysicalComponent", "Flight computer");
-        PhysicalArtifactRealization trace = (PhysicalArtifactRealization) api.link(software, physical, "PhysicalArtifactRealization");
+        PhysicalComponent physical =
+                (PhysicalComponent) api.create("PA", "PhysicalComponent", "Flight computer");
+        PhysicalArtifactRealization trace =
+                (PhysicalArtifactRealization)
+                        api.link(software, physical, "PhysicalArtifactRealization");
         assertSame(software, trace.eContainer());
         assertSame(software, trace.getSourceElement());
         assertSame(physical, trace.getTargetElement());
         domain.getCommandStack().undo();
         assertTrue(software.getOwnedPhysicalArtifactRealizations().isEmpty());
         domain.getCommandStack().redo();
-        PhysicalArtifactRealization generic = (PhysicalArtifactRealization) api.link(hardware, physical, "realization");
+        PhysicalArtifactRealization generic =
+                (PhysicalArtifactRealization) api.link(hardware, physical, "realization");
         assertSame(hardware, generic.getSourceElement());
         save();
         ResourceSet reloaded = reload();
-        ConfigurationItem persisted = (ConfigurationItem) ModelOps.findById(reloaded, software.getId());
+        ConfigurationItem persisted =
+                (ConfigurationItem) ModelOps.findById(reloaded, software.getId());
         assertEquals("Flight software", persisted.getName());
         assertEquals("CI-001", persisted.getItemIdentifier());
-        PhysicalArtifactRealization persistedTrace = (PhysicalArtifactRealization) ModelOps.findById(reloaded, trace.getId());
+        PhysicalArtifactRealization persistedTrace =
+                (PhysicalArtifactRealization) ModelOps.findById(reloaded, trace.getId());
         assertSame(persisted, persistedTrace.getSourceElement());
         assertNotNull(persistedTrace.getTargetElement());
         assertFalse(persistedTrace.getTargetElement().eIsProxy());
@@ -506,13 +626,24 @@ public class ArcadiaModelWorkflowTest {
         EObject physical = api.create("PA", "PhysicalComponent", "Computer");
         EObject logical = api.create("LA", "LogicalComponent", "Controller");
         int count = elementCount();
-        assertThrows(IllegalArgumentException.class, () -> api.link(physical, item, "PhysicalArtifactRealization"));
-        assertThrows(IllegalArgumentException.class, () -> api.link(item, logical, "PhysicalArtifactRealization"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.link(physical, item, "PhysicalArtifactRealization"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.link(item, logical, "PhysicalArtifactRealization"));
         assertThrows(IllegalArgumentException.class, () -> api.link(item, item, "realization"));
-        assertThrows(IllegalArgumentException.class, () -> api.link(item, physical, "ComponentRealization"));
-        assertThrows(IllegalArgumentException.class, () -> api.link(item, item, "ComponentExchange"));
-        assertThrows(IllegalArgumentException.class, () -> api.create("EPBS", "PhysicalFunction", "Invalid function"));
-        assertThrows(IllegalArgumentException.class, () -> api.create("PA", "ConfigurationItem", "Wrong layer"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.link(item, physical, "ComponentRealization"));
+        assertThrows(
+                IllegalArgumentException.class, () -> api.link(item, item, "ComponentExchange"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.create("EPBS", "PhysicalFunction", "Invalid function"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.create("PA", "ConfigurationItem", "Wrong layer"));
         assertThrows(IllegalArgumentException.class, () -> api.layer("invalid-layer"));
         assertEquals(count, elementCount());
     }
@@ -527,19 +658,29 @@ public class ArcadiaModelWorkflowTest {
         int count = elementCount();
         assertTrue(api.allocate(function, component));
         @SuppressWarnings("unchecked")
-        List<EObject> allocations = (List<EObject>) component.eGet(
-            component.eClass().getEStructuralFeature("ownedFunctionalAllocation"));
+        List<EObject> allocations =
+                (List<EObject>)
+                        component.eGet(
+                                component
+                                        .eClass()
+                                        .getEStructuralFeature("ownedFunctionalAllocation"));
         assertEquals(1, allocations.size());
         assertThrows(IllegalArgumentException.class, () -> api.allocate(systemFunction, component));
         assertThrows(IllegalArgumentException.class, () -> api.allocate(component, component));
         assertThrows(IllegalArgumentException.class, () -> api.allocate(function, item));
-        assertThrows(IllegalArgumentException.class, () -> api.allocate(LaFactory.eINSTANCE.createLogicalFunction(), component));
-        assertThrows(IllegalArgumentException.class, () -> api.allocate(function, LaFactory.eINSTANCE.createLogicalComponent()));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.allocate(LaFactory.eINSTANCE.createLogicalFunction(), component));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.allocate(function, LaFactory.eINSTANCE.createLogicalComponent()));
         ResourceSet foreignResources = resourceSet();
-        Resource foreignResource = foreignResources.createResource(URI.createURI("memory:/foreign.xmi"));
+        Resource foreignResource =
+                foreignResources.createResource(URI.createURI("memory:/foreign.xmi"));
         EObject foreignFunction = LaFactory.eINSTANCE.createLogicalFunction();
         foreignResource.getContents().add(foreignFunction);
-        assertThrows(IllegalArgumentException.class, () -> api.allocate(foreignFunction, component));
+        assertThrows(
+                IllegalArgumentException.class, () -> api.allocate(foreignFunction, component));
         assertEquals(count, elementCount());
     }
 
@@ -556,16 +697,31 @@ public class ArcadiaModelWorkflowTest {
     }
 
     @Test
-    public void creatingComponentsAutomaticallyCreatesNativePartsInEveryPerspective() throws Exception {
-        String[] layers = { "OA", "SA", "LA", "PA", "EPBS" };
-        String[] types = { "Entity", "SystemComponent", "LogicalComponent", "PhysicalComponent", "ConfigurationItem" };
+    public void creatingComponentsAutomaticallyCreatesNativePartsInEveryPerspective()
+            throws Exception {
+        String[] layers = {"OA", "SA", "LA", "PA", "EPBS"};
+        String[] types = {
+            "Entity",
+            "SystemComponent",
+            "LogicalComponent",
+            "PhysicalComponent",
+            "ConfigurationItem"
+        };
         for (int i = 0; i < layers.length; i++) {
-            Component parent = (Component) api.create(layers[i], i == 1 ? "SystemActor" : types[i], "Parent " + layers[i]);
+            Component parent =
+                    (Component)
+                            api.create(
+                                    layers[i],
+                                    i == 1 ? "SystemActor" : types[i],
+                                    "Parent " + layers[i]);
             assertEquals(1, storedPartsOf(parent).size());
             Part parentPart = storedPartsOf(parent).get(0);
             assertSame(parent.eContainer(), parentPart.eContainer());
-            // LA/PA components are created inside the layer's root system, whose parts are owned features.
-            assertEquals(i == 2 || i == 3 ? "ownedFeatures" : "ownedParts", parentPart.eContainingFeature().getName());
+            // LA/PA components are created inside the layer's root system, whose parts are owned
+            // features.
+            assertEquals(
+                    i == 2 || i == 3 ? "ownedFeatures" : "ownedParts",
+                    parentPart.eContainingFeature().getName());
             assertEquals(parent.getName(), parentPart.getName());
             assertSame(parent, parentPart.getAbstractType());
             assertSame(parentPart, api.ensurePart(parent));
@@ -603,11 +759,17 @@ public class ArcadiaModelWorkflowTest {
     public void rejectsSystemAnalysisSystemDecompositionBeforeChangingTheModel() {
         EObject system = api.create("SA", "SystemComponent", "System black box");
         int count = elementCount();
-        IllegalArgumentException componentFailure = assertThrows(IllegalArgumentException.class,
-            () -> api.create("SystemComponent", "Invalid subsystem", system));
+        IllegalArgumentException componentFailure =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> api.create("SystemComponent", "Invalid subsystem", system));
         assertTrue(componentFailure.getMessage().contains("black box"));
-        assertThrows(IllegalArgumentException.class, () -> api.create("Part", "Invalid contained part", system));
-        assertThrows(IllegalArgumentException.class, () -> api.create("SystemActor", "Invalid contained actor", system));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.create("Part", "Invalid contained part", system));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> api.create("SystemActor", "Invalid contained actor", system));
         assertEquals(count, elementCount());
         assertNull(api.find("SystemComponent", "Invalid subsystem"));
         assertNull(api.find("Part", "Invalid contained part"));
@@ -620,15 +782,19 @@ public class ArcadiaModelWorkflowTest {
     }
 
     @Test
-    public void systemActorAliasesPreserveActorFlagAndAtomicCreationInEveryOverload() throws Exception {
+    public void systemActorAliasesPreserveActorFlagAndAtomicCreationInEveryOverload()
+            throws Exception {
         for (int variant = 0; variant < 3; variant++) {
             EObject componentPackage = api.container("SA", "component");
-            Component actor = (Component) switch (variant) {
-                case 0 -> api.create("SystemActor", "Implicit actor");
-                case 1 -> api.create("SA", "SystemActor", "Layer actor");
-                case 2 -> api.create("SystemActor", "Parent actor", componentPackage);
-                default -> throw new AssertionError(variant);
-            };
+            Component actor =
+                    (Component)
+                            switch (variant) {
+                                case 0 -> api.create("SystemActor", "Implicit actor");
+                                case 1 -> api.create("SA", "SystemActor", "Layer actor");
+                                case 2 ->
+                                        api.create("SystemActor", "Parent actor", componentPackage);
+                                default -> throw new AssertionError(variant);
+                            };
             assertTrue(actor.isActor());
             assertEquals("SystemComponent", actor.eClass().getName());
             assertSame(componentPackage, actor.eContainer());
@@ -652,15 +818,18 @@ public class ArcadiaModelWorkflowTest {
     }
 
     @Test
-    public void deletingRepresentedComponentRemovesItsPartAndRelationsAndUndoRestoresThem() throws Exception {
+    public void deletingRepresentedComponentRemovesItsPartAndRelationsAndUndoRestoresThem()
+            throws Exception {
         EObject component = api.create("LA", "LogicalComponent", "Represented producer");
         EObject consumer = api.create("LA", "LogicalComponent", "Preserved consumer");
         EObject part = api.ensurePart(component);
         EObject consumerPart = api.ensurePart(consumer);
         EObject function = api.create("LA", "LogicalFunction", "Preserved function");
         EObject realizing = api.create("PA", "PhysicalComponent", "Realizing producer");
-        ComponentExchange exchange = (ComponentExchange) api.link(component, consumer, "ComponentExchange");
-        ComponentRealization realization = (ComponentRealization) api.link(realizing, component, "ComponentRealization");
+        ComponentExchange exchange =
+                (ComponentExchange) api.link(component, consumer, "ComponentExchange");
+        ComponentRealization realization =
+                (ComponentRealization) api.link(realizing, component, "ComponentRealization");
         assertTrue(api.allocate(function, component));
         String componentId = api.id(component);
         String partId = api.id(part);
@@ -687,8 +856,9 @@ public class ArcadiaModelWorkflowTest {
         assertSame(component, api.get(part, "abstractType"));
         assertSame(component, exchange.getSource().eContainer());
         assertSame(component, realization.getTargetElement());
-        ComponentFunctionalAllocation restoredAllocation = (ComponentFunctionalAllocation)
-            ((List<?>) api.get(component, "ownedFunctionalAllocation")).get(0);
+        ComponentFunctionalAllocation restoredAllocation =
+                (ComponentFunctionalAllocation)
+                        ((List<?>) api.get(component, "ownedFunctionalAllocation")).get(0);
         assertSame(function, restoredAllocation.getTargetElement());
     }
 
@@ -731,24 +901,37 @@ public class ArcadiaModelWorkflowTest {
                 functionsFeature = "ownedPhysicalFunctions";
                 componentsFeature = "ownedPhysicalComponentPkg";
                 break;
-            default: throw new AssertionError(layer);
+            default:
+                throw new AssertionError(layer);
         }
         set(architecture, "ownedFunctionPkg", functionPackage);
         set(architecture, componentsFeature, componentPackage);
         add(functionPackage, functionsFeature, rootFunctions[layer]);
         // Capella projects start with a Logical/Physical System root component.
-        if (layer == 2) add(componentPackage, "ownedLogicalComponents", named(LaFactory.eINSTANCE.createLogicalComponent(), "Logical System"));
-        if (layer == 3) add(componentPackage, "ownedPhysicalComponents", named(PaFactory.eINSTANCE.createPhysicalComponent(), "Physical System"));
+        if (layer == 2)
+            add(
+                    componentPackage,
+                    "ownedLogicalComponents",
+                    named(LaFactory.eINSTANCE.createLogicalComponent(), "Logical System"));
+        if (layer == 3)
+            add(
+                    componentPackage,
+                    "ownedPhysicalComponents",
+                    named(PaFactory.eINSTANCE.createPhysicalComponent(), "Physical System"));
         return architecture;
     }
 
-    private static <T extends org.polarsys.capella.core.data.capellacore.NamedElement> T named(T element, String name) {
-        element.setName(name); return element;
+    private static <T extends org.polarsys.capella.core.data.capellacore.NamedElement> T named(
+            T element, String name) {
+        element.setName(name);
+        return element;
     }
 
     private static ResourceSet resourceSet() {
         ResourceSet result = new ResourceSetImpl();
-        result.getResourceFactoryRegistry().getExtensionToFactoryMap().put("xmi", new XMIResourceFactoryImpl());
+        result.getResourceFactoryRegistry()
+                .getExtensionToFactoryMap()
+                .put("xmi", new XMIResourceFactoryImpl());
         return result;
     }
 
@@ -768,7 +951,10 @@ public class ArcadiaModelWorkflowTest {
     private int elementCount() {
         int count = 0;
         var contents = resource.getAllContents();
-        while (contents.hasNext()) { contents.next(); count++; }
+        while (contents.hasNext()) {
+            contents.next();
+            count++;
+        }
         return count;
     }
 
@@ -777,7 +963,8 @@ public class ArcadiaModelWorkflowTest {
         var contents = component.eResource().getAllContents();
         while (contents.hasNext()) {
             EObject element = contents.next();
-            if (element instanceof Part part && part.getAbstractType() == component) parts.add(part);
+            if (element instanceof Part part && part.getAbstractType() == component)
+                parts.add(part);
         }
         return parts;
     }

@@ -2,8 +2,9 @@ package org.polarsys.capella.ai.scripting;
 
 import static org.junit.Assert.*;
 
-import java.util.List;
 import org.junit.Test;
+
+import java.util.List;
 
 public class CapellaAPITest {
 
@@ -24,5 +25,4 @@ public class CapellaAPITest {
         assertFalse(messages.isEmpty());
         assertTrue(messages.get(0).toLowerCase().contains("validation"));
     }
-
 }

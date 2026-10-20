@@ -16,39 +16,32 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Privacy tokenization helper that replaces sensitive strings (element names, UUIDs)
- * with stable tokens before sending prompts to an LLM, and can reverse the mapping
- * before executing locally.
+ * Privacy tokenization helper that replaces sensitive strings (element names, UUIDs) with stable
+ * tokens before sending prompts to an LLM, and can reverse the mapping before executing locally.
  *
  * <p>Design goals:
+ *
  * <ul>
- *   <li>Stable mapping per session key</li>
- *   <li>Low overhead (tokenize only strings present in prompts/messages)</li>
- *   <li>Best-effort audit trail (local-only)</li>
+ *   <li>Stable mapping per session key
+ *   <li>Low overhead (tokenize only strings present in prompts/messages)
+ *   <li>Best-effort audit trail (local-only)
  * </ul>
  */
 public final class Tokenizer {
 
-    private static final Map<String, Tokenizer> BY_SESSION =
-        new ConcurrentHashMap<>();
+    private static final Map<String, Tokenizer> BY_SESSION = new ConcurrentHashMap<>();
 
-    private static final Pattern UUID = Pattern.compile(
-        "\\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\b"
-    );
+    private static final Pattern UUID =
+            Pattern.compile(
+                    "\\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\b");
 
-    private static final Pattern QUOTED = Pattern.compile(
-        "([\"'])([^\\r\\n]{1,200}?)\\1"
-    );
+    private static final Pattern QUOTED = Pattern.compile("([\"'])([^\\r\\n]{1,200}?)\\1");
 
-    private static final Pattern TOKEN = Pattern.compile(
-        "\\b(?:ELEM|UUID)_\\d{4}\\b"
-    );
+    private static final Pattern TOKEN = Pattern.compile("\\b(?:ELEM|UUID)_\\d{4}\\b");
 
     private static final Pattern LAYER_CODE = Pattern.compile("^(OA|SA|LA|PA)$");
     private static final Pattern ALL_CAPS_SHORT = Pattern.compile("^[A-Z]{2,6}$");
-    private static final Pattern TYPE_LIKE = Pattern.compile(
-        "^[A-Z][A-Za-z0-9]+$"
-    );
+    private static final Pattern TYPE_LIKE = Pattern.compile("^[A-Z][A-Za-z0-9]+$");
 
     private final String sessionKey;
     private final Map<String, String> valueToToken = new LinkedHashMap<>();
@@ -92,7 +85,8 @@ public final class Tokenizer {
         }
 
         String out = input;
-        // Replace longer tokens first is unnecessary (fixed width), but keep deterministic ordering.
+        // Replace longer tokens first is unnecessary (fixed width), but keep deterministic
+        // ordering.
         for (Map.Entry<String, String> e : tokenToValue.entrySet()) {
             out = out.replace(e.getKey(), e.getValue());
         }
@@ -112,15 +106,23 @@ public final class Tokenizer {
         String result = tokenizeText(input);
         if (result == null || result.isBlank()) return result;
         List<Map.Entry<String, String>> known;
-        synchronized (this) { known = new ArrayList<>(valueToToken.entrySet()); }
-        known.sort((left, right) -> Integer.compare(right.getKey().length(), left.getKey().length()));
+        synchronized (this) {
+            known = new ArrayList<>(valueToToken.entrySet());
+        }
+        known.sort(
+                (left, right) -> Integer.compare(right.getKey().length(), left.getKey().length()));
         for (var entry : known) {
             String value = entry.getKey();
             if (value.isEmpty()) continue;
             String start = Character.isLetterOrDigit(value.charAt(0)) ? "(?<![\\p{L}\\p{N}_])" : "";
-            String end = Character.isLetterOrDigit(value.charAt(value.length() - 1)) ? "(?![\\p{L}\\p{N}_])" : "";
-            result = Pattern.compile(start + Pattern.quote(value) + end).matcher(result)
-                .replaceAll(Matcher.quoteReplacement(entry.getValue()));
+            String end =
+                    Character.isLetterOrDigit(value.charAt(value.length() - 1))
+                            ? "(?![\\p{L}\\p{N}_])"
+                            : "";
+            result =
+                    Pattern.compile(start + Pattern.quote(value) + end)
+                            .matcher(result)
+                            .replaceAll(Matcher.quoteReplacement(entry.getValue()));
         }
         return result;
     }
@@ -187,27 +189,28 @@ public final class Tokenizer {
             return false;
         }
         // Capella/EMF type names are usually CamelCase with known suffixes.
-        String[] suffixes = new String[] {
-            "Function",
-            "Component",
-            "Exchange",
-            "Architecture",
-            "Analysis",
-            "Pkg",
-            "Package",
-            "Port",
-            "Diagram",
-            "Allocation",
-            "Capability",
-            "Activity",
-            "Entity",
-            "Actor",
-            "StateMachine",
-            "State",
-            "Mode",
-            "Transition",
-            "Requirement"
-        };
+        String[] suffixes =
+                new String[] {
+                    "Function",
+                    "Component",
+                    "Exchange",
+                    "Architecture",
+                    "Analysis",
+                    "Pkg",
+                    "Package",
+                    "Port",
+                    "Diagram",
+                    "Allocation",
+                    "Capability",
+                    "Activity",
+                    "Entity",
+                    "Actor",
+                    "StateMachine",
+                    "State",
+                    "Mode",
+                    "Transition",
+                    "Requirement"
+                };
         for (String suf : suffixes) {
             if (s.endsWith(suf)) {
                 return true;
@@ -217,7 +220,8 @@ public final class Tokenizer {
     }
 
     private static boolean looksLikeHumanName(String s) {
-        // PascalCase types are usually non-sensitive; names often have spaces, punctuation, or lowercase words.
+        // PascalCase types are usually non-sensitive; names often have spaces, punctuation, or
+        // lowercase words.
         if (s.indexOf(' ') >= 0 || s.indexOf('-') >= 0 || s.indexOf('_') >= 0) {
             return true;
         }
@@ -253,12 +257,12 @@ public final class Tokenizer {
         }
         lastAuditWriteMs = now;
         try {
-            Path dir = Paths.get(
-                System.getProperty("user.home"),
-                ".capella-ai",
-                "privacy",
-                "token-maps"
-            );
+            Path dir =
+                    Paths.get(
+                            System.getProperty("user.home"),
+                            ".capella-ai",
+                            "privacy",
+                            "token-maps");
             if (!Files.exists(dir)) {
                 Files.createDirectories(dir);
             }
@@ -268,21 +272,27 @@ public final class Tokenizer {
                 String token = e.getKey();
                 String value = e.getValue();
                 lines.add(
-                    "{" +
-                    "\"ts\":\"" + jsonEscape(Instant.now().toString()) + "\"," +
-                    "\"session\":\"" + jsonEscape(sessionKey) + "\"," +
-                    "\"token\":\"" + jsonEscape(token) + "\"," +
-                    "\"value\":\"" + jsonEscape(value) + "\"" +
-                    "}"
-                );
+                        "{"
+                                + "\"ts\":\""
+                                + jsonEscape(Instant.now().toString())
+                                + "\","
+                                + "\"session\":\""
+                                + jsonEscape(sessionKey)
+                                + "\","
+                                + "\"token\":\""
+                                + jsonEscape(token)
+                                + "\","
+                                + "\"value\":\""
+                                + jsonEscape(value)
+                                + "\""
+                                + "}");
             }
             if (!lines.isEmpty()) {
                 Files.write(
-                    file,
-                    (String.join("\n", lines) + "\n").getBytes(StandardCharsets.UTF_8),
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.TRUNCATE_EXISTING
-                );
+                        file,
+                        (String.join("\n", lines) + "\n").getBytes(StandardCharsets.UTF_8),
+                        StandardOpenOption.CREATE,
+                        StandardOpenOption.TRUNCATE_EXISTING);
             }
         } catch (Exception ignore) {
             // Best effort: never break core flow.

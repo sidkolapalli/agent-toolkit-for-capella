@@ -1,15 +1,9 @@
 package org.polarsys.capella.ai.scripting;
 
 import groovy.lang.Closure;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.function.Predicate;
-import org.eclipse.emf.common.util.Diagnostic;
+
 import org.eclipse.emf.common.command.CommandStack;
+import org.eclipse.emf.common.util.Diagnostic;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
@@ -30,8 +24,8 @@ import org.polarsys.capella.ai.model.index.ModelIndex;
 import org.polarsys.capella.ai.session.OperationInferencer;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 import org.polarsys.capella.core.data.capellamodeller.Project;
-import org.polarsys.capella.core.data.cs.CsFactory;
 import org.polarsys.capella.core.data.cs.BlockArchitecture;
+import org.polarsys.capella.core.data.cs.CsFactory;
 import org.polarsys.capella.core.data.cs.Part;
 import org.polarsys.capella.core.data.fa.ComponentExchange;
 import org.polarsys.capella.core.data.fa.FunctionalExchange;
@@ -40,15 +34,22 @@ import org.polarsys.capella.core.model.helpers.ComponentExchangeExt;
 import org.polarsys.capella.core.model.helpers.FunctionalExchangeExt;
 import org.polarsys.capella.core.model.helpers.SystemEngineeringExt;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Predicate;
+
 /**
- * Main API facade for Groovy scripts in Capella AI.
- * Provides a clean, discoverable interface to all Capella operations.
+ * Main API facade for Groovy scripts in Capella AI. Provides a clean, discoverable interface to all
+ * Capella operations.
  *
- * <p>This API uses the same internal EMF/Sirius APIs that the Capella UI uses,
- * enabling full control over the model - something external tools like
- * Python4Capella cannot achieve.
+ * <p>This API uses the same internal EMF/Sirius APIs that the Capella UI uses, enabling full
+ * control over the model - something external tools like Python4Capella cannot achieve.
  *
  * <p>Example usage:
+ *
  * <pre>{@code
  * // Finding elements
  * def component = api.find("SystemComponent", "Flight Controller")
@@ -111,19 +112,16 @@ public final class CapellaAPI {
 
     /** Flag indicating cache needs clearing after mutation */
     private boolean cacheDirty = false;
+
     private org.eclipse.emf.common.command.Command cachedUndoCommand;
     private org.eclipse.emf.common.command.Command cachedRedoCommand;
 
-    /**
-     * Create a CapellaAPI for the given session.
-     */
+    /** Create a CapellaAPI for the given session. */
     public CapellaAPI(Session session) {
         this(session, null);
     }
 
-    /**
-     * Create a CapellaAPI with an optional reset hook for stateful scripts.
-     */
+    /** Create a CapellaAPI with an optional reset hook for stateful scripts. */
     public CapellaAPI(Session session, Runnable resetHandler) {
         this.session = session;
         this.diagram = new DiagramAPI(session);
@@ -151,30 +149,22 @@ public final class CapellaAPI {
         ModelAnalytics.invalidate(session);
     }
 
-    /**
-     * Get a structured JSON catalog of available API methods.
-     */
+    /** Get a structured JSON catalog of available API methods. */
     public String help() {
         return ApiCatalog.help();
     }
 
-    /**
-     * Get a structured JSON catalog for a specific module (e.g., "diagram", "fs").
-     */
+    /** Get a structured JSON catalog for a specific module (e.g., "diagram", "fs"). */
     public String help(String module) {
         return ApiCatalog.help(module);
     }
 
-    /**
-     * Report runtime capabilities so scripts can adapt safely.
-     */
+    /** Report runtime capabilities so scripts can adapt safely. */
     public String capabilities() {
-        boolean systemEngineeringHelper = isClassPresent(
-            "org.polarsys.capella.core.model.helpers.SystemEngineeringExt"
-        );
-        boolean blockArchitectureHelper = isClassPresent(
-            "org.polarsys.capella.core.model.helpers.BlockArchitectureExt"
-        );
+        boolean systemEngineeringHelper =
+                isClassPresent("org.polarsys.capella.core.model.helpers.SystemEngineeringExt");
+        boolean blockArchitectureHelper =
+                isClassPresent("org.polarsys.capella.core.model.helpers.BlockArchitectureExt");
         boolean interpreterAvailable = getInterpreter(session) != null;
 
         StringBuilder sb = new StringBuilder();
@@ -191,7 +181,7 @@ public final class CapellaAPI {
         sb.append("},");
         sb.append("\"fallbacks\":{");
         sb.append("\"semanticServices\":")
-            .append(!(systemEngineeringHelper && blockArchitectureHelper));
+                .append(!(systemEngineeringHelper && blockArchitectureHelper));
         sb.append("}");
         sb.append("}");
         return sb.toString();
@@ -263,22 +253,21 @@ public final class CapellaAPI {
     }
 
     /**
-     * Find an element by type and name with diagnostic info.
-     * Returns FindResult with alternatives if not found.
+     * Find an element by type and name with diagnostic info. Returns FindResult with alternatives
+     * if not found.
      */
     public FindResult findWithDiagnostic(String type, String name) {
         if (session == null) {
             return FindResult.error(
-                org.polarsys.capella.ai.model.ActionResult.ErrorCode.SESSION_ERROR,
-                "No active session"
-            );
+                    org.polarsys.capella.ai.model.ActionResult.ErrorCode.SESSION_ERROR,
+                    "No active session");
         }
         return Finders.findByNameWithDiagnostic(session, type, name);
     }
 
     /**
-     * Find all elements of a given native type, including its actual subtypes.
-     * Actor aliases select only actor instances of their corresponding component type.
+     * Find all elements of a given native type, including its actual subtypes. Actor aliases select
+     * only actor instances of their corresponding component type.
      *
      * @param type the simple class name
      * @return list of matching elements (never null)
@@ -290,7 +279,7 @@ public final class CapellaAPI {
         ensureCacheValid();
         List<EObject> cached = findAllCache.get(type);
         if (cached != null) {
-            return new ArrayList<>(cached);  // Defensive copy
+            return new ArrayList<>(cached); // Defensive copy
         }
         String nativeType = resolveTypeAlias(type, null);
         boolean actorOnly = isActorAlias(type);
@@ -302,11 +291,17 @@ public final class CapellaAPI {
                 while (it.hasNext()) {
                     EObject eo = it.next();
                     EClass nativeClass = eo.eClass();
-                    boolean matches = nativeType.equals(nativeClass.getName()) ||
-                        nativeClass.getEAllSuperTypes().stream()
-                            .anyMatch(superType -> nativeType.equals(superType.getName()));
-                    EStructuralFeature actor = actorOnly ? nativeClass.getEStructuralFeature("actor") : null;
-                    if (matches && (!actorOnly || actor != null && Boolean.TRUE.equals(eo.eGet(actor)))) {
+                    boolean matches =
+                            nativeType.equals(nativeClass.getName())
+                                    || nativeClass.getEAllSuperTypes().stream()
+                                            .anyMatch(
+                                                    superType ->
+                                                            nativeType.equals(superType.getName()));
+                    EStructuralFeature actor =
+                            actorOnly ? nativeClass.getEStructuralFeature("actor") : null;
+                    if (matches
+                            && (!actorOnly
+                                    || actor != null && Boolean.TRUE.equals(eo.eGet(actor)))) {
                         results.add(eo);
                     }
                 }
@@ -350,9 +345,7 @@ public final class CapellaAPI {
         return results;
     }
 
-    /**
-     * Find element by UUID/ID.
-     */
+    /** Find element by UUID/ID. */
     public EObject findById(String id) {
         if (session == null || id == null) {
             return null;
@@ -377,29 +370,24 @@ public final class CapellaAPI {
      */
     public EObject create(String type, String name) {
         if (session == null) {
-            throw new IllegalStateException(
-                "No active Capella session. Open a model first."
-            );
+            throw new IllegalStateException("No active Capella session. Open a model first.");
         }
         if (type == null || type.isBlank()) {
-            throw new IllegalArgumentException(
-                "Element type cannot be null or blank"
-            );
+            throw new IllegalArgumentException("Element type cannot be null or blank");
         }
         String trimmedType = type.trim();
         if (isLayerToken(trimmedType)) {
             String layer = trimmedType.toUpperCase();
             throw new IllegalArgumentException(
-                "Looks like you passed a layer code ('" +
-                    layer +
-                    "') as the element type. " +
-                    "Use create('" +
-                    layer +
-                    "', '<Type>', '<Name>') or createIn('" +
-                    layer +
-                    "', '<Type>', '<Name>'). " +
-                    "For function allocation, use api.allocate(function, component)."
-            );
+                    "Looks like you passed a layer code ('"
+                            + layer
+                            + "') as the element type. "
+                            + "Use create('"
+                            + layer
+                            + "', '<Type>', '<Name>') or createIn('"
+                            + layer
+                            + "', '<Type>', '<Name>'). "
+                            + "For function allocation, use api.allocate(function, component).");
         }
         // Guess the layer from the type name
         String layer = guessLayerFromType(trimmedType);
@@ -419,59 +407,53 @@ public final class CapellaAPI {
      */
     public EObject create(String layer, String type, String name) {
         if (session == null) {
-            throw new IllegalStateException(
-                "No active Capella session. Open a model first."
-            );
+            throw new IllegalStateException("No active Capella session. Open a model first.");
         }
         if (type == null || type.isBlank()) {
-            throw new IllegalArgumentException(
-                "Element type cannot be null or blank"
-            );
+            throw new IllegalArgumentException("Element type cannot be null or blank");
         }
         EObject root = layer(layer);
         if (root == null) {
             throw new IllegalArgumentException(
-                "Architecture layer '" +
-                    layer +
-                    "' not found. " +
-                    "Valid layers: OA, SA, LA, PA, EPBS"
-            );
+                    "Architecture layer '"
+                            + layer
+                            + "' not found. "
+                            + "Valid layers: OA, SA, LA, PA, EPBS");
         }
         // Resolve type aliases (e.g., OperationalActor -> Entity)
         String resolvedType = resolveTypeAlias(type, layer);
         boolean isActor = isActorAlias(type);
         EObject parent = isActor ? root : rootComponentFor(root, resolvedType);
-        return SessionSafeguards.runWrite(session, "Create " + type, () -> {
-            EObject created = ElementFactory.createUnder(
+        return SessionSafeguards.runWrite(
                 session,
-                parent,
-                resolvedType,
-                name
-            );
-            if (created == null) {
-                throw new IllegalArgumentException(
-                    "Failed to create '" +
-                        type +
-                        "' in " +
-                        layer +
-                        " layer. " +
-                        "Check type spelling. Common types: SystemFunction, SystemComponent, " +
-                        "LogicalFunction, LogicalComponent, PhysicalFunction, PhysicalComponent"
-                );
-            }
-            // If this was an actor alias, set the actor property
-            if (isActor) {
-                set(created, "actor", true);
-                if ("OperationalActor".equals(type)) set(created, "human", true);
-            }
-            invalidate();
-            return created;
-        });
+                "Create " + type,
+                () -> {
+                    EObject created =
+                            ElementFactory.createUnder(session, parent, resolvedType, name);
+                    if (created == null) {
+                        throw new IllegalArgumentException(
+                                "Failed to create '"
+                                        + type
+                                        + "' in "
+                                        + layer
+                                        + " layer. Check type spelling. Common types:"
+                                        + " SystemFunction, SystemComponent, LogicalFunction,"
+                                        + " LogicalComponent, PhysicalFunction, PhysicalComponent");
+                    }
+                    // If this was an actor alias, set the actor property
+                    if (isActor) {
+                        set(created, "actor", true);
+                        if ("OperationalActor".equals(type)) set(created, "human", true);
+                    }
+                    invalidate();
+                    return created;
+                });
     }
 
     /**
      * New LA/PA components belong inside the layer's single root component; a second component
-     * beside it is a second root, which Capella validation reports as an error. Actors stay beside it; the SA system is a black box.
+     * beside it is a second root, which Capella validation reports as an error. Actors stay beside
+     * it; the SA system is a black box.
      */
     private static EObject rootComponentFor(EObject layer, String type) {
         EClass target = ElementFactory.findEClass(type);
@@ -479,8 +461,12 @@ public final class CapellaAPI {
                 || layer instanceof org.polarsys.capella.core.data.oa.OperationalAnalysis
                 || layer instanceof org.polarsys.capella.core.data.ctx.SystemAnalysis
                 || layer instanceof org.polarsys.capella.core.data.epbs.EPBSArchitecture
-                || target == null || !org.polarsys.capella.core.data.cs.CsPackage.Literals.COMPONENT.isSuperTypeOf(target)) return layer;
-        var roots = org.polarsys.capella.core.model.helpers.BlockArchitectureExt.getRootComponents(architecture);
+                || target == null
+                || !org.polarsys.capella.core.data.cs.CsPackage.Literals.COMPONENT.isSuperTypeOf(
+                        target)) return layer;
+        var roots =
+                org.polarsys.capella.core.model.helpers.BlockArchitectureExt.getRootComponents(
+                        architecture);
         return roots != null && roots.size() == 1 ? roots.iterator().next() : layer;
     }
 
@@ -508,20 +494,15 @@ public final class CapellaAPI {
      */
     public EObject create(String type, String name, EObject parent) {
         if (session == null) {
-            throw new IllegalStateException(
-                "No active Capella session. Open a model first."
-            );
+            throw new IllegalStateException("No active Capella session. Open a model first.");
         }
         if (type == null || type.isBlank()) {
-            throw new IllegalArgumentException(
-                "Element type cannot be null or blank"
-            );
+            throw new IllegalArgumentException("Element type cannot be null or blank");
         }
         if (parent == null) {
             throw new IllegalArgumentException(
-                "Parent element cannot be null. Use create(layer, type, name) " +
-                    "to create elements at the layer root."
-            );
+                    "Parent element cannot be null. Use create(layer, type, name) "
+                            + "to create elements at the layer root.");
         }
         String parentLayer = guessLayerFromType(type);
         for (EObject ancestor = parent; ancestor != null; ancestor = ancestor.eContainer()) {
@@ -532,30 +513,28 @@ public final class CapellaAPI {
         }
         String resolvedType = resolveTypeAlias(type, parentLayer);
         boolean actor = isActorAlias(type);
-        return SessionSafeguards.runWrite(session, "Create " + type, () -> {
-            EObject created = ElementFactory.createUnder(
+        return SessionSafeguards.runWrite(
                 session,
-                parent,
-                resolvedType,
-                name
-            );
-            if (created == null) {
-                throw new IllegalArgumentException(
-                    "Failed to create '" +
-                        type +
-                        "' under " +
-                        parent.eClass().getName() +
-                        ". " +
-                        "This type may not be valid as a child of this parent element."
-                );
-            }
-            if (actor) {
-                set(created, "actor", true);
-                if ("OperationalActor".equals(type)) set(created, "human", true);
-            }
-            invalidate();
-            return created;
-        });
+                "Create " + type,
+                () -> {
+                    EObject created =
+                            ElementFactory.createUnder(session, parent, resolvedType, name);
+                    if (created == null) {
+                        throw new IllegalArgumentException(
+                                "Failed to create '"
+                                        + type
+                                        + "' under "
+                                        + parent.eClass().getName()
+                                        + ". This type may not be valid as a child of this parent"
+                                        + " element.");
+                    }
+                    if (actor) {
+                        set(created, "actor", true);
+                        if ("OperationalActor".equals(type)) set(created, "human", true);
+                    }
+                    invalidate();
+                    return created;
+                });
     }
 
     /**
@@ -598,23 +577,26 @@ public final class CapellaAPI {
             partName = component.eClass().getName();
         }
         String finalPartName = partName;
-        return SessionSafeguards.runWrite(session, "Create Part", () -> {
-            Part part = CsFactory.eINSTANCE.createPart();
-            part.setName(finalPartName);
-            setFeatureIfPresent(part, "abstractType", component);
-            setFeatureIfPresent(part, "type", component);
-            if (!addToContainment(container, part)) {
-                return null;
-            }
-            OperationInferencer.recordCreate("Part", finalPartName);
-            invalidate();
-            try {
-                SessionSafeguards.requestSave(session);
-            } catch (Exception e) {
-                throw new IllegalStateException("Failed to save after creating Part", e);
-            }
-            return part;
-        });
+        return SessionSafeguards.runWrite(
+                session,
+                "Create Part",
+                () -> {
+                    Part part = CsFactory.eINSTANCE.createPart();
+                    part.setName(finalPartName);
+                    setFeatureIfPresent(part, "abstractType", component);
+                    setFeatureIfPresent(part, "type", component);
+                    if (!addToContainment(container, part)) {
+                        return null;
+                    }
+                    OperationInferencer.recordCreate("Part", finalPartName);
+                    invalidate();
+                    try {
+                        SessionSafeguards.requestSave(session);
+                    } catch (Exception e) {
+                        throw new IllegalStateException("Failed to save after creating Part", e);
+                    }
+                    return part;
+                });
     }
 
     // ========== MODIFY Operations ==========
@@ -631,83 +613,99 @@ public final class CapellaAPI {
      */
     public boolean set(EObject element, String property, Object value) {
         if (session == null) {
-            throw new IllegalStateException(
-                "No active Capella session. Open a model first."
-            );
+            throw new IllegalStateException("No active Capella session. Open a model first.");
         }
         if (element == null) {
-            throw new IllegalArgumentException(
-                "Cannot set property on null element"
-            );
+            throw new IllegalArgumentException("Cannot set property on null element");
         }
         if (property == null || property.isBlank()) {
-            throw new IllegalArgumentException(
-                "Property name cannot be null or blank"
-            );
+            throw new IllegalArgumentException("Property name cannot be null or blank");
         }
-        return SessionSafeguards.runWrite(session, "Set " + property, () -> {
-            EStructuralFeature feature = element
-                .eClass()
-                .getEStructuralFeature(property);
-            if (feature == null) {
-                // Try case-insensitive match
-                for (EStructuralFeature f : element
-                    .eClass()
-                    .getEAllStructuralFeatures()) {
-                    if (f.getName().equalsIgnoreCase(property)) {
-                        feature = f;
-                        break;
+        return SessionSafeguards.runWrite(
+                session,
+                "Set " + property,
+                () -> {
+                    EStructuralFeature feature = element.eClass().getEStructuralFeature(property);
+                    if (feature == null) {
+                        // Try case-insensitive match
+                        for (EStructuralFeature f : element.eClass().getEAllStructuralFeatures()) {
+                            if (f.getName().equalsIgnoreCase(property)) {
+                                feature = f;
+                                break;
+                            }
+                        }
                     }
-                }
-            }
-            if (feature == null) {
-                // Build list of available properties for error message
-                List<String> available = element
-                    .eClass()
-                    .getEAllStructuralFeatures()
-                    .stream()
-                    .filter(f -> f.isChangeable())
-                    .map(f -> f.getName())
-                    .limit(15)
-                    .toList();
-                throw new IllegalArgumentException(
-                    "Property '" +
-                        property +
-                        "' not found on " +
-                        element.eClass().getName() +
-                        ". " +
-                        "Available properties: " +
-                        available
-                );
-            }
-            if (!feature.isChangeable()) {
-                throw new IllegalArgumentException(
-                    "Property '" +
-                        property +
-                        "' is read-only on " +
-                        element.eClass().getName()
-                );
-            }
-            if (feature instanceof org.eclipse.emf.ecore.EAttribute attribute && attribute.isID()) {
-                if (!(value instanceof String identifier)) {
-                    throw new IllegalArgumentException("Persistent model ID must be a nonblank String");
-                }
-                PersistentIds.setId(element, identifier);
-            } else if (feature.getEType() instanceof org.eclipse.emf.ecore.EEnum type && value instanceof String text) {
-                // Scripts name enum values as text, e.g. api.set(component, 'nature', 'NODE').
-                org.eclipse.emf.ecore.EEnumLiteral literal = type.getELiterals().stream()
-                    .filter(candidate -> candidate.getName().equalsIgnoreCase(text) || candidate.getLiteral().equalsIgnoreCase(text))
-                    .findFirst().orElseThrow(() -> new IllegalArgumentException("'" + text + "' is not a " + type.getName()
-                        + " value. Use one of " + type.getELiterals().stream().map(org.eclipse.emf.ecore.EEnumLiteral::getName).toList()));
-                element.eSet(feature, literal.getInstance());
-            } else {
-                element.eSet(feature, value);
-            }
-            // Record operation for undo label inference
-            OperationInferencer.recordSet(element.eClass().getName(), property);
-            invalidate();
-            return true;
-        });
+                    if (feature == null) {
+                        // Build list of available properties for error message
+                        List<String> available =
+                                element.eClass().getEAllStructuralFeatures().stream()
+                                        .filter(f -> f.isChangeable())
+                                        .map(f -> f.getName())
+                                        .limit(15)
+                                        .toList();
+                        throw new IllegalArgumentException(
+                                "Property '"
+                                        + property
+                                        + "' not found on "
+                                        + element.eClass().getName()
+                                        + ". "
+                                        + "Available properties: "
+                                        + available);
+                    }
+                    if (!feature.isChangeable()) {
+                        throw new IllegalArgumentException(
+                                "Property '"
+                                        + property
+                                        + "' is read-only on "
+                                        + element.eClass().getName());
+                    }
+                    if (feature instanceof org.eclipse.emf.ecore.EAttribute attribute
+                            && attribute.isID()) {
+                        if (!(value instanceof String identifier)) {
+                            throw new IllegalArgumentException(
+                                    "Persistent model ID must be a nonblank String");
+                        }
+                        PersistentIds.setId(element, identifier);
+                    } else if (feature.getEType() instanceof org.eclipse.emf.ecore.EEnum type
+                            && value instanceof String text) {
+                        // Scripts name enum values as text, e.g. api.set(component, 'nature',
+                        // 'NODE').
+                        org.eclipse.emf.ecore.EEnumLiteral literal =
+                                type.getELiterals().stream()
+                                        .filter(
+                                                candidate ->
+                                                        candidate.getName().equalsIgnoreCase(text)
+                                                                || candidate
+                                                                        .getLiteral()
+                                                                        .equalsIgnoreCase(text))
+                                        .findFirst()
+                                        .orElseThrow(
+                                                () ->
+                                                        new IllegalArgumentException(
+                                                                "'"
+                                                                        + text
+                                                                        + "' is not a "
+                                                                        + type.getName()
+                                                                        + " value. Use one of "
+                                                                        + type
+                                                                                .getELiterals()
+                                                                                .stream()
+                                                                                .map(
+                                                                                        org.eclipse
+                                                                                                        .emf
+                                                                                                        .ecore
+                                                                                                        .EEnumLiteral
+                                                                                                ::getName)
+                                                                                .toList()));
+                        element.eSet(feature, literal.getInstance());
+                    } else {
+                        element.eSet(feature, value);
+                    }
+                    // Record operation for undo label inference
+                    OperationInferencer.recordSet(element.eClass().getName(), property);
+                    invalidate();
+                    return true;
+                });
     }
 
     /**
@@ -721,13 +719,9 @@ public final class CapellaAPI {
         if (element == null || property == null) {
             return null;
         }
-        EStructuralFeature feature = element
-            .eClass()
-            .getEStructuralFeature(property);
+        EStructuralFeature feature = element.eClass().getEStructuralFeature(property);
         if (feature == null) {
-            for (EStructuralFeature f : element
-                .eClass()
-                .getEAllStructuralFeatures()) {
+            for (EStructuralFeature f : element.eClass().getEAllStructuralFeatures()) {
                 if (f.getName().equalsIgnoreCase(property)) {
                     feature = f;
                     break;
@@ -788,30 +782,24 @@ public final class CapellaAPI {
         if (session == null || source == null || target == null) {
             return null;
         }
-        EObject result = RelationFactory.link(
-            session,
-            source,
-            target,
-            relationType
-        );
+        EObject result = RelationFactory.link(session, source, target, relationType);
         if (result != null) {
             invalidate();
         }
         return result;
     }
 
-    /**
-     * Create a simple reference from source to target.
-     */
+    /** Create a simple reference from source to target. */
     public EObject link(EObject source, EObject target) {
         return link(source, target, "reference");
     }
 
     /**
-     * Allocate a function/activity to a component/entity.
-     * This is required for the function to appear inside the component on diagrams.
+     * Allocate a function/activity to a component/entity. This is required for the function to
+     * appear inside the component on diagrams.
      *
      * <p>Example:
+     *
      * <pre>{@code
      * def activity = api.create("OA", "OperationalActivity", "Process Data")
      * def entity = api.find("Entity", "Aircraft")
@@ -826,103 +814,104 @@ public final class CapellaAPI {
      */
     public boolean allocate(EObject function, EObject component) {
         if (session == null) {
-            throw new IllegalStateException(
-                "No active Capella session. Open a model first."
-            );
+            throw new IllegalStateException("No active Capella session. Open a model first.");
         }
         if (function == null) {
-            throw new IllegalArgumentException(
-                "Function/activity to allocate cannot be null"
-            );
+            throw new IllegalArgumentException("Function/activity to allocate cannot be null");
         }
         if (component == null) {
-            throw new IllegalArgumentException(
-                "Component/entity to allocate to cannot be null"
-            );
+            throw new IllegalArgumentException("Component/entity to allocate to cannot be null");
         }
-        if (!(function instanceof org.polarsys.capella.core.data.fa.AbstractFunction) ||
-            !(component instanceof org.polarsys.capella.core.data.cs.Component)) {
-            throw new IllegalArgumentException("Allocation requires a function/activity and a component/entity.");
+        if (!(function instanceof org.polarsys.capella.core.data.fa.AbstractFunction)
+                || !(component instanceof org.polarsys.capella.core.data.cs.Component)) {
+            throw new IllegalArgumentException(
+                    "Allocation requires a function/activity and a component/entity.");
         }
         BlockArchitecture functionArchitecture = containingArchitecture(function);
         BlockArchitecture componentArchitecture = containingArchitecture(component);
-        if (functionArchitecture == null || functionArchitecture != componentArchitecture ||
-            "EPBSArchitecture".equals(componentArchitecture.eClass().getName())) {
-            throw new IllegalArgumentException("Function allocation requires endpoints in the same OA, SA, LA or PA architecture. EPBS items use PhysicalArtifactRealization links.");
+        if (functionArchitecture == null
+                || functionArchitecture != componentArchitecture
+                || "EPBSArchitecture".equals(componentArchitecture.eClass().getName())) {
+            throw new IllegalArgumentException(
+                    "Function allocation requires endpoints in the same OA, SA, LA or PA"
+                        + " architecture. EPBS items use PhysicalArtifactRealization links.");
         }
         var allocationDomain = session.getTransactionalEditingDomain();
-        if (allocationDomain == null || function.eResource() == null || component.eResource() == null ||
-            function.eResource().getResourceSet() != allocationDomain.getResourceSet() ||
-            component.eResource().getResourceSet() != allocationDomain.getResourceSet()) {
-            throw new IllegalArgumentException("Allocation endpoints must belong to the active model session.");
+        if (allocationDomain == null
+                || function.eResource() == null
+                || component.eResource() == null
+                || function.eResource().getResourceSet() != allocationDomain.getResourceSet()
+                || component.eResource().getResourceSet() != allocationDomain.getResourceSet()) {
+            throw new IllegalArgumentException(
+                    "Allocation endpoints must belong to the active model session.");
         }
-        return SessionSafeguards.runWrite(session, "Allocate function", () -> {
-            try {
-                // Create ComponentFunctionalAllocation
-                var faFactory =
-                    org.polarsys.capella.core.data.fa.FaFactory.eINSTANCE;
-                var allocation =
-                    faFactory.createComponentFunctionalAllocation();
-                allocation.setTargetElement(
-                    (org.polarsys.capella.common.data.modellingcore.TraceableElement) function
-                );
-                allocation.setSourceElement(
-                    (org.polarsys.capella.common.data.modellingcore.TraceableElement) component
-                );
+        return SessionSafeguards.runWrite(
+                session,
+                "Allocate function",
+                () -> {
+                    try {
+                        // Create ComponentFunctionalAllocation
+                        var faFactory = org.polarsys.capella.core.data.fa.FaFactory.eINSTANCE;
+                        var allocation = faFactory.createComponentFunctionalAllocation();
+                        allocation.setTargetElement(
+                                (org.polarsys.capella.common.data.modellingcore.TraceableElement)
+                                        function);
+                        allocation.setSourceElement(
+                                (org.polarsys.capella.common.data.modellingcore.TraceableElement)
+                                        component);
 
-                // Add to component's ownedFunctionalAllocation
-                var allocRef = component
-                    .eClass()
-                    .getEStructuralFeature("ownedFunctionalAllocation");
-                if (allocRef == null) {
-                    throw new IllegalArgumentException(
-                        "Component '" +
-                            component.eClass().getName() +
-                            "' does not support function allocation. " +
-                            "Only SystemComponent, LogicalComponent, PhysicalComponent, " +
-                            "and Entity types support allocation."
-                    );
-                }
-                @SuppressWarnings("unchecked")
-                var allocList = (java.util.List<EObject>) component.eGet(
-                    allocRef
-                );
-                for (EObject existing : allocList) {
-                    if (existing instanceof org.polarsys.capella.core.data.fa.ComponentFunctionalAllocation typed &&
-                        typed.getTargetElement() == function) return true;
-                }
-                allocList.add(allocation);
-                // Record operation for undo label inference
-                OperationInferencer.recordAllocate(
-                    function.eClass().getName(),
-                    component.eClass().getName()
-                );
-                invalidate();
-                return true;
-            } catch (ClassCastException e) {
-                throw new IllegalArgumentException(
-                    "Cannot allocate '" +
-                        function.eClass().getName() +
-                        "' to '" +
-                        component.eClass().getName() +
-                        "'. " +
-                        "Allocation requires a function (SystemFunction, LogicalFunction, " +
-                        "PhysicalFunction, OperationalActivity) and a component (SystemComponent, " +
-                        "LogicalComponent, PhysicalComponent, Entity)."
-                );
-            } catch (IllegalArgumentException e) {
-                throw e; // Re-throw our own exceptions
-            } catch (Exception e) {
-                throw new IllegalArgumentException(
-                    "Failed to allocate " +
-                        function.eClass().getName() +
-                        " to " +
-                        component.eClass().getName() +
-                        ": " +
-                        e.getMessage()
-                );
-            }
-        });
+                        // Add to component's ownedFunctionalAllocation
+                        var allocRef =
+                                component
+                                        .eClass()
+                                        .getEStructuralFeature("ownedFunctionalAllocation");
+                        if (allocRef == null) {
+                            throw new IllegalArgumentException(
+                                    "Component '"
+                                            + component.eClass().getName()
+                                            + "' does not support function allocation. Only"
+                                            + " SystemComponent, LogicalComponent,"
+                                            + " PhysicalComponent, and Entity types support"
+                                            + " allocation.");
+                        }
+                        @SuppressWarnings("unchecked")
+                        var allocList = (java.util.List<EObject>) component.eGet(allocRef);
+                        for (EObject existing : allocList) {
+                            if (existing
+                                            instanceof
+                                            org.polarsys.capella.core.data.fa
+                                                                    .ComponentFunctionalAllocation
+                                                            typed
+                                    && typed.getTargetElement() == function) return true;
+                        }
+                        allocList.add(allocation);
+                        // Record operation for undo label inference
+                        OperationInferencer.recordAllocate(
+                                function.eClass().getName(), component.eClass().getName());
+                        invalidate();
+                        return true;
+                    } catch (ClassCastException e) {
+                        throw new IllegalArgumentException(
+                                "Cannot allocate '"
+                                        + function.eClass().getName()
+                                        + "' to '"
+                                        + component.eClass().getName()
+                                        + "'. Allocation requires a function (SystemFunction,"
+                                        + " LogicalFunction, PhysicalFunction, OperationalActivity)"
+                                        + " and a component (SystemComponent, LogicalComponent,"
+                                        + " PhysicalComponent, Entity).");
+                    } catch (IllegalArgumentException e) {
+                        throw e; // Re-throw our own exceptions
+                    } catch (Exception e) {
+                        throw new IllegalArgumentException(
+                                "Failed to allocate "
+                                        + function.eClass().getName()
+                                        + " to "
+                                        + component.eClass().getName()
+                                        + ": "
+                                        + e.getMessage());
+                    }
+                });
     }
 
     private static BlockArchitecture containingArchitecture(EObject element) {
@@ -934,9 +923,7 @@ public final class CapellaAPI {
 
     // ========== NAVIGATION Operations ==========
 
-    /**
-     * Get the SystemEngineering root (semantic services).
-     */
+    /** Get the SystemEngineering root (semantic services). */
     public EObject systemEngineering() {
         if (session == null) {
             return null;
@@ -948,10 +935,7 @@ public final class CapellaAPI {
                 }
                 EObject root = res.getContents().get(0);
                 if (root instanceof Project) {
-                    EObject se =
-                        SystemEngineeringExt.getSystemEngineering(
-                            (Project) root
-                        );
+                    EObject se = SystemEngineeringExt.getSystemEngineering((Project) root);
                     if (se != null) {
                         return se;
                     }
@@ -985,7 +969,8 @@ public final class CapellaAPI {
     /**
      * Get an architecture layer root.
      *
-     * @param name the layer name (OA, SA, LA, PA, EPBS, or full names like "operational", "logical")
+     * @param name the layer name (OA, SA, LA, PA, EPBS, or full names like "operational",
+     *     "logical")
      * @return the layer root element, or null if not found
      */
     public EObject layer(String name) {
@@ -994,8 +979,10 @@ public final class CapellaAPI {
         }
         String canonical = ArchitectureLocator.canonicalizeLayer(name);
         if (canonical == null) {
-            throw new IllegalArgumentException("Unknown architecture layer '" + name +
-                "'. Valid layers: OA, SA, LA, PA, EPBS.");
+            throw new IllegalArgumentException(
+                    "Unknown architecture layer '"
+                            + name
+                            + "'. Valid layers: OA, SA, LA, PA, EPBS.");
         }
         // Layer roots never change during script - no need for ensureCacheValid()
         EObject cached = layerCache.get(canonical);
@@ -1009,9 +996,7 @@ public final class CapellaAPI {
         return result;
     }
 
-    /**
-     * Alias for {@link #layer(String)} for clarity in scripts.
-     */
+    /** Alias for {@link #layer(String)} for clarity in scripts. */
     public EObject root(String layer) {
         return layer(layer);
     }
@@ -1025,6 +1010,7 @@ public final class CapellaAPI {
      * Get a standard container (package/root) for a given layer and kind.
      *
      * <p>Examples:
+     *
      * <pre>{@code
      * def compPkg = api.container("SA", "component")
      * def funcPkg = api.container("LA", "function")
@@ -1038,9 +1024,11 @@ public final class CapellaAPI {
         EObject root = layer(layer);
         if (root instanceof org.polarsys.capella.core.data.epbs.EPBSArchitecture epbsArchitecture) {
             String normalized = kind.trim().toLowerCase(Locale.ROOT);
-            if (normalized.equals("configuration-item") || normalized.equals("configuration item") ||
-                normalized.equals("configurationitem") || normalized.equals("component") ||
-                normalized.equals("components")) {
+            if (normalized.equals("configuration-item")
+                    || normalized.equals("configuration item")
+                    || normalized.equals("configurationitem")
+                    || normalized.equals("component")
+                    || normalized.equals("components")) {
                 return epbsArchitecture.getOwnedConfigurationItemPkg();
             }
         }
@@ -1056,26 +1044,17 @@ public final class CapellaAPI {
                 case "componentpkg":
                 case "component-pkg":
                 case "component package":
-                    return BlockArchitectureExt.getComponentPkg(
-                        architecture,
-                        false
-                    );
+                    return BlockArchitectureExt.getComponentPkg(architecture, false);
                 case "function":
                 case "functions":
                 case "functionpkg":
                 case "function-pkg":
                 case "function package":
-                    return BlockArchitectureExt.getFunctionPkg(
-                        architecture,
-                        false
-                    );
+                    return BlockArchitectureExt.getFunctionPkg(architecture, false);
                 case "root-function":
                 case "root function":
                 case "rootfunction":
-                    return BlockArchitectureExt.getRootFunction(
-                        architecture,
-                        false
-                    );
+                    return BlockArchitectureExt.getRootFunction(architecture, false);
                 case "data":
                 case "datapkg":
                 case "data-pkg":
@@ -1085,20 +1064,14 @@ public final class CapellaAPI {
                 case "interfacepkg":
                 case "interface-pkg":
                 case "interface package":
-                    return BlockArchitectureExt.getInterfacePkg(
-                        architecture,
-                        false
-                    );
+                    return BlockArchitectureExt.getInterfacePkg(architecture, false);
                 case "capability":
                 case "capabilitypkg":
                 case "capability-pkg":
                 case "capability package":
                 case "abstract capability":
                 case "abstractcapability":
-                    return BlockArchitectureExt.getAbstractCapabilityPkg(
-                        architecture,
-                        false
-                    );
+                    return BlockArchitectureExt.getAbstractCapabilityPkg(architecture, false);
                 case "actor":
                 case "actorpkg":
                 case "actor-pkg":
@@ -1121,8 +1094,8 @@ public final class CapellaAPI {
     /**
      * Get a standard container for the given element using Capella semantic helpers.
      *
-     * <p>Useful when you have a reference element and want the canonical package/root
-     * for similar elements in the same layer.
+     * <p>Useful when you have a reference element and want the canonical package/root for similar
+     * elements in the same layer.
      */
     public EObject containerFor(EObject element) {
         if (element == null) {
@@ -1131,18 +1104,14 @@ public final class CapellaAPI {
         try {
             if (element instanceof FunctionalExchange) {
                 EObject container =
-                    FunctionalExchangeExt.getDefaultContainer(
-                        (FunctionalExchange) element
-                    );
+                        FunctionalExchangeExt.getDefaultContainer((FunctionalExchange) element);
                 if (container != null) {
                     return container;
                 }
             }
             if (element instanceof ComponentExchange) {
                 EObject container =
-                    ComponentExchangeExt.getDefaultContainer(
-                        (ComponentExchange) element
-                    );
+                        ComponentExchangeExt.getDefaultContainer((ComponentExchange) element);
                 if (container != null) {
                     return container;
                 }
@@ -1160,16 +1129,12 @@ public final class CapellaAPI {
         return container != null ? container : element.eContainer();
     }
 
-    /**
-     * Get the parent of an element.
-     */
+    /** Get the parent of an element. */
     public EObject parent(EObject element) {
         return element != null ? element.eContainer() : null;
     }
 
-    /**
-     * Get the children of an element.
-     */
+    /** Get the children of an element. */
     public List<EObject> children(EObject element) {
         if (element == null) {
             return List.of();
@@ -1177,9 +1142,7 @@ public final class CapellaAPI {
         return new ArrayList<>(element.eContents());
     }
 
-    /**
-     * Get all descendants of an element.
-     */
+    /** Get all descendants of an element. */
     public List<EObject> descendants(EObject element) {
         List<EObject> results = new ArrayList<>();
         if (element == null) {
@@ -1192,37 +1155,27 @@ public final class CapellaAPI {
         return results;
     }
 
-    /**
-     * Get the type name of an element.
-     */
+    /** Get the type name of an element. */
     public String type(EObject element) {
         return element != null ? element.eClass().getName() : null;
     }
 
-    /**
-     * Get the name of an element.
-     */
+    /** Get the name of an element. */
     public String name(EObject element) {
         return getName(element);
     }
 
-    /**
-     * Get the ID/UUID of an element.
-     */
+    /** Get the ID/UUID of an element. */
     public String id(EObject element) {
         return getUuid(element);
     }
 
-    /**
-     * Summarize a value for compact logging/LLM output.
-     */
+    /** Summarize a value for compact logging/LLM output. */
     public String summarize(Object value) {
         return summarize(value, 5);
     }
 
-    /**
-     * Describe an element with a dense, one-hop graph of attributes and references.
-     */
+    /** Describe an element with a dense, one-hop graph of attributes and references. */
     public String describe(EObject element) {
         if (element == null) {
             return "No element provided.";
@@ -1230,9 +1183,7 @@ public final class CapellaAPI {
         return ModelSummary.describeElement(element);
     }
 
-    /**
-     * Summarize a value with a maximum number of items.
-     */
+    /** Summarize a value with a maximum number of items. */
     public String summarize(Object value, int maxItems) {
         int limit = maxItems > 0 ? maxItems : 5;
         if (value == null) {
@@ -1242,8 +1193,8 @@ public final class CapellaAPI {
             EObject element = (EObject) value;
             String name = getName(element);
             return name != null
-                ? name + " (" + element.eClass().getName() + ")"
-                : element.eClass().getName();
+                    ? name + " (" + element.eClass().getName() + ")"
+                    : element.eClass().getName();
         }
         if (value instanceof java.util.Map<?, ?> map) {
             java.util.List<String> keys = new java.util.ArrayList<>();
@@ -1252,11 +1203,7 @@ public final class CapellaAPI {
                 keys.add(key.toString());
                 if (keys.size() >= limit) break;
             }
-            return "map(size=" +
-                map.size() +
-                ", keys=" +
-                keys +
-                ")";
+            return "map(size=" + map.size() + ", keys=" + keys + ")";
         }
         if (value instanceof java.util.Collection<?> collection) {
             java.util.List<String> items = new java.util.ArrayList<>();
@@ -1264,11 +1211,7 @@ public final class CapellaAPI {
                 if (items.size() >= limit) break;
                 items.add(formatSummaryItem(item));
             }
-            return "list(size=" +
-                collection.size() +
-                ", items=" +
-                items +
-                ")";
+            return "list(size=" + collection.size() + ", items=" + items + ")";
         }
         if (value.getClass().isArray()) {
             int length = java.lang.reflect.Array.getLength(value);
@@ -1324,13 +1267,14 @@ public final class CapellaAPI {
     // ========== RAW API ACCESS ==========
 
     /**
-     * Execute raw Capella API code within a safe transaction.
-     * Use this when standard API methods don't support your use case.
+     * Execute raw Capella API code within a safe transaction. Use this when standard API methods
+     * don't support your use case.
      *
-     * <p>This enables dynamic access to ALL Capella functionality by allowing
-     * direct use of internal Capella factories and EMF APIs.
+     * <p>This enables dynamic access to ALL Capella functionality by allowing direct use of
+     * internal Capella factories and EMF APIs.
      *
      * <p>Example:
+     *
      * <pre>{@code
      * api.tx {
      *     def factory = org.polarsys.capella.core.data.requirement.RequirementFactory.eINSTANCE
@@ -1351,20 +1295,21 @@ public final class CapellaAPI {
         if (session == null) {
             throw new IllegalStateException("No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, "Raw API execution", () -> {
-            try {
-                Object result = closure.call();
-                invalidate();
-                return result;
-            } catch (SessionSafeguards.ScriptCancelledException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new RuntimeException(
-                    "Raw API execution failed: " + e.getMessage(),
-                    e
-                );
-            }
-        });
+        return SessionSafeguards.runWrite(
+                session,
+                "Raw API execution",
+                () -> {
+                    try {
+                        Object result = closure.call();
+                        invalidate();
+                        return result;
+                    } catch (SessionSafeguards.ScriptCancelledException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        throw new RuntimeException(
+                                "Raw API execution failed: " + e.getMessage(), e);
+                    }
+                });
     }
 
     /**
@@ -1378,32 +1323,31 @@ public final class CapellaAPI {
         if (session == null) {
             throw new IllegalStateException("No active Capella session");
         }
-        return SessionSafeguards.runWrite(session, label, () -> {
-            try {
-                Object result = closure.call();
-                invalidate();
-                return result;
-            } catch (SessionSafeguards.ScriptCancelledException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new RuntimeException(
-                    label + " failed: " + e.getMessage(),
-                    e
-                );
-            }
-        });
+        return SessionSafeguards.runWrite(
+                session,
+                label,
+                () -> {
+                    try {
+                        Object result = closure.call();
+                        invalidate();
+                        return result;
+                    } catch (SessionSafeguards.ScriptCancelledException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        throw new RuntimeException(label + " failed: " + e.getMessage(), e);
+                    }
+                });
     }
 
     /**
-     * Execute multiple operations as a single undoable batch.
-     * All operations within the closure will appear as a single entry
-     * in the undo/redo stack.
+     * Execute multiple operations as a single undoable batch. All operations within the closure
+     * will appear as a single entry in the undo/redo stack.
      *
-     * <p>Use this when an LLM generates multiple related operations that
-     * should be undone together, such as creating a component with its
-     * functions and exchanges.
+     * <p>Use this when an LLM generates multiple related operations that should be undone together,
+     * such as creating a component with its functions and exchanges.
      *
      * <p>Example:
+     *
      * <pre>{@code
      * api.batch("Create Aircraft System") {
      *     def aircraft = api.create("SA", "SystemComponent", "Aircraft")
@@ -1433,21 +1377,21 @@ public final class CapellaAPI {
         }
 
         // runWrite owns save deferral on the UI thread and saves after commit.
-        return SessionSafeguards.runWrite(session, finalLabel, () -> {
-            try {
-                OperationInferencer.hintLabel(finalLabel);
-                Object result = closure.call();
-                invalidate();
-                return result;
-            } catch (SessionSafeguards.ScriptCancelledException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new RuntimeException(
-                    finalLabel + " failed: " + e.getMessage(),
-                    e
-                );
-            }
-        });
+        return SessionSafeguards.runWrite(
+                session,
+                finalLabel,
+                () -> {
+                    try {
+                        OperationInferencer.hintLabel(finalLabel);
+                        Object result = closure.call();
+                        invalidate();
+                        return result;
+                    } catch (SessionSafeguards.ScriptCancelledException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        throw new RuntimeException(finalLabel + " failed: " + e.getMessage(), e);
+                    }
+                });
     }
 
     // ========== VALIDATION Operations ==========
@@ -1460,53 +1404,102 @@ public final class CapellaAPI {
     /** Complete counts with a caller-selected, bounded number of diagnostic messages. */
     public Map<String, Object> validateNative(int maximumMessages) {
         if (maximumMessages < 1 || maximumMessages > 10000) {
-            throw new IllegalArgumentException("Native validation message limit must be between 1 and 10000");
+            throw new IllegalArgumentException(
+                    "Native validation message limit must be between 1 and 10000");
         }
         if (session == null || !session.isOpen()) {
             throw new IllegalStateException("Native validation requires an open Capella model");
         }
         for (Resource resource : session.getSemanticResources()) {
             if (!resource.getErrors().isEmpty()) {
-                throw new IllegalStateException("Model resource failed to load: " + resource.getURI() + ". " +
-                    resource.getErrors().get(0).getMessage() + ". Repair and reopen it before native validation.");
+                throw new IllegalStateException(
+                        "Model resource failed to load: "
+                                + resource.getURI()
+                                + ". "
+                                + resource.getErrors().get(0).getMessage()
+                                + ". Repair and reopen it before native validation.");
             }
         }
-        List<EObject> projects = session.getSemanticResources().stream()
-            .flatMap(resource -> resource.getContents().stream())
-            .filter(element -> element instanceof Project).toList();
+        List<EObject> projects =
+                session.getSemanticResources().stream()
+                        .flatMap(resource -> resource.getContents().stream())
+                        .filter(element -> element instanceof Project)
+                        .toList();
         if (projects.size() != 1) {
-            throw new IllegalStateException("Native validation requires exactly one Project in the active session");
+            throw new IllegalStateException(
+                    "Native validation requires exactly one Project in the active session");
         }
-        var bundle = org.eclipse.core.runtime.Platform.getBundle("org.polarsys.capella.core.validation");
-        if (bundle == null) throw new IllegalStateException("Capella native validation is unavailable");
+        var bundle =
+                org.eclipse.core.runtime.Platform.getBundle("org.polarsys.capella.core.validation");
+        if (bundle == null)
+            throw new IllegalStateException("Capella native validation is unavailable");
         try {
-            Object adapter = bundle.loadClass("org.polarsys.capella.core.validation.CapellaValidatorAdapter")
-                .getConstructor().newInstance();
+            Object adapter =
+                    bundle.loadClass("org.polarsys.capella.core.validation.CapellaValidatorAdapter")
+                            .getConstructor()
+                            .newInstance();
             Object validator = adapter.getClass().getMethod("getValidator").invoke(adapter);
-            Class<?> contract = bundle.loadClass("org.eclipse.emf.validation.service.IBatchValidator");
+            Class<?> contract =
+                    bundle.loadClass("org.eclipse.emf.validation.service.IBatchValidator");
             contract.getMethod("setIncludeLiveConstraints", boolean.class).invoke(validator, true);
-            var status = (org.eclipse.core.runtime.IStatus) contract.getMethod("validate", EObject.class,
-                org.eclipse.core.runtime.IProgressMonitor.class).invoke(validator, projects.get(0),
-                    new org.eclipse.core.runtime.NullProgressMonitor());
+            var status =
+                    (org.eclipse.core.runtime.IStatus)
+                            contract.getMethod(
+                                            "validate",
+                                            EObject.class,
+                                            org.eclipse.core.runtime.IProgressMonitor.class)
+                                    .invoke(
+                                            validator,
+                                            projects.get(0),
+                                            new org.eclipse.core.runtime.NullProgressMonitor());
             List<org.eclipse.core.runtime.IStatus> issues = new ArrayList<>();
             collectNativeIssues(status, issues);
             NativeValidationDiagnostics diagnostics = new NativeValidationDiagnostics(bundle);
-            List<Map<String, Object>> messages = issues.stream()
-                .sorted(java.util.Comparator.comparingInt(org.eclipse.core.runtime.IStatus::getSeverity).reversed())
-                .limit(maximumMessages).map(diagnostics::message).toList();
-            return Map.of("severity", status.getSeverity(),
-                "errors", issues.stream().filter(issue -> issue.getSeverity() >= org.eclipse.core.runtime.IStatus.ERROR).count(),
-                "warnings", issues.stream().filter(issue -> issue.getSeverity() == org.eclipse.core.runtime.IStatus.WARNING).count(),
-                "issueCount", issues.size(), "issues", messages, "truncated", issues.size() > messages.size());
+            List<Map<String, Object>> messages =
+                    issues.stream()
+                            .sorted(
+                                    java.util.Comparator.comparingInt(
+                                                    org.eclipse.core.runtime.IStatus::getSeverity)
+                                            .reversed())
+                            .limit(maximumMessages)
+                            .map(diagnostics::message)
+                            .toList();
+            return Map.of(
+                    "severity",
+                    status.getSeverity(),
+                    "errors",
+                    issues.stream()
+                            .filter(
+                                    issue ->
+                                            issue.getSeverity()
+                                                    >= org.eclipse.core.runtime.IStatus.ERROR)
+                            .count(),
+                    "warnings",
+                    issues.stream()
+                            .filter(
+                                    issue ->
+                                            issue.getSeverity()
+                                                    == org.eclipse.core.runtime.IStatus.WARNING)
+                            .count(),
+                    "issueCount",
+                    issues.size(),
+                    "issues",
+                    messages,
+                    "truncated",
+                    issues.size() > messages.size());
         } catch (ReflectiveOperationException failure) {
-            Throwable cause = failure instanceof java.lang.reflect.InvocationTargetException invocation
-                ? invocation.getTargetException() : failure;
-            throw new IllegalStateException("Native Capella validation failed: " + cause.getMessage(), cause);
+            Throwable cause =
+                    failure instanceof java.lang.reflect.InvocationTargetException invocation
+                            ? invocation.getTargetException()
+                            : failure;
+            throw new IllegalStateException(
+                    "Native Capella validation failed: " + cause.getMessage(), cause);
         }
     }
 
-    private static void collectNativeIssues(org.eclipse.core.runtime.IStatus status,
-        List<org.eclipse.core.runtime.IStatus> issues) {
+    private static void collectNativeIssues(
+            org.eclipse.core.runtime.IStatus status,
+            List<org.eclipse.core.runtime.IStatus> issues) {
         if (status.isMultiStatus()) {
             for (var child : status.getChildren()) collectNativeIssues(child, issues);
         } else if (!status.isOK()) {
@@ -1514,9 +1507,7 @@ public final class CapellaAPI {
         }
     }
 
-    /**
-     * Validate the model and return issues.
-     */
+    /** Validate the model and return issues. */
     public List<String> validate() {
         if (session == null) {
             return List.of("Validation unavailable: no active Capella session.");
@@ -1526,9 +1517,7 @@ public final class CapellaAPI {
             return List.of("Validation unavailable: no editing domain.");
         }
         ModelAnalytics.ValidationReport report =
-            ModelAnalytics.ValidationReport.fromSession(
-                domain.getResourceSet()
-            );
+                ModelAnalytics.ValidationReport.fromSession(domain.getResourceSet());
         return formatValidationReport("Model validation", report);
     }
 
@@ -1547,20 +1536,14 @@ public final class CapellaAPI {
         EObject root = layer(layer);
         if (root == null) {
             return List.of(
-                "Validation unavailable: architecture layer '" +
-                    layer +
-                    "' not found. Valid layers: OA, SA, LA, PA, EPBS."
-            );
+                    "Validation unavailable: architecture layer '"
+                            + layer
+                            + "' not found. Valid layers: OA, SA, LA, PA, EPBS.");
         }
-        return validateRoot(
-            root,
-            "Layer validation (" + layer.trim().toUpperCase() + ")"
-        );
+        return validateRoot(root, "Layer validation (" + layer.trim().toUpperCase() + ")");
     }
 
-    /**
-     * Validate a specific element (and a limited subset of its descendants).
-     */
+    /** Validate a specific element (and a limited subset of its descendants). */
     public List<String> validate(EObject element) {
         if (element == null) {
             return List.of("Validation unavailable: element is null.");
@@ -1572,41 +1555,45 @@ public final class CapellaAPI {
 
     /**
      * Undo the last operation.
+     *
      * @return true if successful
      */
     public boolean undo() {
         if (session == null) return false;
         java.util.concurrent.atomic.AtomicBoolean success =
-            new java.util.concurrent.atomic.AtomicBoolean(false);
-        SessionSafeguards.runOnUiThread(() -> {
-            var domain = session.getTransactionalEditingDomain();
-            if (domain == null) return;
-            CommandStack stack = domain.getCommandStack();
-            if (stack.canUndo()) {
-                stack.undo();
-                success.set(true);
-            }
-        });
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+        SessionSafeguards.runOnUiThread(
+                () -> {
+                    var domain = session.getTransactionalEditingDomain();
+                    if (domain == null) return;
+                    CommandStack stack = domain.getCommandStack();
+                    if (stack.canUndo()) {
+                        stack.undo();
+                        success.set(true);
+                    }
+                });
         return success.get();
     }
 
     /**
      * Redo the last undone operation.
+     *
      * @return true if successful
      */
     public boolean redo() {
         if (session == null) return false;
         java.util.concurrent.atomic.AtomicBoolean success =
-            new java.util.concurrent.atomic.AtomicBoolean(false);
-        SessionSafeguards.runOnUiThread(() -> {
-            var domain = session.getTransactionalEditingDomain();
-            if (domain == null) return;
-            CommandStack stack = domain.getCommandStack();
-            if (stack.canRedo()) {
-                stack.redo();
-                success.set(true);
-            }
-        });
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+        SessionSafeguards.runOnUiThread(
+                () -> {
+                    var domain = session.getTransactionalEditingDomain();
+                    if (domain == null) return;
+                    CommandStack stack = domain.getCommandStack();
+                    if (stack.canRedo()) {
+                        stack.redo();
+                        success.set(true);
+                    }
+                });
         return success.get();
     }
 
@@ -1627,8 +1614,8 @@ public final class CapellaAPI {
     // ========== TRANSFORMATION Operations ==========
 
     /**
-     * Propagate an element to another layer.
-     * Creates a corresponding element in the target layer with a realization link.
+     * Propagate an element to another layer. Creates a corresponding element in the target layer
+     * with a realization link.
      *
      * @param element the source element
      * @param targetLayer the target layer (LA, PA)
@@ -1659,23 +1646,17 @@ public final class CapellaAPI {
 
     // ========== UTILITY Methods ==========
 
-    /**
-     * Get the current session.
-     */
+    /** Get the current session. */
     public Session getSession() {
         return session;
     }
 
-    /**
-     * Check if a session is active.
-     */
+    /** Check if a session is active. */
     public boolean hasSession() {
         return session != null;
     }
 
-    /**
-     * Get a model summary.
-     */
+    /** Get a model summary. */
     public String summary() {
         if (session == null) {
             return "No active session";
@@ -1683,14 +1664,11 @@ public final class CapellaAPI {
         return ModelSummary.summarize(session);
     }
 
-    /**
-     * Reset the current Groovy execution context (clears user variables).
-     */
+    /** Reset the current Groovy execution context (clears user variables). */
     public void reset() {
         if (resetHandler == null) {
             throw new IllegalStateException(
-                "reset() is only available inside the code execution context."
-            );
+                    "reset() is only available inside the code execution context.");
         }
         resetHandler.run();
     }
@@ -1698,21 +1676,18 @@ public final class CapellaAPI {
     // ========== Private Helpers ==========
 
     private static List<String> formatValidationReport(
-        String label,
-        ModelAnalytics.ValidationReport report
-    ) {
+            String label, ModelAnalytics.ValidationReport report) {
         if (report == null || !report.isAvailable()) {
             return List.of(label + ": validation unavailable.");
         }
         List<String> messages = new ArrayList<>();
         messages.add(
-            label +
-            ": " +
-            report.errorCount() +
-            " errors, " +
-            report.warningCount() +
-            " warnings."
-        );
+                label
+                        + ": "
+                        + report.errorCount()
+                        + " errors, "
+                        + report.warningCount()
+                        + " warnings.");
         messages.addAll(report.messages());
         return messages;
     }
@@ -1726,11 +1701,7 @@ public final class CapellaAPI {
         final int MAX_MESSAGES = 75;
 
         Diagnostic diag = Diagnostician.INSTANCE.validate(root);
-        CountResult count = collectDiagnostics(
-            diag,
-            messages,
-            MAX_MESSAGES
-        );
+        CountResult count = collectDiagnostics(diag, messages, MAX_MESSAGES);
         errors += count.errors;
         warnings += count.warnings;
         checked++;
@@ -1739,11 +1710,7 @@ public final class CapellaAPI {
         while (it.hasNext() && checked < MAX_CHECK) {
             EObject eo = it.next();
             Diagnostic d = Diagnostician.INSTANCE.validate(eo);
-            CountResult result = collectDiagnostics(
-                d,
-                messages,
-                MAX_MESSAGES
-            );
+            CountResult result = collectDiagnostics(d, messages, MAX_MESSAGES);
             errors += result.errors;
             warnings += result.warnings;
             checked++;
@@ -1769,10 +1736,7 @@ public final class CapellaAPI {
     }
 
     private static CountResult collectDiagnostics(
-        Diagnostic diagnostic,
-        List<String> messages,
-        int maxMessages
-    ) {
+            Diagnostic diagnostic, List<String> messages, int maxMessages) {
         if (diagnostic == null) {
             return new CountResult(0, 0);
         }
@@ -1792,11 +1756,7 @@ public final class CapellaAPI {
             if (messages.size() >= maxMessages) {
                 break;
             }
-            CountResult childCount = collectDiagnostics(
-                child,
-                messages,
-                maxMessages
-            );
+            CountResult childCount = collectDiagnostics(child, messages, maxMessages);
             errors += childCount.errors;
             warnings += childCount.warnings;
         }
@@ -1804,15 +1764,14 @@ public final class CapellaAPI {
     }
 
     private static String formatDiagnostic(Diagnostic diagnostic) {
-        String source = diagnostic.getSource() != null
-            ? diagnostic.getSource()
-            : "Unknown";
-        String severity = switch (diagnostic.getSeverity()) {
-            case Diagnostic.ERROR -> "ERROR";
-            case Diagnostic.WARNING -> "WARNING";
-            case Diagnostic.INFO -> "INFO";
-            default -> "UNKNOWN";
-        };
+        String source = diagnostic.getSource() != null ? diagnostic.getSource() : "Unknown";
+        String severity =
+                switch (diagnostic.getSeverity()) {
+                    case Diagnostic.ERROR -> "ERROR";
+                    case Diagnostic.WARNING -> "WARNING";
+                    case Diagnostic.INFO -> "INFO";
+                    default -> "UNKNOWN";
+                };
         return severity + " " + source + ": " + diagnostic.getMessage();
     }
 
@@ -1842,9 +1801,7 @@ public final class CapellaAPI {
         }
     }
 
-    /**
-     * Clear caches if they've been invalidated by a mutation.
-     */
+    /** Clear caches if they've been invalidated by a mutation. */
     private void ensureCacheValid() {
         var domain = session != null ? session.getTransactionalEditingDomain() : null;
         if (domain != null) {
@@ -1864,9 +1821,7 @@ public final class CapellaAPI {
         }
     }
 
-    /**
-     * Generate cache key for find(type, name).
-     */
+    /** Generate cache key for find(type, name). */
     private static String findCacheKey(String type, String name) {
         return type + ":" + name;
     }
@@ -1876,9 +1831,7 @@ public final class CapellaAPI {
             return null;
         }
         try {
-            EStructuralFeature feature = element
-                .eClass()
-                .getEStructuralFeature("name");
+            EStructuralFeature feature = element.eClass().getEStructuralFeature("name");
             if (feature != null) {
                 Object value = element.eGet(feature);
                 return value != null ? value.toString() : null;
@@ -1894,9 +1847,7 @@ public final class CapellaAPI {
             return null;
         }
         try {
-            EStructuralFeature feature = element
-                .eClass()
-                .getEStructuralFeature("id");
+            EStructuralFeature feature = element.eClass().getEStructuralFeature("id");
             if (feature != null) {
                 Object value = element.eGet(feature);
                 if (value != null) return value.toString();
@@ -1932,47 +1883,67 @@ public final class CapellaAPI {
         }
         String normalized = kind.trim().toLowerCase(Locale.ROOT);
 
-        if (
-            normalized.equals("root-function") ||
-            normalized.equals("root function") ||
-            normalized.equals("rootfunction")
-        ) {
+        if (normalized.equals("root-function")
+                || normalized.equals("root function")
+                || normalized.equals("rootfunction")) {
             EObject functionPkg = findContainerFallback(root, "function");
-            EObject rootFunction = findFirstChildByClassName(
-                functionPkg != null ? functionPkg : root,
-                List.of("SystemFunction", "LogicalFunction", "PhysicalFunction", "OperationalActivity")
-            );
+            EObject rootFunction =
+                    findFirstChildByClassName(
+                            functionPkg != null ? functionPkg : root,
+                            List.of(
+                                    "SystemFunction",
+                                    "LogicalFunction",
+                                    "PhysicalFunction",
+                                    "OperationalActivity"));
             if (rootFunction != null) {
                 return rootFunction;
             }
         }
 
-        List<String> classHints = switch (normalized) {
-            case "component", "components", "componentpkg", "component-pkg", "component package",
-                "actor", "actorpkg", "actor-pkg", "actor package",
-                "context", "contextpkg", "context-pkg", "context package" -> List.of(
-                "ComponentPkg",
-                "SystemComponentPkg",
-                "LogicalComponentPkg",
-                "PhysicalComponentPkg",
-                "EntityPkg"
-            );
-            case "function", "functions", "functionpkg", "function-pkg", "function package" -> List.of(
-                "FunctionPkg",
-                "SystemFunctionPkg",
-                "LogicalFunctionPkg",
-                "PhysicalFunctionPkg",
-                "OperationalActivityPkg"
-            );
-            case "data", "datapkg", "data-pkg", "data package" -> List.of("DataPkg");
-            case "interface", "interfacepkg", "interface-pkg", "interface package" -> List.of("InterfacePkg");
-            case "capability", "capabilitypkg", "capability-pkg", "capability package",
-                "abstract capability", "abstractcapability" -> List.of(
-                "CapabilityPkg",
-                "AbstractCapabilityPkg"
-            );
-            default -> List.of();
-        };
+        List<String> classHints =
+                switch (normalized) {
+                    case "component",
+                                    "components",
+                                    "componentpkg",
+                                    "component-pkg",
+                                    "component package",
+                                    "actor",
+                                    "actorpkg",
+                                    "actor-pkg",
+                                    "actor package",
+                                    "context",
+                                    "contextpkg",
+                                    "context-pkg",
+                                    "context package" ->
+                            List.of(
+                                    "ComponentPkg",
+                                    "SystemComponentPkg",
+                                    "LogicalComponentPkg",
+                                    "PhysicalComponentPkg",
+                                    "EntityPkg");
+                    case "function",
+                                    "functions",
+                                    "functionpkg",
+                                    "function-pkg",
+                                    "function package" ->
+                            List.of(
+                                    "FunctionPkg",
+                                    "SystemFunctionPkg",
+                                    "LogicalFunctionPkg",
+                                    "PhysicalFunctionPkg",
+                                    "OperationalActivityPkg");
+                    case "data", "datapkg", "data-pkg", "data package" -> List.of("DataPkg");
+                    case "interface", "interfacepkg", "interface-pkg", "interface package" ->
+                            List.of("InterfacePkg");
+                    case "capability",
+                                    "capabilitypkg",
+                                    "capability-pkg",
+                                    "capability package",
+                                    "abstract capability",
+                                    "abstractcapability" ->
+                            List.of("CapabilityPkg", "AbstractCapabilityPkg");
+                    default -> List.of();
+                };
 
         EObject direct = findContainedByTypeName(root, classHints);
         if (direct != null) {
@@ -1993,7 +1964,9 @@ public final class CapellaAPI {
         if (name == null) {
             return false;
         }
-        return name.endsWith("Component") || name.equals("Entity") || name.equals("ConfigurationItem");
+        return name.endsWith("Component")
+                || name.equals("Entity")
+                || name.equals("ConfigurationItem");
     }
 
     private String guessContainerKind(EObject element) {
@@ -2041,12 +2014,15 @@ public final class CapellaAPI {
     }
 
     private boolean isFunctionPkgType(String name) {
-        return name.endsWith("FunctionPkg") || "FunctionPkg".equals(name) ||
-            "OperationalActivityPkg".equals(name);
+        return name.endsWith("FunctionPkg")
+                || "FunctionPkg".equals(name)
+                || "OperationalActivityPkg".equals(name);
     }
 
     private boolean isComponentPkgType(String name) {
-        return name.endsWith("ComponentPkg") || name.endsWith("EntityPkg") || name.equals("ConfigurationItemPkg");
+        return name.endsWith("ComponentPkg")
+                || name.endsWith("EntityPkg")
+                || name.equals("ConfigurationItemPkg");
     }
 
     private boolean isInterfacePkgType(String name) {
@@ -2062,16 +2038,16 @@ public final class CapellaAPI {
     }
 
     private boolean isDataType(String name) {
-        return name.endsWith("DataType") ||
-            name.equals("Class") ||
-            name.equals("Enumeration") ||
-            name.equals("ExchangeItem");
+        return name.endsWith("DataType")
+                || name.equals("Class")
+                || name.equals("Enumeration")
+                || name.equals("ExchangeItem");
     }
 
     private boolean isCapabilityType(String name) {
-        return name.endsWith("Capability") ||
-            name.endsWith("CapabilityRealization") ||
-            name.endsWith("AbstractCapability");
+        return name.endsWith("Capability")
+                || name.endsWith("CapabilityRealization")
+                || name.endsWith("AbstractCapability");
     }
 
     private EObject findPartForComponent(EObject component) {
@@ -2099,10 +2075,7 @@ public final class CapellaAPI {
         return null;
     }
 
-    private EObject resolvePartContainer(
-        EObject component,
-        EObject preferredRoot
-    ) {
+    private EObject resolvePartContainer(EObject component, EObject preferredRoot) {
         EObject normalized = normalizePartContainer(preferredRoot, component);
         if (normalized != null) {
             return normalized;
@@ -2140,10 +2113,7 @@ public final class CapellaAPI {
         return null;
     }
 
-    private EObject normalizePartContainer(
-        EObject preferredRoot,
-        EObject component
-    ) {
+    private EObject normalizePartContainer(EObject preferredRoot, EObject component) {
         if (preferredRoot == null) {
             return null;
         }
@@ -2212,9 +2182,13 @@ public final class CapellaAPI {
 
     private EObject findRootComponentCandidate(EObject root) {
         return findFirstChildByClassName(
-            root,
-            List.of("SystemComponent", "LogicalComponent", "PhysicalComponent", "Entity", "ConfigurationItem")
-        );
+                root,
+                List.of(
+                        "SystemComponent",
+                        "LogicalComponent",
+                        "PhysicalComponent",
+                        "Entity",
+                        "ConfigurationItem"));
     }
 
     private EObject findLayerRootForComponent(EObject component) {
@@ -2233,9 +2207,7 @@ public final class CapellaAPI {
             return false;
         }
         EClass partClass = CsFactory.eINSTANCE.createPart().eClass();
-        for (EStructuralFeature feature : container
-            .eClass()
-            .getEAllStructuralFeatures()) {
+        for (EStructuralFeature feature : container.eClass().getEAllStructuralFeatures()) {
             if (!(feature instanceof EReference)) {
                 continue;
             }
@@ -2258,17 +2230,13 @@ public final class CapellaAPI {
         if (container == null || child == null) {
             return false;
         }
-        EReference preferred = findContainmentByName(
-            container,
-            List.of("ownedFeatures", "ownedParts")
-        );
+        EReference preferred =
+                findContainmentByName(container, List.of("ownedFeatures", "ownedParts"));
         if (preferred != null) {
             return addToReference(container, preferred, child);
         }
         EClass childClass = child.eClass();
-        for (EStructuralFeature feature : container
-            .eClass()
-            .getEAllStructuralFeatures()) {
+        for (EStructuralFeature feature : container.eClass().getEAllStructuralFeatures()) {
             if (!(feature instanceof EReference)) {
                 continue;
             }
@@ -2287,16 +2255,11 @@ public final class CapellaAPI {
         return false;
     }
 
-    private EReference findContainmentByName(
-        EObject container,
-        List<String> names
-    ) {
+    private EReference findContainmentByName(EObject container, List<String> names) {
         if (container == null || names == null || names.isEmpty()) {
             return null;
         }
-        for (EStructuralFeature feature : container
-            .eClass()
-            .getEAllStructuralFeatures()) {
+        for (EStructuralFeature feature : container.eClass().getEAllStructuralFeatures()) {
             if (!(feature instanceof EReference)) {
                 continue;
             }
@@ -2313,19 +2276,14 @@ public final class CapellaAPI {
         return null;
     }
 
-    private boolean addToReference(
-        EObject container,
-        EReference ref,
-        EObject child
-    ) {
+    private boolean addToReference(EObject container, EReference ref, EObject child) {
         if (!isSemanticContainment(ref) || !ref.getEReferenceType().isInstance(child)) {
             return false;
         }
         try {
             if (ref.isMany()) {
                 @SuppressWarnings("unchecked")
-                java.util.List<EObject> list =
-                    (java.util.List<EObject>) container.eGet(ref);
+                java.util.List<EObject> list = (java.util.List<EObject>) container.eGet(ref);
                 list.add(child);
                 return true;
             }
@@ -2337,23 +2295,20 @@ public final class CapellaAPI {
     }
 
     private boolean isSemanticContainment(EReference ref) {
-        return ref.isContainment() && ref.isChangeable() && !ref.isDerived()
-            && !ref.isTransient() && !ref.isVolatile()
-            && !"ownedMigratedElements".equals(ref.getName())
-            && !"ownedExtensions".equals(ref.getName());
+        return ref.isContainment()
+                && ref.isChangeable()
+                && !ref.isDerived()
+                && !ref.isTransient()
+                && !ref.isVolatile()
+                && !"ownedMigratedElements".equals(ref.getName())
+                && !"ownedExtensions".equals(ref.getName());
     }
 
-    private boolean setFeatureIfPresent(
-        EObject target,
-        String featureName,
-        Object value
-    ) {
+    private boolean setFeatureIfPresent(EObject target, String featureName, Object value) {
         if (target == null || featureName == null) {
             return false;
         }
-        EStructuralFeature feature = target
-            .eClass()
-            .getEStructuralFeature(featureName);
+        EStructuralFeature feature = target.eClass().getEStructuralFeature(featureName);
         if (feature == null || !feature.isChangeable()) {
             return false;
         }
@@ -2365,16 +2320,11 @@ public final class CapellaAPI {
         }
     }
 
-    private EObject findContainedByTypeName(
-        EObject root,
-        List<String> classNames
-    ) {
+    private EObject findContainedByTypeName(EObject root, List<String> classNames) {
         if (root == null || classNames == null || classNames.isEmpty()) {
             return null;
         }
-        for (EStructuralFeature feature : root
-            .eClass()
-            .getEAllStructuralFeatures()) {
+        for (EStructuralFeature feature : root.eClass().getEAllStructuralFeatures()) {
             if (!(feature instanceof org.eclipse.emf.ecore.EReference)) {
                 continue;
             }
@@ -2402,10 +2352,7 @@ public final class CapellaAPI {
         return null;
     }
 
-    private EObject findFirstChildByClassName(
-        EObject root,
-        List<String> classNames
-    ) {
+    private EObject findFirstChildByClassName(EObject root, List<String> classNames) {
         if (root == null || classNames == null || classNames.isEmpty()) {
             return null;
         }
@@ -2431,9 +2378,7 @@ public final class CapellaAPI {
         if (item instanceof EObject) {
             EObject eo = (EObject) item;
             String name = getName(eo);
-            return name != null
-                ? name + " (" + eo.eClass().getName() + ")"
-                : eo.eClass().getName();
+            return name != null ? name + " (" + eo.eClass().getName() + ")" : eo.eClass().getName();
         }
         return item.toString();
     }
@@ -2483,40 +2428,30 @@ public final class CapellaAPI {
         }
     }
 
-    private static Object evaluate(
-        Object interpreter,
-        EObject context,
-        String expression
-    ) {
+    private static Object evaluate(Object interpreter, EObject context, String expression) {
         if (interpreter == null || context == null || expression == null) {
             return null;
         }
         try {
-            var method = interpreter.getClass().getMethod(
-                "evaluateExpression",
-                EObject.class,
-                String.class
-            );
+            var method =
+                    interpreter
+                            .getClass()
+                            .getMethod("evaluateExpression", EObject.class, String.class);
             return unwrapResult(method.invoke(interpreter, context, expression));
         } catch (Exception ignored) {
             // fallback to evaluate
         }
         try {
-            var method = interpreter.getClass().getMethod(
-                "evaluate",
-                EObject.class,
-                String.class
-            );
+            var method = interpreter.getClass().getMethod("evaluate", EObject.class, String.class);
             return unwrapResult(method.invoke(interpreter, context, expression));
         } catch (Exception ignored) {
             // fallback to evaluateBoolean
         }
         try {
-            var method = interpreter.getClass().getMethod(
-                "evaluateBoolean",
-                EObject.class,
-                String.class
-            );
+            var method =
+                    interpreter
+                            .getClass()
+                            .getMethod("evaluateBoolean", EObject.class, String.class);
             return method.invoke(interpreter, context, expression);
         } catch (Exception ignored) {
             return null;
@@ -2527,11 +2462,8 @@ public final class CapellaAPI {
         if (result == null) {
             return null;
         }
-        if (
-            "org.eclipse.sirius.common.tools.api.interpreter.EvaluationResult".equals(
-                result.getClass().getName()
-            )
-        ) {
+        if ("org.eclipse.sirius.common.tools.api.interpreter.EvaluationResult"
+                .equals(result.getClass().getName())) {
             try {
                 // Check status: OK, ERROR, WARNING, etc.
                 // EvaluationResult.getValue() returns the raw object.
@@ -2548,9 +2480,8 @@ public final class CapellaAPI {
         if (type == null) return "SA";
         String lower = type.toLowerCase();
         if (lower.startsWith("configurationitem") || lower.startsWith("epbs")) return "EPBS";
-        if (
-            lower.equals("entity") || lower.startsWith("operational") || lower.startsWith("oa")
-        ) return "OA";
+        if (lower.equals("entity") || lower.startsWith("operational") || lower.startsWith("oa"))
+            return "OA";
         if (lower.startsWith("logical") || lower.startsWith("la")) return "LA";
         if (lower.startsWith("physical") || lower.startsWith("pa")) return "PA";
         return "SA"; // Default to System Analysis
@@ -2559,11 +2490,11 @@ public final class CapellaAPI {
     private static boolean isLayerToken(String type) {
         if (type == null) return false;
         String upper = type.trim().toUpperCase();
-        return "OA".equals(upper) ||
-            "SA".equals(upper) ||
-            "LA".equals(upper) ||
-            "PA".equals(upper) ||
-            "EPBS".equals(upper);
+        return "OA".equals(upper)
+                || "SA".equals(upper)
+                || "LA".equals(upper)
+                || "PA".equals(upper)
+                || "EPBS".equals(upper);
     }
 
     private String mapTypeToLayer(String type, String targetLayer) {
@@ -2572,32 +2503,32 @@ public final class CapellaAPI {
         // Map common types between layers
         String layer = targetLayer.toUpperCase();
         return switch (layer) {
-            case "LA" -> switch (type) {
-                case "SystemComponent" -> "LogicalComponent";
-                case "SystemFunction" -> "LogicalFunction";
-                default -> type.replace("System", "Logical");
-            };
-            case "PA" -> switch (type) {
-                case
-                    "SystemComponent",
-                    "LogicalComponent" -> "PhysicalComponent";
-                case "SystemFunction", "LogicalFunction" -> "PhysicalFunction";
-                default -> type
-                    .replace("System", "Physical")
-                    .replace("Logical", "Physical");
-            };
-            case "SA" -> switch (type) {
-                case "OperationalActivity" -> "SystemFunction";
-                case "Entity" -> "SystemComponent";
-                default -> type;
-            };
+            case "LA" ->
+                    switch (type) {
+                        case "SystemComponent" -> "LogicalComponent";
+                        case "SystemFunction" -> "LogicalFunction";
+                        default -> type.replace("System", "Logical");
+                    };
+            case "PA" ->
+                    switch (type) {
+                        case "SystemComponent", "LogicalComponent" -> "PhysicalComponent";
+                        case "SystemFunction", "LogicalFunction" -> "PhysicalFunction";
+                        default ->
+                                type.replace("System", "Physical").replace("Logical", "Physical");
+                    };
+            case "SA" ->
+                    switch (type) {
+                        case "OperationalActivity" -> "SystemFunction";
+                        case "Entity" -> "SystemComponent";
+                        default -> type;
+                    };
             default -> type;
         };
     }
 
     /**
-     * Resolve type aliases to actual Capella types.
-     * For example, OperationalActor -> Entity, SystemActor -> SystemComponent.
+     * Resolve type aliases to actual Capella types. For example, OperationalActor -> Entity,
+     * SystemActor -> SystemComponent.
      */
     private String resolveTypeAlias(String type, String layer) {
         if (type == null) return null;
@@ -2610,17 +2541,11 @@ public final class CapellaAPI {
         };
     }
 
-    /**
-     * Check if a type name is an actor alias that needs the actor property set.
-     */
+    /** Check if a type name is an actor alias that needs the actor property set. */
     private boolean isActorAlias(String type) {
         if (type == null) return false;
         return switch (type) {
-            case
-                "OperationalActor",
-                "SystemActor",
-                "LogicalActor",
-                "PhysicalActor" -> true;
+            case "OperationalActor", "SystemActor", "LogicalActor", "PhysicalActor" -> true;
             default -> false;
         };
     }

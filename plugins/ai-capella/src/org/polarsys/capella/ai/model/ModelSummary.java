@@ -1,14 +1,5 @@
 package org.polarsys.capella.ai.model;
 
-import java.lang.ref.WeakReference;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
-import java.util.stream.Collectors;
-
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
@@ -20,16 +11,25 @@ import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.polarsys.capella.ai.browse.DiagramBrowser;
 import org.polarsys.capella.ai.browse.DiagramBrowser.DiagramInfo;
 import org.polarsys.capella.ai.model.ModelAnalytics.Analysis;
-import org.polarsys.capella.ai.model.index.ModelIndex;
-
 import org.polarsys.capella.ai.model.ModelAnalytics.DependencyGraph;
 import org.polarsys.capella.ai.model.ModelAnalytics.FunctionalSnapshot;
 import org.polarsys.capella.ai.model.ModelAnalytics.LayerStats;
 import org.polarsys.capella.ai.model.ModelAnalytics.ValidationReport;
+import org.polarsys.capella.ai.model.index.ModelIndex;
 import org.polarsys.capella.ai.session.SessionBridge;
 
+import java.lang.ref.WeakReference;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
+import java.util.stream.Collectors;
+
 public final class ModelSummary {
-    private static final Map<Session, CacheEntry> CACHE = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Session, CacheEntry> CACHE =
+            Collections.synchronizedMap(new WeakHashMap<>());
 
     private static final class CacheEntry {
         final String summary;
@@ -39,27 +39,24 @@ public final class ModelSummary {
             this.summary = summary;
             WeakReference<Session> sessionRef = new WeakReference<>(session);
             this.listener =
-                new org.eclipse.emf.transaction.ResourceSetListenerImpl() {
-                    @Override
-                    public void resourceSetChanged(
-                        org.eclipse.emf.transaction.ResourceSetChangeEvent event
-                    ) {
-                        Session s = sessionRef.get();
-                        if (s != null) {
-                            ModelSummary.invalidateSummary(s);
-                            return;
-                        }
-                        try {
-                            if (event != null && event.getEditingDomain() != null) {
-                                event
-                                    .getEditingDomain()
-                                    .removeResourceSetListener(this);
+                    new org.eclipse.emf.transaction.ResourceSetListenerImpl() {
+                        @Override
+                        public void resourceSetChanged(
+                                org.eclipse.emf.transaction.ResourceSetChangeEvent event) {
+                            Session s = sessionRef.get();
+                            if (s != null) {
+                                ModelSummary.invalidateSummary(s);
+                                return;
                             }
-                        } catch (Exception ex) {
-                            // best effort
+                            try {
+                                if (event != null && event.getEditingDomain() != null) {
+                                    event.getEditingDomain().removeResourceSetListener(this);
+                                }
+                            } catch (Exception ex) {
+                                // best effort
+                            }
                         }
-                    }
-                };
+                    };
         }
     }
 
@@ -83,10 +80,15 @@ public final class ModelSummary {
         }
 
         Analysis analysis = ModelAnalytics.analyze(session);
-        Collection<DRepresentation> representations = DialectManager.INSTANCE.getAllRepresentations(session);
+        Collection<DRepresentation> representations =
+                DialectManager.INSTANCE.getAllRepresentations(session);
         int diagramCount = representations != null ? representations.size() : 0;
         List<DiagramInfo> activeDiagrams = DiagramBrowser.listActive();
-        String diagramExamples = activeDiagrams.stream().limit(5).map(diagram -> diagram.name).collect(Collectors.joining(", "));
+        String diagramExamples =
+                activeDiagrams.stream()
+                        .limit(5)
+                        .map(diagram -> diagram.name)
+                        .collect(Collectors.joining(", "));
 
         StringBuilder sb = new StringBuilder();
         sb.append("Model Summary\n");
@@ -181,21 +183,35 @@ public final class ModelSummary {
             return "- No architecture layers detected.";
         }
         StringBuilder sb = new StringBuilder("Layer Dashboards:\n");
-        stats.forEach((layerId, layerStats) -> {
-            sb.append(String.format("  * %s (%s) — Components: %d, Functions: %d, Exchanges: %d, Requirements: %d\n",
-                    layerId, layerStats.label(), layerStats.components(), layerStats.functions(),
-                    layerStats.exchanges(), layerStats.requirements()));
-            sb.append(String.format("    Coverage: components %.0f%% structured, functions %.0f%% allocated\n",
-                    layerStats.componentStructureCoverage(), layerStats.functionAllocationCoverage()));
-            if (!layerStats.topComponentGaps().isEmpty()) {
-                sb.append("    Components needing breakdown: ")
-                        .append(String.join(", ", layerStats.topComponentGaps())).append("\n");
-            }
-            if (!layerStats.topUnallocatedFunctions().isEmpty()) {
-                sb.append("    Functions lacking allocation: ")
-                        .append(String.join(", ", layerStats.topUnallocatedFunctions())).append("\n");
-            }
-        });
+        stats.forEach(
+                (layerId, layerStats) -> {
+                    sb.append(
+                            String.format(
+                                    "  * %s (%s) — Components: %d, Functions: %d, Exchanges: %d,"
+                                        + " Requirements: %d\n",
+                                    layerId,
+                                    layerStats.label(),
+                                    layerStats.components(),
+                                    layerStats.functions(),
+                                    layerStats.exchanges(),
+                                    layerStats.requirements()));
+                    sb.append(
+                            String.format(
+                                    "    Coverage: components %.0f%% structured, functions %.0f%%"
+                                        + " allocated\n",
+                                    layerStats.componentStructureCoverage(),
+                                    layerStats.functionAllocationCoverage()));
+                    if (!layerStats.topComponentGaps().isEmpty()) {
+                        sb.append("    Components needing breakdown: ")
+                                .append(String.join(", ", layerStats.topComponentGaps()))
+                                .append("\n");
+                    }
+                    if (!layerStats.topUnallocatedFunctions().isEmpty()) {
+                        sb.append("    Functions lacking allocation: ")
+                                .append(String.join(", ", layerStats.topUnallocatedFunctions()))
+                                .append("\n");
+                    }
+                });
         return sb.toString().stripTrailing();
     }
 
@@ -203,20 +219,26 @@ public final class ModelSummary {
         if (!report.isAvailable()) {
             return "Validation: unavailable";
         }
-        String header = String.format("Validation: %d error(s), %d warning(s)", report.errorCount(), report.warningCount());
+        String header =
+                String.format(
+                        "Validation: %d error(s), %d warning(s)",
+                        report.errorCount(), report.warningCount());
         String details = report.messages().stream().limit(3).collect(Collectors.joining(" | "));
         return details.isBlank() ? header : header + " — " + details;
     }
 
     private static String functionalSection(FunctionalSnapshot snapshot) {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("Functional Assets: %d chain(s), %d scenario(s)",
-                snapshot.chainCount(), snapshot.scenarioCount()));
+        sb.append(
+                String.format(
+                        "Functional Assets: %d chain(s), %d scenario(s)",
+                        snapshot.chainCount(), snapshot.scenarioCount()));
         if (!snapshot.representativeChains().isEmpty()) {
             sb.append(" — Chains e.g. ").append(String.join(", ", snapshot.representativeChains()));
         }
         if (!snapshot.representativeScenarios().isEmpty()) {
-            sb.append("; Scenarios e.g. ").append(String.join(", ", snapshot.representativeScenarios()));
+            sb.append("; Scenarios e.g. ")
+                    .append(String.join(", ", snapshot.representativeScenarios()));
         }
         return sb.toString();
     }
@@ -224,14 +246,17 @@ public final class ModelSummary {
     private static String traceabilitySection(Session session) {
         try {
             var t = ModelAnalytics.computeTraceability(session);
-            String header = String.format("Traceability: requirements %.0f%% linked, functions %.0f%% allocated",
-                    t.requirementLinkCoverage(),
-                    // reuse layer metric approximation: functionsAllocated()/functionCount()
-                    (t.functionCount() == 0 ? 100d : (t.functionsAllocated() * 100d) / t.functionCount()));
+            String header =
+                    String.format(
+                            "Traceability: requirements %.0f%% linked, functions %.0f%% allocated",
+                            t.requirementLinkCoverage(),
+                            // reuse layer metric approximation:
+                            // functionsAllocated()/functionCount()
+                            (t.functionCount() == 0
+                                    ? 100d
+                                    : (t.functionsAllocated() * 100d) / t.functionCount()));
             if (t.componentExchangeCount() > 0) {
-                header += String.format(
-                        ", component exchanges %d",
-                        t.componentExchangeCount());
+                header += String.format(", component exchanges %d", t.componentExchangeCount());
             }
             return header;
         } catch (Exception ex) {
@@ -244,12 +269,22 @@ public final class ModelSummary {
             return "Dependencies: no cross-layer links detected.";
         }
         StringBuilder sb = new StringBuilder("Dependencies: ");
-        graph.componentToFunctions().entrySet().stream().limit(3).forEach(entry ->
-                sb.append(entry.getKey()).append("→functions(")
-                        .append(String.join(", ", entry.getValue())).append(") "));
-        graph.componentToRequirements().entrySet().stream().limit(2).forEach(entry ->
-                sb.append(entry.getKey()).append("→requirements(")
-                        .append(String.join(", ", entry.getValue())).append(") "));
+        graph.componentToFunctions().entrySet().stream()
+                .limit(3)
+                .forEach(
+                        entry ->
+                                sb.append(entry.getKey())
+                                        .append("→functions(")
+                                        .append(String.join(", ", entry.getValue()))
+                                        .append(") "));
+        graph.componentToRequirements().entrySet().stream()
+                .limit(2)
+                .forEach(
+                        entry ->
+                                sb.append(entry.getKey())
+                                        .append("→requirements(")
+                                        .append(String.join(", ", entry.getValue()))
+                                        .append(") "));
         return sb.toString().stripTrailing();
     }
 
@@ -259,15 +294,14 @@ public final class ModelSummary {
     private static final int MAX_VALUE_LENGTH = 160;
 
     private static List<String> describeAttributes(EObject element) {
-        List<String> items = element.eClass()
-            .getEAllAttributes()
-            .stream()
-            .filter(attr -> !attr.isDerived() && !attr.isTransient())
-            .map(attr -> describeAttribute(element, attr))
-            .filter(value -> value != null && !value.isBlank())
-            .sorted(Comparator.naturalOrder())
-            .limit(MAX_ATTRIBUTES)
-            .collect(Collectors.toList());
+        List<String> items =
+                element.eClass().getEAllAttributes().stream()
+                        .filter(attr -> !attr.isDerived() && !attr.isTransient())
+                        .map(attr -> describeAttribute(element, attr))
+                        .filter(value -> value != null && !value.isBlank())
+                        .sorted(Comparator.naturalOrder())
+                        .limit(MAX_ATTRIBUTES)
+                        .collect(Collectors.toList());
         return items;
     }
 
@@ -284,15 +318,14 @@ public final class ModelSummary {
     }
 
     private static List<String> describeReferences(EObject element) {
-        List<String> items = element.eClass()
-            .getEAllReferences()
-            .stream()
-            .filter(ref -> !ref.isDerived() && !ref.isTransient())
-            .map(ref -> describeReference(element, ref))
-            .filter(value -> value != null && !value.isBlank())
-            .sorted(Comparator.naturalOrder())
-            .limit(MAX_REFERENCES)
-            .collect(Collectors.toList());
+        List<String> items =
+                element.eClass().getEAllReferences().stream()
+                        .filter(ref -> !ref.isDerived() && !ref.isTransient())
+                        .map(ref -> describeReference(element, ref))
+                        .filter(value -> value != null && !value.isBlank())
+                        .sorted(Comparator.naturalOrder())
+                        .limit(MAX_REFERENCES)
+                        .collect(Collectors.toList());
         return items;
     }
 
@@ -317,17 +350,17 @@ public final class ModelSummary {
             if (collection.isEmpty()) {
                 return null;
             }
-            String joined = collection
-                .stream()
-                .filter(EObject.class::isInstance)
-                .map(eo -> formatElementShort((EObject) eo))
-                .limit(MAX_RELATIONS)
-                .collect(Collectors.joining(", "));
-            return collection.size() +
-                " [" +
-                joined +
-                (collection.size() > MAX_RELATIONS ? ", ..." : "") +
-                "]";
+            String joined =
+                    collection.stream()
+                            .filter(EObject.class::isInstance)
+                            .map(eo -> formatElementShort((EObject) eo))
+                            .limit(MAX_RELATIONS)
+                            .collect(Collectors.joining(", "));
+            return collection.size()
+                    + " ["
+                    + joined
+                    + (collection.size() > MAX_RELATIONS ? ", ..." : "")
+                    + "]";
         }
         if (value instanceof EObject eo) {
             return formatElementShort(eo);
@@ -340,16 +373,16 @@ public final class ModelSummary {
             if (collection.isEmpty()) {
                 return null;
             }
-            String joined = collection
-                .stream()
-                .limit(maxItems)
-                .map(item -> truncate(String.valueOf(item), MAX_VALUE_LENGTH))
-                .collect(Collectors.joining(", "));
-            return collection.size() +
-                " [" +
-                joined +
-                (collection.size() > maxItems ? ", ..." : "") +
-                "]";
+            String joined =
+                    collection.stream()
+                            .limit(maxItems)
+                            .map(item -> truncate(String.valueOf(item), MAX_VALUE_LENGTH))
+                            .collect(Collectors.joining(", "));
+            return collection.size()
+                    + " ["
+                    + joined
+                    + (collection.size() > maxItems ? ", ..." : "")
+                    + "]";
         }
         return truncate(String.valueOf(value), MAX_VALUE_LENGTH);
     }
@@ -384,9 +417,7 @@ public final class ModelSummary {
 
     private static String getFeatureAsString(EObject element, String name) {
         try {
-            EStructuralFeature feature = element
-                .eClass()
-                .getEStructuralFeature(name);
+            EStructuralFeature feature = element.eClass().getEStructuralFeature(name);
             if (feature == null) {
                 return null;
             }

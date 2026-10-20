@@ -9,7 +9,9 @@ import org.polarsys.capella.ai.presentation.TranscriptFormat.LineKind;
 public class TranscriptFormatTest {
     @Test
     public void headingsEmphasisAndInlineCodeBecomeReadableNativeText() {
-        Formatted value = TranscriptFormat.parse("## Plan\nUse **native `SystemFunction`** and *review* first.");
+        Formatted value =
+                TranscriptFormat.parse(
+                        "## Plan\nUse **native `SystemFunction`** and *review* first.");
         assertEquals("Plan\nUse native SystemFunction and review first.", value.text());
         assertEquals(LineKind.HEADING, value.lines().get(0).kind());
         assertEquals(2, styleAt(value, "Plan").headingLevel());
@@ -23,12 +25,15 @@ public class TranscriptFormatTest {
     @Test
     public void exactFencedCodeCopyPreservesCrlfTabsTrailingSpacesAndBlankLines() {
         String source = "\tdef value = '**literal**'  \r\n\r\nreturn value\r\n";
-        Formatted value = TranscriptFormat.parse("Before\r\n```groovy\r\n" + source + "```\r\nAfter");
+        Formatted value =
+                TranscriptFormat.parse("Before\r\n```groovy\r\n" + source + "```\r\nAfter");
         assertEquals(1, value.codeBlocks().size());
         var block = value.codeBlocks().get(0);
         assertEquals("groovy", block.language());
         assertEquals(source, block.source());
-        assertEquals(source.replace("\r\n", "\n"), value.text().substring(block.offset(), block.offset() + block.length()));
+        assertEquals(
+                source.replace("\r\n", "\n"),
+                value.text().substring(block.offset(), block.offset() + block.length()));
         assertTrue(value.text().endsWith("After"));
         assertTrue(styleAt(value, "**literal**").code());
         assertFalse(styleAt(value, "**literal**").bold());
@@ -52,8 +57,18 @@ public class TranscriptFormatTest {
 
     @Test
     public void listsCarryHangingIndentWithoutLosingOrderedNumbers() {
-        Formatted value = TranscriptFormat.parse("- Read model\n  * Inspect **selection**\n12. Review code\n> The model is unchanged.");
-        assertEquals("\u2022 Read model\n\u2022 Inspect selection\n12. Review code\nThe model is unchanged.", value.text());
+        Formatted value =
+                TranscriptFormat.parse(
+                        "- Read model\n"
+                            + "  * Inspect **selection**\n"
+                            + "12. Review code\n"
+                            + "> The model is unchanged.");
+        assertEquals(
+                "\u2022 Read model\n"
+                    + "\u2022 Inspect selection\n"
+                    + "12. Review code\n"
+                    + "The model is unchanged.",
+                value.text());
         assertEquals(LineKind.LIST, value.lines().get(0).kind());
         assertEquals(1, value.lines().get(1).indent());
         assertEquals(LineKind.LIST, value.lines().get(2).kind());
@@ -63,7 +78,8 @@ public class TranscriptFormatTest {
 
     @Test
     public void escapedAndUnmatchedMarkersRemainLiteral() {
-        Formatted value = TranscriptFormat.parse("\\*literal\\* parameter_name unmatched ` and **unfinished");
+        Formatted value =
+                TranscriptFormat.parse("\\*literal\\* parameter_name unmatched ` and **unfinished");
         assertEquals("*literal* parameter_name unmatched ` and **unfinished", value.text());
         assertTrue(value.runs().isEmpty());
     }
@@ -77,8 +93,16 @@ public class TranscriptFormatTest {
 
     @Test
     public void linksShowTheirDestinationAndHtmlIsNeverInterpreted() {
-        Formatted value = TranscriptFormat.parse("[Capella](https://example.invalid/docs)\n<script>alert('x')</script>\n![image](https://example.invalid/p.png)");
-        assertEquals("Capella (https://example.invalid/docs)\n<script>alert('x')</script>\n![image](https://example.invalid/p.png)", value.text());
+        Formatted value =
+                TranscriptFormat.parse(
+                        "[Capella](https://example.invalid/docs)\n"
+                            + "<script>alert('x')</script>\n"
+                            + "![image](https://example.invalid/p.png)");
+        assertEquals(
+                "Capella (https://example.invalid/docs)\n"
+                    + "<script>alert('x')</script>\n"
+                    + "![image](https://example.invalid/p.png)",
+                value.text());
         assertTrue(value.codeBlocks().isEmpty());
     }
 
@@ -102,8 +126,11 @@ public class TranscriptFormatTest {
     private static TranscriptFormat.Style styleAt(Formatted value, String text) {
         int position = value.text().indexOf(text);
         assertTrue(position >= 0);
-        return value.runs().stream().filter(run -> run.offset() <= position && position < run.offset() + run.length())
-            .findFirst().orElseThrow(() -> new AssertionError("No style for " + text)).style();
+        return value.runs().stream()
+                .filter(run -> run.offset() <= position && position < run.offset() + run.length())
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No style for " + text))
+                .style();
     }
 
     private static void assertDisjointStyles(Formatted value) {

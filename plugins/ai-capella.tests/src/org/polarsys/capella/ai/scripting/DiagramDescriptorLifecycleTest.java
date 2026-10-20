@@ -2,11 +2,6 @@ package org.polarsys.capella.ai.scripting;
 
 import static org.junit.Assert.*;
 
-import java.lang.reflect.Proxy;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EObject;
@@ -33,6 +28,12 @@ import org.junit.Test;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 import org.polarsys.capella.core.data.la.LaFactory;
 
+import java.lang.reflect.Proxy;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
 /** Sirius descriptor names and representation removal must participate in one Undo command. */
 public class DiagramDescriptorLifecycleTest {
     private TransactionalEditingDomain domain;
@@ -51,8 +52,12 @@ public class DiagramDescriptorLifecycleTest {
         DAnalysis analysis = ViewpointFactory.eINSTANCE.createDAnalysis();
         view = ViewpointFactory.eINSTANCE.createDView();
         analysis.getOwnedViews().add(view);
-        Viewpoint viewpoint = org.eclipse.sirius.viewpoint.description.DescriptionFactory.eINSTANCE.createViewpoint();
-        DiagramDescription description = org.eclipse.sirius.diagram.description.DescriptionFactory.eINSTANCE.createDiagramDescription();
+        Viewpoint viewpoint =
+                org.eclipse.sirius.viewpoint.description.DescriptionFactory.eINSTANCE
+                        .createViewpoint();
+        DiagramDescription description =
+                org.eclipse.sirius.diagram.description.DescriptionFactory.eINSTANCE
+                        .createDiagramDescription();
         viewpoint.getOwnedRepresentations().add(description);
         view.setViewpoint(viewpoint);
         EObject semantic = LaFactory.eINSTANCE.createLogicalComponent();
@@ -75,29 +80,45 @@ public class DiagramDescriptorLifecycleTest {
         ECrossReferenceAdapter crossReferences = new ECrossReferenceAdapter();
         resources.eAdapters().add(crossReferences);
         domain = TransactionalEditingDomain.Factory.INSTANCE.createEditingDomain(resources);
-        session = (Session) Proxy.newProxyInstance(Session.class.getClassLoader(), new Class<?>[] {Session.class},
-            (proxy, method, args) -> {
-                switch (method.getName()) {
-                    case "getTransactionalEditingDomain": return domain;
-                    case "getSessionResource": return resource;
-                    case "getSemanticResources": return List.of(resource);
-                    case "getAllSessionResources": return Set.of(resource);
-                    case "getReferencedSessionResources": return Set.of();
-                    case "getSemanticCrossReferencer": return crossReferences;
-                    case "getSelectedViewpoints": return Set.of(viewpoint);
-                    case "isOpen": return true;
-                    case "save":
-                        saves.incrementAndGet();
-                        savedInsideWrite.set(SessionSafeguards.isInWriteContext());
-                        return null;
-                    case "equals": return proxy == args[0];
-                    case "hashCode": return System.identityHashCode(proxy);
-                    default:
-                        if (method.getReturnType() == boolean.class) return false;
-                        if (method.getReturnType() == int.class) return 0;
-                        return null;
-                }
-            });
+        session =
+                (Session)
+                        Proxy.newProxyInstance(
+                                Session.class.getClassLoader(),
+                                new Class<?>[] {Session.class},
+                                (proxy, method, args) -> {
+                                    switch (method.getName()) {
+                                        case "getTransactionalEditingDomain":
+                                            return domain;
+                                        case "getSessionResource":
+                                            return resource;
+                                        case "getSemanticResources":
+                                            return List.of(resource);
+                                        case "getAllSessionResources":
+                                            return Set.of(resource);
+                                        case "getReferencedSessionResources":
+                                            return Set.of();
+                                        case "getSemanticCrossReferencer":
+                                            return crossReferences;
+                                        case "getSelectedViewpoints":
+                                            return Set.of(viewpoint);
+                                        case "isOpen":
+                                            return true;
+                                        case "save":
+                                            saves.incrementAndGet();
+                                            savedInsideWrite.set(
+                                                    SessionSafeguards.isInWriteContext());
+                                            return null;
+                                        case "equals":
+                                            return proxy == args[0];
+                                        case "hashCode":
+                                            return System.identityHashCode(proxy);
+                                        default:
+                                            if (method.getReturnType() == boolean.class)
+                                                return false;
+                                            if (method.getReturnType() == int.class) return 0;
+                                            return null;
+                                    }
+                                });
         api = new DiagramAPI(session);
         assertSame(descriptor, new DRepresentationQuery(diagram).getRepresentationDescriptor());
     }
@@ -110,12 +131,19 @@ public class DiagramDescriptorLifecycleTest {
 
     @Test
     public void semanticTargetDeletionRemovesItsRepresentationAndUndoRestoresIt() {
-        Assume.assumeTrue("Deletion uses Sirius dialect extensions from the OSGi test harness", Platform.isRunning());
+        Assume.assumeTrue(
+                "Deletion uses Sirius dialect extensions from the OSGi test harness",
+                Platform.isRunning());
         EObject target = diagram.getTarget();
-        SessionSafeguards.runWrite(session, "Identify semantic fixture", () -> {
-            target.eSet(target.eClass().getEStructuralFeature("id"), "semantic-representation-target");
-            return null;
-        });
+        SessionSafeguards.runWrite(
+                session,
+                "Identify semantic fixture",
+                () -> {
+                    target.eSet(
+                            target.eClass().getEStructuralFeature("id"),
+                            "semantic-representation-target");
+                    return null;
+                });
         domain.getCommandStack().flush();
         assertTrue(new CapellaAPI(session).delete(target));
         assertNotSame(view, descriptor.eContainer());
@@ -151,7 +179,9 @@ public class DiagramDescriptorLifecycleTest {
 
     @Test
     public void deletionRemovesDescriptorAndRepresentationAndUndoRestoresBoth() {
-        Assume.assumeTrue("Deletion uses Sirius dialect extensions from the OSGi test harness", Platform.isRunning());
+        Assume.assumeTrue(
+                "Deletion uses Sirius dialect extensions from the OSGi test harness",
+                Platform.isRunning());
         assertTrue(api.delete(diagram));
         // The Undo change description retains deleted objects in its own
         // containment. They must be detached from the session model instead.
@@ -175,13 +205,18 @@ public class DiagramDescriptorLifecycleTest {
 
     @Test
     public void laterFailureRollsBackDescriptorRenameAndDeletionWithoutSaving() {
-        Assume.assumeTrue("Deletion uses Sirius dialect extensions from the OSGi test harness", Platform.isRunning());
+        Assume.assumeTrue(
+                "Deletion uses Sirius dialect extensions from the OSGi test harness",
+                Platform.isRunning());
         try {
-            SessionSafeguards.runWrite(session, "Failed diagram workflow", () -> {
-                assertTrue(api.rename(diagram, "Temporary name"));
-                assertTrue(api.delete(diagram));
-                throw new IllegalArgumentException("later diagram step failed");
-            });
+            SessionSafeguards.runWrite(
+                    session,
+                    "Failed diagram workflow",
+                    () -> {
+                        assertTrue(api.rename(diagram, "Temporary name"));
+                        assertTrue(api.delete(diagram));
+                        throw new IllegalArgumentException("later diagram step failed");
+                    });
             fail("The workflow must fail");
         } catch (IllegalArgumentException expected) {
             assertEquals("later diagram step failed", expected.getMessage());

@@ -1,9 +1,5 @@
 package org.polarsys.capella.ai.model;
 
-import java.util.Map;
-import java.util.Objects;
-import java.util.regex.Pattern;
-
 import org.eclipse.emf.common.notify.Notification;
 import org.eclipse.emf.common.notify.impl.AdapterImpl;
 import org.eclipse.emf.ecore.EAttribute;
@@ -12,20 +8,27 @@ import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.impl.ResourceImpl;
 import org.eclipse.emf.ecore.xmi.XMLResource;
 
+import java.util.Map;
+import java.util.Objects;
+import java.util.regex.Pattern;
+
 /** Keeps an EObject's intrinsic ID and its resource's serialized-reference index in sync. */
 public final class PersistentIds {
     private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9_][A-Za-z0-9._:~-]*");
 
-    private PersistentIds() {
-    }
+    private PersistentIds() {}
 
-    /** Call inside the existing model write transaction, instead of setting the ID feature directly. */
+    /**
+     * Call inside the existing model write transaction, instead of setting the ID feature directly.
+     */
     public static void setId(EObject element, String id) {
         if (element == null) {
-            throw new IllegalArgumentException("An element is required when assigning a persistent ID");
+            throw new IllegalArgumentException(
+                    "An element is required when assigning a persistent ID");
         }
         if (id == null || !SAFE_ID.matcher(id).matches()) {
-            throw new IllegalArgumentException("A persistent ID must be nonblank and contain only URI-safe ID characters");
+            throw new IllegalArgumentException(
+                    "A persistent ID must be nonblank and contain only URI-safe ID characters");
         }
         EAttribute attribute = idAttribute(element);
         rejectCollision(element, id);
@@ -35,26 +38,33 @@ public final class PersistentIds {
         synchronize(element, attribute);
     }
 
-    /** Install before an ID feature mutation so command undo/redo also updates the resource index. */
+    /**
+     * Install before an ID feature mutation so command undo/redo also updates the resource index.
+     */
     public static void install(EObject element) {
         if (element == null) {
-            throw new IllegalArgumentException("An element is required when installing persistent ID support");
+            throw new IllegalArgumentException(
+                    "An element is required when installing persistent ID support");
         }
         install(element, idAttribute(element));
     }
 
     private static EAttribute idAttribute(EObject element) {
         EAttribute attribute = element.eClass().getEIDAttribute();
-        if (attribute == null || !attribute.isChangeable() || attribute.isMany() ||
-                attribute.getEAttributeType().getInstanceClass() != String.class) {
-            throw new IllegalArgumentException("The element must have a writable intrinsic String ID attribute");
+        if (attribute == null
+                || !attribute.isChangeable()
+                || attribute.isMany()
+                || attribute.getEAttributeType().getInstanceClass() != String.class) {
+            throw new IllegalArgumentException(
+                    "The element must have a writable intrinsic String ID attribute");
         }
         return attribute;
     }
 
     private static void install(EObject element, EAttribute attribute) {
         for (var adapter : element.eAdapters()) {
-            if (adapter instanceof IdIndexAdapter indexAdapter && indexAdapter.attribute == attribute) {
+            if (adapter instanceof IdIndexAdapter indexAdapter
+                    && indexAdapter.attribute == attribute) {
                 return;
             }
         }
@@ -83,7 +93,8 @@ public final class PersistentIds {
             return;
         }
         if (other != null && other != element) {
-            throw new IllegalArgumentException("Persistent ID already belongs to another element: " + id);
+            throw new IllegalArgumentException(
+                    "Persistent ID already belongs to another element: " + id);
         }
     }
 
@@ -94,13 +105,18 @@ public final class PersistentIds {
         }
         String id = (String) element.eGet(attribute, false);
         if (resource instanceof XMLResource xml) {
-            // Native Capella attachedHelper indexes the original ID. An attribute notification alone
+            // Native Capella attachedHelper indexes the original ID. An attribute notification
+            // alone
             // does not change this map, which XML serialization uses for cross references.
             xml.setID(element, id);
         } else if (resource instanceof ResourceImpl implementation) {
             Map<String, EObject> index = implementation.getIntrinsicIDToEObjectMap();
             if (index != null) {
-                index.entrySet().removeIf(entry -> entry.getValue() == element && !Objects.equals(entry.getKey(), id));
+                index.entrySet()
+                        .removeIf(
+                                entry ->
+                                        entry.getValue() == element
+                                                && !Objects.equals(entry.getKey(), id));
                 if (id != null) {
                     index.put(id, element);
                 }
@@ -117,8 +133,10 @@ public final class PersistentIds {
 
         @Override
         public void notifyChanged(Notification notification) {
-            if (notification.getNotifier() instanceof EObject element && notification.getFeature() == attribute &&
-                    (notification.getEventType() == Notification.SET || notification.getEventType() == Notification.UNSET)) {
+            if (notification.getNotifier() instanceof EObject element
+                    && notification.getFeature() == attribute
+                    && (notification.getEventType() == Notification.SET
+                            || notification.getEventType() == Notification.UNSET)) {
                 synchronize(element, attribute);
             }
         }

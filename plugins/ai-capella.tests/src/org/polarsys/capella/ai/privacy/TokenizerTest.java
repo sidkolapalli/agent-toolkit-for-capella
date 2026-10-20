@@ -38,4 +38,3 @@ public class TokenizerTest {
         assertEquals(in, t.detokenizeText(tok));
     }
 }
-

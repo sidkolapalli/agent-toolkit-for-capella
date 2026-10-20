@@ -2,15 +2,6 @@ package org.polarsys.capella.ai.agent;
 
 import static org.junit.Assert.*;
 
-import java.lang.reflect.Proxy;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
@@ -31,7 +22,20 @@ import org.polarsys.capella.core.data.la.LogicalFunction;
 import org.polarsys.capella.core.model.handler.helpers.CapellaProjectHelper;
 import org.polarsys.capella.core.model.handler.helpers.CapellaProjectHelper.ProjectApproach;
 
-/** One reviewed edit runs the exact source once, then reports only independently verified completion. */
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
+
+/**
+ * One reviewed edit runs the exact source once, then reports only independently verified
+ * completion.
+ */
 public class ReviewedEditTest {
     private Resource resource;
     private TransactionalEditingDomain domain;
@@ -41,14 +45,18 @@ public class ReviewedEditTest {
     private final List<String> events = new ArrayList<>();
     private boolean actions, confirm;
 
-    @Before public void setUp() {
+    @Before
+    public void setUp() {
         Display.getDefault();
         actions = LLMPreferences.isToolActionsEnabled();
         confirm = AdvancedPreferences.isConfirmBeforeApplyEnabled();
         LLMPreferences.setToolActionsEnabled(true);
         AdvancedPreferences.setConfirmBeforeApplyEnabled(true);
         var resources = new ResourceSetImpl();
-        resources.getResourceFactoryRegistry().getExtensionToFactoryMap().put("xmi", new XMIResourceFactoryImpl());
+        resources
+                .getResourceFactoryRegistry()
+                .getExtensionToFactoryMap()
+                .put("xmi", new XMIResourceFactoryImpl());
         resource = resources.createResource(URI.createURI("memory:/reviewed-edit.xmi"));
         var project = CapellamodellerFactory.eINSTANCE.createProject();
         CapellaProjectHelper.setProjectWithApproach(project, ProjectApproach.SingletonComponents);
@@ -65,47 +73,83 @@ public class ReviewedEditTest {
         la.setOwnedLogicalComponentPkg(LaFactory.eINSTANCE.createLogicalComponentPkg());
         engineering.getOwnedArchitectures().add(la);
         domain = TransactionalEditingDomain.Factory.INSTANCE.createEditingDomain(resources);
-        session = (Session) Proxy.newProxyInstance(Session.class.getClassLoader(), new Class<?>[] {Session.class},
-            (proxy, method, args) -> switch (method.getName()) {
-                case "getTransactionalEditingDomain" -> domain;
-                case "getSemanticResources" -> List.of(resource);
-                case "getSessionResource" -> resource;
-                case "isOpen" -> true;
-                case "save" -> { saves.incrementAndGet(); yield null; }
-                case "hashCode" -> System.identityHashCode(proxy);
-                case "equals" -> proxy == args[0];
-                default -> null;
-            });
+        session =
+                (Session)
+                        Proxy.newProxyInstance(
+                                Session.class.getClassLoader(),
+                                new Class<?>[] {Session.class},
+                                (proxy, method, args) ->
+                                        switch (method.getName()) {
+                                            case "getTransactionalEditingDomain" -> domain;
+                                            case "getSemanticResources" -> List.of(resource);
+                                            case "getSessionResource" -> resource;
+                                            case "isOpen" -> true;
+                                            case "save" -> {
+                                                saves.incrementAndGet();
+                                                yield null;
+                                            }
+                                            case "hashCode" -> System.identityHashCode(proxy);
+                                            case "equals" -> proxy == args[0];
+                                            default -> null;
+                                        });
     }
 
-    @After public void tearDown() {
+    @After
+    public void tearDown() {
         LLMPreferences.setToolActionsEnabled(actions);
         AdvancedPreferences.setConfirmBeforeApplyEnabled(confirm);
         if (domain != null) domain.dispose();
         SessionSafeguards.cleanup();
     }
 
-    @Test public void approvedEditCommitsSavesAndCompletesStepsWhoseChecksPass() throws Exception {
-        var outcome = run(() -> ReviewedEdit.apply(session, request("Probe", "Probe", () -> true), listener()));
+    @Test
+    public void approvedEditCommitsSavesAndCompletesStepsWhoseChecksPass() throws Exception {
+        var outcome =
+                run(
+                        () ->
+                                ReviewedEdit.apply(
+                                        session,
+                                        request("Probe", "Probe", () -> true),
+                                        listener()));
         assertTrue(outcome.attempted());
         assertTrue(outcome.committed());
         assertTrue(outcome.changed());
         assertEquals(Set.of("create"), outcome.execution().completedStepIds());
         assertTrue(outcome.execution().saved());
         assertEquals(1, saves.get());
-        assertTrue(root.getOwnedFunctions().stream().anyMatch(function -> "Probe".equals(function.getName())));
-        assertEquals(List.of("executed", "checks", "validation"), events.stream().filter(event -> !event.startsWith("activity")).toList());
+        assertTrue(
+                root.getOwnedFunctions().stream()
+                        .anyMatch(function -> "Probe".equals(function.getName())));
+        assertEquals(
+                List.of("executed", "checks", "validation"),
+                events.stream().filter(event -> !event.startsWith("activity")).toList());
     }
 
-    @Test public void failedCheckLeavesTheStepPendingEvenThoughTheChangeCommitted() throws Exception {
-        var outcome = run(() -> ReviewedEdit.apply(session, request("Probe", "Something else", () -> true), listener()));
+    @Test
+    public void failedCheckLeavesTheStepPendingEvenThoughTheChangeCommitted() throws Exception {
+        var outcome =
+                run(
+                        () ->
+                                ReviewedEdit.apply(
+                                        session,
+                                        request("Probe", "Something else", () -> true),
+                                        listener()));
         assertTrue(outcome.committed());
         assertTrue(outcome.execution().completedStepIds().isEmpty());
-        assertTrue(outcome.execution().feedback(), outcome.execution().feedback().toLowerCase().contains("fail"));
+        assertTrue(
+                outcome.execution().feedback(),
+                outcome.execution().feedback().toLowerCase().contains("fail"));
     }
 
-    @Test public void rejectedReviewRunsNothing() throws Exception {
-        var outcome = run(() -> ReviewedEdit.apply(session, request("Probe", "Probe", () -> false), listener()));
+    @Test
+    public void rejectedReviewRunsNothing() throws Exception {
+        var outcome =
+                run(
+                        () ->
+                                ReviewedEdit.apply(
+                                        session,
+                                        request("Probe", "Probe", () -> false),
+                                        listener()));
         assertFalse(outcome.attempted());
         assertFalse(outcome.committed());
         assertTrue(root.getOwnedFunctions().isEmpty());
@@ -113,22 +157,51 @@ public class ReviewedEditTest {
         assertFalse(domain.getCommandStack().canUndo());
     }
 
-    private ReviewedEdit.Request request(String created, String expected, java.util.function.BooleanSupplier review) {
-        var check = new ArcadiaAgent.Postcondition("create", "element_exists",
-            Map.of("type", "LogicalFunction", "name", expected, "layer", "LA"));
-        return new ReviewedEdit.Request("Create a probe function", "Create " + created,
-            "api.create('LA', 'LogicalFunction', '" + created + "')", List.of(check), "reviewed-edit-test",
-            SelectionContext.empty(), review, () -> false, () -> true,
-            ignored -> new ModelVerification.Snapshot(true, 0, 0, 0, List.of(), true, false, ""));
+    private ReviewedEdit.Request request(
+            String created, String expected, java.util.function.BooleanSupplier review) {
+        var check =
+                new ArcadiaAgent.Postcondition(
+                        "create",
+                        "element_exists",
+                        Map.of("type", "LogicalFunction", "name", expected, "layer", "LA"));
+        return new ReviewedEdit.Request(
+                "Create a probe function",
+                "Create " + created,
+                "api.create('LA', 'LogicalFunction', '" + created + "')",
+                List.of(check),
+                "reviewed-edit-test",
+                SelectionContext.empty(),
+                review,
+                () -> false,
+                () -> true,
+                ignored ->
+                        new ModelVerification.Snapshot(true, 0, 0, 0, List.of(), true, false, ""));
     }
 
     private ReviewedEdit.Listener listener() {
         return new ReviewedEdit.Listener() {
-            @Override public void activity(String text) { events.add("activity " + text); }
-            @Override public void executed(org.polarsys.capella.ai.scripting.ScriptRouter.Result result, String feedback,
-                    ModelChangeSummary.ChangeReport changes) { events.add("executed"); }
-            @Override public void checks(String markdown) { events.add("checks"); }
-            @Override public void validation(String markdown) { events.add("validation"); }
+            @Override
+            public void activity(String text) {
+                events.add("activity " + text);
+            }
+
+            @Override
+            public void executed(
+                    org.polarsys.capella.ai.scripting.ScriptRouter.Result result,
+                    String feedback,
+                    ModelChangeSummary.ChangeReport changes) {
+                events.add("executed");
+            }
+
+            @Override
+            public void checks(String markdown) {
+                events.add("checks");
+            }
+
+            @Override
+            public void validation(String markdown) {
+                events.add("validation");
+            }
         };
     }
 

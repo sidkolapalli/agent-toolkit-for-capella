@@ -2,10 +2,6 @@ package org.polarsys.capella.ai.dev;
 
 import static org.junit.Assert.*;
 
-import java.lang.reflect.Proxy;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
@@ -21,6 +17,11 @@ import org.polarsys.capella.ai.agent.ArcadiaModelTools;
 import org.polarsys.capella.core.data.capellamodeller.CapellamodellerFactory;
 import org.polarsys.capella.core.data.ctx.CtxFactory;
 
+import java.lang.reflect.Proxy;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+
 /** Model Context Protocol over the dev server: any MCP client can read the open Capella model. */
 public class McpServerTest {
     private Resource semantic;
@@ -28,10 +29,14 @@ public class McpServerTest {
     private Session session;
     private final AtomicInteger saves = new AtomicInteger();
 
-    @Before public void createModel() {
+    @Before
+    public void createModel() {
         Display.getDefault();
         var resources = new ResourceSetImpl();
-        resources.getResourceFactoryRegistry().getExtensionToFactoryMap().put("xmi", new XMIResourceFactoryImpl());
+        resources
+                .getResourceFactoryRegistry()
+                .getExtensionToFactoryMap()
+                .put("xmi", new XMIResourceFactoryImpl());
         semantic = resources.createResource(URI.createURI("memory:/mcp-model.xmi"));
         var project = CapellamodellerFactory.eINSTANCE.createProject();
         project.setName("MCP project");
@@ -49,35 +54,72 @@ public class McpServerTest {
         functions.getOwnedSystemFunctions().add(function);
         semantic.setTrackingModification(true);
         domain = TransactionalEditingDomain.Factory.INSTANCE.createEditingDomain(resources);
-        session = (Session) Proxy.newProxyInstance(Session.class.getClassLoader(), new Class<?>[] {Session.class},
-            (proxy, method, args) -> switch (method.getName()) {
-                case "isOpen" -> true;
-                case "getSemanticResources" -> List.of(semantic);
-                case "getSessionResource" -> semantic;
-                case "getTransactionalEditingDomain" -> domain;
-                case "save" -> { saves.incrementAndGet(); throw new AssertionError("MCP reads must never save"); }
-                case "hashCode" -> System.identityHashCode(proxy);
-                case "equals" -> proxy == args[0];
-                default -> null;
-            });
+        session =
+                (Session)
+                        Proxy.newProxyInstance(
+                                Session.class.getClassLoader(),
+                                new Class<?>[] {Session.class},
+                                (proxy, method, args) ->
+                                        switch (method.getName()) {
+                                            case "isOpen" -> true;
+                                            case "getSemanticResources" -> List.of(semantic);
+                                            case "getSessionResource" -> semantic;
+                                            case "getTransactionalEditingDomain" -> domain;
+                                            case "save" -> {
+                                                saves.incrementAndGet();
+                                                throw new AssertionError(
+                                                        "MCP reads must never save");
+                                            }
+                                            case "hashCode" -> System.identityHashCode(proxy);
+                                            case "equals" -> proxy == args[0];
+                                            default -> null;
+                                        });
     }
 
-    @After public void closeModel() { if (domain != null) domain.dispose(); }
+    @After
+    public void closeModel() {
+        if (domain != null) domain.dispose();
+    }
 
-    @Test public void initializeAdvertisesToolsAndEchoesTheRequestId() {
-        Map<?, ?> response = call(session, Map.of("jsonrpc", "2.0", "id", 7, "method", "initialize",
-            "params", Map.of("protocolVersion", "2025-06-18", "capabilities", Map.of(), "clientInfo", Map.of("name", "test", "version", "1"))));
+    @Test
+    public void initializeAdvertisesToolsAndEchoesTheRequestId() {
+        Map<?, ?> response =
+                call(
+                        session,
+                        Map.of(
+                                "jsonrpc",
+                                "2.0",
+                                "id",
+                                7,
+                                "method",
+                                "initialize",
+                                "params",
+                                Map.of(
+                                        "protocolVersion",
+                                        "2025-06-18",
+                                        "capabilities",
+                                        Map.of(),
+                                        "clientInfo",
+                                        Map.of("name", "test", "version", "1"))));
         assertEquals(7, ((Number) response.get("id")).intValue());
         Map<?, ?> result = (Map<?, ?>) response.get("result");
         assertEquals("2025-06-18", result.get("protocolVersion"));
         assertTrue(((Map<?, ?>) result.get("capabilities")).containsKey("tools"));
         assertEquals("capella-ai", ((Map<?, ?>) result.get("serverInfo")).get("name"));
-        assertNull("Notifications get no response", McpServer.handle(session,
-            AgentJson.write(Map.of("jsonrpc", "2.0", "method", "notifications/initialized"))));
+        assertNull(
+                "Notifications get no response",
+                McpServer.handle(
+                        session,
+                        AgentJson.write(
+                                Map.of("jsonrpc", "2.0", "method", "notifications/initialized"))));
     }
 
-    @Test public void toolsListOffersEveryNativeReadToolWithItsSchema() {
-        List<?> tools = (List<?>) ((Map<?, ?>) call(session, request("tools/list", Map.of())).get("result")).get("tools");
+    @Test
+    public void toolsListOffersEveryNativeReadToolWithItsSchema() {
+        List<?> tools =
+                (List<?>)
+                        ((Map<?, ?>) call(session, request("tools/list", Map.of())).get("result"))
+                                .get("tools");
         var names = tools.stream().map(tool -> ((Map<?, ?>) tool).get("name")).toList();
         assertTrue(names.containsAll(ArcadiaModelTools.toolNames()));
         for (Object tool : tools) {
@@ -88,10 +130,21 @@ public class McpServerTest {
         }
     }
 
-    @Test public void readToolCallsReturnModelDataWithoutChangingTheModel() {
+    @Test
+    public void readToolCallsReturnModelDataWithoutChangingTheModel() {
         semantic.setModified(false);
-        Map<?, ?> result = (Map<?, ?>) call(session, request("tools/call",
-            Map.of("name", "model_search", "arguments", Map.of("query", "battery")))).get("result");
+        Map<?, ?> result =
+                (Map<?, ?>)
+                        call(
+                                        session,
+                                        request(
+                                                "tools/call",
+                                                Map.of(
+                                                        "name",
+                                                        "model_search",
+                                                        "arguments",
+                                                        Map.of("query", "battery"))))
+                                .get("result");
         assertEquals(Boolean.FALSE, result.get("isError"));
         String text = (String) ((Map<?, ?>) ((List<?>) result.get("content")).get(0)).get("text");
         assertTrue(text, text.contains("mcp-function"));
@@ -99,16 +152,50 @@ public class McpServerTest {
         assertEquals(0, saves.get());
     }
 
-    @Test public void toolErrorsAreResultsAndProtocolErrorsAreJsonRpcErrors() {
-        Map<?, ?> bad = (Map<?, ?>) call(session, request("tools/call",
-            Map.of("name", "model_inspect", "arguments", Map.of("code", "eSet(...)")))).get("result");
+    @Test
+    public void toolErrorsAreResultsAndProtocolErrorsAreJsonRpcErrors() {
+        Map<?, ?> bad =
+                (Map<?, ?>)
+                        call(
+                                        session,
+                                        request(
+                                                "tools/call",
+                                                Map.of(
+                                                        "name",
+                                                        "model_inspect",
+                                                        "arguments",
+                                                        Map.of("code", "eSet(...)"))))
+                                .get("result");
         assertEquals(Boolean.TRUE, bad.get("isError"));
-        assertEquals(-32602, errorCode(call(session, request("tools/call", Map.of("name", "execute_groovy", "arguments", Map.of())))));
+        assertEquals(
+                -32602,
+                errorCode(
+                        call(
+                                session,
+                                request(
+                                        "tools/call",
+                                        Map.of("name", "execute_groovy", "arguments", Map.of())))));
         assertEquals(-32601, errorCode(call(session, request("resources/list", Map.of()))));
-        assertEquals(-32700, errorCode((Map<?, ?>) AgentJson.parse(McpServer.handle(session, "{not json"), 100_000)));
-        assertEquals(-32600, errorCode((Map<?, ?>) AgentJson.parse(McpServer.handle(session, "[]"), 100_000)));
-        Map<?, ?> closed = (Map<?, ?>) call(null, request("tools/call",
-            Map.of("name", "model_summary", "arguments", Map.of()))).get("result");
+        assertEquals(
+                -32700,
+                errorCode(
+                        (Map<?, ?>)
+                                AgentJson.parse(McpServer.handle(session, "{not json"), 100_000)));
+        assertEquals(
+                -32600,
+                errorCode((Map<?, ?>) AgentJson.parse(McpServer.handle(session, "[]"), 100_000)));
+        Map<?, ?> closed =
+                (Map<?, ?>)
+                        call(
+                                        null,
+                                        request(
+                                                "tools/call",
+                                                Map.of(
+                                                        "name",
+                                                        "model_summary",
+                                                        "arguments",
+                                                        Map.of())))
+                                .get("result");
         assertEquals(Boolean.TRUE, closed.get("isError"));
     }
 
@@ -117,7 +204,8 @@ public class McpServerTest {
     }
 
     private static Map<?, ?> call(Session session, Map<String, Object> message) {
-        return (Map<?, ?>) AgentJson.parse(McpServer.handle(session, AgentJson.write(message)), 200_000);
+        return (Map<?, ?>)
+                AgentJson.parse(McpServer.handle(session, AgentJson.write(message)), 200_000);
     }
 
     private static int errorCode(Map<?, ?> response) {

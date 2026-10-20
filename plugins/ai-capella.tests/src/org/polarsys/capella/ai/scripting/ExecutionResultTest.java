@@ -2,14 +2,12 @@ package org.polarsys.capella.ai.scripting;
 
 import static org.junit.Assert.*;
 
-import java.util.List;
-
 import org.junit.Test;
 import org.polarsys.capella.ai.scripting.ExecutionResult.ErrorCode;
 
-/**
- * Unit tests for ExecutionResult.
- */
+import java.util.List;
+
+/** Unit tests for ExecutionResult. */
 public class ExecutionResultTest {
 
     @Test
@@ -39,7 +37,8 @@ public class ExecutionResultTest {
 
     @Test
     public void testFailWithCodeAndMessage() {
-        ExecutionResult result = ExecutionResult.fail(ErrorCode.RUNTIME_ERROR, "Something went wrong");
+        ExecutionResult result =
+                ExecutionResult.fail(ErrorCode.RUNTIME_ERROR, "Something went wrong");
 
         assertFalse(result.success());
         assertTrue(result.failed());
@@ -52,11 +51,9 @@ public class ExecutionResultTest {
 
     @Test
     public void testFailWithStackTrace() {
-        ExecutionResult result = ExecutionResult.fail(
-            ErrorCode.COMPILATION_ERROR,
-            "Syntax error",
-            "at line 5\nat line 10"
-        );
+        ExecutionResult result =
+                ExecutionResult.fail(
+                        ErrorCode.COMPILATION_ERROR, "Syntax error", "at line 5\nat line 10");
 
         assertFalse(result.success());
         assertTrue(result.isCompilationError());
@@ -98,14 +95,17 @@ public class ExecutionResultTest {
         assertEquals(1, result.logs().size());
 
         // Result logs should be immutable
-        assertThrows(UnsupportedOperationException.class, () -> {
-            result.logs().add("log3");
-        });
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> {
+                    result.logs().add("log3");
+                });
     }
 
     @Test
     public void testFormatForLLMSuccess() {
-        ExecutionResult result = ExecutionResult.success("created element", List.of("Created X"), 100);
+        ExecutionResult result =
+                ExecutionResult.success("created element", List.of("Created X"), 100);
         String formatted = result.formatForLLM();
 
         assertTrue(formatted.contains("EXECUTION_SUCCESS"));
@@ -116,13 +116,13 @@ public class ExecutionResultTest {
 
     @Test
     public void testFormatForLLMFailure() {
-        ExecutionResult result = ExecutionResult.fail(
-            ErrorCode.RUNTIME_ERROR,
-            "NullPointerException",
-            "at MyScript.run(line:5)",
-            List.of("starting..."),
-            250
-        );
+        ExecutionResult result =
+                ExecutionResult.fail(
+                        ErrorCode.RUNTIME_ERROR,
+                        "NullPointerException",
+                        "at MyScript.run(line:5)",
+                        List.of("starting..."),
+                        250);
         String formatted = result.formatForLLM();
 
         assertTrue(formatted.contains("EXECUTION_FAILED"));
@@ -145,7 +145,8 @@ public class ExecutionResultTest {
     @Test
     public void testNullLogsHandling() {
         // Should handle null logs gracefully
-        ExecutionResult result = new ExecutionResult(true, "v", ErrorCode.SUCCESS, null, null, null, 0);
+        ExecutionResult result =
+                new ExecutionResult(true, "v", ErrorCode.SUCCESS, null, null, null, 0);
         assertNotNull(result.logs());
         assertTrue(result.logs().isEmpty());
     }

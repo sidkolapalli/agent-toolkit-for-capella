@@ -1,29 +1,27 @@
 package org.polarsys.capella.ai.session;
 
+import org.eclipse.emf.ecore.EObject;
+import org.eclipse.sirius.viewpoint.DRepresentation;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.eclipse.emf.ecore.EObject;
-import org.eclipse.sirius.viewpoint.DRepresentation;
 
 /**
  * Immutable snapshot of the user's current UI context (selection + active diagram).
  *
- * <p>Captured on the UI thread via {@link SessionBridge#getSelectionContext()} and safe
- * to pass into background jobs and retry loops.
+ * <p>Captured on the UI thread via {@link SessionBridge#getSelectionContext()} and safe to pass
+ * into background jobs and retry loops.
  *
- * <p>Note: this snapshot keeps references to live EMF objects (selected {@link EObject}s
- * and the {@link DRepresentation}). These objects may be mutable and may become disposed
- * or invalid between capture time and script execution. Consumers should treat these
- * references as best-effort anchors for grounding, and still handle failures when
- * dereferencing fields.
+ * <p>Note: this snapshot keeps references to live EMF objects (selected {@link EObject}s and the
+ * {@link DRepresentation}). These objects may be mutable and may become disposed or invalid between
+ * capture time and script execution. Consumers should treat these references as best-effort anchors
+ * for grounding, and still handle failures when dereferencing fields.
  */
 public final class SelectionContext {
 
-    private static final Logger LOG = Logger.getLogger(
-        SelectionContext.class.getName()
-    );
+    private static final Logger LOG = Logger.getLogger(SelectionContext.class.getName());
 
     private final List<EObject> selectedElements;
     private final DRepresentation activeDiagram;
@@ -33,15 +31,14 @@ public final class SelectionContext {
     private final long capturedAtMs;
 
     private SelectionContext(
-        List<EObject> selectedElements,
-        DRepresentation activeDiagram,
-        String activeDiagramName,
-        String activeDiagramType,
-        String activeDiagramUid,
-        long capturedAtMs
-    ) {
+            List<EObject> selectedElements,
+            DRepresentation activeDiagram,
+            String activeDiagramName,
+            String activeDiagramType,
+            String activeDiagramUid,
+            long capturedAtMs) {
         this.selectedElements =
-            selectedElements != null ? List.copyOf(selectedElements) : List.of();
+                selectedElements != null ? List.copyOf(selectedElements) : List.of();
         this.activeDiagram = activeDiagram;
         this.activeDiagramName = activeDiagramName;
         this.activeDiagramType = activeDiagramType;
@@ -50,9 +47,7 @@ public final class SelectionContext {
     }
 
     public static SelectionContext of(
-        List<EObject> selectedElements,
-        DRepresentation activeDiagram
-    ) {
+            List<EObject> selectedElements, DRepresentation activeDiagram) {
         String name = null;
         String type = null;
         String uid = null;
@@ -64,9 +59,9 @@ public final class SelectionContext {
             }
             try {
                 type =
-                    activeDiagram.eClass() != null
-                        ? activeDiagram.eClass().getName()
-                        : activeDiagram.getClass().getSimpleName();
+                        activeDiagram.eClass() != null
+                                ? activeDiagram.eClass().getName()
+                                : activeDiagram.getClass().getSimpleName();
             } catch (Exception ex) {
                 LOG.log(Level.FINE, "Failed to read active diagram type", ex);
             }
@@ -77,24 +72,11 @@ public final class SelectionContext {
             }
         }
         return new SelectionContext(
-            selectedElements,
-            activeDiagram,
-            name,
-            type,
-            uid,
-            System.currentTimeMillis()
-        );
+                selectedElements, activeDiagram, name, type, uid, System.currentTimeMillis());
     }
 
     public static SelectionContext empty() {
-        return new SelectionContext(
-            List.of(),
-            null,
-            null,
-            null,
-            null,
-            System.currentTimeMillis()
-        );
+        return new SelectionContext(List.of(), null, null, null, null, System.currentTimeMillis());
     }
 
     public List<EObject> getSelectedElements() {

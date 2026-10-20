@@ -1,28 +1,26 @@
 package org.polarsys.capella.ai.scripting;
 
+import org.polarsys.capella.ai.preferences.OutputPreferences;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
-import org.polarsys.capella.ai.preferences.OutputPreferences;
 
 /**
- * Structured result from Groovy script execution.
- * Contains execution status, return value, logs, and error information.
+ * Structured result from Groovy script execution. Contains execution status, return value, logs,
+ * and error information.
  */
 public record ExecutionResult(
-    boolean success,
-    Object value,
-    ErrorCode code,
-    String message,
-    String stackTrace,
-    List<String> logs,
-    long durationMs
-) {
+        boolean success,
+        Object value,
+        ErrorCode code,
+        String message,
+        String stackTrace,
+        List<String> logs,
+        long durationMs) {
 
-    /**
-     * Error codes for script execution failures.
-     */
+    /** Error codes for script execution failures. */
     public enum ErrorCode {
         /** Script executed successfully */
         SUCCESS,
@@ -42,110 +40,89 @@ public record ExecutionResult(
         INVALID_RESULT
     }
 
-    /**
-     * Compact constructor ensuring immutable logs list.
-     */
+    /** Compact constructor ensuring immutable logs list. */
     public ExecutionResult {
         logs = logs != null ? List.copyOf(logs) : List.of();
     }
 
     // ========== Factory Methods ==========
 
-    /**
-     * Create a success result with return value and logs.
-     */
+    /** Create a success result with return value and logs. */
     public static ExecutionResult success(Object value, List<String> logs, long durationMs) {
         return new ExecutionResult(true, value, ErrorCode.SUCCESS, null, null, logs, durationMs);
     }
 
-    /**
-     * Create a success result with return value only.
-     */
+    /** Create a success result with return value only. */
     public static ExecutionResult success(Object value) {
         return new ExecutionResult(true, value, ErrorCode.SUCCESS, null, null, List.of(), 0);
     }
 
-    /**
-     * Create a failure result with error code and message.
-     */
+    /** Create a failure result with error code and message. */
     public static ExecutionResult fail(ErrorCode code, String message) {
         return new ExecutionResult(false, null, code, message, null, List.of(), 0);
     }
 
-    /**
-     * Create a failure result with error code, message, and stack trace.
-     */
+    /** Create a failure result with error code, message, and stack trace. */
     public static ExecutionResult fail(ErrorCode code, String message, String stackTrace) {
         return new ExecutionResult(false, null, code, message, stackTrace, List.of(), 0);
     }
 
-    /**
-     * Create a failure result with full context including logs.
-     */
-    public static ExecutionResult fail(ErrorCode code, String message, String stackTrace,
-                                       List<String> logs, long durationMs) {
+    /** Create a failure result with full context including logs. */
+    public static ExecutionResult fail(
+            ErrorCode code, String message, String stackTrace, List<String> logs, long durationMs) {
         return new ExecutionResult(false, null, code, message, stackTrace, logs, durationMs);
     }
 
-    /**
-     * Create a timeout failure result.
-     */
+    /** Create a timeout failure result. */
     public static ExecutionResult timeout(long timeoutMs, List<String> logs) {
-        return new ExecutionResult(false, null, ErrorCode.TIMEOUT,
-            "Script execution exceeded " + timeoutMs + "ms timeout",
-            null, logs, timeoutMs);
+        return new ExecutionResult(
+                false,
+                null,
+                ErrorCode.TIMEOUT,
+                "Script execution exceeded " + timeoutMs + "ms timeout",
+                null,
+                logs,
+                timeoutMs);
     }
 
     // ========== Query Methods ==========
 
-    /**
-     * Check if execution failed.
-     */
+    /** Check if execution failed. */
     public boolean failed() {
         return !success;
     }
 
-    /**
-     * Check if failure was due to timeout.
-     */
+    /** Check if failure was due to timeout. */
     public boolean isTimeout() {
         return code == ErrorCode.TIMEOUT;
     }
 
-    /**
-     * Check if failure was a compilation error (syntax).
-     */
+    /** Check if failure was a compilation error (syntax). */
     public boolean isCompilationError() {
         return code == ErrorCode.COMPILATION_ERROR;
     }
 
-    /**
-     * Check if failure was a runtime error.
-     */
+    /** Check if failure was a runtime error. */
     public boolean isRuntimeError() {
         return code == ErrorCode.RUNTIME_ERROR;
     }
 
-    /**
-     * Check if there are log messages.
-     */
+    /** Check if there are log messages. */
     public boolean hasLogs() {
         return !logs.isEmpty();
     }
 
     // ========== Output normalization ==========
 
-    private static final Pattern UUID_PATTERN = Pattern.compile(
-        "\\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\b"
-    );
+    private static final Pattern UUID_PATTERN =
+            Pattern.compile(
+                    "\\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\b");
 
-    private static final Pattern HEX_32_PATTERN = Pattern.compile(
-        "\\b[0-9a-fA-F]{32}\\b"
-    );
+    private static final Pattern HEX_32_PATTERN = Pattern.compile("\\b[0-9a-fA-F]{32}\\b");
 
     /**
-     * Return a redacted + size-capped representation of the return value for
-     * external output (LLM feedback and dev server).
+     * Return a redacted + size-capped representation of the return value for external output (LLM
+     * feedback and dev server).
      */
     public String valueForOutput() {
         if (value == null) {
@@ -155,20 +132,13 @@ public record ExecutionResult(
         return normalizeText(formatted, OutputPreferences.getMaxValueChars());
     }
 
-    /**
-     * Return redacted + size-capped log lines suitable for external output.
-     */
+    /** Return redacted + size-capped log lines suitable for external output. */
     public List<String> logsForOutput() {
         return normalizeLines(
-            logs,
-            OutputPreferences.getMaxLogLines(),
-            OutputPreferences.getMaxLogLineChars()
-        );
+                logs, OutputPreferences.getMaxLogLines(), OutputPreferences.getMaxLogLineChars());
     }
 
-    /**
-     * Return a redacted representation of the message for external output.
-     */
+    /** Return a redacted representation of the message for external output. */
     public String messageForOutput() {
         if (message == null) {
             return null;
@@ -179,8 +149,8 @@ public record ExecutionResult(
     // ========== Formatting Methods ==========
 
     /**
-     * Format result for LLM consumption in error feedback loop.
-     * This helps the LLM understand what went wrong and self-correct.
+     * Format result for LLM consumption in error feedback loop. This helps the LLM understand what
+     * went wrong and self-correct.
      */
     public String formatForLLM() {
         StringBuilder sb = new StringBuilder();
@@ -221,9 +191,7 @@ public record ExecutionResult(
         return sb.toString();
     }
 
-    /**
-     * Format value for display, handling common types.
-     */
+    /** Format value for display, handling common types. */
     private String formatValue(Object val) {
         if (val == null) {
             return "null";
@@ -252,9 +220,9 @@ public record ExecutionResult(
             int maxSample = OutputPreferences.getMaxCollectionSample();
             StringBuilder sb = new StringBuilder();
             sb.append(col.getClass().getSimpleName())
-                .append("[")
-                .append(col.size())
-                .append(" items]");
+                    .append("[")
+                    .append(col.size())
+                    .append(" items]");
             if (!col.isEmpty()) {
                 sb.append(" sample=[");
                 int i = 0;
@@ -291,10 +259,7 @@ public record ExecutionResult(
     }
 
     private static List<String> normalizeLines(
-        List<String> lines,
-        int maxLines,
-        int maxCharsPerLine
-    ) {
+            List<String> lines, int maxLines, int maxCharsPerLine) {
         if (lines == null || lines.isEmpty()) {
             return List.of();
         }
@@ -353,7 +318,9 @@ public record ExecutionResult(
     @Override
     public String toString() {
         if (success) {
-            return "ExecutionResult[SUCCESS" + (value != null ? ": " + formatValue(value) : "") + "]";
+            return "ExecutionResult[SUCCESS"
+                    + (value != null ? ": " + formatValue(value) : "")
+                    + "]";
         }
         return "ExecutionResult[" + code + ": " + message + "]";
     }

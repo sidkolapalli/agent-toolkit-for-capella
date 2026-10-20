@@ -1,25 +1,21 @@
 package org.polarsys.capella.ai.model;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Structured result from action execution with diagnostic information.
- * Replaces boolean returns to enable self-healing and better error reporting.
+ * Structured result from action execution with diagnostic information. Replaces boolean returns to
+ * enable self-healing and better error reporting.
  */
 public record ActionResult(
-    boolean success,
-    ErrorCode code,
-    String message,
-    String suggestion,
-    List<String> alternatives,
-    Map<String, Object> context
-) {
+        boolean success,
+        ErrorCode code,
+        String message,
+        String suggestion,
+        List<String> alternatives,
+        Map<String, Object> context) {
 
-    /**
-     * Error codes covering all failure scenarios in Capella AI actions.
-     */
+    /** Error codes covering all failure scenarios in Capella AI actions. */
     public enum ErrorCode {
         /** Action completed successfully */
         SUCCESS,
@@ -45,9 +41,7 @@ public record ActionResult(
         INVALID_INPUT
     }
 
-    /**
-     * Compact constructor ensuring immutable collections.
-     */
+    /** Compact constructor ensuring immutable collections. */
     public ActionResult {
         alternatives = alternatives != null ? List.copyOf(alternatives) : List.of();
         context = context != null ? Map.copyOf(context) : Map.of();
@@ -55,102 +49,100 @@ public record ActionResult(
 
     // ========== Factory Methods ==========
 
-    /**
-     * Create a success result with no message.
-     */
+    /** Create a success result with no message. */
     public static ActionResult ok() {
         return new ActionResult(true, ErrorCode.SUCCESS, null, null, List.of(), Map.of());
     }
 
-    /**
-     * Create a success result with a descriptive message.
-     */
+    /** Create a success result with a descriptive message. */
     public static ActionResult ok(String message) {
         return new ActionResult(true, ErrorCode.SUCCESS, message, null, List.of(), Map.of());
     }
 
-    /**
-     * Create a failure result with error code and message.
-     */
+    /** Create a failure result with error code and message. */
     public static ActionResult fail(ErrorCode code, String message) {
         return new ActionResult(false, code, message, null, List.of(), Map.of());
     }
 
-    /**
-     * Create a failure result with error code, message, and actionable suggestion.
-     */
+    /** Create a failure result with error code, message, and actionable suggestion. */
     public static ActionResult fail(ErrorCode code, String message, String suggestion) {
         return new ActionResult(false, code, message, suggestion, List.of(), Map.of());
     }
 
-    /**
-     * Create a failure result with alternatives for "did you mean?" suggestions.
-     */
-    public static ActionResult failWithAlternatives(ErrorCode code, String message, List<String> alternatives) {
-        String suggestion = alternatives.isEmpty() ? null
-            : "Did you mean one of: " + String.join(", ", alternatives);
+    /** Create a failure result with alternatives for "did you mean?" suggestions. */
+    public static ActionResult failWithAlternatives(
+            ErrorCode code, String message, List<String> alternatives) {
+        String suggestion =
+                alternatives.isEmpty()
+                        ? null
+                        : "Did you mean one of: " + String.join(", ", alternatives);
         return new ActionResult(false, code, message, suggestion, alternatives, Map.of());
     }
 
     /**
-     * Create a failure result with custom message, suggestion, and alternatives.
-     * Use this when you need a specific error message while preserving alternatives from FindResult.
+     * Create a failure result with custom message, suggestion, and alternatives. Use this when you
+     * need a specific error message while preserving alternatives from FindResult.
      */
-    public static ActionResult failWithAlternatives(ErrorCode code, String message, String suggestion, List<String> alternatives) {
-        return new ActionResult(false, code, message, suggestion, alternatives != null ? alternatives : List.of(), Map.of());
+    public static ActionResult failWithAlternatives(
+            ErrorCode code, String message, String suggestion, List<String> alternatives) {
+        return new ActionResult(
+                false,
+                code,
+                message,
+                suggestion,
+                alternatives != null ? alternatives : List.of(),
+                Map.of());
     }
 
-    /**
-     * Create a failure result with full context for debugging.
-     */
-    public static ActionResult failWithContext(ErrorCode code, String message, String suggestion,
-                                                List<String> alternatives, Map<String, Object> context) {
+    /** Create a failure result with full context for debugging. */
+    public static ActionResult failWithContext(
+            ErrorCode code,
+            String message,
+            String suggestion,
+            List<String> alternatives,
+            Map<String, Object> context) {
         return new ActionResult(false, code, message, suggestion, alternatives, context);
     }
 
     /**
-     * Create a result with all fields specified (for partial success scenarios in batch operations).
+     * Create a result with all fields specified (for partial success scenarios in batch
+     * operations).
      */
-    public static ActionResult create(boolean success, ErrorCode code, String message, String suggestion,
-                                       List<String> alternatives, Map<String, Object> context) {
+    public static ActionResult create(
+            boolean success,
+            ErrorCode code,
+            String message,
+            String suggestion,
+            List<String> alternatives,
+            Map<String, Object> context) {
         return new ActionResult(success, code, message, suggestion, alternatives, context);
     }
 
     // ========== Convenience Methods ==========
 
-    /**
-     * Check if result represents a failure.
-     */
+    /** Check if result represents a failure. */
     public boolean failed() {
         return !success;
     }
 
-    /**
-     * Check if failure was due to element not found (common case for self-healing).
-     */
+    /** Check if failure was due to element not found (common case for self-healing). */
     public boolean isNotFound() {
         return code == ErrorCode.ELEMENT_NOT_FOUND
-            || code == ErrorCode.PARENT_NOT_FOUND
-            || code == ErrorCode.REFERENCE_NOT_FOUND;
+                || code == ErrorCode.PARENT_NOT_FOUND
+                || code == ErrorCode.REFERENCE_NOT_FOUND;
     }
 
-    /**
-     * Check if failure was due to ambiguous match.
-     */
+    /** Check if failure was due to ambiguous match. */
     public boolean isAmbiguous() {
         return code == ErrorCode.DUPLICATE_AMBIGUOUS;
     }
 
-    /**
-     * Check if alternatives are available for correction.
-     */
+    /** Check if alternatives are available for correction. */
     public boolean hasAlternatives() {
         return !alternatives.isEmpty();
     }
 
-    /**
-     * Format result for LLM consumption in self-healing loop.
-     */
+    /** Format result for LLM consumption in self-healing loop. */
     public String formatForLLM() {
         if (success) {
             return "SUCCESS: " + (message != null ? message : "completed");

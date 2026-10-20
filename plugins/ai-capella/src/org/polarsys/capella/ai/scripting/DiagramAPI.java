@@ -1,8 +1,5 @@
 package org.polarsys.capella.ai.scripting;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.sirius.business.api.dialect.DialectManager;
@@ -25,14 +22,19 @@ import org.polarsys.capella.core.data.pa.PhysicalArchitecture;
 import org.polarsys.capella.core.data.pa.PhysicalFunction;
 import org.polarsys.capella.core.model.helpers.BlockArchitectureExt;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
 /**
- * Diagram operations API for Groovy scripts.
- * Wraps DiagramCommands for a cleaner, script-friendly interface.
+ * Diagram operations API for Groovy scripts. Wraps DiagramCommands for a cleaner, script-friendly
+ * interface.
  *
- * <p>This provides full diagram creation capabilities that Python4Capella cannot do,
- * using the same Sirius/GMF APIs that the Capella UI uses internally.
+ * <p>This provides full diagram creation capabilities that Python4Capella cannot do, using the same
+ * Sirius/GMF APIs that the Capella UI uses internally.
  *
  * <p>Example usage in scripts:
+ *
  * <pre>{@code
  * def diagram = api.diagram.create("SAB", "System Overview", systemRoot)
  * api.diagram.add(diagram, component1)
@@ -44,9 +46,7 @@ public final class DiagramAPI {
 
     private final Session session;
 
-    /**
-     * Create a DiagramAPI for the given session.
-     */
+    /** Create a DiagramAPI for the given session. */
     public DiagramAPI(Session session) {
         this.session = session;
     }
@@ -56,11 +56,11 @@ public final class DiagramAPI {
     /**
      * Create and open a new diagram.
      *
-     * <p>Supports abbreviations (SAB, LAB, PAB, etc.) and full Sirius descriptor names.
-     * Use {@link #listAvailable(String)} to see all supported diagram types for a layer.
+     * <p>Supports abbreviations (SAB, LAB, PAB, etc.) and full Sirius descriptor names. Use {@link
+     * #listAvailable(String)} to see all supported diagram types for a layer.
      *
-     * @param diagramType the diagram type abbreviation (e.g., "SAB", "SDFB") or full
-     *                    Sirius descriptor name (e.g., "System Architecture Blank")
+     * @param diagramType the diagram type abbreviation (e.g., "SAB", "SDFB") or full Sirius
+     *     descriptor name (e.g., "System Architecture Blank")
      * @param name the diagram name
      * @param target the semantic element to create the diagram for (layer root or package)
      * @return the created diagram representation
@@ -69,11 +69,7 @@ public final class DiagramAPI {
      * @see #listAvailable(String)
      * @see #listAvailableFormatted(String)
      */
-    public DRepresentation create(
-        String diagramType,
-        String name,
-        EObject target
-    ) {
+    public DRepresentation create(String diagramType, String name, EObject target) {
         if (session == null) {
             throw new IllegalStateException("No active session");
         }
@@ -93,37 +89,46 @@ public final class DiagramAPI {
                 // Build helpful error message
                 StringBuilder sb = new StringBuilder();
                 sb.append("Unknown diagram type: '").append(diagramType).append("'\n");
-                sb.append("Valid abbreviations: OAB, SAB, LAB, PAB, SDFB, LDFB, PDFB, CDB, ES, FS, IS\n");
-                sb.append("\nUse api.diagram.listAvailable('SA') to see available types for a layer.\n");
+                sb.append(
+                        "Valid abbreviations: OAB, SAB, LAB, PAB, SDFB, LDFB, PDFB, CDB, ES, FS,"
+                            + " IS\n");
+                sb.append(
+                        "\n"
+                            + "Use api.diagram.listAvailable('SA') to see available types for a"
+                            + " layer.\n");
                 sb.append("Use api.diagram.listAvailableFormatted() for detailed descriptions.");
                 throw new IllegalArgumentException(sb.toString());
             }
         }
 
         // Sequence diagrams show an existing scenario; Capella's UI creates the scenario first.
-        if (descriptionName.endsWith("Scenario") && target instanceof org.polarsys.capella.core.data.interaction.AbstractCapability) {
-            throw new IllegalArgumentException("A " + descriptionName + " diagram shows a scenario, not a capability. Create the scenario with "
-                + "api.arcadia.scenario(capability, name, 'exchange' | 'functional' | 'interface'), then create the diagram on that scenario.");
+        if (descriptionName.endsWith("Scenario")
+                && target
+                        instanceof org.polarsys.capella.core.data.interaction.AbstractCapability) {
+            throw new IllegalArgumentException(
+                    "A "
+                            + descriptionName
+                            + " diagram shows a scenario, not a capability. Create the scenario"
+                            + " with api.arcadia.scenario(capability, name, 'exchange' |"
+                            + " 'functional' | 'interface'), then create the diagram on that"
+                            + " scenario.");
         }
 
         // Find the correct target element for this diagram description.
-        EObject actualTarget = resolveTargetForDescription(
-            descriptionName,
-            target
-        );
+        EObject actualTarget = resolveTargetForDescription(descriptionName, target);
         if (actualTarget == null) {
             throw new IllegalArgumentException(buildTargetError(descriptionName, target));
         }
 
-        DRepresentation created = DiagramCommands.createAndOpenDiagram(
-            session,
-            actualTarget,
-            descriptionName,
-            name
-        );
+        DRepresentation created =
+                DiagramCommands.createAndOpenDiagram(session, actualTarget, descriptionName, name);
         if (created == null) {
-            throw new IllegalStateException("Capella did not create the " + descriptionName + " diagram on " + getElementName(actualTarget)
-                + ". Check that the element is a valid target for this diagram type.");
+            throw new IllegalStateException(
+                    "Capella did not create the "
+                            + descriptionName
+                            + " diagram on "
+                            + getElementName(actualTarget)
+                            + ". Check that the element is a valid target for this diagram type.");
         }
         return created;
     }
@@ -131,15 +136,11 @@ public final class DiagramAPI {
     /**
      * Create a diagram with safety checks for descriptor and target.
      *
-     * <p>This method validates the diagram descriptor against the active session and
-     * attempts to resolve a valid target element if the provided target is unsuitable.
-     * It throws a descriptive error when it cannot create the diagram.
+     * <p>This method validates the diagram descriptor against the active session and attempts to
+     * resolve a valid target element if the provided target is unsuitable. It throws a descriptive
+     * error when it cannot create the diagram.
      */
-    public DRepresentation createSafe(
-        String diagramType,
-        String name,
-        EObject target
-    ) {
+    public DRepresentation createSafe(String diagramType, String name, EObject target) {
         if (session == null) {
             throw new IllegalStateException("No active session");
         }
@@ -155,41 +156,32 @@ public final class DiagramAPI {
                 descriptionName = diagramType;
             } else {
                 throw new IllegalArgumentException(
-                    buildUnknownDiagramMessage(diagramType, available)
-                );
+                        buildUnknownDiagramMessage(diagramType, available));
             }
         }
 
         EObject resolvedTarget = resolveTargetForDescription(descriptionName, target);
         if (resolvedTarget == null) {
-            throw new IllegalArgumentException(
-                buildTargetError(descriptionName, target)
-            );
+            throw new IllegalArgumentException(buildTargetError(descriptionName, target));
         }
 
-        DRepresentation created = DiagramCommands.createAndOpenDiagram(
-            session,
-            resolvedTarget,
-            descriptionName,
-            name
-        );
+        DRepresentation created =
+                DiagramCommands.createAndOpenDiagram(
+                        session, resolvedTarget, descriptionName, name);
         if (created == null) {
-            throw new IllegalArgumentException(
-                buildTargetError(descriptionName, resolvedTarget)
-            );
+            throw new IllegalArgumentException(buildTargetError(descriptionName, resolvedTarget));
         }
         return created;
     }
 
     /**
-     * Find the correct target element for a diagram type.
-     * Architecture blank diagrams need ComponentPkg, not the layer root.
+     * Find the correct target element for a diagram type. Architecture blank diagrams need
+     * ComponentPkg, not the layer root.
      */
     private EObject findDiagramTarget(EObject target, String descriptionName) {
         if (target == null) return null;
 
-        String description =
-            descriptionName != null ? descriptionName.toLowerCase() : "";
+        String description = descriptionName != null ? descriptionName.toLowerCase() : "";
 
         if (description.contains("function breakdown")) {
             EObject rootFunction = findRootFunctionTarget(target);
@@ -214,26 +206,18 @@ public final class DiagramAPI {
         String targetClass = target.eClass().getName();
 
         // If target is already a valid type, use it
-        if (
-            targetClass.contains("ComponentPkg") ||
-            targetClass.contains("Component")
-        ) {
+        if (targetClass.contains("ComponentPkg") || targetClass.contains("Component")) {
             return target;
         }
 
         // If target is a layer root, find the appropriate child
-        if (
-            targetClass.equals("OperationalAnalysis") ||
-            targetClass.equals("SystemAnalysis") ||
-            targetClass.equals("LogicalArchitecture") ||
-            targetClass.equals("PhysicalArchitecture")
-        ) {
+        if (targetClass.equals("OperationalAnalysis")
+                || targetClass.equals("SystemAnalysis")
+                || targetClass.equals("LogicalArchitecture")
+                || targetClass.equals("PhysicalArchitecture")) {
             BlockArchitecture architecture = resolveArchitecture(target);
             if (architecture != null) {
-                EObject componentPkg = BlockArchitectureExt.getComponentPkg(
-                    architecture,
-                    false
-                );
+                EObject componentPkg = BlockArchitectureExt.getComponentPkg(architecture, false);
                 if (componentPkg != null) {
                     return componentPkg;
                 }
@@ -241,10 +225,7 @@ public final class DiagramAPI {
             // Fallback: look for ComponentPkg or EntityPkg
             for (EObject child : target.eContents()) {
                 String childClass = child.eClass().getName();
-                if (
-                    childClass.contains("ComponentPkg") ||
-                    childClass.contains("EntityPkg")
-                ) {
+                if (childClass.contains("ComponentPkg") || childClass.contains("EntityPkg")) {
                     return child;
                 }
             }
@@ -258,14 +239,14 @@ public final class DiagramAPI {
             return target instanceof SystemFunction || target instanceof Capability;
         }
         if (description.contains("logical data flow blank")) {
-            return target instanceof LogicalFunction ||
-                (target instanceof CapabilityRealization &&
-                    resolveArchitecture(target) instanceof LogicalArchitecture);
+            return target instanceof LogicalFunction
+                    || (target instanceof CapabilityRealization
+                            && resolveArchitecture(target) instanceof LogicalArchitecture);
         }
         if (description.contains("physical data flow blank")) {
-            return target instanceof PhysicalFunction ||
-                (target instanceof CapabilityRealization &&
-                    resolveArchitecture(target) instanceof PhysicalArchitecture);
+            return target instanceof PhysicalFunction
+                    || (target instanceof CapabilityRealization
+                            && resolveArchitecture(target) instanceof PhysicalArchitecture);
         }
         return false;
     }
@@ -273,84 +254,68 @@ public final class DiagramAPI {
     private EObject findRootComponentTarget(EObject target) {
         BlockArchitecture architecture = resolveArchitecture(target);
         if (architecture != null) {
-            Collection<Component> roots =
-                BlockArchitectureExt.getRootComponents(architecture);
+            Collection<Component> roots = BlockArchitectureExt.getRootComponents(architecture);
             if (roots != null && !roots.isEmpty()) {
                 return roots.iterator().next();
             }
         }
         return findFirstByClassName(
-            target,
-            List.of("SystemComponent", "LogicalComponent", "PhysicalComponent", "Entity")
-        );
+                target,
+                List.of("SystemComponent", "LogicalComponent", "PhysicalComponent", "Entity"));
     }
 
     private EObject findComponentPkgTarget(EObject target) {
         BlockArchitecture architecture = resolveArchitecture(target);
         if (architecture != null) {
-            EObject pkg = BlockArchitectureExt.getComponentPkg(
-                architecture,
-                false
-            );
+            EObject pkg = BlockArchitectureExt.getComponentPkg(architecture, false);
             if (pkg != null) {
                 return pkg;
             }
         }
         return findFirstByClassName(
-            target,
-            List.of(
-                "SystemComponentPkg",
-                "LogicalComponentPkg",
-                "PhysicalComponentPkg",
-                "EntityPkg",
-                "ComponentPkg"
-            )
-        );
+                target,
+                List.of(
+                        "SystemComponentPkg",
+                        "LogicalComponentPkg",
+                        "PhysicalComponentPkg",
+                        "EntityPkg",
+                        "ComponentPkg"));
     }
 
     private EObject findRootFunctionTarget(EObject target) {
         BlockArchitecture architecture = resolveArchitecture(target);
         if (architecture != null) {
-            AbstractFunction rootFunction = BlockArchitectureExt.getRootFunction(
-                architecture,
-                false
-            );
+            AbstractFunction rootFunction =
+                    BlockArchitectureExt.getRootFunction(architecture, false);
             if (rootFunction != null) {
                 return rootFunction;
             }
         }
         return findFirstByClassName(
-            target,
-            List.of(
-                "SystemFunction",
-                "LogicalFunction",
-                "PhysicalFunction",
-                "OperationalActivity"
-            )
-        );
+                target,
+                List.of(
+                        "SystemFunction",
+                        "LogicalFunction",
+                        "PhysicalFunction",
+                        "OperationalActivity"));
     }
 
     private EObject findFunctionPkgTarget(EObject target) {
         BlockArchitecture architecture = resolveArchitecture(target);
         if (architecture != null) {
-            EObject pkg = BlockArchitectureExt.getFunctionPkg(
-                architecture,
-                false
-            );
+            EObject pkg = BlockArchitectureExt.getFunctionPkg(architecture, false);
             if (pkg != null) {
                 return pkg;
             }
         }
         return findFirstByClassName(
-            target,
-            List.of(
-                "SystemFunctionPkg",
-                "LogicalFunctionPkg",
-                "PhysicalFunctionPkg",
-                "OperationalActivityPkg",
-                "FunctionPkg"
-            )
-        );
+                target,
+                List.of(
+                        "SystemFunctionPkg",
+                        "LogicalFunctionPkg",
+                        "PhysicalFunctionPkg",
+                        "OperationalActivityPkg",
+                        "FunctionPkg"));
     }
 
     private static BlockArchitecture resolveArchitecture(EObject target) {
@@ -367,10 +332,7 @@ public final class DiagramAPI {
         }
     }
 
-    private EObject resolveTargetForDescription(
-        String descriptionName,
-        EObject preferredTarget
-    ) {
+    private EObject resolveTargetForDescription(String descriptionName, EObject preferredTarget) {
         if (preferredTarget == null) {
             return null;
         }
@@ -382,14 +344,16 @@ public final class DiagramAPI {
         String desc = descriptionName.toLowerCase();
 
         // Architecture blanks use ComponentPkg/EntityPkg targets.
-        if (desc.contains("architecture blank") || desc.contains("data flow blank") ||
-            desc.contains("function breakdown")) {
+        if (desc.contains("architecture blank")
+                || desc.contains("data flow blank")
+                || desc.contains("function breakdown")) {
             return findDiagramTarget(preferredTarget, descriptionName);
         }
 
         if (desc.contains("operational activity")) {
-            if (preferredTarget instanceof OperationalActivity ||
-                (desc.contains("interaction") && preferredTarget instanceof OperationalCapability)) {
+            if (preferredTarget instanceof OperationalActivity
+                    || (desc.contains("interaction")
+                            && preferredTarget instanceof OperationalCapability)) {
                 return preferredTarget;
             }
             EObject rootActivity = findRootFunctionTarget(preferredTarget);
@@ -398,8 +362,8 @@ public final class DiagramAPI {
         }
 
         if (desc.contains("operational entity")) {
-            if (classNameContains(preferredTarget, "EntityPkg") ||
-                classNameContains(preferredTarget, "Entity")) {
+            if (classNameContains(preferredTarget, "EntityPkg")
+                    || classNameContains(preferredTarget, "Entity")) {
                 return preferredTarget;
             }
             EObject found = findFirstByClassName(preferredTarget, "EntityPkg");
@@ -409,8 +373,8 @@ public final class DiagramAPI {
         }
 
         if (desc.contains("operational capabilities")) {
-            if (classNameContains(preferredTarget, "OperationalCapabilityPkg") ||
-                classNameContains(preferredTarget, "OperationalCapability")) {
+            if (classNameContains(preferredTarget, "OperationalCapabilityPkg")
+                    || classNameContains(preferredTarget, "OperationalCapability")) {
                 return preferredTarget;
             }
             EObject found = findFirstByClassName(preferredTarget, "OperationalCapabilityPkg");
@@ -420,8 +384,8 @@ public final class DiagramAPI {
         }
 
         if (desc.contains("operational role")) {
-            if (classNameContains(preferredTarget, "RolePkg") ||
-                classNameContains(preferredTarget, "Role")) {
+            if (classNameContains(preferredTarget, "RolePkg")
+                    || classNameContains(preferredTarget, "Role")) {
                 return preferredTarget;
             }
             EObject found = findFirstByClassName(preferredTarget, "RolePkg");
@@ -437,10 +401,7 @@ public final class DiagramAPI {
         return obj != null && obj.eClass().getName().contains(token);
     }
 
-    private static EObject findFirstByClassName(
-        EObject root,
-        List<String> tokens
-    ) {
+    private static EObject findFirstByClassName(EObject root, List<String> tokens) {
         if (root == null || tokens == null || tokens.isEmpty()) {
             return null;
         }
@@ -456,7 +417,7 @@ public final class DiagramAPI {
     private static EObject findFirstByClassName(EObject root, String token) {
         if (root == null) return null;
         if (classNameContains(root, token)) return root;
-        for (java.util.Iterator<EObject> it = root.eAllContents(); it.hasNext();) {
+        for (java.util.Iterator<EObject> it = root.eAllContents(); it.hasNext(); ) {
             EObject next = it.next();
             if (classNameContains(next, token)) {
                 return next;
@@ -465,10 +426,7 @@ public final class DiagramAPI {
         return null;
     }
 
-    private String buildUnknownDiagramMessage(
-        String diagramType,
-        List<String> available
-    ) {
+    private String buildUnknownDiagramMessage(String diagramType, List<String> available) {
         StringBuilder sb = new StringBuilder();
         sb.append("Unknown diagram type: '").append(diagramType).append("'\n");
         sb.append("Use api.diagram.listAvailableFormatted() for supported types.\n");
@@ -489,27 +447,22 @@ public final class DiagramAPI {
         sb.append("Use api.diagram.listAvailableFormatted() to see valid types.\n");
         sb.append("If using Operational Activity diagrams, pass an OperationalActivity.\n");
         sb.append("If using Operational Entity diagrams, pass an EntityPkg or Entity.\n");
-        sb.append("If using Operational Capability diagrams, pass a CapabilityPkg or Capability.\n");
+        sb.append(
+                "If using Operational Capability diagrams, pass a CapabilityPkg or Capability.\n");
         return sb.toString();
     }
 
-    /**
-     * Create a diagram with auto-generated name.
-     */
+    /** Create a diagram with auto-generated name. */
     public DRepresentation create(String diagramType, EObject target) {
         String name = diagramType + " - " + getElementName(target);
         return create(diagramType, name, target);
     }
 
     /**
-     * Create a diagram (alternate argument order for LLM compatibility).
-     * Accepts create(type, target, name) in addition to create(type, name, target).
+     * Create a diagram (alternate argument order for LLM compatibility). Accepts create(type,
+     * target, name) in addition to create(type, name, target).
      */
-    public DRepresentation create(
-        String diagramType,
-        EObject target,
-        String name
-    ) {
+    public DRepresentation create(String diagramType, EObject target, String name) {
         return create(diagramType, name, target);
     }
 
@@ -527,16 +480,12 @@ public final class DiagramAPI {
             throw new IllegalStateException("No active session");
         }
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException(
-                "Diagram name cannot be null or blank"
-            );
+            throw new IllegalArgumentException("Diagram name cannot be null or blank");
         }
         return DiagramCommands.findRepresentationByNameOrUid(session, name);
     }
 
-    /**
-     * Find a diagram by UID.
-     */
+    /** Find a diagram by UID. */
     public DRepresentation findByUid(String uid) {
         if (session == null || uid == null) {
             return null;
@@ -544,25 +493,21 @@ public final class DiagramAPI {
         return DiagramCommands.findRepresentationByUid(session, uid);
     }
 
-    /**
-     * Get all diagrams in the session.
-     */
+    /** Get all diagrams in the session. */
     public List<DRepresentation> list() {
         if (session == null) {
             return List.of();
         }
         try {
             Collection<DRepresentation> reps =
-                DialectManager.INSTANCE.getAllRepresentations(session);
+                    DialectManager.INSTANCE.getAllRepresentations(session);
             return new ArrayList<>(reps);
         } catch (Exception e) {
             return List.of();
         }
     }
 
-    /**
-     * Get the last opened/created diagram.
-     */
+    /** Get the last opened/created diagram. */
     public DRepresentation lastOpened() {
         return DiagramCommands.getLastOpened();
     }
@@ -588,23 +533,29 @@ public final class DiagramAPI {
         if (element == null) {
             throw new IllegalArgumentException("Element to add cannot be null");
         }
-        if (diagram instanceof DDiagram dDiagram && org.polarsys.capella.ai.tools.CapellaDiagramShow.handles(dDiagram, element)) {
-            if (org.polarsys.capella.ai.tools.CapellaDiagramShow.show(session, dDiagram, element)) return true;
-            throw new IllegalArgumentException("Capella could not show " + element.eClass().getName() + " in diagram '"
-                + diagram.getName() + "'. Show its components or functions first, and make sure the exchange connects them.");
+        if (diagram instanceof DDiagram dDiagram
+                && org.polarsys.capella.ai.tools.CapellaDiagramShow.handles(dDiagram, element)) {
+            if (org.polarsys.capella.ai.tools.CapellaDiagramShow.show(session, dDiagram, element))
+                return true;
+            throw new IllegalArgumentException(
+                    "Capella could not show "
+                            + element.eClass().getName()
+                            + " in diagram '"
+                            + diagram.getName()
+                            + "'. Show its components or functions first, and make sure the"
+                            + " exchange connects them.");
         }
         boolean success = DiagramCommands.createNode(session, diagram, element);
         if (!success) {
             List<String> supported = supportedNodeTypes(diagram);
             String context = describeDiagramContext(diagram, supported);
             throw new IllegalArgumentException(
-                "Failed to add " +
-                    element.eClass().getName() +
-                    " to diagram '" +
-                    diagram.getName() +
-                    "'. " +
-                    context
-            );
+                    "Failed to add "
+                            + element.eClass().getName()
+                            + " to diagram '"
+                            + diagram.getName()
+                            + "'. "
+                            + context);
         }
         return true;
     }
@@ -612,8 +563,8 @@ public final class DiagramAPI {
     /**
      * Add a semantic element to a diagram with fallbacks.
      *
-     * <p>Tries {@link #add(DRepresentation, EObject)} first, then falls back to
-     * {@link #addByUuids(DRepresentation, List)} when mappings vary across models.
+     * <p>Tries {@link #add(DRepresentation, EObject)} first, then falls back to {@link
+     * #addByUuids(DRepresentation, List)} when mappings vary across models.
      */
     public boolean addSafe(DRepresentation diagram, EObject element) {
         if (session == null) {
@@ -627,7 +578,8 @@ public final class DiagramAPI {
         }
 
         // Connectors and functions go through Capella's own show services, not node mappings.
-        if (diagram instanceof DDiagram dDiagram && org.polarsys.capella.ai.tools.CapellaDiagramShow.handles(dDiagram, element)) {
+        if (diagram instanceof DDiagram dDiagram
+                && org.polarsys.capella.ai.tools.CapellaDiagramShow.handles(dDiagram, element)) {
             return add(diagram, element);
         }
         List<String> supported = supportedNodeTypes(diagram);
@@ -635,13 +587,12 @@ public final class DiagramAPI {
         EObject candidate = adapted != null ? adapted : element;
         if (!DiagramCommands.isDisplayable(session, diagram, candidate)) {
             throw new IllegalArgumentException(
-                "Element " +
-                    candidate.eClass().getName() +
-                    " is not displayable per viewpoint rules in diagram '" +
-                    diagram.getName() +
-                    "'. " +
-                    describeDiagramContext(diagram, supported)
-            );
+                    "Element "
+                            + candidate.eClass().getName()
+                            + " is not displayable per viewpoint rules in diagram '"
+                            + diagram.getName()
+                            + "'. "
+                            + describeDiagramContext(diagram, supported));
         }
 
         try {
@@ -672,22 +623,18 @@ public final class DiagramAPI {
                 }
             }
             throw new IllegalArgumentException(
-                "Failed to add " +
-                    element.eClass().getName() +
-                    " to diagram '" +
-                    diagram.getName() +
-                    "'. " +
-                    describeDiagramContext(diagram, supported),
-                ex
-            );
+                    "Failed to add "
+                            + element.eClass().getName()
+                            + " to diagram '"
+                            + diagram.getName()
+                            + "'. "
+                            + describeDiagramContext(diagram, supported),
+                    ex);
         }
     }
 
     private EObject adaptElementForDiagram(
-        DRepresentation diagram,
-        EObject element,
-        List<String> supported
-    ) {
+            DRepresentation diagram, EObject element, List<String> supported) {
         if (!expectsPart(supported) || !isComponentLike(element)) {
             return null;
         }
@@ -722,9 +669,7 @@ public final class DiagramAPI {
         return name.endsWith("Component") || name.equals("Entity");
     }
 
-    /**
-     * Add multiple elements to a diagram.
-     */
+    /** Add multiple elements to a diagram. */
     public int addAll(DRepresentation diagram, List<EObject> elements) {
         if (session == null || diagram == null || elements == null) {
             return 0;
@@ -738,9 +683,7 @@ public final class DiagramAPI {
         return count;
     }
 
-    /**
-     * Return supported node types for the diagram mappings.
-     */
+    /** Return supported node types for the diagram mappings. */
     public List<String> supportedNodeTypes(DRepresentation diagram) {
         if (diagram == null) {
             return List.of();
@@ -748,9 +691,7 @@ public final class DiagramAPI {
         return DiagramCommands.getSupportedDomainClasses(diagram);
     }
 
-    /**
-     * Check whether the diagram has a mapping for this element.
-     */
+    /** Check whether the diagram has a mapping for this element. */
     public boolean isDisplayable(DRepresentation diagram, EObject element) {
         if (diagram == null || element == null) {
             return false;
@@ -758,9 +699,7 @@ public final class DiagramAPI {
         return DiagramCommands.isDisplayable(session, diagram, element);
     }
 
-    /**
-     * Add elements by their UUIDs.
-     */
+    /** Add elements by their UUIDs. */
     public int addByUuids(DRepresentation diagram, List<String> uuids) {
         if (session == null || diagram == null || uuids == null) {
             return 0;
@@ -768,10 +707,7 @@ public final class DiagramAPI {
         return DiagramCommands.addElementsByUuid(session, diagram, uuids);
     }
 
-    private String describeDiagramContext(
-        DRepresentation diagram,
-        List<String> supported
-    ) {
+    private String describeDiagramContext(DRepresentation diagram, List<String> supported) {
         StringBuilder sb = new StringBuilder();
         String descriptor = getDescriptorName(diagram);
         if (descriptor != null && !descriptor.isBlank()) {
@@ -795,20 +731,9 @@ public final class DiagramAPI {
         return null;
     }
 
-    /**
-     * Create an edge between two elements in the diagram.
-     */
-    public boolean addEdge(
-        DRepresentation diagram,
-        EObject source,
-        EObject target
-    ) {
-        if (
-            session == null ||
-            diagram == null ||
-            source == null ||
-            target == null
-        ) {
+    /** Create an edge between two elements in the diagram. */
+    public boolean addEdge(DRepresentation diagram, EObject source, EObject target) {
+        if (session == null || diagram == null || source == null || target == null) {
             return false;
         }
         return DiagramCommands.createEdge(session, diagram, source, target);
@@ -831,23 +756,16 @@ public final class DiagramAPI {
             throw new IllegalArgumentException("Diagram cannot be null");
         }
         if (element == null) {
-            throw new IllegalArgumentException(
-                "Element to remove cannot be null"
-            );
+            throw new IllegalArgumentException("Element to remove cannot be null");
         }
-        boolean success = DiagramCommands.removeViewElement(
-            session,
-            diagram,
-            element
-        );
+        boolean success = DiagramCommands.removeViewElement(session, diagram, element);
         if (!success) {
             throw new IllegalArgumentException(
-                "Failed to remove " +
-                    element.eClass().getName() +
-                    " from diagram '" +
-                    diagram.getName() +
-                    "'. Element may not exist in this diagram."
-            );
+                    "Failed to remove "
+                            + element.eClass().getName()
+                            + " from diagram '"
+                            + diagram.getName()
+                            + "'. Element may not exist in this diagram.");
         }
         return true;
     }
@@ -858,9 +776,7 @@ public final class DiagramAPI {
         }
         String[] features = {"id", "uid", "sid"};
         for (String featureName : features) {
-            EStructuralFeature feature = element
-                .eClass()
-                .getEStructuralFeature(featureName);
+            EStructuralFeature feature = element.eClass().getEStructuralFeature(featureName);
             if (feature != null) {
                 Object value = element.eGet(feature);
                 if (value != null) {
@@ -873,9 +789,7 @@ public final class DiagramAPI {
 
     // ========== Layout ==========
 
-    /**
-     * Auto-layout the diagram using default strategy.
-     */
+    /** Auto-layout the diagram using default strategy. */
     public boolean layout(DRepresentation diagram) {
         return layout(diagram, "auto");
     }
@@ -884,9 +798,8 @@ public final class DiagramAPI {
      * Layout the diagram using a specific strategy.
      *
      * @param diagram the diagram to layout
-     * @param strategy layout strategy: "auto", "grid", "flow", "radial", "layered",
-     *                 "left", "right", "top", "bottom", "hcenter", "vcenter",
-     *                 "hspace", "vspace"
+     * @param strategy layout strategy: "auto", "grid", "flow", "radial", "layered", "left",
+     *     "right", "top", "bottom", "hcenter", "vcenter", "hspace", "vspace"
      * @return true if layout was applied
      * @throws IllegalStateException if no active session
      * @throws IllegalArgumentException if diagram is null or layout fails
@@ -898,29 +811,23 @@ public final class DiagramAPI {
         if (diagram == null) {
             throw new IllegalArgumentException("Diagram cannot be null");
         }
-        // A diagram created or filled in this script has no up-to-date notation until it is synchronized.
+        // A diagram created or filled in this script has no up-to-date notation until it is
+        // synchronized.
         DiagramCommands.ensureNotation(session, diagram);
-        boolean success = DiagramCommands.arrangeSelection(
-            session,
-            diagram,
-            strategy
-        );
+        boolean success = DiagramCommands.arrangeSelection(session, diagram, strategy);
         if (!success) {
             throw new IllegalArgumentException(
-                "Failed to apply layout '" +
-                    strategy +
-                    "' to diagram '" +
-                    diagram.getName() +
-                    "'. " +
-                    "Valid strategies: auto, grid, flow, radial, layered, left, right, top, bottom"
-            );
+                    "Failed to apply layout '"
+                            + strategy
+                            + "' to diagram '"
+                            + diagram.getName()
+                            + "'. Valid strategies: auto, grid, flow, radial, layered, left, right,"
+                            + " top, bottom");
         }
         return true;
     }
 
-    /**
-     * Refresh the diagram to sync with model changes.
-     */
+    /** Refresh the diagram to sync with model changes. */
     public void refresh(DRepresentation diagram) {
         if (diagram != null) {
             DiagramCommands.arrange(diagram);
@@ -931,27 +838,32 @@ public final class DiagramAPI {
      * Align elements on the diagram.
      *
      * @param diagram the diagram
-     * @param elements list of semantic elements (EObject) or visual elements (DDiagramElement) to align
-     * @param alignment "left", "right", "top", "bottom", "hcenter" (center horizontally), "vcenter" (center vertically)
+     * @param elements list of semantic elements (EObject) or visual elements (DDiagramElement) to
+     *     align
+     * @param alignment "left", "right", "top", "bottom", "hcenter" (center horizontally), "vcenter"
+     *     (center vertically)
      * @return true if alignment was applied
      */
-    public boolean align(
-        DRepresentation diagram,
-        List<?> elements,
-        String alignment
-    ) {
+    public boolean align(DRepresentation diagram, List<?> elements, String alignment) {
         String strat = alignment != null ? alignment.toLowerCase() : "";
         if (!List.of("left", "right", "top", "bottom", "hcenter", "vcenter").contains(strat)) {
-            throw new IllegalArgumentException("Invalid alignment: " + alignment + ". Use left, right, top, bottom, hcenter, vcenter.");
+            throw new IllegalArgumentException(
+                    "Invalid alignment: "
+                            + alignment
+                            + ". Use left, right, top, bottom, hcenter, vcenter.");
         }
         List<EObject> semantics = toSemanticTargets(elements);
         if (session == null || diagram == null || semantics.isEmpty()) {
             return false;
         }
-        // Note: DiagramCommands.arrangeSelection currently operates on the *selection* or *all nodes*.
-        // To support aligning specific elements, we would need to select them first or update DiagramCommands.
-        // For now, we assume the user has set the selection or wants to align the passed elements (if DiagramCommands supports specific list).
-        // Update: DiagramCommands.arrangeSelection logic relies on "current selection" in the editor.
+        // Note: DiagramCommands.arrangeSelection currently operates on the *selection* or *all
+        // nodes*.
+        // To support aligning specific elements, we would need to select them first or update
+        // DiagramCommands.
+        // For now, we assume the user has set the selection or wants to align the passed elements
+        // (if DiagramCommands supports specific list).
+        // Update: DiagramCommands.arrangeSelection logic relies on "current selection" in the
+        // editor.
         // To make this robust for headless/scripting, we should select the elements first.
         DiagramCommands.revealSemantics(session, diagram, semantics);
         return DiagramCommands.arrangeSelection(session, diagram, strat);
@@ -961,21 +873,19 @@ public final class DiagramAPI {
      * Distribute elements on the diagram.
      *
      * @param diagram the diagram
-     * @param elements list of semantic elements (EObject) or visual elements (DDiagramElement) to distribute
+     * @param elements list of semantic elements (EObject) or visual elements (DDiagramElement) to
+     *     distribute
      * @param distribution "horizontal" (hspace), "vertical" (vspace)
      * @return true if distribution was applied
      */
-    public boolean distribute(
-        DRepresentation diagram,
-        List<?> elements,
-        String distribution
-    ) {
+    public boolean distribute(DRepresentation diagram, List<?> elements, String distribution) {
         String strat = distribution != null ? distribution.toLowerCase() : "";
         if (strat.startsWith("h")) strat = "hspace";
         else if (strat.startsWith("v")) strat = "vspace";
-        
+
         if (!List.of("hspace", "vspace").contains(strat)) {
-            throw new IllegalArgumentException("Invalid distribution: " + distribution + ". Use horizontal, vertical.");
+            throw new IllegalArgumentException(
+                    "Invalid distribution: " + distribution + ". Use horizontal, vertical.");
         }
 
         List<EObject> semantics = toSemanticTargets(elements);
@@ -1007,10 +917,9 @@ public final class DiagramAPI {
                 continue;
             }
             throw new IllegalArgumentException(
-                "Unsupported element type for diagram operation: " +
-                element.getClass().getName() +
-                ". Pass EObject or DDiagramElement."
-            );
+                    "Unsupported element type for diagram operation: "
+                            + element.getClass().getName()
+                            + ". Pass EObject or DDiagramElement.");
         }
         return out;
     }
@@ -1034,23 +943,12 @@ public final class DiagramAPI {
             throw new IllegalArgumentException("Diagram cannot be null");
         }
         if (newName == null || newName.isBlank()) {
-            throw new IllegalArgumentException(
-                "New diagram name cannot be null or blank"
-            );
+            throw new IllegalArgumentException("New diagram name cannot be null or blank");
         }
-        boolean success = DiagramCommands.renameDiagram(
-            session,
-            diagram,
-            newName
-        );
+        boolean success = DiagramCommands.renameDiagram(session, diagram, newName);
         if (!success) {
             throw new IllegalArgumentException(
-                "Failed to rename diagram '" +
-                    diagram.getName() +
-                    "' to '" +
-                    newName +
-                    "'"
-            );
+                    "Failed to rename diagram '" + diagram.getName() + "' to '" + newName + "'");
         }
         return true;
     }
@@ -1073,9 +971,7 @@ public final class DiagramAPI {
         String diagramName = diagram.getName();
         boolean success = DiagramCommands.deleteDiagram(session, diagram);
         if (!success) {
-            throw new IllegalArgumentException(
-                "Failed to delete diagram '" + diagramName + "'"
-            );
+            throw new IllegalArgumentException("Failed to delete diagram '" + diagramName + "'");
         }
         return true;
     }
@@ -1097,23 +993,12 @@ public final class DiagramAPI {
             throw new IllegalArgumentException("Diagram cannot be null");
         }
         if (newName == null || newName.isBlank()) {
-            throw new IllegalArgumentException(
-                "New diagram name cannot be null or blank"
-            );
+            throw new IllegalArgumentException("New diagram name cannot be null or blank");
         }
-        boolean success = DiagramCommands.duplicateDiagram(
-            session,
-            diagram,
-            newName
-        );
+        boolean success = DiagramCommands.duplicateDiagram(session, diagram, newName);
         if (!success) {
             throw new IllegalArgumentException(
-                "Failed to duplicate diagram '" +
-                    diagram.getName() +
-                    "' as '" +
-                    newName +
-                    "'"
-            );
+                    "Failed to duplicate diagram '" + diagram.getName() + "' as '" + newName + "'");
         }
         return true;
     }
@@ -1132,56 +1017,28 @@ public final class DiagramAPI {
      * @return true if bounds were set
      */
     public boolean setBounds(
-        DRepresentation diagram,
-        EObject element,
-        int x,
-        int y,
-        int width,
-        int height
-    ) {
+            DRepresentation diagram, EObject element, int x, int y, int width, int height) {
         if (session == null || diagram == null || element == null) {
             return false;
         }
-        return DiagramCommands.setViewBounds(
-            session,
-            diagram,
-            element,
-            x,
-            y,
-            width,
-            height
-        );
+        return DiagramCommands.setViewBounds(session, diagram, element, x, y, width, height);
     }
 
-    /**
-     * Move an element's view to a specific position.
-     */
-    public boolean move(
-        DRepresentation diagram,
-        EObject element,
-        int x,
-        int y
-    ) {
+    /** Move an element's view to a specific position. */
+    public boolean move(DRepresentation diagram, EObject element, int x, int y) {
         return setBounds(diagram, element, x, y, 0, 0);
     }
 
-    /**
-     * Resize an element's view.
-     */
-    public boolean resize(
-        DRepresentation diagram,
-        EObject element,
-        int width,
-        int height
-    ) {
+    /** Resize an element's view. */
+    public boolean resize(DRepresentation diagram, EObject element, int width, int height) {
         return setBounds(diagram, element, -1, -1, width, height);
     }
 
     // ========== Discovery ==========
 
     /**
-     * List available diagram types for a given architecture layer.
-     * Combines known abbreviations with actual Sirius descriptors from the session.
+     * List available diagram types for a given architecture layer. Combines known abbreviations
+     * with actual Sirius descriptors from the session.
      *
      * @param layer the architecture layer (OA, SA, LA, PA) or null for all
      * @return list of available diagram type abbreviations
@@ -1222,8 +1079,8 @@ public final class DiagramAPI {
     }
 
     /**
-     * List available diagram types with their full Sirius descriptor names.
-     * Returns a formatted string for LLM consumption.
+     * List available diagram types with their full Sirius descriptor names. Returns a formatted
+     * string for LLM consumption.
      *
      * @param layer the architecture layer (OA, SA, LA, PA) or null for all
      * @return formatted string of available diagram types
@@ -1249,7 +1106,9 @@ public final class DiagramAPI {
             sb.append("  SAB  - System Architecture Blank\n");
             sb.append("  SDFB - System Data Flow Blank\n");
             sb.append("  SFB  - System Function Breakdown\n");
-            sb.append("  ES   - Component Exchanges Scenario (on a scenario from api.arcadia.scenario)\n");
+            sb.append(
+                    "  ES   - Component Exchanges Scenario (on a scenario from"
+                        + " api.arcadia.scenario)\n");
             sb.append("  FS   - Functional Scenario\n");
             sb.append("  IS   - Component Interfaces Scenario\n");
         }
@@ -1274,7 +1133,9 @@ public final class DiagramAPI {
         if (session != null) {
             List<String> actual = DiagramCommands.getAvailableDiagramDescriptions(session);
             if (actual != null && !actual.isEmpty()) {
-                sb.append("\nActual Sirius descriptors in session (").append(actual.size()).append("):\n");
+                sb.append("\nActual Sirius descriptors in session (")
+                        .append(actual.size())
+                        .append("):\n");
                 for (String desc : actual) {
                     sb.append("  - ").append(desc).append("\n");
                 }
@@ -1311,7 +1172,7 @@ public final class DiagramAPI {
             case "PDFB" -> "Physical Data Flow Blank";
             case "PFB" -> "[PFBD] Physical Function Breakdown";
             case "CDB" -> "Class Diagram Blank";
-            // Capella 7 names; the old display names stay accepted.
+                // Capella 7 names; the old display names stay accepted.
             case "ES", "SCENARIO", "EXCHANGE SCENARIO" -> "Component Exchanges Scenario";
             case "FS" -> "Functional Scenario";
             case "IS", "INTERFACE SCENARIO" -> "Component Interfaces Scenario";
@@ -1319,17 +1180,13 @@ public final class DiagramAPI {
         };
     }
 
-    /**
-     * Get the name of an element for auto-generated diagram names.
-     */
+    /** Get the name of an element for auto-generated diagram names. */
     private String getElementName(EObject element) {
         if (element == null) {
             return "Unknown";
         }
         try {
-            Object name = element.eGet(
-                element.eClass().getEStructuralFeature("name")
-            );
+            Object name = element.eGet(element.eClass().getEStructuralFeature("name"));
             return name != null ? name.toString() : element.eClass().getName();
         } catch (Exception e) {
             return element.eClass().getName();

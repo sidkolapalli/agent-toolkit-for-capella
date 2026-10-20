@@ -9,9 +9,7 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.part.ViewPart;
 
-/**
- * Eclipse view for managing the DevServer.
- */
+/** Eclipse view for managing the DevServer. */
 public class DevServerView extends ViewPart {
 
     public static final String ID = "org.polarsys.capella.ai.dev.DevServerView";
@@ -37,20 +35,24 @@ public class DevServerView extends ViewPart {
         startButton = new Button(parent, SWT.PUSH);
         startButton.setText("Start Server");
         startButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-        startButton.addListener(SWT.Selection, e -> {
-            int port = Integer.parseInt(portText.getText().trim());
-            DevServer.start(port);
-            updateStatus();
-        });
+        startButton.addListener(
+                SWT.Selection,
+                e -> {
+                    int port = Integer.parseInt(portText.getText().trim());
+                    DevServer.start(port);
+                    updateStatus();
+                });
 
         // Stop button
         stopButton = new Button(parent, SWT.PUSH);
         stopButton.setText("Stop Server");
         stopButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-        stopButton.addListener(SWT.Selection, e -> {
-            DevServer.stop();
-            updateStatus();
-        });
+        stopButton.addListener(
+                SWT.Selection,
+                e -> {
+                    DevServer.stop();
+                    updateStatus();
+                });
 
         // Status
         statusLabel = new Label(parent, SWT.WRAP);
@@ -59,18 +61,18 @@ public class DevServerView extends ViewPart {
         // Instructions
         Label instructions = new Label(parent, SWT.WRAP);
         instructions.setText(
-            "Dev Server Endpoints:\n\n" +
-            "POST /execute - Execute Groovy code\n" +
-            "POST /chat - Send to LLM, execute result\n" +
-            "GET /status - Check status\n" +
-            "GET /prompt - Get system prompt\n\n" +
-            "Every request needs Authorization: Bearer <token>;\n" +
-            "the running server writes it to ~/.capella-ai/devserver-<port>.token.\n\n" +
-            "Example:\n" +
-            "curl -X POST http://localhost:8765/execute \\\n" +
-            "  -H \"Authorization: Bearer $(cat ~/.capella-ai/devserver-8765.token)\" \\\n" +
-            "  -d 'api.findAll(\"SystemFunction\")'"
-        );
+                "Dev Server Endpoints:\n\n"
+                    + "POST /execute - Execute Groovy code\n"
+                    + "POST /chat - Send to LLM, execute result\n"
+                    + "GET /status - Check status\n"
+                    + "GET /prompt - Get system prompt\n\n"
+                    + "Every request needs Authorization: Bearer <token>;\n"
+                    + "the running server writes it to ~/.capella-ai/devserver-<port>.token.\n\n"
+                    + "Example:\n"
+                    + "curl -X POST http://localhost:8765/execute \\\n"
+                    + "  -H \"Authorization: Bearer $(cat ~/.capella-ai/devserver-8765.token)\""
+                    + " \\\n"
+                    + "  -d 'api.findAll(\"SystemFunction\")'");
         instructions.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 2, 1));
 
         updateStatus();

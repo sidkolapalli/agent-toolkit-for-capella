@@ -1,10 +1,5 @@
 package org.polarsys.capella.ai;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.util.IPropertyChangeListener;
 import org.eclipse.swt.SWT;
@@ -28,6 +23,12 @@ import org.polarsys.capella.ai.presentation.TranscriptFormat.CodeBlock;
 import org.polarsys.capella.ai.presentation.TranscriptFormat.Formatted;
 import org.polarsys.capella.ai.presentation.TranscriptFormat.LineKind;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
 /** Selectable native conversation text. Formatting never changes reviewed source. */
 final class ChatTranscript {
     private final StyledText control;
@@ -39,8 +40,12 @@ final class ChatTranscript {
     private RGB background, foreground;
     private Consumer<Boolean> unreadListener = ignored -> {};
     private boolean unread, themeRefreshQueued;
-    /** The reader is following the newest message; resizes and late wrapping keep the end in view. */
+
+    /**
+     * The reader is following the newest message; resizes and late wrapping keep the end in view.
+     */
     private boolean pinned = true;
+
     private CodeBlock selectedCode;
 
     ChatTranscript(Composite parent) {
@@ -49,37 +54,63 @@ final class ChatTranscript {
         control.setMargins(14, 12, 14, 12);
         control.setLineSpacing(5);
         control.setTabs(4);
-        control.getAccessible().addAccessibleListener(new org.eclipse.swt.accessibility.AccessibleAdapter() {
-            @Override
-            public void getName(org.eclipse.swt.accessibility.AccessibleEvent event) {
-                event.result = "Conversation with Capella AI";
-            }
-        });
+        control.getAccessible()
+                .addAccessibleListener(
+                        new org.eclipse.swt.accessibility.AccessibleAdapter() {
+                            @Override
+                            public void getName(
+                                    org.eclipse.swt.accessibility.AccessibleEvent event) {
+                                event.result = "Conversation with Capella AI";
+                            }
+                        });
         installCopyMenu();
-        if (control.getVerticalBar() != null) control.getVerticalBar().addListener(SWT.Selection, event -> readerScrolled());
-        control.addListener(SWT.MouseWheel, event -> control.getDisplay().asyncExec(this::readerScrolled));
+        if (control.getVerticalBar() != null)
+            control.getVerticalBar().addListener(SWT.Selection, event -> readerScrolled());
+        control.addListener(
+                SWT.MouseWheel, event -> control.getDisplay().asyncExec(this::readerScrolled));
         control.addListener(SWT.KeyUp, event -> readerScrolled());
-        control.addListener(SWT.Resize, event -> { if (pinned) jumpToLatest(); });
-        control.addListener(SWT.Paint, event -> {
-            if (!control.getBackground().getRGB().equals(background) || !control.getForeground().getRGB().equals(foreground)) queueThemeRefresh();
-        });
+        control.addListener(
+                SWT.Resize,
+                event -> {
+                    if (pinned) jumpToLatest();
+                });
+        control.addListener(
+                SWT.Paint,
+                event -> {
+                    if (!control.getBackground().getRGB().equals(background)
+                            || !control.getForeground().getRGB().equals(foreground))
+                        queueThemeRefresh();
+                });
         settingsListener = event -> queueThemeRefresh();
-        fontListener = event -> {
-            if (JFaceResources.DEFAULT_FONT.equals(event.getProperty()) || JFaceResources.TEXT_FONT.equals(event.getProperty())) queueThemeRefresh();
-        };
+        fontListener =
+                event -> {
+                    if (JFaceResources.DEFAULT_FONT.equals(event.getProperty())
+                            || JFaceResources.TEXT_FONT.equals(event.getProperty()))
+                        queueThemeRefresh();
+                };
         control.getDisplay().addListener(SWT.Settings, settingsListener);
         JFaceResources.getFontRegistry().addListener(fontListener);
-        control.addListener(SWT.Dispose, event -> {
-            control.getDisplay().removeListener(SWT.Settings, settingsListener);
-            JFaceResources.getFontRegistry().removeListener(fontListener);
-            disposeOwnedResources();
-        });
+        control.addListener(
+                SWT.Dispose,
+                event -> {
+                    control.getDisplay().removeListener(SWT.Settings, settingsListener);
+                    JFaceResources.getFontRegistry().removeListener(fontListener);
+                    disposeOwnedResources();
+                });
         updateCodeBackground();
     }
 
-    StyledText control() { return control; }
-    boolean isEmpty() { return control.isDisposed() || control.getCharCount() == 0; }
-    boolean hasUnreadMessages() { return unread; }
+    StyledText control() {
+        return control;
+    }
+
+    boolean isEmpty() {
+        return control.isDisposed() || control.getCharCount() == 0;
+    }
+
+    boolean hasUnreadMessages() {
+        return unread;
+    }
 
     void setUnreadListener(Consumer<Boolean> listener) {
         unreadListener = listener == null ? ignored -> {} : listener;
@@ -107,9 +138,17 @@ final class ChatTranscript {
         boolean follow = isEmpty() || (atBottom() && control.getSelectionCount() == 0);
         int topPixel = control.getTopPixel();
         Point selection = control.getSelectionRange();
-        String title = role == null || role.isBlank() ? "Capella AI" : role.replace('\n', ' ').replace('\r', ' ');
+        String title =
+                role == null || role.isBlank()
+                        ? "Capella AI"
+                        : role.replace('\n', ' ').replace('\r', ' ');
         Formatted body = TranscriptFormat.parse(message);
-        String separator = isEmpty() ? "" : control.getTextRange(control.getCharCount() - 1, 1).equals("\n") ? "\n" : "\n\n";
+        String separator =
+                isEmpty()
+                        ? ""
+                        : control.getTextRange(control.getCharCount() - 1, 1).equals("\n")
+                                ? "\n"
+                                : "\n\n";
         int start = control.getCharCount() + separator.length();
         Message rendered = new Message(start, title.length(), start + title.length() + 1, body);
         control.setRedraw(false);
@@ -127,7 +166,12 @@ final class ChatTranscript {
             control.setRedraw(true);
         }
         // Wrapped line heights are exact only once painted; settle on the true end afterwards.
-        if (follow) control.getDisplay().asyncExec(() -> { if (!control.isDisposed() && pinned) jumpToLatest(); });
+        if (follow)
+            control.getDisplay()
+                    .asyncExec(
+                            () -> {
+                                if (!control.isDisposed() && pinned) jumpToLatest();
+                            });
     }
 
     private void applyStyles(Message message) {
@@ -135,8 +179,11 @@ final class ChatTranscript {
         styles.add(new StyleRange(message.start(), message.roleLength(), null, null, SWT.BOLD));
         for (TranscriptFormat.Run run : message.body().runs()) {
             var format = run.style();
-            StyleRange style = new StyleRange(message.bodyStart() + run.offset(), run.length(), null, null);
-            style.fontStyle = (format.bold() ? SWT.BOLD : SWT.NORMAL) | (format.italic() ? SWT.ITALIC : SWT.NORMAL);
+            StyleRange style =
+                    new StyleRange(message.bodyStart() + run.offset(), run.length(), null, null);
+            style.fontStyle =
+                    (format.bold() ? SWT.BOLD : SWT.NORMAL)
+                            | (format.italic() ? SWT.ITALIC : SWT.NORMAL);
             if (format.code()) {
                 style.font = JFaceResources.getTextFont();
                 style.background = codeBackground;
@@ -150,10 +197,15 @@ final class ChatTranscript {
             ranges[index * 2] = styles.get(index).start;
             ranges[index * 2 + 1] = styles.get(index).length;
         }
-        control.setStyleRanges(message.start(), message.roleLength() + 1 + message.body().text().length(), ranges, styles.toArray(StyleRange[]::new));
+        control.setStyleRanges(
+                message.start(),
+                message.roleLength() + 1 + message.body().text().length(),
+                ranges,
+                styles.toArray(StyleRange[]::new));
         for (TranscriptFormat.Line line : message.body().lines()) {
             int lineIndex = control.getLineAtOffset(message.bodyStart() + line.offset());
-            if (line.kind() == LineKind.CODE) control.setLineBackground(lineIndex, 1, codeBackground);
+            if (line.kind() == LineKind.CODE)
+                control.setLineBackground(lineIndex, 1, codeBackground);
             int indent = line.kind() == LineKind.CODE ? 10 : line.indent() * 14;
             control.setLineIndent(lineIndex, 1, indent);
             control.setLineWrapIndent(lineIndex, 1, line.kind() == LineKind.LIST ? 20 : 0);
@@ -162,52 +214,64 @@ final class ChatTranscript {
 
     private Font headingFont(int level) {
         int sizeStep = level == 1 ? 2 : level == 2 ? 1 : 0;
-        return headingFonts.computeIfAbsent(sizeStep, ignored -> {
-            FontData[] data = JFaceResources.getDefaultFont().getFontData();
-            for (FontData part : data) {
-                part.setHeight(part.getHeight() + sizeStep);
-                part.setStyle(SWT.BOLD);
-            }
-            return new Font(control.getDisplay(), data);
-        });
+        return headingFonts.computeIfAbsent(
+                sizeStep,
+                ignored -> {
+                    FontData[] data = JFaceResources.getDefaultFont().getFontData();
+                    for (FontData part : data) {
+                        part.setHeight(part.getHeight() + sizeStep);
+                        part.setStyle(SWT.BOLD);
+                    }
+                    return new Font(control.getDisplay(), data);
+                });
     }
 
     private void installCopyMenu() {
         Menu menu = new Menu(control);
-        control.addListener(SWT.Dispose, event -> { if (!menu.isDisposed()) menu.dispose(); });
+        control.addListener(
+                SWT.Dispose,
+                event -> {
+                    if (!menu.isDisposed()) menu.dispose();
+                });
         MenuItem copy = new MenuItem(menu, SWT.PUSH);
         copy.setText("Copy selection");
         copy.addListener(SWT.Selection, event -> control.copy());
         MenuItem code = new MenuItem(menu, SWT.PUSH);
         code.setText("Copy code block");
-        code.addListener(SWT.Selection, event -> {
-            if (selectedCode == null) return;
-            Clipboard clipboard = new Clipboard(control.getDisplay());
-            try {
-                clipboard.setContents(new Object[] {selectedCode.source()}, new Transfer[] {TextTransfer.getInstance()});
-            } finally {
-                clipboard.dispose();
-            }
-        });
+        code.addListener(
+                SWT.Selection,
+                event -> {
+                    if (selectedCode == null) return;
+                    Clipboard clipboard = new Clipboard(control.getDisplay());
+                    try {
+                        clipboard.setContents(
+                                new Object[] {selectedCode.source()},
+                                new Transfer[] {TextTransfer.getInstance()});
+                    } finally {
+                        clipboard.dispose();
+                    }
+                });
         new MenuItem(menu, SWT.SEPARATOR);
         MenuItem select = new MenuItem(menu, SWT.PUSH);
         select.setText("Select all");
         select.addListener(SWT.Selection, event -> control.selectAll());
         control.setMenu(menu);
-        control.addListener(SWT.MenuDetect, event -> {
-            int offset = control.getCaretOffset();
-            if (event.detail != SWT.MENU_KEYBOARD) {
-                try {
-                    offset = control.getOffsetAtPoint(control.toControl(event.x, event.y));
-                } catch (IllegalArgumentException ignored) {
-                    offset = -1;
-                }
-            }
-            selectedCode = codeAtOffset(offset);
-            code.setEnabled(selectedCode != null && !selectedCode.source().isEmpty());
-            copy.setEnabled(control.getSelectionCount() > 0);
-            select.setEnabled(!isEmpty());
-        });
+        control.addListener(
+                SWT.MenuDetect,
+                event -> {
+                    int offset = control.getCaretOffset();
+                    if (event.detail != SWT.MENU_KEYBOARD) {
+                        try {
+                            offset = control.getOffsetAtPoint(control.toControl(event.x, event.y));
+                        } catch (IllegalArgumentException ignored) {
+                            offset = -1;
+                        }
+                    }
+                    selectedCode = codeAtOffset(offset);
+                    code.setEnabled(selectedCode != null && !selectedCode.source().isEmpty());
+                    copy.setEnabled(control.getSelectionCount() > 0);
+                    select.setEnabled(!isEmpty());
+                });
     }
 
     private CodeBlock codeAtOffset(int offset) {
@@ -215,7 +279,8 @@ final class ChatTranscript {
             int local = offset - message.bodyStart();
             if (local < 0 || local >= message.body().text().length()) continue;
             for (CodeBlock block : message.body().codeBlocks()) {
-                if (local >= block.offset() && local < block.offset() + block.length()) return block;
+                if (local >= block.offset() && local < block.offset() + block.length())
+                    return block;
             }
         }
         return null;
@@ -223,7 +288,8 @@ final class ChatTranscript {
 
     private boolean atBottom() {
         ScrollBar scroll = control.getVerticalBar();
-        return scroll == null || scroll.getSelection() + scroll.getThumb() >= scroll.getMaximum() - 2;
+        return scroll == null
+                || scroll.getSelection() + scroll.getThumb() >= scroll.getMaximum() - 2;
     }
 
     /** The reader moved: following resumes only when they are back at the end. */
@@ -242,41 +308,54 @@ final class ChatTranscript {
     private void updateCodeBackground() {
         background = control.getBackground().getRGB();
         foreground = control.getForeground().getRGB();
-        codeBackground = new Color(control.getDisplay(),
-            (background.red * 94 + foreground.red * 6) / 100,
-            (background.green * 94 + foreground.green * 6) / 100,
-            (background.blue * 94 + foreground.blue * 6) / 100);
+        codeBackground =
+                new Color(
+                        control.getDisplay(),
+                        (background.red * 94 + foreground.red * 6) / 100,
+                        (background.green * 94 + foreground.green * 6) / 100,
+                        (background.blue * 94 + foreground.blue * 6) / 100);
     }
 
     private void queueThemeRefresh() {
         if (control.isDisposed() || themeRefreshQueued) return;
         themeRefreshQueued = true;
-        control.getDisplay().asyncExec(() -> {
-            themeRefreshQueued = false;
-            if (control.isDisposed()) return;
-            boolean follow = atBottom();
-            int top = control.getTopPixel();
-            Color previousColor = codeBackground;
-            List<Font> previousFonts = new ArrayList<>(headingFonts.values());
-            headingFonts.clear();
-            control.setFont(JFaceResources.getDefaultFont());
-            updateCodeBackground();
-            control.setRedraw(false);
-            try {
-                for (Message message : messages) applyStyles(message);
-                if (follow) jumpToLatest();
-                else control.setTopPixel(top);
-            } finally {
-                control.setRedraw(true);
-                if (previousColor != null && !previousColor.isDisposed()) previousColor.dispose();
-                previousFonts.forEach(font -> { if (!font.isDisposed()) font.dispose(); });
-            }
-        });
+        control.getDisplay()
+                .asyncExec(
+                        () -> {
+                            themeRefreshQueued = false;
+                            if (control.isDisposed()) return;
+                            boolean follow = atBottom();
+                            int top = control.getTopPixel();
+                            Color previousColor = codeBackground;
+                            List<Font> previousFonts = new ArrayList<>(headingFonts.values());
+                            headingFonts.clear();
+                            control.setFont(JFaceResources.getDefaultFont());
+                            updateCodeBackground();
+                            control.setRedraw(false);
+                            try {
+                                for (Message message : messages) applyStyles(message);
+                                if (follow) jumpToLatest();
+                                else control.setTopPixel(top);
+                            } finally {
+                                control.setRedraw(true);
+                                if (previousColor != null && !previousColor.isDisposed())
+                                    previousColor.dispose();
+                                previousFonts.forEach(
+                                        font -> {
+                                            if (!font.isDisposed()) font.dispose();
+                                        });
+                            }
+                        });
     }
 
     private void disposeOwnedResources() {
         if (codeBackground != null && !codeBackground.isDisposed()) codeBackground.dispose();
-        headingFonts.values().forEach(font -> { if (!font.isDisposed()) font.dispose(); });
+        headingFonts
+                .values()
+                .forEach(
+                        font -> {
+                            if (!font.isDisposed()) font.dispose();
+                        });
         headingFonts.clear();
     }
 

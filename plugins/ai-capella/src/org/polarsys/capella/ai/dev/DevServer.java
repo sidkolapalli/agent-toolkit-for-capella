@@ -2,58 +2,63 @@ package org.polarsys.capella.ai.dev;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.net.InetAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.IdentityHashMap;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutorService;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import org.eclipse.sirius.business.api.session.Session;
-import org.eclipse.sirius.business.api.session.SessionManager;
+
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.transaction.TransactionalEditingDomain;
+import org.eclipse.sirius.business.api.session.Session;
+import org.eclipse.sirius.business.api.session.SessionManager;
 import org.polarsys.capella.ai.agent.AgentJson;
 import org.polarsys.capella.ai.agent.ArcadiaModelTools;
-import org.polarsys.capella.ai.session.SelectionContext;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.scripting.CodeExecutionRouter;
 import org.polarsys.capella.ai.scripting.ExecutionResult;
 import org.polarsys.capella.ai.scripting.GroovyExecutor;
-import org.polarsys.capella.ai.scripting.ScriptRouter;
 import org.polarsys.capella.ai.scripting.RequirementsAPI;
+import org.polarsys.capella.ai.scripting.ScriptRouter;
+import org.polarsys.capella.ai.session.SelectionContext;
 import org.polarsys.capella.ai.session.SessionBridge;
 import org.polarsys.capella.ai.session.SessionSafeguards;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Development HTTP server for testing AI code execution without Eclipse UI.
  *
  * <p>Exposes endpoints:
+ *
  * <ul>
- *   <li>POST /execute - Execute Groovy code directly</li>
- *   <li>POST /inspect - Fixed model read tools with JSON arguments; no script execution</li>
- *   <li>POST /mcp - Model Context Protocol (JSON-RPC 2.0) exposing the same read tools</li>
- *   <li>POST /eval - Score agent tasks headlessly on a disposable model; requires -Dcapella.ai.eval=true</li>
- *   <li>POST /chat - Send prompt to LLM and execute generated code</li>
- *   <li>GET /status - Check server and session status</li>
- *   <li>GET /prompt - Get the system prompt for code generation</li>
- *   <li>GET /context - Get current selection + active diagram</li>
- *   <li>GET /config - View dev server configuration</li>
- *   <li>GET /debug - View debug information</li>
+ *   <li>POST /execute - Execute Groovy code directly
+ *   <li>POST /inspect - Fixed model read tools with JSON arguments; no script execution
+ *   <li>POST /mcp - Model Context Protocol (JSON-RPC 2.0) exposing the same read tools
+ *   <li>POST /eval - Score agent tasks headlessly on a disposable model; requires
+ *       -Dcapella.ai.eval=true
+ *   <li>POST /chat - Send prompt to LLM and execute generated code
+ *   <li>GET /status - Check server and session status
+ *   <li>GET /prompt - Get the system prompt for code generation
+ *   <li>GET /context - Get current selection + active diagram
+ *   <li>GET /config - View dev server configuration
+ *   <li>GET /debug - View debug information
  * </ul>
  *
  * <p>Start from Eclipse: Window → Show View → Other → Capella AI Dev Server
+ *
  * <p>Or programmatically: DevServer.start(8765)
  */
 public final class DevServer {
@@ -67,7 +72,8 @@ public final class DevServer {
     private static final int MAX_INSPECTION_BODY_BYTES = 32768;
     private static final int MAX_INSPECTION_SESSIONS = 4;
     private static final long INSPECTION_CONTEXT_TTL_NANOS = TimeUnit.MINUTES.toNanos(10);
-    private static final Map<Session, InspectionContext> INSPECTION_CONTEXTS = new IdentityHashMap<>();
+    private static final Map<Session, InspectionContext> INSPECTION_CONTEXTS =
+            new IdentityHashMap<>();
 
     private static final class InspectionContext {
         final Session session;
@@ -85,34 +91,37 @@ public final class DevServer {
         }
 
         boolean available() {
-            return session.isOpen() && session.getSessionResource() == resource &&
-                session.getTransactionalEditingDomain() == domain && resource != null &&
-                resource.getResourceSet() == domain.getResourceSet();
+            return session.isOpen()
+                    && session.getSessionResource() == resource
+                    && session.getTransactionalEditingDomain() == domain
+                    && resource != null
+                    && resource.getResourceSet() == domain.getResourceSet();
         }
     }
 
-    private record InspectionRequest(String sessionUri, String tool, Map<String, Object> arguments) {}
+    private record InspectionRequest(
+            String sessionUri, String tool, Map<String, Object> arguments) {}
 
     private static final class InspectionRequestException extends IllegalArgumentException {
         private static final long serialVersionUID = 1L;
-        InspectionRequestException(String message) { super(message); }
+
+        InspectionRequestException(String message) {
+            super(message);
+        }
     }
 
     private DevServer() {}
 
-    /**
-     * Start the dev server on the default port (8765).
-     */
+    /** Start the dev server on the default port (8765). */
     public static synchronized void start() {
         start(DEFAULT_PORT);
     }
 
-    /**
-     * Start the dev server on the specified port.
-     */
+    /** Start the dev server on the specified port. */
     public static synchronized void start(int port) {
         if (server != null) {
-            System.out.println("[DevServer] Already running on port " + server.getAddress().getPort());
+            System.out.println(
+                    "[DevServer] Already running on port " + server.getAddress().getPort());
             return;
         }
         if (port < 0 || port > 65535) {
@@ -120,12 +129,17 @@ public final class DevServer {
         }
 
         try {
-            server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
-            requestExecutor = Executors.newFixedThreadPool(4, task -> {
-                Thread worker = new Thread(task, "CapellaAI-DevServer");
-                worker.setDaemon(true);
-                return worker;
-            });
+            server =
+                    HttpServer.create(
+                            new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
+            requestExecutor =
+                    Executors.newFixedThreadPool(
+                            4,
+                            task -> {
+                                Thread worker = new Thread(task, "CapellaAI-DevServer");
+                                worker.setDaemon(true);
+                                return worker;
+                            });
             server.setExecutor(requestExecutor);
             publishToken(server.getAddress().getPort());
 
@@ -144,37 +158,27 @@ public final class DevServer {
 
             server.start();
             System.out.println(
-                "[DevServer] Started on http://localhost:" + server.getAddress().getPort()
-            );
+                    "[DevServer] Started on http://localhost:" + server.getAddress().getPort());
             System.out.println("[DevServer] Send Authorization: Bearer <token> from " + tokenFile);
             System.out.println("[DevServer] Endpoints:");
             System.out.println("  POST /execute - Execute Groovy code");
             System.out.println("  POST /inspect - Fixed native read tools (JSON data only)");
             System.out.println("  POST /mcp     - Model Context Protocol (JSON-RPC) read tools");
-            System.out.println("  POST /eval    - Score agent tasks on a disposable model (opt-in)");
             System.out.println(
-                "  POST /chat    - Send prompt to LLM, execute result"
-            );
+                    "  POST /eval    - Score agent tasks on a disposable model (opt-in)");
+            System.out.println("  POST /chat    - Send prompt to LLM, execute result");
             System.out.println("  GET  /status  - Check server/session status");
             System.out.println("  GET  /prompt  - Get system prompt for LLM");
-            System.out.println(
-                "  GET  /context - Get selection + active diagram context"
-            );
+            System.out.println("  GET  /context - Get selection + active diagram context");
             System.out.println("  GET  /config  - View configuration");
             System.out.println("  GET  /debug   - View debug information");
         } catch (IOException e) {
             stop();
-            LOG.log(
-                Level.SEVERE,
-                "DevServer failed to start on port " + port,
-                e
-            );
+            LOG.log(Level.SEVERE, "DevServer failed to start on port " + port, e);
         }
     }
 
-    /**
-     * Stop the dev server.
-     */
+    /** Stop the dev server. */
     public static synchronized void stop() {
         if (server != null) {
             server.stop(0);
@@ -183,19 +187,22 @@ public final class DevServer {
         }
         token = null;
         if (tokenFile != null) {
-            try { java.nio.file.Files.deleteIfExists(tokenFile); } catch (IOException ignored) { }
+            try {
+                java.nio.file.Files.deleteIfExists(tokenFile);
+            } catch (IOException ignored) {
+            }
             tokenFile = null;
         }
         if (requestExecutor != null) {
             requestExecutor.shutdownNow();
             requestExecutor = null;
         }
-        synchronized (INSPECTION_CONTEXTS) { INSPECTION_CONTEXTS.clear(); }
+        synchronized (INSPECTION_CONTEXTS) {
+            INSPECTION_CONTEXTS.clear();
+        }
     }
 
-    /**
-     * Check if server is running.
-     */
+    /** Check if server is running. */
     public static synchronized boolean isRunning() {
         return server != null;
     }
@@ -212,15 +219,19 @@ public final class DevServer {
 
     /** Where a running server on this port writes its token for local clients such as MCP hosts. */
     public static java.nio.file.Path tokenFile(int port) {
-        return java.nio.file.Path.of(System.getProperty("user.home"), ".capella-ai", "devserver-" + port + ".token");
+        return java.nio.file.Path.of(
+                System.getProperty("user.home"), ".capella-ai", "devserver-" + port + ".token");
     }
 
     private static void publishToken(int port) throws IOException {
         String configured = System.getenv("CAPELLA_AI_DEVSERVER_TOKEN");
-        if (configured != null && configured.matches("[A-Za-z0-9._~+/=-]{16,256}")) token = configured;
+        if (configured != null && configured.matches("[A-Za-z0-9._~+/=-]{16,256}"))
+            token = configured;
         else {
             if (configured != null && !configured.isBlank()) {
-                LOG.warning("CAPELLA_AI_DEVSERVER_TOKEN is ignored: use 16 to 256 URL-safe characters. A random token is used instead.");
+                LOG.warning(
+                        "CAPELLA_AI_DEVSERVER_TOKEN is ignored: use 16 to 256 URL-safe characters."
+                            + " A random token is used instead.");
             }
             byte[] random = new byte[32];
             new java.security.SecureRandom().nextBytes(random);
@@ -231,40 +242,66 @@ public final class DevServer {
         java.nio.file.Path draft;
         if (file.getFileSystem().supportedFileAttributeViews().contains("posix")) {
             // Owner-only from creation: other local users must never be able to read the token.
-            java.nio.file.Files.setPosixFilePermissions(directory, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
-            draft = java.nio.file.Files.createTempFile(directory, "devserver-", ".tmp",
-                java.nio.file.attribute.PosixFilePermissions.asFileAttribute(java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")));
+            java.nio.file.Files.setPosixFilePermissions(
+                    directory,
+                    java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+            draft =
+                    java.nio.file.Files.createTempFile(
+                            directory,
+                            "devserver-",
+                            ".tmp",
+                            java.nio.file.attribute.PosixFilePermissions.asFileAttribute(
+                                    java.nio.file.attribute.PosixFilePermissions.fromString(
+                                            "rw-------")));
         } else {
             draft = java.nio.file.Files.createTempFile(directory, "devserver-", ".tmp");
         }
         java.nio.file.Files.writeString(draft, token + "\n", StandardCharsets.UTF_8);
-        java.nio.file.Files.move(draft, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        java.nio.file.Files.move(
+                draft,
+                file,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE);
         tokenFile = file;
     }
 
     private static boolean authorized(String header) {
         String expected = token;
-        return expected != null && header != null && header.startsWith("Bearer ") && java.security.MessageDigest.isEqual(
-            header.substring(7).getBytes(StandardCharsets.UTF_8), expected.getBytes(StandardCharsets.UTF_8));
+        return expected != null
+                && header != null
+                && header.startsWith("Bearer ")
+                && java.security.MessageDigest.isEqual(
+                        header.substring(7).getBytes(StandardCharsets.UTF_8),
+                        expected.getBytes(StandardCharsets.UTF_8));
     }
 
     private static void addLocalContext(String path, com.sun.net.httpserver.HttpHandler handler) {
-        server.createContext(path, exchange -> {
-            // This development interface is for local tools that can read the user's token file.
-            // A webpage must not be able to submit scripts through the user's browser.
-            if (!exchange.getRemoteAddress().getAddress().isLoopbackAddress()
-                || exchange.getRequestHeaders().getFirst("Origin") != null) {
-                sendResponse(exchange, 403, "{\"error\":\"Only local non-browser clients are allowed\"}");
-                return;
-            }
-            if (!authorized(exchange.getRequestHeaders().getFirst("Authorization"))) {
-                exchange.getResponseHeaders().set("WWW-Authenticate", "Bearer");
-                sendResponse(exchange, 401, "{\"error\":\"Send Authorization: Bearer <token> from "
-                    + escapeJson(String.valueOf(tokenFile)) + "\"}");
-                return;
-            }
-            handler.handle(exchange);
-        });
+        server.createContext(
+                path,
+                exchange -> {
+                    // This development interface is for local tools that can read the user's token
+                    // file.
+                    // A webpage must not be able to submit scripts through the user's browser.
+                    if (!exchange.getRemoteAddress().getAddress().isLoopbackAddress()
+                            || exchange.getRequestHeaders().getFirst("Origin") != null) {
+                        sendResponse(
+                                exchange,
+                                403,
+                                "{\"error\":\"Only local non-browser clients are allowed\"}");
+                        return;
+                    }
+                    if (!authorized(exchange.getRequestHeaders().getFirst("Authorization"))) {
+                        exchange.getResponseHeaders().set("WWW-Authenticate", "Bearer");
+                        sendResponse(
+                                exchange,
+                                401,
+                                "{\"error\":\"Send Authorization: Bearer <token> from "
+                                        + escapeJson(String.valueOf(tokenFile))
+                                        + "\"}");
+                        return;
+                    }
+                    handler.handle(exchange);
+                });
     }
 
     private static void handleEnableRequirements(HttpExchange exchange) throws IOException {
@@ -286,9 +323,9 @@ public final class DevServer {
     }
 
     /**
-     * POST /inspect accepts only {session_uri, tool, arguments}. The exact current
-     * session URI is required. The existing fixed read tools run on SWT in native
-     * read transactions; no Groovy, live-object binding, save or command is exposed.
+     * POST /inspect accepts only {session_uri, tool, arguments}. The exact current session URI is
+     * required. The existing fixed read tools run on SWT in native read transactions; no Groovy,
+     * live-object binding, save or command is exposed.
      */
     private static void handleInspect(HttpExchange exchange) throws IOException {
         if (!"POST".equals(exchange.getRequestMethod())) {
@@ -308,9 +345,13 @@ public final class DevServer {
             String result = inspect(SessionBridge.getActiveSession(), request);
             sendResponse(exchange, 200, result);
         } catch (InspectionRequestException | ArcadiaModelTools.ArgumentException rejected) {
-            sendResponse(exchange, 400, "{\"error\":\"" + escapeJson(rejected.getMessage()) + "\"}");
+            sendResponse(
+                    exchange, 400, "{\"error\":\"" + escapeJson(rejected.getMessage()) + "\"}");
         } catch (Exception unavailable) {
-            sendResponse(exchange, 409, "{\"error\":\"The captured native inspection could not complete\"}");
+            sendResponse(
+                    exchange,
+                    409,
+                    "{\"error\":\"The captured native inspection could not complete\"}");
         }
     }
 
@@ -330,8 +371,16 @@ public final class DevServer {
             return;
         }
         Map<String, String> headers = new LinkedHashMap<>();
-        exchange.getRequestHeaders().forEach((name, values) -> { if (!values.isEmpty()) headers.put(name, values.get(0)); });
-        McpServer.Response response = McpServer.handle(SessionBridge.getActiveSession(), headers, new String(body, StandardCharsets.UTF_8));
+        exchange.getRequestHeaders()
+                .forEach(
+                        (name, values) -> {
+                            if (!values.isEmpty()) headers.put(name, values.get(0));
+                        });
+        McpServer.Response response =
+                McpServer.handle(
+                        SessionBridge.getActiveSession(),
+                        headers,
+                        new String(body, StandardCharsets.UTF_8));
         if (response.body() == null) {
             exchange.sendResponseHeaders(response.status(), -1);
             exchange.close();
@@ -341,14 +390,20 @@ public final class DevServer {
     }
 
     /**
-     * POST /eval runs eval tasks through the agent with every proposal auto-approved and scores them by
-     * native checks. Because nothing is reviewed by a person, it is refused unless Capella was started
-     * with -Dcapella.ai.eval=true or CAPELLA_AI_EVAL=1. Body: an eval file; "restore": true undoes each
-     * task's changes and saves before the next. Use a disposable copy of a model.
+     * POST /eval runs eval tasks through the agent with every proposal auto-approved and scores
+     * them by native checks. Because nothing is reviewed by a person, it is refused unless Capella
+     * was started with -Dcapella.ai.eval=true or CAPELLA_AI_EVAL=1. Body: an eval file; "restore":
+     * true undoes each task's changes and saves before the next. Use a disposable copy of a model.
      */
     private static void handleEval(HttpExchange exchange) throws IOException {
-        if (!"true".equals(System.getProperty("capella.ai.eval")) && !"1".equals(System.getenv("CAPELLA_AI_EVAL"))) {
-            sendResponse(exchange, 403, "{\"error\":\"Evaluation auto-approves model edits; start Capella with -Dcapella.ai.eval=true (or CAPELLA_AI_EVAL=1) on a disposable model\"}");
+        if (!"true".equals(System.getProperty("capella.ai.eval"))
+                && !"1".equals(System.getenv("CAPELLA_AI_EVAL"))) {
+            sendResponse(
+                    exchange,
+                    403,
+                    "{\"error\":\"Evaluation auto-approves model edits; start Capella with"
+                        + " -Dcapella.ai.eval=true (or CAPELLA_AI_EVAL=1) on a disposable"
+                        + " model\"}");
             return;
         }
         if (!"POST".equals(exchange.getRequestMethod())) {
@@ -357,39 +412,69 @@ public final class DevServer {
         }
         Session session = SessionBridge.getActiveSession();
         if (session == null || !session.isOpen()) {
-            sendResponse(exchange, 400, "{\"error\":\"Open the disposable evaluation model first\"}");
+            sendResponse(
+                    exchange, 400, "{\"error\":\"Open the disposable evaluation model first\"}");
             return;
         }
         String body = readBody(exchange);
         List<org.polarsys.capella.ai.agent.EvalRunner.Task> tasks;
-        try { tasks = org.polarsys.capella.ai.agent.EvalRunner.parse(body); }
-        catch (IllegalArgumentException invalid) {
+        try {
+            tasks = org.polarsys.capella.ai.agent.EvalRunner.parse(body);
+        } catch (IllegalArgumentException invalid) {
             sendResponse(exchange, 400, "{\"error\":\"" + escapeJson(invalid.getMessage()) + "\"}");
             return;
         }
-        boolean restore = AgentJson.parse(body, 2_000_000) instanceof Map<?, ?> file && Boolean.TRUE.equals(file.get("restore"));
+        boolean restore =
+                AgentJson.parse(body, 2_000_000) instanceof Map<?, ?> file
+                        && Boolean.TRUE.equals(file.get("restore"));
         List<Object> results = new java.util.ArrayList<>();
         int passed = 0;
         for (var task : tasks) {
             String conversation = "eval-" + task.id();
             Object[] baseline = new Object[1];
-            SessionSafeguards.runOnUiThread(() -> baseline[0] = session.getTransactionalEditingDomain().getCommandStack().getUndoCommand());
-            var result = org.polarsys.capella.ai.agent.EvalRunner.run(session, task, () -> {
-                try { return ScriptRouter.createRuntime(session, conversation, null, id -> {}); }
-                catch (Exception failure) { throw new IllegalStateException("The agent runtime could not start", failure); }
-            }, ScriptRouter.agentSystemPrompt(session, conversation, SelectionContext.empty()),
-                org.polarsys.capella.ai.agent.ModelVerification::snapshot);
+            SessionSafeguards.runOnUiThread(
+                    () ->
+                            baseline[0] =
+                                    session.getTransactionalEditingDomain()
+                                            .getCommandStack()
+                                            .getUndoCommand());
+            var result =
+                    org.polarsys.capella.ai.agent.EvalRunner.run(
+                            session,
+                            task,
+                            () -> {
+                                try {
+                                    return ScriptRouter.createRuntime(
+                                            session, conversation, null, id -> {});
+                                } catch (Exception failure) {
+                                    throw new IllegalStateException(
+                                            "The agent runtime could not start", failure);
+                                }
+                            },
+                            ScriptRouter.agentSystemPrompt(
+                                    session, conversation, SelectionContext.empty()),
+                            org.polarsys.capella.ai.agent.ModelVerification::snapshot);
             if (result.passed()) passed++;
             results.add(result.json());
             if (restore) {
-                SessionSafeguards.runOnUiThread(() -> {
-                    var stack = session.getTransactionalEditingDomain().getCommandStack();
-                    while (stack.canUndo() && stack.getUndoCommand() != baseline[0]) stack.undo();
-                });
-                try { SessionSafeguards.requestSave(session); } catch (Exception failure) { LOG.log(Level.WARNING, "Eval restore save failed", failure); }
+                SessionSafeguards.runOnUiThread(
+                        () -> {
+                            var stack = session.getTransactionalEditingDomain().getCommandStack();
+                            while (stack.canUndo() && stack.getUndoCommand() != baseline[0])
+                                stack.undo();
+                        });
+                try {
+                    SessionSafeguards.requestSave(session);
+                } catch (Exception failure) {
+                    LOG.log(Level.WARNING, "Eval restore save failed", failure);
+                }
             }
         }
-        sendResponse(exchange, 200, AgentJson.write(Map.of("passed", passed, "total", tasks.size(), "results", results)));
+        sendResponse(
+                exchange,
+                200,
+                AgentJson.write(
+                        Map.of("passed", passed, "total", tasks.size(), "results", results)));
     }
 
     /** Package-local entry for isolated tests of the same data-only request path. */
@@ -397,45 +482,69 @@ public final class DevServer {
         return inspect(session, inspectionRequest(json));
     }
 
-    /** A fixed read tool on the given session, addressed by that session's own URI (used by MCP). */
-    static String read(Session session, String tool, Map<String, Object> arguments) throws Exception {
+    /**
+     * A fixed read tool on the given session, addressed by that session's own URI (used by MCP).
+     */
+    static String read(Session session, String tool, Map<String, Object> arguments)
+            throws Exception {
         Resource resource = session.getSessionResource();
-        if (resource == null || resource.getURI() == null) throw new InspectionRequestException("The Capella model has no session resource");
-        return inspect(session, new InspectionRequest(resource.getURI().toString(), tool,
-            java.util.Collections.unmodifiableMap(new LinkedHashMap<>(arguments))));
+        if (resource == null || resource.getURI() == null)
+            throw new InspectionRequestException("The Capella model has no session resource");
+        return inspect(
+                session,
+                new InspectionRequest(
+                        resource.getURI().toString(),
+                        tool,
+                        java.util.Collections.unmodifiableMap(new LinkedHashMap<>(arguments))));
     }
 
     private static String inspect(Session session, InspectionRequest request) throws Exception {
         Thread caller = Thread.currentThread();
-        if (caller.isInterrupted()) throw new InspectionRequestException("Inspection was cancelled");
+        if (caller.isInterrupted())
+            throw new InspectionRequestException("Inspection was cancelled");
         InspectionContext context = inspectionContext(session, request.sessionUri());
         String result;
         // The fixed tools access cursor state only on SWT inside their native
         // read transaction. Never hold a monitor while waiting for SWT.
-        SessionSafeguards.runOnUiThread(() -> requireInspectionSession(context, request.sessionUri(), caller));
+        SessionSafeguards.runOnUiThread(
+                () -> requireInspectionSession(context, request.sessionUri(), caller));
         result = context.tools.execute(request.tool(), request.arguments());
-        SessionSafeguards.runOnUiThread(() -> requireInspectionSession(context, request.sessionUri(), caller));
-        return "{\"session_uri\":" + AgentJson.write(request.sessionUri()) +
-            ",\"read_only\":true,\"data\":" + result + "}";
+        SessionSafeguards.runOnUiThread(
+                () -> requireInspectionSession(context, request.sessionUri(), caller));
+        return "{\"session_uri\":"
+                + AgentJson.write(request.sessionUri())
+                + ",\"read_only\":true,\"data\":"
+                + result
+                + "}";
     }
 
     private static InspectionRequest inspectionRequest(String json) {
-        if (json == null || json.getBytes(StandardCharsets.UTF_8).length > MAX_INSPECTION_BODY_BYTES) {
+        if (json == null
+                || json.getBytes(StandardCharsets.UTF_8).length > MAX_INSPECTION_BODY_BYTES) {
             throw new InspectionRequestException("Inspection body exceeds 32768 bytes");
         }
         Object decoded;
-        try { decoded = AgentJson.parse(json, MAX_INSPECTION_BODY_BYTES); }
-        catch (IllegalArgumentException invalid) { throw new InspectionRequestException("Inspection requires bounded JSON data"); }
-        if (!(decoded instanceof Map<?, ?> body) ||
-            !Set.of("session_uri", "tool", "arguments").containsAll(body.keySet())) {
-            throw new InspectionRequestException("Inspection accepts only session_uri, tool and arguments");
+        try {
+            decoded = AgentJson.parse(json, MAX_INSPECTION_BODY_BYTES);
+        } catch (IllegalArgumentException invalid) {
+            throw new InspectionRequestException("Inspection requires bounded JSON data");
         }
-        if (!(body.get("session_uri") instanceof String uri) || uri.isBlank() || uri.length() > 2000 ||
-            uri.indexOf('\0') >= 0) {
-            throw new InspectionRequestException("Inspection requires the exact current session_uri");
+        if (!(decoded instanceof Map<?, ?> body)
+                || !Set.of("session_uri", "tool", "arguments").containsAll(body.keySet())) {
+            throw new InspectionRequestException(
+                    "Inspection accepts only session_uri, tool and arguments");
         }
-        if (!(body.get("tool") instanceof String tool) || !ArcadiaModelTools.toolNames().contains(tool)) {
-            throw new InspectionRequestException("Inspection requires an existing fixed model read tool");
+        if (!(body.get("session_uri") instanceof String uri)
+                || uri.isBlank()
+                || uri.length() > 2000
+                || uri.indexOf('\0') >= 0) {
+            throw new InspectionRequestException(
+                    "Inspection requires the exact current session_uri");
+        }
+        if (!(body.get("tool") instanceof String tool)
+                || !ArcadiaModelTools.toolNames().contains(tool)) {
+            throw new InspectionRequestException(
+                    "Inspection requires an existing fixed model read tool");
         }
         Object argumentValue = body.containsKey("arguments") ? body.get("arguments") : Map.of();
         if (!(argumentValue instanceof Map<?, ?> arguments)) {
@@ -453,48 +562,68 @@ public final class DevServer {
 
     private static InspectionContext inspectionContext(Session session, String expectedUri) {
         AtomicReference<InspectionContext> found = new AtomicReference<>();
-        SessionSafeguards.runOnUiThread(() -> {
-            long now = System.nanoTime();
-            synchronized (INSPECTION_CONTEXTS) {
-                INSPECTION_CONTEXTS.values().removeIf(context ->
-                    !context.available() || now - context.usedNanos >= INSPECTION_CONTEXT_TTL_NANOS);
-                if (session == null || !session.isOpen() || session.getSessionResource() == null ||
-                    session.getTransactionalEditingDomain() == null || session.getSessionResource().getURI() == null ||
-                    !expectedUri.equals(session.getSessionResource().getURI().toString()) ||
-                    session.getSessionResource().getResourceSet() != session.getTransactionalEditingDomain().getResourceSet()) {
-                    throw new InspectionRequestException("Inspection session_uri must match the open captured model");
-                }
-                InspectionContext context = INSPECTION_CONTEXTS.get(session);
-                if (context == null) {
-                    if (INSPECTION_CONTEXTS.size() == MAX_INSPECTION_SESSIONS) {
-                        InspectionContext oldest = INSPECTION_CONTEXTS.values().stream()
-                            .min(java.util.Comparator.comparingLong(value -> value.usedNanos)).orElseThrow();
-                        INSPECTION_CONTEXTS.remove(oldest.session);
+        SessionSafeguards.runOnUiThread(
+                () -> {
+                    long now = System.nanoTime();
+                    synchronized (INSPECTION_CONTEXTS) {
+                        INSPECTION_CONTEXTS
+                                .values()
+                                .removeIf(
+                                        context ->
+                                                !context.available()
+                                                        || now - context.usedNanos
+                                                                >= INSPECTION_CONTEXT_TTL_NANOS);
+                        if (session == null
+                                || !session.isOpen()
+                                || session.getSessionResource() == null
+                                || session.getTransactionalEditingDomain() == null
+                                || session.getSessionResource().getURI() == null
+                                || !expectedUri.equals(
+                                        session.getSessionResource().getURI().toString())
+                                || session.getSessionResource().getResourceSet()
+                                        != session.getTransactionalEditingDomain()
+                                                .getResourceSet()) {
+                            throw new InspectionRequestException(
+                                    "Inspection session_uri must match the open captured model");
+                        }
+                        InspectionContext context = INSPECTION_CONTEXTS.get(session);
+                        if (context == null) {
+                            if (INSPECTION_CONTEXTS.size() == MAX_INSPECTION_SESSIONS) {
+                                InspectionContext oldest =
+                                        INSPECTION_CONTEXTS.values().stream()
+                                                .min(
+                                                        java.util.Comparator.comparingLong(
+                                                                value -> value.usedNanos))
+                                                .orElseThrow();
+                                INSPECTION_CONTEXTS.remove(oldest.session);
+                            }
+                            context = new InspectionContext(session, now);
+                            INSPECTION_CONTEXTS.put(session, context);
+                        }
+                        context.usedNanos = now;
+                        found.set(context);
                     }
-                    context = new InspectionContext(session, now);
-                    INSPECTION_CONTEXTS.put(session, context);
-                }
-                context.usedNanos = now;
-                found.set(context);
-            }
-        });
+                });
         return found.get();
     }
 
-    private static void requireInspectionSession(InspectionContext context, String expectedUri, Thread caller) {
-        if (caller.isInterrupted() || Thread.currentThread().isInterrupted() || !context.available() || context.resource.getURI() == null ||
-            !expectedUri.equals(context.resource.getURI().toString())) {
-            throw new InspectionRequestException("The captured inspection session changed, closed or was cancelled");
+    private static void requireInspectionSession(
+            InspectionContext context, String expectedUri, Thread caller) {
+        if (caller.isInterrupted()
+                || Thread.currentThread().isInterrupted()
+                || !context.available()
+                || context.resource.getURI() == null
+                || !expectedUri.equals(context.resource.getURI().toString())) {
+            throw new InspectionRequestException(
+                    "The captured inspection session changed, closed or was cancelled");
         }
     }
 
     /**
-     * POST /execute - Execute Groovy code directly
-     * Body: Groovy code to execute
-     * Returns: JSON with result
+     * POST /execute - Execute Groovy code directly Body: Groovy code to execute Returns: JSON with
+     * result
      */
-    private static void handleExecute(HttpExchange exchange)
-        throws IOException {
+    private static void handleExecute(HttpExchange exchange) throws IOException {
         if (!"POST".equals(exchange.getRequestMethod())) {
             sendResponse(exchange, 405, "{\"error\": \"Method not allowed\"}");
             return;
@@ -503,10 +632,9 @@ public final class DevServer {
         Session session = SessionBridge.getActiveSession();
         if (session == null) {
             sendResponse(
-                exchange,
-                400,
-                "{\"error\": \"No active Capella session. Open a model first.\"}"
-            );
+                    exchange,
+                    400,
+                    "{\"error\": \"No active Capella session. Open a model first.\"}");
             return;
         }
 
@@ -518,42 +646,25 @@ public final class DevServer {
 
         try {
             String conversationId = getConversationId(exchange);
-            String sessionKey = GroovyExecutor.buildSessionKey(
-                session,
-                conversationId
-            );
+            String sessionKey = GroovyExecutor.buildSessionKey(session, conversationId);
             SelectionContext ctx = SessionBridge.getSelectionContext();
-            java.util.HashMap<String, Object> extraBindings =
-                new java.util.HashMap<>();
+            java.util.HashMap<String, Object> extraBindings = new java.util.HashMap<>();
             extraBindings.put(
-                "selection",
-                ctx != null ? ctx.getSelectedElements() : java.util.List.of()
-            );
+                    "selection", ctx != null ? ctx.getSelectedElements() : java.util.List.of());
             extraBindings.put(
-                "activeDiagram",
-                ctx != null ? ctx.getActiveDiagram().orElse(null) : null
-            );
-            ExecutionResult result = GroovyExecutor.execute(
-                session,
-                code,
-                extraBindings,
-                sessionKey
-            );
+                    "activeDiagram", ctx != null ? ctx.getActiveDiagram().orElse(null) : null);
+            ExecutionResult result =
+                    GroovyExecutor.execute(session, code, extraBindings, sessionKey);
             String json = formatResult(result);
             sendResponse(exchange, result.success() ? 200 : 400, json);
         } catch (Exception e) {
-            sendResponse(
-                exchange,
-                500,
-                "{\"error\": \"" + escapeJson(e.getMessage()) + "\"}"
-            );
+            sendResponse(exchange, 500, "{\"error\": \"" + escapeJson(e.getMessage()) + "\"}");
         }
     }
 
     /**
-     * POST /chat - Send prompt to LLM and execute generated code
-     * Body: User message/prompt
-     * Returns: JSON with LLM response and execution result
+     * POST /chat - Send prompt to LLM and execute generated code Body: User message/prompt Returns:
+     * JSON with LLM response and execution result
      */
     private static void handleChat(HttpExchange exchange) throws IOException {
         if (!"POST".equals(exchange.getRequestMethod())) {
@@ -564,10 +675,9 @@ public final class DevServer {
         Session session = SessionBridge.getActiveSession();
         if (session == null) {
             sendResponse(
-                exchange,
-                400,
-                "{\"error\": \"No active Capella session. Open a model first.\"}"
-            );
+                    exchange,
+                    400,
+                    "{\"error\": \"No active Capella session. Open a model first.\"}");
             return;
         }
 
@@ -579,55 +689,33 @@ public final class DevServer {
 
         try {
             String conversationId = getConversationId(exchange);
-            ScriptRouter.Result result = ScriptRouter.handleChat(
-                session,
-                prompt,
-                List.of(),
-                conversationId
-            );
+            ScriptRouter.Result result =
+                    ScriptRouter.handleChat(session, prompt, List.of(), conversationId);
 
             StringBuilder json = new StringBuilder();
             json.append("{");
             json.append("\"success\": ").append(result.success()).append(",");
-            json
-                .append("\"reply\": \"")
-                .append(escapeJson(result.reply))
-                .append("\",");
+            json.append("\"reply\": \"").append(escapeJson(result.reply)).append("\",");
             json.append("\"codeExecuted\": ").append(result.codeExecuted);
             if (result.codeExecuted) {
                 json.append(",\"attempts\": ").append(result.attempts);
             }
 
             if (result.executionResult != null) {
-                json
-                    .append(",\"execution\": ")
-                    .append(formatResult(result.executionResult));
+                json.append(",\"execution\": ").append(formatResult(result.executionResult));
             }
             if (result.error != null) {
-                json
-                    .append(",\"error\": \"")
-                    .append(escapeJson(result.error))
-                    .append("\"");
+                json.append(",\"error\": \"").append(escapeJson(result.error)).append("\"");
             }
             json.append("}");
 
-            sendResponse(
-                exchange,
-                result.success() ? 200 : 400,
-                json.toString()
-            );
+            sendResponse(exchange, result.success() ? 200 : 400, json.toString());
         } catch (Exception e) {
-            sendResponse(
-                exchange,
-                500,
-                "{\"error\": \"" + escapeJson(e.getMessage()) + "\"}"
-            );
+            sendResponse(exchange, 500, "{\"error\": \"" + escapeJson(e.getMessage()) + "\"}");
         }
     }
 
-    /**
-     * GET /status - Check server and session status
-     */
+    /** GET /status - Check server and session status */
     private static void handleStatus(HttpExchange exchange) throws IOException {
         if (!"GET".equals(exchange.getRequestMethod())) {
             sendResponse(exchange, 405, "{\"error\": \"Method not allowed\"}");
@@ -637,60 +725,87 @@ public final class DevServer {
         try {
             sendResponse(exchange, 200, status(SessionBridge.getActiveSession()));
         } catch (RuntimeException unavailable) {
-            sendResponse(exchange, 409, "{\"error\":\"The captured native session status could not complete\"}");
+            sendResponse(
+                    exchange,
+                    409,
+                    "{\"error\":\"The captured native session status could not complete\"}");
         }
     }
 
     /** Fixed native state for development verification without creating an Undo entry. */
     static String status(Session session) {
         AtomicReference<Map<String, Object>> state = new AtomicReference<>();
-        SessionSafeguards.runOnUiThread(() -> {
-            Map<String, Object> result = new LinkedHashMap<>(); result.put("running", true);
-            var bundle = org.osgi.framework.FrameworkUtil.getBundle(DevServer.class);
-            result.put("plugin_version", bundle == null ? null : bundle.getVersion().toString());
-            result.put("hasSession", session != null && session.isOpen());
-            if (session == null || !session.isOpen()) { state.set(result); return; }
-            Resource resource = session.getSessionResource();
-            TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
-            if (resource == null || resource.getURI() == null || domain == null ||
-                resource.getResourceSet() != domain.getResourceSet()) {
-                throw new IllegalStateException("Native session status requires its editing domain");
-            }
-            try {
-                domain.runExclusive(() -> {
-                    if (!session.isOpen() || session.getSessionResource() != resource ||
-                        session.getTransactionalEditingDomain() != domain || Thread.currentThread().isInterrupted()) {
-                        throw new IllegalStateException("The captured status session is unavailable");
+        SessionSafeguards.runOnUiThread(
+                () -> {
+                    Map<String, Object> result = new LinkedHashMap<>();
+                    result.put("running", true);
+                    var bundle = org.osgi.framework.FrameworkUtil.getBundle(DevServer.class);
+                    result.put(
+                            "plugin_version",
+                            bundle == null ? null : bundle.getVersion().toString());
+                    result.put("hasSession", session != null && session.isOpen());
+                    if (session == null || !session.isOpen()) {
+                        state.set(result);
+                        return;
                     }
-                    var commands = domain.getCommandStack();
-                    var undo = commands.getUndoCommand(); var redo = commands.getRedoCommand();
-                    result.put("sessionName", resource.getURI().lastSegment());
-                    result.put("session_uri", resource.getURI().toString());
-                    result.put("session_modified", resource.isModified());
-                    result.put("can_undo", commands.canUndo()); result.put("can_redo", commands.canRedo());
-                    result.put("undo_label", undo == null ? null : undo.getLabel());
-                    result.put("redo_label", redo == null ? null : redo.getLabel());
-                    List<Object> resources = new ArrayList<>();
-                    for (Resource semantic : session.getSemanticResources()) {
-                        if (semantic.getResourceSet() != domain.getResourceSet()) {
-                            throw new IllegalStateException("Status semantic resource belongs to another domain");
-                        }
-                        Map<String, Object> flags = new LinkedHashMap<>();
-                        flags.put("uri", semantic.getURI() == null ? null : semantic.getURI().toString());
-                        flags.put("modified", semantic.isModified()); resources.add(flags);
+                    Resource resource = session.getSessionResource();
+                    TransactionalEditingDomain domain = session.getTransactionalEditingDomain();
+                    if (resource == null
+                            || resource.getURI() == null
+                            || domain == null
+                            || resource.getResourceSet() != domain.getResourceSet()) {
+                        throw new IllegalStateException(
+                                "Native session status requires its editing domain");
                     }
-                    result.put("semantic_resources", resources); state.set(result);
+                    try {
+                        domain.runExclusive(
+                                () -> {
+                                    if (!session.isOpen()
+                                            || session.getSessionResource() != resource
+                                            || session.getTransactionalEditingDomain() != domain
+                                            || Thread.currentThread().isInterrupted()) {
+                                        throw new IllegalStateException(
+                                                "The captured status session is unavailable");
+                                    }
+                                    var commands = domain.getCommandStack();
+                                    var undo = commands.getUndoCommand();
+                                    var redo = commands.getRedoCommand();
+                                    result.put("sessionName", resource.getURI().lastSegment());
+                                    result.put("session_uri", resource.getURI().toString());
+                                    result.put("session_modified", resource.isModified());
+                                    result.put("can_undo", commands.canUndo());
+                                    result.put("can_redo", commands.canRedo());
+                                    result.put("undo_label", undo == null ? null : undo.getLabel());
+                                    result.put("redo_label", redo == null ? null : redo.getLabel());
+                                    List<Object> resources = new ArrayList<>();
+                                    for (Resource semantic : session.getSemanticResources()) {
+                                        if (semantic.getResourceSet() != domain.getResourceSet()) {
+                                            throw new IllegalStateException(
+                                                    "Status semantic resource belongs to another"
+                                                        + " domain");
+                                        }
+                                        Map<String, Object> flags = new LinkedHashMap<>();
+                                        flags.put(
+                                                "uri",
+                                                semantic.getURI() == null
+                                                        ? null
+                                                        : semantic.getURI().toString());
+                                        flags.put("modified", semantic.isModified());
+                                        resources.add(flags);
+                                    }
+                                    result.put("semantic_resources", resources);
+                                    state.set(result);
+                                });
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(
+                                "Session status was interrupted", interrupted);
+                    }
                 });
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt(); throw new IllegalStateException("Session status was interrupted", interrupted);
-            }
-        });
         return AgentJson.write(state.get());
     }
 
-    /**
-     * GET /prompt - Get the system prompt for code generation
-     */
+    /** GET /prompt - Get the system prompt for code generation */
     private static void handlePrompt(HttpExchange exchange) throws IOException {
         if (!"GET".equals(exchange.getRequestMethod())) {
             sendResponse(exchange, 405, "{\"error\": \"Method not allowed\"}");
@@ -699,15 +814,10 @@ public final class DevServer {
 
         Session session = SessionBridge.getActiveSession();
         String conversationId = getConversationId(exchange);
-        String sessionKey = GroovyExecutor.buildSessionKey(
-            session,
-            conversationId
-        );
-        String prompt = CodeExecutionRouter.buildCodeExecutionPrompt(
-            session,
-            sessionKey,
-            SessionBridge.getSelectionContext()
-        );
+        String sessionKey = GroovyExecutor.buildSessionKey(session, conversationId);
+        String prompt =
+                CodeExecutionRouter.buildCodeExecutionPrompt(
+                        session, sessionKey, SessionBridge.getSelectionContext());
 
         StringBuilder json = new StringBuilder();
         json.append("{");
@@ -717,9 +827,7 @@ public final class DevServer {
         sendResponse(exchange, 200, json.toString());
     }
 
-    /**
-     * GET /context - return current UI selection + active diagram context.
-     */
+    /** GET /context - return current UI selection + active diagram context. */
     private static void handleContext(HttpExchange exchange) throws IOException {
         if (!"GET".equals(exchange.getRequestMethod())) {
             sendResponse(exchange, 405, "{\"error\": \"Method not allowed\"}");
@@ -736,15 +844,14 @@ public final class DevServer {
         json.append("\"hasDiagram\": ").append(hasDiag).append(",");
         json.append("\"hasSelection\": ").append(hasSel);
         if (hasDiag) {
-            json
-                .append(",\"activeDiagram\":{")
-                .append("\"name\":\"")
-                .append(escapeJson(ctx.getActiveDiagramName()))
-                .append("\",\"uid\":\"")
-                .append(escapeJson(ctx.getActiveDiagramUid()))
-                .append("\",\"type\":\"")
-                .append(escapeJson(ctx.getActiveDiagramType()))
-                .append("\"}");
+            json.append(",\"activeDiagram\":{")
+                    .append("\"name\":\"")
+                    .append(escapeJson(ctx.getActiveDiagramName()))
+                    .append("\",\"uid\":\"")
+                    .append(escapeJson(ctx.getActiveDiagramUid()))
+                    .append("\",\"type\":\"")
+                    .append(escapeJson(ctx.getActiveDiagramType()))
+                    .append("\"}");
         }
         if (hasSel) {
             json.append(",\"selection\":[");
@@ -752,9 +859,7 @@ public final class DevServer {
             for (int i = 0; i < sel.size(); i++) {
                 if (i > 0) json.append(",");
                 org.eclipse.emf.ecore.EObject eo = sel.get(i);
-                String type = eo != null && eo.eClass() != null
-                    ? eo.eClass().getName()
-                    : "EObject";
+                String type = eo != null && eo.eClass() != null ? eo.eClass().getName() : "EObject";
                 String name = "";
                 try {
                     if (eo != null && eo.eClass() != null) {
@@ -767,11 +872,7 @@ public final class DevServer {
                 } catch (Exception ex) {
                     if (!loggedNameError) {
                         loggedNameError = true;
-                        LOG.log(
-                            Level.FINE,
-                            "Failed to read selection element 'name' feature",
-                            ex
-                        );
+                        LOG.log(Level.FINE, "Failed to read selection element 'name' feature", ex);
                     }
                 }
                 String id = "";
@@ -786,21 +887,16 @@ public final class DevServer {
                 } catch (Exception ex) {
                     if (!loggedIdError) {
                         loggedIdError = true;
-                        LOG.log(
-                            Level.FINE,
-                            "Failed to read selection element 'id' feature",
-                            ex
-                        );
+                        LOG.log(Level.FINE, "Failed to read selection element 'id' feature", ex);
                     }
                 }
-                json
-                    .append("{\"type\":\"")
-                    .append(escapeJson(type))
-                    .append("\",\"name\":\"")
-                    .append(escapeJson(name))
-                    .append("\",\"id\":\"")
-                    .append(escapeJson(id))
-                    .append("\"}");
+                json.append("{\"type\":\"")
+                        .append(escapeJson(type))
+                        .append("\",\"name\":\"")
+                        .append(escapeJson(name))
+                        .append("\",\"id\":\"")
+                        .append(escapeJson(id))
+                        .append("\"}");
             }
             json.append("]");
         }
@@ -815,9 +911,7 @@ public final class DevServer {
     }
 
     private static String getConversationId(HttpExchange exchange) {
-        String header = exchange
-            .getRequestHeaders()
-            .getFirst("X-Conversation-Id");
+        String header = exchange.getRequestHeaders().getFirst("X-Conversation-Id");
         if (header != null && !header.isBlank()) {
             return header.trim();
         }
@@ -845,11 +939,8 @@ public final class DevServer {
         return null;
     }
 
-    private static void sendResponse(
-        HttpExchange exchange,
-        int code,
-        String body
-    ) throws IOException {
+    private static void sendResponse(HttpExchange exchange, int code, String body)
+            throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");
         exchange.sendResponseHeaders(code, bytes.length);
@@ -864,35 +955,23 @@ public final class DevServer {
         json.append("\"success\": ").append(result.success()).append(",");
         String valueOut = result.valueForOutput();
         if (valueOut != null) {
-            json
-                .append("\"value\": \"")
-                .append(escapeJson(valueOut))
-                .append("\",");
+            json.append("\"value\": \"").append(escapeJson(valueOut)).append("\",");
         }
         String messageOut = result.messageForOutput();
         if (messageOut != null) {
-            json
-                .append("\"message\": \"")
-                .append(escapeJson(messageOut))
-                .append("\",");
+            json.append("\"message\": \"").append(escapeJson(messageOut)).append("\",");
         }
         java.util.List<String> logsOut = result.logsForOutput();
         if (!logsOut.isEmpty()) {
             json.append("\"logs\": [");
             for (int i = 0; i < logsOut.size(); i++) {
                 if (i > 0) json.append(",");
-                json
-                    .append("\"")
-                    .append(escapeJson(logsOut.get(i)))
-                    .append("\"");
+                json.append("\"").append(escapeJson(logsOut.get(i))).append("\"");
             }
             json.append("],");
         }
         if (result.code() != null) {
-            json
-                .append("\"errorCode\": \"")
-                .append(result.code().name())
-                .append("\",");
+            json.append("\"errorCode\": \"").append(result.code().name()).append("\",");
         }
         // Remove trailing comma
         if (json.charAt(json.length() - 1) == ',') {
@@ -904,46 +983,33 @@ public final class DevServer {
 
     private static String escapeJson(String s) {
         if (s == null) return "";
-        return s
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t");
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
     /**
-     * GET/POST /config - Get or set LLM configuration
-     * GET: Returns current config
-     * POST: Set config (JSON body with provider, baseUrl, model, apiKey)
+     * GET/POST /config - Get or set LLM configuration GET: Returns current config POST: Set config
+     * (JSON body with provider, baseUrl, model, apiKey)
      */
     private static void handleConfig(HttpExchange exchange) throws IOException {
         if ("GET".equals(exchange.getRequestMethod())) {
             StringBuilder json = new StringBuilder();
             json.append("{");
-            json
-                .append("\"provider\": \"")
-                .append(escapeJson(LLMPreferences.getProvider()))
-                .append("\",");
-            json
-                .append("\"baseUrl\": \"")
-                .append(escapeJson(LLMPreferences.getBaseUrl()))
-                .append("\",");
-            json
-                .append("\"model\": \"")
-                .append(escapeJson(LLMPreferences.getModel()))
-                .append("\",");
-            json
-                .append("\"maxTokens\": ")
-                .append(LLMPreferences.getMaxTokens())
-                .append(",");
-            json
-                .append("\"temperature\": ")
-                .append(LLMPreferences.getTemperature())
-                .append(",");
-            json
-                .append("\"hasApiKey\": ")
-                .append(!LLMPreferences.getApiKey().isEmpty());
+            json.append("\"provider\": \"")
+                    .append(escapeJson(LLMPreferences.getProvider()))
+                    .append("\",");
+            json.append("\"baseUrl\": \"")
+                    .append(escapeJson(LLMPreferences.getBaseUrl()))
+                    .append("\",");
+            json.append("\"model\": \"")
+                    .append(escapeJson(LLMPreferences.getModel()))
+                    .append("\",");
+            json.append("\"maxTokens\": ").append(LLMPreferences.getMaxTokens()).append(",");
+            json.append("\"temperature\": ").append(LLMPreferences.getTemperature()).append(",");
+            json.append("\"hasApiKey\": ").append(!LLMPreferences.getApiKey().isEmpty());
             json.append("}");
             sendResponse(exchange, 200, json.toString());
             return;
@@ -971,18 +1037,12 @@ public final class DevServer {
                 }
                 if (body.contains("\"maxTokens\"")) {
                     String maxTokens = extractJsonString(body, "maxTokens");
-                    if (maxTokens != null) LLMPreferences.setMaxTokens(
-                        Integer.parseInt(maxTokens)
-                    );
+                    if (maxTokens != null) LLMPreferences.setMaxTokens(Integer.parseInt(maxTokens));
                 }
                 LLMPreferences.flush();
                 sendResponse(exchange, 200, "{\"success\": true}");
             } catch (Exception e) {
-                sendResponse(
-                    exchange,
-                    400,
-                    "{\"error\": \"" + escapeJson(e.getMessage()) + "\"}"
-                );
+                sendResponse(exchange, 400, "{\"error\": \"" + escapeJson(e.getMessage()) + "\"}");
             }
             return;
         }
@@ -1003,9 +1063,7 @@ public final class DevServer {
         return json.substring(startQuote + 1, endQuote);
     }
 
-    /**
-     * GET /debug - Debug session manager state
-     */
+    /** GET /debug - Debug session manager state */
     private static void handleDebug(HttpExchange exchange) throws IOException {
         if (!"GET".equals(exchange.getRequestMethod())) {
             sendResponse(exchange, 405, "{\"error\": \"Method not allowed\"}");
@@ -1017,28 +1075,17 @@ public final class DevServer {
 
         try {
             var sessions = SessionManager.INSTANCE.getSessions();
-            json
-                .append("\"sessionCount\": ")
-                .append(sessions.size())
-                .append(",");
+            json.append("\"sessionCount\": ").append(sessions.size()).append(",");
             json.append("\"sessions\": [");
             int i = 0;
             for (Session s : sessions) {
                 if (i > 0) json.append(",");
                 json.append("{");
-                json
-                    .append("\"isOpen\": ")
-                    .append(s != null && s.isOpen())
-                    .append(",");
+                json.append("\"isOpen\": ").append(s != null && s.isOpen()).append(",");
                 if (s != null && s.getSessionResource() != null) {
-                    json
-                        .append("\"uri\": \"")
-                        .append(
-                            escapeJson(
-                                s.getSessionResource().getURI().toString()
-                            )
-                        )
-                        .append("\"");
+                    json.append("\"uri\": \"")
+                            .append(escapeJson(s.getSessionResource().getURI().toString()))
+                            .append("\"");
                 } else {
                     json.append("\"uri\": null");
                 }
@@ -1047,10 +1094,7 @@ public final class DevServer {
             }
             json.append("]");
         } catch (Exception e) {
-            json
-                .append("\"error\": \"")
-                .append(escapeJson(e.getMessage()))
-                .append("\"");
+            json.append("\"error\": \"").append(escapeJson(e.getMessage())).append("\"");
         }
 
         json.append("}");

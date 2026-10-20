@@ -8,22 +8,43 @@ public class ApiCatalogTest {
 
     @Test
     public void arcadiaCatalogMakesNativeBuildersDiscoverableAndRejectsInventedMethods() {
-        assertTrue(ApiCatalog.methodNames("arcadia").containsAll(java.util.Set.of("linearChain",
-            "operationalScenario", "involveFunction", "involveComponent", "involveChain",
-            "realizeCapability", "deploy", "physicalLink", "allocateExchange")));
+        assertTrue(
+                ApiCatalog.methodNames("arcadia")
+                        .containsAll(
+                                java.util.Set.of(
+                                        "linearChain",
+                                        "operationalScenario",
+                                        "involveFunction",
+                                        "involveComponent",
+                                        "involveChain",
+                                        "realizeCapability",
+                                        "deploy",
+                                        "physicalLink",
+                                        "allocateExchange")));
         assertTrue(ApiCatalog.help("arcadia").contains("api.arcadia"));
         assertNull(ApiCatalog.validateCode("api.arcadia.deploy(behaviorPart, nodePart)"));
-        assertNull(ApiCatalog.validateCode("api.arcadia().linearChain(root, name, functions, exchanges)"));
+        assertNull(
+                ApiCatalog.validateCode(
+                        "api.arcadia().linearChain(root, name, functions, exchanges)"));
         assertNotNull(ApiCatalog.validateCode("api.arcadia.makeSafeVehicle()"));
         assertNotNull(ApiCatalog.validateCode("api.arcadia().fakeScenario()"));
     }
 
     @Test
     public void requirementCatalogIncludesNativeTraceAndImportMethods() {
-        assertTrue(ApiCatalog.methodNames("requirements").containsAll(
-            java.util.Set.of("createModule", "create", "importRequirements", "satisfy", "verify", "derive")));
+        assertTrue(
+                ApiCatalog.methodNames("requirements")
+                        .containsAll(
+                                java.util.Set.of(
+                                        "createModule",
+                                        "create",
+                                        "importRequirements",
+                                        "satisfy",
+                                        "verify",
+                                        "derive")));
         assertNull(ApiCatalog.validateCode("api.requirements().satisfy(component, requirement)"));
-        assertNotNull(ApiCatalog.validateCode("api.requirements.fakeTrace(component, requirement)"));
+        assertNotNull(
+                ApiCatalog.validateCode("api.requirements.fakeTrace(component, requirement)"));
     }
 
     @Test

@@ -3,8 +3,9 @@ package org.polarsys.capella.ai.scripting;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 
-import java.util.Collections;
 import org.junit.Test;
+
+import java.util.Collections;
 
 public class DiagramAPITest {
 
@@ -30,7 +31,10 @@ public class DiagramAPITest {
         }
     }
 
-    /** Live FSAE run: the agent created an "Exchange Scenario" diagram, a name Capella 7 does not have. */
+    /**
+     * Live FSAE run: the agent created an "Exchange Scenario" diagram, a name Capella 7 does not
+     * have.
+     */
     @Test
     public void scenarioDiagramShortcutsUseCapella7DescriptionNames() throws Exception {
         DiagramAPI api = new DiagramAPI(null);
@@ -39,8 +43,12 @@ public class DiagramAPITest {
         org.junit.Assert.assertEquals("Component Exchanges Scenario", resolve.invoke(api, "ES"));
         org.junit.Assert.assertEquals("Component Interfaces Scenario", resolve.invoke(api, "IS"));
         org.junit.Assert.assertEquals("Functional Scenario", resolve.invoke(api, "FS"));
-        org.junit.Assert.assertEquals("Earlier docs used this name", "Component Exchanges Scenario", resolve.invoke(api, "Exchange Scenario"));
-        org.junit.Assert.assertEquals("Component Interfaces Scenario", resolve.invoke(api, "Interface Scenario"));
+        org.junit.Assert.assertEquals(
+                "Earlier docs used this name",
+                "Component Exchanges Scenario",
+                resolve.invoke(api, "Exchange Scenario"));
+        org.junit.Assert.assertEquals(
+                "Component Interfaces Scenario", resolve.invoke(api, "Interface Scenario"));
     }
 
     @Test

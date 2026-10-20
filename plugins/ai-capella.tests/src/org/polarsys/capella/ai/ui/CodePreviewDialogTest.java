@@ -2,13 +2,11 @@ package org.polarsys.capella.ai.ui;
 
 import static org.junit.Assert.*;
 
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.CTabFolder;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.widgets.Button;
@@ -17,12 +15,15 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Shell;
-import org.eclipse.swt.custom.CTabFolder;
 import org.eclipse.swt.widgets.Text;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.polarsys.capella.ai.llm.LLMService;
+
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Native review controls must preserve the submitted script and require deliberate approval. */
 public class CodePreviewDialogTest {
@@ -40,7 +41,8 @@ public class CodePreviewDialogTest {
 
     @After
     public void tearDown() {
-        if (dialog != null && dialog.getShell() != null && !dialog.getShell().isDisposed()) dialog.close();
+        if (dialog != null && dialog.getShell() != null && !dialog.getShell().isDisposed())
+            dialog.close();
         if (parent != null && !parent.isDisposed()) parent.dispose();
     }
 
@@ -57,7 +59,9 @@ public class CodePreviewDialogTest {
         assertEquals(0, tabs().getSelectionIndex());
         assertFalse("The exact script is optional inspection", preview.isVisible());
         assertSame(button(IDialogConstants.CANCEL_ID), dialog.getShell().getDefaultButton());
-        assertTrue(texts(dialog.getShell()).stream().anyMatch(text -> "Vehicle & integration".equals(text.getText())));
+        assertTrue(
+                texts(dialog.getShell()).stream()
+                        .anyMatch(text -> "Vehicle & integration".equals(text.getText())));
         button(IDialogConstants.CANCEL_ID).notifyListeners(SWT.Selection, new Event());
         assertEquals(Window.CANCEL, dialog.getReturnCode());
         assertTrue(dialog.getShell() == null || dialog.getShell().isDisposed());
@@ -69,7 +73,10 @@ public class CodePreviewDialogTest {
         var themed = new org.eclipse.swt.graphics.Color(display, 41, 41, 41);
         tabs().setBackground(themed);
         Control script = tabs().getItem(1).getControl();
-        assertEquals("The theme styles the tab folder but not plain composites inside it", themed, script.getBackground());
+        assertEquals(
+                "The theme styles the tab folder but not plain composites inside it",
+                themed,
+                script.getBackground());
     }
 
     @Test
@@ -91,7 +98,8 @@ public class CodePreviewDialogTest {
     }
 
     @Test
-    public void nativeNullCharacterTruncationCannotProduceAnApprovedPartialPreview() throws Exception {
+    public void nativeNullCharacterTruncationCannotProduceAnApprovedPartialPreview()
+            throws Exception {
         dialog = create("println 'safe'\0api.deleteByUuid('later')", "Vehicle", "");
         assertEquals("", preview().getText());
         assertFalse(button(IDialogConstants.OK_ID).getEnabled());
@@ -101,9 +109,14 @@ public class CodePreviewDialogTest {
     }
 
     @Test
-    public void longContentFitsANarrowWindowWithoutPushingTheRunAndCancelControlsAway() throws Exception {
+    public void longContentFitsANarrowWindowWithoutPushingTheRunAndCancelControlsAway()
+            throws Exception {
         String line = "println 'A long script line stays unwrapped and horizontally scrollable'\n";
-        dialog = create(line.repeat(1200), "A long vehicle project name ".repeat(30), "Selected context ".repeat(60));
+        dialog =
+                create(
+                        line.repeat(1200),
+                        "A long vehicle project name ".repeat(30),
+                        "Selected context ".repeat(60));
         Shell shell = dialog.getShell();
         shell.setSize(500, 420);
         tabs().setSelection(1);
@@ -116,22 +129,39 @@ public class CodePreviewDialogTest {
             Button button = button(id);
             Point point = display.map(button, shell, 0, 0);
             Rectangle client = shell.getClientArea();
-            assertTrue("Review actions remain inside the resized window", point.x >= 0 && point.y >= 0 &&
-                point.x + button.getSize().x <= client.width && point.y + button.getSize().y <= client.height);
+            assertTrue(
+                    "Review actions remain inside the resized window",
+                    point.x >= 0
+                            && point.y >= 0
+                            && point.x + button.getSize().x <= client.width
+                            && point.y + button.getSize().y <= client.height);
         }
         Text changes = changes();
-        assertTrue(texts(shell).stream().filter(text -> text != preview && text != changes).allMatch(text -> text.getLineCount() == 1));
+        assertTrue(
+                texts(shell).stream()
+                        .filter(text -> text != preview && text != changes)
+                        .allMatch(text -> text.getLineCount() == 1));
     }
 
     @Test
-    public void readableProposalAndExpectedChecksOpenBeforeTheOptionalExactScript() throws Exception {
-        String summary = "Rename Sensor to Front Sensor and retain its allocation.\nDelete the unused diagnostic function.";
+    public void readableProposalAndExpectedChecksOpenBeforeTheOptionalExactScript()
+            throws Exception {
+        String summary =
+                "Rename Sensor to Front Sensor and retain its allocation.\n"
+                    + "Delete the unused diagnostic function.";
         String checks = "Front Sensor keeps the same ID.\nThe diagnostic function is absent.";
-        dialog = create("api.rename(selection[0], 'Front Sensor')\r\n", "Vehicle", "LA", summary, checks);
+        dialog =
+                create(
+                        "api.rename(selection[0], 'Front Sensor')\r\n",
+                        "Vehicle",
+                        "LA",
+                        summary,
+                        checks);
         Text changes = changes();
         assertEquals(0, tabs().getSelectionIndex());
-        assertEquals("Proposed changes\n\n" + summary + "\n\nChecks after applying\n\n" + checks,
-            changes.getText().replace("\r\n", "\n"));
+        assertEquals(
+                "Proposed changes\n\n" + summary + "\n\nChecks after applying\n\n" + checks,
+                changes.getText().replace("\r\n", "\n"));
         assertFalse(changes.getEditable());
         assertTrue((changes.getStyle() & SWT.WRAP) != 0);
         assertTrue((changes.getStyle() & SWT.V_SCROLL) != 0);
@@ -140,10 +170,15 @@ public class CodePreviewDialogTest {
         tabs().setSelection(1);
         dialog.getShell().layout(true, true);
         assertEquals("Script", tabs().getItem(1).getText().replace("&", ""));
-        assertEquals("api.rename(selection[0], 'Front Sensor')\n", preview().getText().replace("\r\n", "\n"));
+        assertEquals(
+                "api.rename(selection[0], 'Front Sensor')\n",
+                preview().getText().replace("\r\n", "\n"));
         var original = type().getDeclaredField("code");
         original.setAccessible(true);
-        assertEquals("The Copy code backing value retains original line delimiters", "api.rename(selection[0], 'Front Sensor')\r\n", original.get(dialog));
+        assertEquals(
+                "The Copy code backing value retains original line delimiters",
+                "api.rename(selection[0], 'Front Sensor')\r\n",
+                original.get(dialog));
     }
 
     @Test
@@ -156,9 +191,15 @@ public class CodePreviewDialogTest {
     }
 
     @Test
-    public void longProposalWrapsAndScrollsAtNarrowSizesWhileActionsRemainVisible() throws Exception {
-        dialog = create("println 'unchanged script'", "Vehicle", "SA", "A readable change description ".repeat(900),
-            "Expected native model state ".repeat(600));
+    public void longProposalWrapsAndScrollsAtNarrowSizesWhileActionsRemainVisible()
+            throws Exception {
+        dialog =
+                create(
+                        "println 'unchanged script'",
+                        "Vehicle",
+                        "SA",
+                        "A readable change description ".repeat(900),
+                        "Expected native model state ".repeat(600));
         Shell shell = dialog.getShell();
         shell.setSize(500, 420);
         shell.layout(true, true);
@@ -169,19 +210,26 @@ public class CodePreviewDialogTest {
             Button button = button(id);
             Point point = display.map(button, shell, 0, 0);
             Rectangle client = shell.getClientArea();
-            assertTrue("Actions stay inside the narrow review", point.x >= 0 && point.y >= 0 &&
-                point.x + button.getSize().x <= client.width && point.y + button.getSize().y <= client.height);
+            assertTrue(
+                    "Actions stay inside the narrow review",
+                    point.x >= 0
+                            && point.y >= 0
+                            && point.x + button.getSize().x <= client.width
+                            && point.y + button.getSize().y <= client.height);
         }
         assertSame(button(IDialogConstants.CANCEL_ID), shell.getDefaultButton());
     }
 
     @Test
-    public void monitorBoundsAndMixedLineDelimitersAreHandledWithoutInflatedCounts() throws Exception {
+    public void monitorBoundsAndMixedLineDelimitersAreHandledWithoutInflatedCounts()
+            throws Exception {
         Method size = type().getDeclaredMethod("boundedSize", Point.class, Rectangle.class);
         size.setAccessible(true);
-        Point small = (Point) size.invoke(null, new Point(840, 620), new Rectangle(100, 50, 640, 480));
+        Point small =
+                (Point) size.invoke(null, new Point(840, 620), new Rectangle(100, 50, 640, 480));
         assertTrue(small.x <= 608 && small.y <= 448 && small.x > 0 && small.y > 0);
-        Point regular = (Point) size.invoke(null, new Point(840, 620), new Rectangle(0, 0, 1920, 1080));
+        Point regular =
+                (Point) size.invoke(null, new Point(840, 620), new Rectangle(0, 0, 1920, 1080));
         assertEquals(new Point(840, 620), regular);
         Method lines = type().getDeclaredMethod("lineCount", String.class);
         lines.setAccessible(true);
@@ -191,23 +239,37 @@ public class CodePreviewDialogTest {
     }
 
     private Dialog create(String code, String model, String context) throws Exception {
-        var constructor = type().getDeclaredConstructor(Shell.class, String.class, String.class, String.class);
+        var constructor =
+                type().getDeclaredConstructor(
+                                Shell.class, String.class, String.class, String.class);
         constructor.setAccessible(true);
         Dialog result = (Dialog) constructor.newInstance(parent, code, model, context);
         result.create();
         return result;
     }
 
-    private Dialog create(String code, String model, String context, String summary, String checks) throws Exception {
-        var constructor = type().getDeclaredConstructor(Shell.class, String.class, String.class, String.class, String.class, String.class);
+    private Dialog create(String code, String model, String context, String summary, String checks)
+            throws Exception {
+        var constructor =
+                type().getDeclaredConstructor(
+                                Shell.class,
+                                String.class,
+                                String.class,
+                                String.class,
+                                String.class,
+                                String.class);
         constructor.setAccessible(true);
-        Dialog result = (Dialog) constructor.newInstance(parent, code, model, context, summary, checks);
+        Dialog result =
+                (Dialog) constructor.newInstance(parent, code, model, context, summary, checks);
         result.create();
         return result;
     }
 
     private static Class<?> type() throws ClassNotFoundException {
-        return Class.forName("org.polarsys.capella.ai.CodePreviewDialog", true, LLMService.class.getClassLoader());
+        return Class.forName(
+                "org.polarsys.capella.ai.CodePreviewDialog",
+                true,
+                LLMService.class.getClassLoader());
     }
 
     private Text preview() throws Exception {

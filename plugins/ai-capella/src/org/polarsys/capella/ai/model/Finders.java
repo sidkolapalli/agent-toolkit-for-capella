@@ -1,8 +1,5 @@
 package org.polarsys.capella.ai.model;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
@@ -10,12 +7,17 @@ import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.model.ActionResult.ErrorCode;
 import org.polarsys.capella.ai.session.SessionBridge;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
 public final class Finders {
 
     private Finders() {}
 
     /** Maximum Levenshtein distance for typo suggestions */
     private static final int MAX_EDIT_DISTANCE = 3;
+
     /** Maximum number of alternatives to return */
     private static final int MAX_ALTERNATIVES = 5;
 
@@ -27,42 +29,33 @@ public final class Finders {
         return findByName(session, simpleClass, name);
     }
 
-    public static EObject findByName(
-        Session session,
-        String simpleClass,
-        String name
-    ) {
+    public static EObject findByName(Session session, String simpleClass, String name) {
         if (session == null || simpleClass == null || name == null) {
             return null;
         }
         try {
-            java.util.Collection<Resource> semantics =
-                session.getSemanticResources();
+            java.util.Collection<Resource> semantics = session.getSemanticResources();
             if (semantics != null && !semantics.isEmpty()) {
                 return findByNameInResources(semantics, simpleClass, name);
             }
         } catch (Exception ex) {
             // Log error but fall back to ResourceSet search
             System.err.println(
-                "[Finders] Error searching semantic resources for " +
-                    simpleClass +
-                    " '" +
-                    name +
-                    "': " +
-                    ex.getMessage()
-            );
+                    "[Finders] Error searching semantic resources for "
+                            + simpleClass
+                            + " '"
+                            + name
+                            + "': "
+                            + ex.getMessage());
         }
-        ResourceSet rs = session.getTransactionalEditingDomain() != null
-            ? session.getTransactionalEditingDomain().getResourceSet()
-            : null;
+        ResourceSet rs =
+                session.getTransactionalEditingDomain() != null
+                        ? session.getTransactionalEditingDomain().getResourceSet()
+                        : null;
         return findByName(rs, simpleClass, name);
     }
 
-    public static EObject findByName(
-        ResourceSet rs,
-        String simpleClass,
-        String name
-    ) {
+    public static EObject findByName(ResourceSet rs, String simpleClass, String name) {
         if (rs == null || simpleClass == null || name == null) {
             return null;
         }
@@ -81,41 +74,31 @@ public final class Finders {
                         var feature = eo.eClass().getEStructuralFeature("name");
                         if (feature != null) {
                             Object value = eo.eGet(feature);
-                            if (
-                                value != null &&
-                                name.equals(String.valueOf(value))
-                            ) {
+                            if (value != null && name.equals(String.valueOf(value))) {
                                 return eo;
                             }
                         }
                     } catch (Exception ex) {
                         // Log per-element errors but keep searching
-                        System.err.println(
-                            "[Finders] Error checking element: " +
-                                ex.getMessage()
-                        );
+                        System.err.println("[Finders] Error checking element: " + ex.getMessage());
                     }
                 }
             }
         } catch (Exception ex) {
             // Log outer iteration error
             System.err.println(
-                "[Finders] Error iterating resources for " +
-                    simpleClass +
-                    " '" +
-                    name +
-                    "': " +
-                    ex.getMessage()
-            );
+                    "[Finders] Error iterating resources for "
+                            + simpleClass
+                            + " '"
+                            + name
+                            + "': "
+                            + ex.getMessage());
         }
         return null;
     }
 
     private static EObject findByNameInResources(
-        java.util.Collection<Resource> resources,
-        String simpleClass,
-        String name
-    ) {
+            java.util.Collection<Resource> resources, String simpleClass, String name) {
         try {
             for (Resource res : resources) {
                 if (res == null) {
@@ -131,26 +114,20 @@ public final class Finders {
                         var feature = eo.eClass().getEStructuralFeature("name");
                         if (feature != null) {
                             Object value = eo.eGet(feature);
-                            if (
-                                value != null &&
-                                name.equals(String.valueOf(value))
-                            ) {
+                            if (value != null && name.equals(String.valueOf(value))) {
                                 return eo;
                             }
                         }
                     } catch (Exception ex) {
                         // Log per-element errors but keep searching
                         System.err.println(
-                            "[Finders] Error checking element in resources: " +
-                                ex.getMessage()
-                        );
+                                "[Finders] Error checking element in resources: "
+                                        + ex.getMessage());
                     }
                 }
             }
         } catch (Exception ex) {
-            System.err.println(
-                "[Finders] Error iterating resources: " + ex.getMessage()
-            );
+            System.err.println("[Finders] Error iterating resources: " + ex.getMessage());
         }
         return null;
     }
@@ -158,8 +135,8 @@ public final class Finders {
     // ========== Diagnostic Methods ==========
 
     /**
-     * Find element by name with full diagnostic information.
-     * Returns FindResult with alternatives when element is not found.
+     * Find element by name with full diagnostic information. Returns FindResult with alternatives
+     * when element is not found.
      *
      * @param session the Capella session
      * @param simpleClass the simple class name (e.g., "LogicalComponent")
@@ -167,28 +144,16 @@ public final class Finders {
      * @return FindResult with element, error code, and alternatives
      */
     public static FindResult findByNameWithDiagnostic(
-        Session session,
-        String simpleClass,
-        String name
-    ) {
+            Session session, String simpleClass, String name) {
         // Input validation
         if (session == null) {
-            return FindResult.error(
-                ErrorCode.SESSION_ERROR,
-                "No active Capella session"
-            );
+            return FindResult.error(ErrorCode.SESSION_ERROR, "No active Capella session");
         }
         if (simpleClass == null || simpleClass.isBlank()) {
-            return FindResult.error(
-                ErrorCode.INVALID_INPUT,
-                "Element class is required"
-            );
+            return FindResult.error(ErrorCode.INVALID_INPUT, "Element class is required");
         }
         if (name == null || name.isBlank()) {
-            return FindResult.error(
-                ErrorCode.INVALID_INPUT,
-                "Element name is required"
-            );
+            return FindResult.error(ErrorCode.INVALID_INPUT, "Element name is required");
         }
 
         List<EObject> matches = new ArrayList<>();
@@ -198,35 +163,23 @@ public final class Finders {
             // Try semantic resources first
             Collection<Resource> semantics = session.getSemanticResources();
             if (semantics != null && !semantics.isEmpty()) {
-                collectMatchesFromResources(
-                    semantics,
-                    simpleClass,
-                    name,
-                    matches,
-                    allNames
-                );
+                collectMatchesFromResources(semantics, simpleClass, name, matches, allNames);
             }
 
             // Fall back to editing domain if no semantic resources
             if (matches.isEmpty() && allNames.isEmpty()) {
-                ResourceSet rs = session.getTransactionalEditingDomain() != null
-                    ? session.getTransactionalEditingDomain().getResourceSet()
-                    : null;
+                ResourceSet rs =
+                        session.getTransactionalEditingDomain() != null
+                                ? session.getTransactionalEditingDomain().getResourceSet()
+                                : null;
                 if (rs != null) {
                     collectMatchesFromResources(
-                        rs.getResources(),
-                        simpleClass,
-                        name,
-                        matches,
-                        allNames
-                    );
+                            rs.getResources(), simpleClass, name, matches, allNames);
                 }
             }
         } catch (Exception ex) {
             return FindResult.error(
-                ErrorCode.SESSION_ERROR,
-                "Error searching model: " + ex.getMessage()
-            );
+                    ErrorCode.SESSION_ERROR, "Error searching model: " + ex.getMessage());
         }
 
         // Process results
@@ -234,65 +187,49 @@ public final class Finders {
             List<String> similar = findSimilarNames(allNames, name);
             if (allNames.isEmpty()) {
                 return FindResult.notFound(
-                    simpleClass,
-                    name,
-                    List.of(),
-                    "No " + simpleClass + " elements exist in the model"
-                );
+                        simpleClass,
+                        name,
+                        List.of(),
+                        "No " + simpleClass + " elements exist in the model");
             } else {
-                String availableHint = allNames.size() <= 5
-                    ? String.join(", ", allNames)
-                    : String.join(", ", allNames.subList(0, 5)) + "...";
+                String availableHint =
+                        allNames.size() <= 5
+                                ? String.join(", ", allNames)
+                                : String.join(", ", allNames.subList(0, 5)) + "...";
                 return FindResult.notFound(
-                    simpleClass,
-                    name,
-                    similar,
-                    "No " +
-                        simpleClass +
-                        " named '" +
-                        name +
-                        "' found. Available: " +
-                        availableHint
-                );
+                        simpleClass,
+                        name,
+                        similar,
+                        "No "
+                                + simpleClass
+                                + " named '"
+                                + name
+                                + "' found. Available: "
+                                + availableHint);
             }
         }
 
         if (matches.size() > 1) {
-            List<String> matchNames = matches
-                .stream()
-                .map(Finders::getElementName)
-                .toList();
-            return FindResult.ambiguous(
-                matches.get(0),
-                matches.size(),
-                matchNames
-            );
+            List<String> matchNames = matches.stream().map(Finders::getElementName).toList();
+            return FindResult.ambiguous(matches.get(0), matches.size(), matchNames);
         }
 
         return FindResult.success(matches.get(0));
     }
 
-    /**
-     * Find element by name with diagnostic, using active session.
-     */
-    public static FindResult findByNameWithDiagnostic(
-        String simpleClass,
-        String name
-    ) {
+    /** Find element by name with diagnostic, using active session. */
+    public static FindResult findByNameWithDiagnostic(String simpleClass, String name) {
         Session session = SessionBridge.getActiveSession();
         return findByNameWithDiagnostic(session, simpleClass, name);
     }
 
-    /**
-     * Collect all matching elements and all names of the target class.
-     */
+    /** Collect all matching elements and all names of the target class. */
     private static void collectMatchesFromResources(
-        Collection<Resource> resources,
-        String simpleClass,
-        String targetName,
-        List<EObject> matches,
-        List<String> allNames
-    ) {
+            Collection<Resource> resources,
+            String simpleClass,
+            String targetName,
+            List<EObject> matches,
+            List<String> allNames) {
         for (Resource res : resources) {
             if (res == null) {
                 continue;
@@ -304,10 +241,7 @@ public final class Finders {
                     try {
                         String className = eo.eClass().getName();
                         // Match exact class name or class name ending with simpleClass
-                        if (
-                            !className.equals(simpleClass) &&
-                            !className.endsWith(simpleClass)
-                        ) {
+                        if (!className.equals(simpleClass) && !className.endsWith(simpleClass)) {
                             continue;
                         }
                         String elementName = getElementName(eo);
@@ -327,13 +261,8 @@ public final class Finders {
         }
     }
 
-    /**
-     * Find similar names using Levenshtein distance and substring matching.
-     */
-    private static List<String> findSimilarNames(
-        List<String> allNames,
-        String target
-    ) {
+    /** Find similar names using Levenshtein distance and substring matching. */
+    private static List<String> findSimilarNames(List<String> allNames, String target) {
         String targetLower = target.toLowerCase();
         List<String> similar = new ArrayList<>();
 
@@ -344,10 +273,7 @@ public final class Finders {
             String candidateLower = candidate.toLowerCase();
 
             // Check substring containment
-            if (
-                candidateLower.contains(targetLower) ||
-                targetLower.contains(candidateLower)
-            ) {
+            if (candidateLower.contains(targetLower) || targetLower.contains(candidateLower)) {
                 if (!similar.contains(candidate)) {
                     similar.add(candidate);
                 }
@@ -355,10 +281,7 @@ public final class Finders {
             }
 
             // Check Levenshtein distance
-            if (
-                levenshteinDistance(candidateLower, targetLower) <=
-                MAX_EDIT_DISTANCE
-            ) {
+            if (levenshteinDistance(candidateLower, targetLower) <= MAX_EDIT_DISTANCE) {
                 if (!similar.contains(candidate)) {
                     similar.add(candidate);
                 }
@@ -369,8 +292,8 @@ public final class Finders {
     }
 
     /**
-     * Calculate Levenshtein edit distance between two strings.
-     * Optimized with O(n) space complexity and early termination.
+     * Calculate Levenshtein edit distance between two strings. Optimized with O(n) space complexity
+     * and early termination.
      *
      * @param a first string
      * @param b second string
@@ -407,10 +330,7 @@ public final class Finders {
 
             for (int j = 1; j <= n; j++) {
                 int cost = (a.charAt(i - 1) == b.charAt(j - 1)) ? 0 : 1;
-                curr[j] = Math.min(
-                    Math.min(prev[j] + 1, curr[j - 1] + 1),
-                    prev[j - 1] + cost
-                );
+                curr[j] = Math.min(Math.min(prev[j] + 1, curr[j - 1] + 1), prev[j - 1] + cost);
                 minInRow = Math.min(minInRow, curr[j]);
             }
 
@@ -429,9 +349,7 @@ public final class Finders {
         return prev[n];
     }
 
-    /**
-     * Get the name of an element via reflection.
-     */
+    /** Get the name of an element via reflection. */
     private static String getElementName(EObject eo) {
         if (eo == null) {
             return null;
@@ -446,9 +364,7 @@ public final class Finders {
             }
         } catch (Exception ex) {
             // Best-effort name extraction for display purposes
-            System.err.println(
-                "[Finders] Error getting element name: " + ex.getMessage()
-            );
+            System.err.println("[Finders] Error getting element name: " + ex.getMessage());
         }
         return null;
     }

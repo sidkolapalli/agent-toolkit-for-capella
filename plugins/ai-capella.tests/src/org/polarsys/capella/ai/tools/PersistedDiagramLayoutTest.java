@@ -2,9 +2,6 @@ package org.polarsys.capella.ai.tools;
 
 import static org.junit.Assert.*;
 
-import java.lang.reflect.Proxy;
-import java.util.List;
-import java.util.Set;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.impl.ResourceImpl;
@@ -13,20 +10,20 @@ import org.eclipse.emf.transaction.TransactionalEditingDomain;
 import org.eclipse.gmf.runtime.notation.Bounds;
 import org.eclipse.gmf.runtime.notation.Diagram;
 import org.eclipse.gmf.runtime.notation.Edge;
+import org.eclipse.gmf.runtime.notation.Node;
+import org.eclipse.gmf.runtime.notation.NotationFactory;
 import org.eclipse.gmf.runtime.notation.NotationPackage;
 import org.eclipse.gmf.runtime.notation.RelativeBendpoints;
 import org.eclipse.gmf.runtime.notation.Routing;
 import org.eclipse.gmf.runtime.notation.RoutingStyle;
 import org.eclipse.gmf.runtime.notation.datatype.RelativeBendpoint;
-import org.eclipse.gmf.runtime.notation.Node;
-import org.eclipse.gmf.runtime.notation.NotationFactory;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.diagram.DEdge;
 import org.eclipse.sirius.diagram.DNode;
-import org.eclipse.sirius.diagram.EdgeRouting;
-import org.eclipse.sirius.diagram.EdgeStyle;
 import org.eclipse.sirius.diagram.DSemanticDiagram;
 import org.eclipse.sirius.diagram.DiagramFactory;
+import org.eclipse.sirius.diagram.EdgeRouting;
+import org.eclipse.sirius.diagram.EdgeStyle;
 import org.eclipse.sirius.viewpoint.description.DescriptionFactory;
 import org.eclipse.swt.widgets.Display;
 import org.junit.After;
@@ -35,6 +32,10 @@ import org.junit.Test;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 import org.polarsys.capella.core.data.ctx.CtxFactory;
 import org.polarsys.capella.core.data.fa.FaFactory;
+
+import java.lang.reflect.Proxy;
+import java.util.List;
+import java.util.Set;
 
 /** Layout uses actual persisted Sirius/GMF shapes even when no diagram editor is open. */
 public class PersistedDiagramLayoutTest {
@@ -48,23 +49,36 @@ public class PersistedDiagramLayoutTest {
         resource = new ResourceImpl(URI.createURI("memory:/persisted-layout.aird"));
         var resources = new ResourceSetImpl();
         resources.getResources().add(resource);
-        session = (Session) Proxy.newProxyInstance(Session.class.getClassLoader(), new Class<?>[] {Session.class},
-            (proxy, method, args) -> {
-                switch (method.getName()) {
-                    case "getTransactionalEditingDomain": return domain;
-                    case "getSessionResource": return resource;
-                    case "getAllSessionResources": return Set.of(resource);
-                    case "getReferencedSessionResources": return Set.of();
-                    case "getSemanticResources": return List.of(resource);
-                    case "isOpen": return true;
-                    case "equals": return proxy == args[0];
-                    case "hashCode": return System.identityHashCode(proxy);
-                    default:
-                        if (method.getReturnType() == boolean.class) return false;
-                        if (method.getReturnType() == int.class) return 0;
-                        return null;
-                }
-            });
+        session =
+                (Session)
+                        Proxy.newProxyInstance(
+                                Session.class.getClassLoader(),
+                                new Class<?>[] {Session.class},
+                                (proxy, method, args) -> {
+                                    switch (method.getName()) {
+                                        case "getTransactionalEditingDomain":
+                                            return domain;
+                                        case "getSessionResource":
+                                            return resource;
+                                        case "getAllSessionResources":
+                                            return Set.of(resource);
+                                        case "getReferencedSessionResources":
+                                            return Set.of();
+                                        case "getSemanticResources":
+                                            return List.of(resource);
+                                        case "isOpen":
+                                            return true;
+                                        case "equals":
+                                            return proxy == args[0];
+                                        case "hashCode":
+                                            return System.identityHashCode(proxy);
+                                        default:
+                                            if (method.getReturnType() == boolean.class)
+                                                return false;
+                                            if (method.getReturnType() == int.class) return 0;
+                                            return null;
+                                    }
+                                });
     }
 
     @After
@@ -80,16 +94,26 @@ public class PersistedDiagramLayoutTest {
         startDomain();
 
         assertTrue(DiagramCommands.arrangeSelection(session, target.semantic, "layered"));
-        assertTrue("The visible port-connected chain must span three columns", bounds(target.nodes[0]).getX() < bounds(target.nodes[1]).getX());
+        assertTrue(
+                "The visible port-connected chain must span three columns",
+                bounds(target.nodes[0]).getX() < bounds(target.nodes[1]).getX());
         assertTrue(bounds(target.nodes[1]).getX() < bounds(target.nodes[2]).getX());
-        assertTrue("Native shape widths must not overlap adjacent columns", bounds(target.nodes[1]).getX() >= bounds(target.nodes[0]).getX() + 320);
-        for (Node node : unrelated.nodes) assertEquals("A second diagram must retain its persisted positions", 17, bounds(node).getX());
-        assertEquals("Label decorations retain relative positions", 11, bounds(target.label).getX());
+        assertTrue(
+                "Native shape widths must not overlap adjacent columns",
+                bounds(target.nodes[1]).getX() >= bounds(target.nodes[0]).getX() + 320);
+        for (Node node : unrelated.nodes)
+            assertEquals(
+                    "A second diagram must retain its persisted positions",
+                    17,
+                    bounds(node).getX());
+        assertEquals(
+                "Label decorations retain relative positions", 11, bounds(target.label).getX());
 
         assertTrue(domain.getCommandStack().canUndo());
         domain.getCommandStack().undo();
         for (Node node : target.nodes) assertEquals(17, bounds(node).getX());
-        for (Edge edge : target.edges) assertEquals("Undo restores stale wiring too", 4, bendpoints(edge).size());
+        for (Edge edge : target.edges)
+            assertEquals("Undo restores stale wiring too", 4, bendpoints(edge).size());
         assertFalse("One layout is one undoable command", domain.getCommandStack().canUndo());
         domain.getCommandStack().redo();
         assertTrue(bounds(target.nodes[0]).getX() < bounds(target.nodes[2]).getX());
@@ -101,13 +125,19 @@ public class PersistedDiagramLayoutTest {
         startDomain();
         assertTrue(DiagramCommands.arrangeSelection(session, target.semantic, "grid"));
         for (Edge edge : target.edges) {
-            RoutingStyle routing = (RoutingStyle) edge.getStyle(NotationPackage.Literals.ROUTING_STYLE);
+            RoutingStyle routing =
+                    (RoutingStyle) edge.getStyle(NotationPackage.Literals.ROUTING_STYLE);
             assertNotNull("GMF edge needs a routing style", routing);
             assertEquals(Routing.RECTILINEAR_LITERAL, routing.getRouting());
-            assertEquals("Stale manual bends are replaced by the two anchors", 2, bendpoints(edge).size());
+            assertEquals(
+                    "Stale manual bends are replaced by the two anchors",
+                    2,
+                    bendpoints(edge).size());
             EdgeStyle style = ((DEdge) edge.getElement()).getOwnedStyle();
             assertEquals(EdgeRouting.MANHATTAN_LITERAL, style.getRoutingStyle());
-            assertTrue("Sirius refresh must not reset the routing", style.getCustomFeatures().contains("routingStyle"));
+            assertTrue(
+                    "Sirius refresh must not reset the routing",
+                    style.getCustomFeatures().contains("routingStyle"));
         }
     }
 
@@ -117,7 +147,10 @@ public class PersistedDiagramLayoutTest {
         startDomain();
         assertTrue(DiagramCommands.arrangeSelection(session, target.semantic, "layered"));
         Bounds source = bounds(target.ports[0]), sink = bounds(target.ports[2]);
-        assertEquals("An output feeding the next column sits on the east border", 320 - 6, source.getX());
+        assertEquals(
+                "An output feeding the next column sits on the east border",
+                320 - 6,
+                source.getX());
         assertEquals("The last input sits on the west border", -6, sink.getX());
         for (Node port : List.of(target.ports[0], target.ports[2])) {
             int y = bounds(port).getY();
@@ -128,7 +161,10 @@ public class PersistedDiagramLayoutTest {
     @Test
     public void autoSizedPortsGetSiriusDefaultSizeCentredOnTheBorder() {
         Fixture target = fixture(true);
-        for (Node port : target.ports) { bounds(port).setWidth(-1); bounds(port).setHeight(-1); }
+        for (Node port : target.ports) {
+            bounds(port).setWidth(-1);
+            bounds(port).setHeight(-1);
+        }
         startDomain();
         assertTrue(DiagramCommands.arrangeSelection(session, target.semantic, "layered"));
         Bounds source = bounds(target.ports[0]), sink = bounds(target.ports[2]);
@@ -152,7 +188,8 @@ public class PersistedDiagramLayoutTest {
         Fixture other = fixture(true);
         startDomain();
         assertFalse(DiagramCommands.arrangeSelection(session, target.semantic, "layered"));
-        assertFalse(DiagramCommands.arrangeSelection(session, other.semantic, "unavailable-layout"));
+        assertFalse(
+                DiagramCommands.arrangeSelection(session, other.semantic, "unavailable-layout"));
         for (Node node : other.nodes) assertEquals(17, bounds(node).getX());
         assertFalse(domain.getCommandStack().canUndo());
     }
@@ -170,7 +207,9 @@ public class PersistedDiagramLayoutTest {
     }
 
     private void startDomain() {
-        domain = TransactionalEditingDomain.Factory.INSTANCE.createEditingDomain(resource.getResourceSet());
+        domain =
+                TransactionalEditingDomain.Factory.INSTANCE.createEditingDomain(
+                        resource.getResourceSet());
     }
 
     private Fixture fixture(boolean withNotation) {
@@ -219,8 +258,12 @@ public class PersistedDiagramLayoutTest {
             edge.setSource(fixture.ports[i]);
             edge.setTarget(fixture.ports[i + 1]);
             RelativeBendpoints stale = NotationFactory.eINSTANCE.createRelativeBendpoints();
-            stale.setPoints(List.of(new RelativeBendpoint(0, 0, 0, 0), new RelativeBendpoint(40, 0, -40, 0),
-                new RelativeBendpoint(40, 90, -40, 90), new RelativeBendpoint(0, 0, 0, 0)));
+            stale.setPoints(
+                    List.of(
+                            new RelativeBendpoint(0, 0, 0, 0),
+                            new RelativeBendpoint(40, 0, -40, 0),
+                            new RelativeBendpoint(40, 90, -40, 90),
+                            new RelativeBendpoint(0, 0, 0, 0)));
             edge.setBendpoints(stale);
             fixture.notation.getPersistedEdges().add(edge);
             fixture.edges[i] = edge;

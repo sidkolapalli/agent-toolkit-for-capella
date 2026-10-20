@@ -1,13 +1,13 @@
 package org.polarsys.capella.ai.scripting;
 
+import org.polarsys.capella.ai.model.ActionResult;
+
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
@@ -23,20 +23,19 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.polarsys.capella.ai.model.ActionResult;
 
 /**
- * Filesystem API for on-demand documentation discovery.
- * Implements Anthropic's filesystem-based discovery pattern for code execution.
+ * Filesystem API for on-demand documentation discovery. Implements Anthropic's filesystem-based
+ * discovery pattern for code execution.
  *
- * <p>This API allows the LLM to explore API documentation stored in the plugin's
- * resources directory, enabling on-demand learning rather than loading all
- * documentation upfront.
+ * <p>This API allows the LLM to explore API documentation stored in the plugin's resources
+ * directory, enabling on-demand learning rather than loading all documentation upfront.
  *
- * <p>Reference: <a href="https://www.anthropic.com/engineering/code-execution-with-mcp">
- * Anthropic's Code Execution with MCP</a>
+ * <p>Reference: <a href="https://www.anthropic.com/engineering/code-execution-with-mcp">Anthropic's
+ * Code Execution with MCP</a>
  *
  * <p>Example usage:
+ *
  * <pre>{@code
  * // List available documentation
  * api.fs.list("")                    // ["api/", "metamodel/", "skills/", "SKILL.md"]
@@ -55,9 +54,7 @@ import org.polarsys.capella.ai.model.ActionResult;
  */
 public final class FileSystemAPI {
 
-    private static final Logger LOG = Logger.getLogger(
-        FileSystemAPI.class.getName()
-    );
+    private static final Logger LOG = Logger.getLogger(FileSystemAPI.class.getName());
 
     /** Root directory for documentation resources */
     private static final String DOCS_ROOT = "resources/capella-api";
@@ -77,28 +74,25 @@ public final class FileSystemAPI {
      * Safe workspace root for agent persistence.
      *
      * <p>Override for tests or custom installs via:
+     *
      * <ul>
-     *   <li>capella.ai.workspace.dir</li>
-     *   <li>capella.ai.workspace.maxFileBytes</li>
-     *   <li>capella.ai.workspace.maxTotalBytes</li>
+     *   <li>capella.ai.workspace.dir
+     *   <li>capella.ai.workspace.maxFileBytes
+     *   <li>capella.ai.workspace.maxTotalBytes
      * </ul>
      */
     private static final String WORKSPACE_DIR_PROP = "capella.ai.workspace.dir";
-    private static final String WORKSPACE_MAX_FILE_BYTES_PROP =
-        "capella.ai.workspace.maxFileBytes";
+
+    private static final String WORKSPACE_MAX_FILE_BYTES_PROP = "capella.ai.workspace.maxFileBytes";
     private static final String WORKSPACE_MAX_TOTAL_BYTES_PROP =
-        "capella.ai.workspace.maxTotalBytes";
+            "capella.ai.workspace.maxTotalBytes";
 
     private static final String WORKSPACE_PREFIX = "workspace/";
     private static final String WORKSPACE_AUDIT_LOG = ".audit.log";
     private static final String WORKSPACE_QUOTA_FILE = ".quota.json";
 
-    private static final List<String> WORKSPACE_ALLOWED_EXT = List.of(
-        ".json",
-        ".md",
-        ".txt",
-        ".csv"
-    );
+    private static final List<String> WORKSPACE_ALLOWED_EXT =
+            List.of(".json", ".md", ".txt", ".csv");
 
     /** Search detail levels */
     public enum DetailLevel {
@@ -121,14 +115,13 @@ public final class FileSystemAPI {
         public final String path;
 
         private SkillMetadata(
-            String name,
-            String summary,
-            List<String> keywords,
-            List<String> layers,
-            String whenToUse,
-            String difficulty,
-            String path
-        ) {
+                String name,
+                String summary,
+                List<String> keywords,
+                List<String> layers,
+                String whenToUse,
+                String difficulty,
+                String path) {
             this.name = name;
             this.summary = summary;
             this.keywords = keywords != null ? List.copyOf(keywords) : List.of();
@@ -141,60 +134,47 @@ public final class FileSystemAPI {
 
     // Static directory index for OSGi bundle compatibility
     private static final java.util.Map<String, List<String>> DIRECTORY_INDEX =
-        new java.util.HashMap<>();
+            new java.util.HashMap<>();
 
     static {
+        DIRECTORY_INDEX.put("", List.of("SKILL.md", "api/", "metamodel/", "skills/", "workspace/"));
         DIRECTORY_INDEX.put(
-            "",
-            List.of("SKILL.md", "api/", "metamodel/", "skills/", "workspace/")
-        );
-        DIRECTORY_INDEX.put(
-            "api/",
-            List.of(
-                "SKILL.md",
-                "aql.md",
-                "create.md",
-                "describe.md",
-                "diagram.md",
-                "diagram-layout.md",
-                "find.md",
-                "link.md",
-                "modify.md",
-                "ops.md",
-                "style.md",
-                "validate.md"
-            )
-        );
-        DIRECTORY_INDEX.put(
-            "metamodel/",
-            List.of("SKILL.md", "la/", "oa/", "pa/", "sa/", "epbs/")
-        );
+                "api/",
+                List.of(
+                        "SKILL.md",
+                        "aql.md",
+                        "create.md",
+                        "describe.md",
+                        "diagram.md",
+                        "diagram-layout.md",
+                        "find.md",
+                        "link.md",
+                        "modify.md",
+                        "ops.md",
+                        "style.md",
+                        "validate.md"));
+        DIRECTORY_INDEX.put("metamodel/", List.of("SKILL.md", "la/", "oa/", "pa/", "sa/", "epbs/"));
         DIRECTORY_INDEX.put("metamodel/la/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("metamodel/oa/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("metamodel/pa/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("metamodel/sa/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("metamodel/epbs/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put(
-            "skills/",
-            List.of(
-                "SKILL.md",
-                "arcadia-workflow/",
-                "diagram/",
-                "interface/",
-                "requirements/",
-                "state-machine/",
-                "runtime-demo/"
-            )
-        );
+                "skills/",
+                List.of(
+                        "SKILL.md",
+                        "arcadia-workflow/",
+                        "diagram/",
+                        "interface/",
+                        "requirements/",
+                        "state-machine/",
+                        "runtime-demo/"));
         DIRECTORY_INDEX.put("skills/arcadia-workflow/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("skills/diagram/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("skills/interface/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("skills/requirements/", List.of("SKILL.md"));
         DIRECTORY_INDEX.put("skills/state-machine/", List.of("SKILL.md"));
-        DIRECTORY_INDEX.put(
-            "skills/runtime-demo/",
-            List.of("SKILL.md", "skill.groovy")
-        );
+        DIRECTORY_INDEX.put("skills/runtime-demo/", List.of("SKILL.md", "skill.groovy"));
     }
 
     /**
@@ -215,18 +195,14 @@ public final class FileSystemAPI {
             return listWorkspaceEntries("");
         }
         if (normalizedPath.startsWith(WORKSPACE_PREFIX)) {
-            return listWorkspaceEntries(
-                normalizedPath.substring(WORKSPACE_PREFIX.length())
-            );
+            return listWorkspaceEntries(normalizedPath.substring(WORKSPACE_PREFIX.length()));
         }
 
         if (normalizedPath.equals(USER_SKILLS_PREFIX)) {
             return listUserSkillsPath("");
         }
         if (normalizedPath.startsWith(USER_SKILLS_PREFIX)) {
-            return listUserSkillsPath(
-                normalizedPath.substring(USER_SKILLS_PREFIX.length())
-            );
+            return listUserSkillsPath(normalizedPath.substring(USER_SKILLS_PREFIX.length()));
         }
 
         List<String> entries = listFromResources(normalizedPath);
@@ -256,28 +232,18 @@ public final class FileSystemAPI {
     public String read(String path) {
         String normalizedPath = normalizePath(path);
         if (normalizedPath.startsWith(WORKSPACE_PREFIX)) {
-            return readWorkspaceFile(
-                normalizedPath.substring(WORKSPACE_PREFIX.length())
-            );
+            return readWorkspaceFile(normalizedPath.substring(WORKSPACE_PREFIX.length()));
         }
         if (normalizedPath.startsWith(USER_SKILLS_PREFIX)) {
-            return readUserSkillFile(
-                normalizedPath.substring(USER_SKILLS_PREFIX.length())
-            );
+            return readUserSkillFile(normalizedPath.substring(USER_SKILLS_PREFIX.length()));
         }
         String resourcePath = DOCS_ROOT + "/" + normalizedPath;
 
-        try (
-            InputStream is = getClass()
-                .getClassLoader()
-                .getResourceAsStream(resourcePath)
-        ) {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
             if (is == null) {
-                return (
-                    "File not found: " +
-                    path +
-                    "\n\nUse api.fs.list() to see available files."
-                );
+                return ("File not found: "
+                        + path
+                        + "\n\nUse api.fs.list() to see available files.");
             }
 
             // Read with size limit
@@ -285,10 +251,7 @@ public final class FileSystemAPI {
             String content = new String(bytes, StandardCharsets.UTF_8);
 
             if (bytes.length >= MAX_FILE_SIZE) {
-                content +=
-                    "\n\n[Content truncated - file exceeds " +
-                    MAX_FILE_SIZE +
-                    " bytes]";
+                content += "\n\n[Content truncated - file exceeds " + MAX_FILE_SIZE + " bytes]";
             }
 
             return content;
@@ -316,9 +279,7 @@ public final class FileSystemAPI {
         // Limit results
         if (results.size() > MAX_SEARCH_RESULTS) {
             results = new ArrayList<>(results.subList(0, MAX_SEARCH_RESULTS));
-            results.add(
-                "... and more. Use api.fs.list() to browse all documentation."
-            );
+            results.add("... and more. Use api.fs.list() to browse all documentation.");
         }
 
         return results;
@@ -333,15 +294,11 @@ public final class FileSystemAPI {
     public boolean exists(String path) {
         String normalizedPath = normalizePath(path);
         if (normalizedPath.startsWith(WORKSPACE_PREFIX)) {
-            Path p = resolveWorkspacePath(
-                normalizedPath.substring(WORKSPACE_PREFIX.length())
-            );
+            Path p = resolveWorkspacePath(normalizedPath.substring(WORKSPACE_PREFIX.length()));
             return p != null && Files.exists(p);
         }
         if (normalizedPath.startsWith(USER_SKILLS_PREFIX)) {
-            Path p = resolveUserSkillsPath(
-                normalizedPath.substring(USER_SKILLS_PREFIX.length())
-            );
+            Path p = resolveUserSkillsPath(normalizedPath.substring(USER_SKILLS_PREFIX.length()));
             return p != null && Files.exists(p);
         }
         String resourcePath = DOCS_ROOT + "/" + normalizedPath;
@@ -351,21 +308,21 @@ public final class FileSystemAPI {
     /**
      * Write content into the safe workspace directory.
      *
-     * <p>All writes are restricted to {@code ~/.capella-ai/workspace/} (or the
-     * override path from {@code capella.ai.workspace.dir}). Only small text
-     * files are permitted, and path traversal / hidden files are blocked.
+     * <p>All writes are restricted to {@code ~/.capella-ai/workspace/} (or the override path from
+     * {@code capella.ai.workspace.dir}). Only small text files are permitted, and path traversal /
+     * hidden files are blocked.
      *
-     * @param path relative path under the workspace (e.g., "state/run-1.json" or "workspace/state/run-1.json")
+     * @param path relative path under the workspace (e.g., "state/run-1.json" or
+     *     "workspace/state/run-1.json")
      * @param contents file contents (UTF-8)
      * @return ActionResult describing success or rejection reason
      */
     public ActionResult write(String path, String contents) {
         if (path == null || path.isBlank()) {
             return ActionResult.fail(
-                ActionResult.ErrorCode.INVALID_INPUT,
-                "Path is required",
-                "Use a relative path like 'state/run-1.json' under workspace/"
-            );
+                    ActionResult.ErrorCode.INVALID_INPUT,
+                    "Path is required",
+                    "Use a relative path like 'state/run-1.json' under workspace/");
         }
 
         String normalized = normalizePath(path);
@@ -376,37 +333,31 @@ public final class FileSystemAPI {
         Path target = resolveWorkspacePath(normalized);
         if (target == null) {
             return ActionResult.fail(
-                ActionResult.ErrorCode.INVALID_INPUT,
-                "Invalid workspace path",
-                "Avoid '..', absolute paths, and hidden files; write only under workspace/"
-            );
+                    ActionResult.ErrorCode.INVALID_INPUT,
+                    "Invalid workspace path",
+                    "Avoid '..', absolute paths, and hidden files; write only under workspace/");
         }
 
-        String fileName = target.getFileName() != null
-            ? target.getFileName().toString().toLowerCase()
-            : "";
+        String fileName =
+                target.getFileName() != null ? target.getFileName().toString().toLowerCase() : "";
         if (!isAllowedWorkspaceExtension(fileName)) {
             return ActionResult.fail(
-                ActionResult.ErrorCode.INVALID_INPUT,
-                "Blocked file extension for workspace write: " + fileName,
-                "Allowed extensions: " + String.join(", ", WORKSPACE_ALLOWED_EXT)
-            );
+                    ActionResult.ErrorCode.INVALID_INPUT,
+                    "Blocked file extension for workspace write: " + fileName,
+                    "Allowed extensions: " + String.join(", ", WORKSPACE_ALLOWED_EXT));
         }
 
-        byte[] bytes = (contents != null ? contents : "").getBytes(
-            StandardCharsets.UTF_8
-        );
+        byte[] bytes = (contents != null ? contents : "").getBytes(StandardCharsets.UTF_8);
         long maxFileBytes = maxWorkspaceFileBytes();
         if (bytes.length > maxFileBytes) {
             return ActionResult.fail(
-                ActionResult.ErrorCode.INVALID_INPUT,
-                "File too large (" +
-                bytes.length +
-                " bytes). Max is " +
-                maxFileBytes +
-                " bytes.",
-                "Write a smaller file (e.g., summarize or split into multiple files)."
-            );
+                    ActionResult.ErrorCode.INVALID_INPUT,
+                    "File too large ("
+                            + bytes.length
+                            + " bytes). Max is "
+                            + maxFileBytes
+                            + " bytes.",
+                    "Write a smaller file (e.g., summarize or split into multiple files).");
         }
 
         try {
@@ -421,28 +372,25 @@ public final class FileSystemAPI {
             long projected = totalBytes - existingSize + bytes.length;
             if (projected > maxTotalBytes) {
                 return ActionResult.fail(
-                    ActionResult.ErrorCode.INVALID_INPUT,
-                    "Workspace quota exceeded (" +
-                    projected +
-                    " bytes). Max is " +
-                    maxTotalBytes +
-                    " bytes.",
-                    "Delete unused workspace files or reduce output size."
-                );
+                        ActionResult.ErrorCode.INVALID_INPUT,
+                        "Workspace quota exceeded ("
+                                + projected
+                                + " bytes). Max is "
+                                + maxTotalBytes
+                                + " bytes.",
+                        "Delete unused workspace files or reduce output size.");
             }
 
             Files.write(target, bytes);
             writeWorkspaceAudit("WRITE", normalized, bytes.length);
             writeWorkspaceQuota(projected);
             return ActionResult.ok(
-                "Wrote workspace/" + normalized + " (" + bytes.length + " bytes)"
-            );
+                    "Wrote workspace/" + normalized + " (" + bytes.length + " bytes)");
         } catch (IOException e) {
             LOG.log(Level.WARNING, "Workspace write failed: " + normalized, e);
             return ActionResult.fail(
-                ActionResult.ErrorCode.INVALID_INPUT,
-                "Workspace write failed: " + e.getMessage()
-            );
+                    ActionResult.ErrorCode.INVALID_INPUT,
+                    "Workspace write failed: " + e.getMessage());
         }
     }
 
@@ -450,10 +398,11 @@ public final class FileSystemAPI {
      * Search with configurable detail level.
      *
      * <p>Detail levels:
+     *
      * <ul>
-     *   <li>NAME_ONLY - just file paths</li>
-     *   <li>NAME_AND_DESCRIPTION - paths with first line of content</li>
-     *   <li>FULL - complete file contents (use sparingly)</li>
+     *   <li>NAME_ONLY - just file paths
+     *   <li>NAME_AND_DESCRIPTION - paths with first line of content
+     *   <li>FULL - complete file contents (use sparingly)
      * </ul>
      *
      * @param keyword the search term (case-insensitive)
@@ -472,9 +421,7 @@ public final class FileSystemAPI {
         // Limit results
         if (results.size() > MAX_SEARCH_RESULTS) {
             results = new ArrayList<>(results.subList(0, MAX_SEARCH_RESULTS));
-            results.add(
-                "... and more. Refine your search or use api.fs.list() to browse."
-            );
+            results.add("... and more. Refine your search or use api.fs.list() to browse.");
         }
 
         return results;
@@ -488,11 +435,12 @@ public final class FileSystemAPI {
      * @return list of results
      */
     public List<String> search(String keyword, String detail) {
-        DetailLevel level = switch (detail.toLowerCase()) {
-            case "name", "name_only" -> DetailLevel.NAME_ONLY;
-            case "full", "complete" -> DetailLevel.FULL;
-            default -> DetailLevel.NAME_AND_DESCRIPTION;
-        };
+        DetailLevel level =
+                switch (detail.toLowerCase()) {
+                    case "name", "name_only" -> DetailLevel.NAME_ONLY;
+                    case "full", "complete" -> DetailLevel.FULL;
+                    default -> DetailLevel.NAME_AND_DESCRIPTION;
+                };
         return search(keyword, level);
     }
 
@@ -501,8 +449,8 @@ public final class FileSystemAPI {
     /**
      * Save a new skill for future reuse.
      *
-     * <p>Skills are saved as folders under {@code ~/.capella-ai/skills/<skill>/SKILL.md}
-     * (Anthropic skill format) and can be loaded in future sessions.
+     * <p>Skills are saved as folders under {@code ~/.capella-ai/skills/<skill>/SKILL.md} (Anthropic
+     * skill format) and can be loaded in future sessions.
      *
      * @param name the skill name (e.g., "create-state-machine")
      * @param content the skill content (Groovy code)
@@ -514,10 +462,8 @@ public final class FileSystemAPI {
         }
 
         // Sanitize name
-        String safeName = name
-            .replaceAll("[^a-zA-Z0-9_-]", "-")
-            .replaceAll("-+", "-")
-            .toLowerCase();
+        String safeName =
+                name.replaceAll("[^a-zA-Z0-9_-]", "-").replaceAll("-+", "-").toLowerCase();
 
         try {
             Path root = userSkillsRoot();
@@ -528,17 +474,9 @@ public final class FileSystemAPI {
 
             Path skillMd = skillDir.resolve("SKILL.md");
             Files.writeString(
-                skillMd,
-                buildUserSkillSkillMd(safeName, content),
-                StandardCharsets.UTF_8
-            );
+                    skillMd, buildUserSkillSkillMd(safeName, content), StandardCharsets.UTF_8);
 
-            LOG.info(
-                "Saved skill: " +
-                    safeName +
-                    " to " +
-                    skillMd.toAbsolutePath()
-            );
+            LOG.info("Saved skill: " + safeName + " to " + skillMd.toAbsolutePath());
             return true;
         } catch (IOException e) {
             LOG.log(Level.WARNING, "Failed to save skill: " + name, e);
@@ -557,10 +495,8 @@ public final class FileSystemAPI {
             return null;
         }
 
-        String safeName = name
-            .replaceAll("[^a-zA-Z0-9_-]", "-")
-            .replaceAll("-+", "-")
-            .toLowerCase();
+        String safeName =
+                name.replaceAll("[^a-zA-Z0-9_-]", "-").replaceAll("-+", "-").toLowerCase();
 
         // New format: ~/.capella-ai/skills/<skill>/SKILL.md
         Path md = userSkillsRoot().resolve(safeName).resolve("SKILL.md");
@@ -601,46 +537,46 @@ public final class FileSystemAPI {
         Path root = userSkillsRoot();
         if (Files.exists(root) && Files.isDirectory(root)) {
             try (Stream<Path> stream = Files.list(root)) {
-                stream
-                    .filter(Files::isDirectory)
-                    .forEach(dir -> {
-                        Path md = dir.resolve("SKILL.md");
-                        if (Files.exists(md)) {
-                            String name = dir.getFileName().toString();
-                            if (!skills.contains(name)) {
-                                skills.add(name);
-                            }
-                        }
-                    });
+                stream.filter(Files::isDirectory)
+                        .forEach(
+                                dir -> {
+                                    Path md = dir.resolve("SKILL.md");
+                                    if (Files.exists(md)) {
+                                        String name = dir.getFileName().toString();
+                                        if (!skills.contains(name)) {
+                                            skills.add(name);
+                                        }
+                                    }
+                                });
             } catch (IOException e) {
                 // ignore
             }
 
             // Best-effort migration: legacy .groovy -> folder/SKILL.md (non-destructive)
             try (Stream<Path> stream = Files.list(root)) {
-                stream
-                    .filter(p ->
-                        Files.isRegularFile(p) &&
-                        p.getFileName().toString().endsWith(".groovy")
-                    )
-                    .forEach(p -> {
-                        String file = p.getFileName().toString();
-                        String base = file.substring(0, file.length() - 7);
-                        Path md = root.resolve(base).resolve("SKILL.md");
-                        if (Files.exists(md)) {
-                            return;
-                        }
-                        try {
-                            String code = Files.readString(p, StandardCharsets.UTF_8);
-                            if (tryMigrateLegacySkill(base, code)) {
-                                if (!skills.contains(base)) {
-                                    skills.add(base);
-                                }
-                            }
-                        } catch (IOException e) {
-                            // ignore
-                        }
-                    });
+                stream.filter(
+                                p ->
+                                        Files.isRegularFile(p)
+                                                && p.getFileName().toString().endsWith(".groovy"))
+                        .forEach(
+                                p -> {
+                                    String file = p.getFileName().toString();
+                                    String base = file.substring(0, file.length() - 7);
+                                    Path md = root.resolve(base).resolve("SKILL.md");
+                                    if (Files.exists(md)) {
+                                        return;
+                                    }
+                                    try {
+                                        String code = Files.readString(p, StandardCharsets.UTF_8);
+                                        if (tryMigrateLegacySkill(base, code)) {
+                                            if (!skills.contains(base)) {
+                                                skills.add(base);
+                                            }
+                                        }
+                                    } catch (IOException e) {
+                                        // ignore
+                                    }
+                                });
             } catch (IOException e) {
                 // ignore
             }
@@ -661,10 +597,8 @@ public final class FileSystemAPI {
             return false;
         }
 
-        String safeName = name
-            .replaceAll("[^a-zA-Z0-9_-]", "-")
-            .replaceAll("-+", "-")
-            .toLowerCase();
+        String safeName =
+                name.replaceAll("[^a-zA-Z0-9_-]", "-").replaceAll("-+", "-").toLowerCase();
 
         boolean deletedAny = false;
 
@@ -672,15 +606,15 @@ public final class FileSystemAPI {
         Path skillDir = root.resolve(safeName);
         if (Files.exists(skillDir) && Files.isDirectory(skillDir)) {
             try (Stream<Path> stream = Files.walk(skillDir)) {
-                stream
-                    .sorted((a, b) -> b.getNameCount() - a.getNameCount())
-                    .forEach(p -> {
-                        try {
-                            Files.deleteIfExists(p);
-                        } catch (IOException e) {
-                            // ignore
-                        }
-                    });
+                stream.sorted((a, b) -> b.getNameCount() - a.getNameCount())
+                        .forEach(
+                                p -> {
+                                    try {
+                                        Files.deleteIfExists(p);
+                                    } catch (IOException e) {
+                                        // ignore
+                                    }
+                                });
                 deletedAny = true;
             } catch (IOException e) {
                 // ignore
@@ -726,25 +660,27 @@ public final class FileSystemAPI {
 
     private static Path workspaceRoot() {
         String override = System.getProperty(WORKSPACE_DIR_PROP);
-        String base = (override != null && !override.isBlank())
-            ? override
-            : System.getProperty("user.home") +
-            File.separator +
-            ".capella-ai" +
-            File.separator +
-            "workspace";
+        String base =
+                (override != null && !override.isBlank())
+                        ? override
+                        : System.getProperty("user.home")
+                                + File.separator
+                                + ".capella-ai"
+                                + File.separator
+                                + "workspace";
         return Paths.get(base).toAbsolutePath().normalize();
     }
 
     private static Path userSkillsRoot() {
         String override = System.getProperty(USER_SKILLS_DIR_PROP);
-        String base = (override != null && !override.isBlank())
-            ? override
-            : System.getProperty("user.home") +
-            File.separator +
-            ".capella-ai" +
-            File.separator +
-            "skills";
+        String base =
+                (override != null && !override.isBlank())
+                        ? override
+                        : System.getProperty("user.home")
+                                + File.separator
+                                + ".capella-ai"
+                                + File.separator
+                                + "skills";
         return Paths.get(base).toAbsolutePath().normalize();
     }
 
@@ -841,31 +777,25 @@ public final class FileSystemAPI {
     private String readUserSkillFile(String relative) {
         Path p = resolveUserSkillsPath(relative);
         if (p == null) {
-            return (
-                "Invalid user skill path: " +
-                relative +
-                "\n\nUse api.fs.list('user-skills/') to browse skills."
-            );
+            return ("Invalid user skill path: "
+                    + relative
+                    + "\n\nUse api.fs.list('user-skills/') to browse skills.");
         }
         if (!Files.exists(p) || Files.isDirectory(p)) {
-            return (
-                "User skill file not found: user-skills/" +
-                relative +
-                "\n\nUse api.fs.list('user-skills/') to browse skills."
-            );
+            return ("User skill file not found: user-skills/"
+                    + relative
+                    + "\n\nUse api.fs.list('user-skills/') to browse skills.");
         }
         try {
             long size = Files.size(p);
             if (size > MAX_FILE_SIZE) {
-                return (
-                    "User skill file too large to read safely: user-skills/" +
-                    relative +
-                    " (" +
-                    size +
-                    " bytes, max " +
-                    MAX_FILE_SIZE +
-                    ")\n"
-                );
+                return ("User skill file too large to read safely: user-skills/"
+                        + relative
+                        + " ("
+                        + size
+                        + " bytes, max "
+                        + MAX_FILE_SIZE
+                        + ")\n");
             }
             return Files.readString(p, StandardCharsets.UTF_8);
         } catch (IOException e) {
@@ -876,9 +806,10 @@ public final class FileSystemAPI {
 
     private static List<String> listUserSkillsPath(String relativeDir) {
         boolean isRoot = relativeDir == null || relativeDir.isBlank();
-        Path dir = (relativeDir == null || relativeDir.isBlank())
-            ? userSkillsRoot()
-            : resolveUserSkillsPath(relativeDir);
+        Path dir =
+                (relativeDir == null || relativeDir.isBlank())
+                        ? userSkillsRoot()
+                        : resolveUserSkillsPath(relativeDir);
         if (dir == null) {
             return List.of();
         }
@@ -887,19 +818,21 @@ public final class FileSystemAPI {
         }
 
         try (Stream<Path> stream = Files.list(dir)) {
-            return stream
-                .filter(p -> {
-                    String name = p.getFileName() != null ? p.getFileName().toString() : "";
-                    if (name.isBlank() || name.startsWith(".")) return false;
-                    if (isRoot && !Files.isDirectory(p)) return false;
-                    return true;
-                })
-                .sorted()
-                .map(p -> {
-                    String name = p.getFileName().toString();
-                    return Files.isDirectory(p) ? name + "/" : name;
-                })
-                .collect(Collectors.toList());
+            return stream.filter(
+                            p -> {
+                                String name =
+                                        p.getFileName() != null ? p.getFileName().toString() : "";
+                                if (name.isBlank() || name.startsWith(".")) return false;
+                                if (isRoot && !Files.isDirectory(p)) return false;
+                                return true;
+                            })
+                    .sorted()
+                    .map(
+                            p -> {
+                                String name = p.getFileName().toString();
+                                return Files.isDirectory(p) ? name + "/" : name;
+                            })
+                    .collect(Collectors.toList());
         } catch (IOException e) {
             return List.of();
         }
@@ -908,33 +841,27 @@ public final class FileSystemAPI {
     private String readWorkspaceFile(String relative) {
         Path p = resolveWorkspacePath(relative);
         if (p == null) {
-            return (
-                "Invalid workspace path: " +
-                relative +
-                "\n\nUse api.fs.read('workspace/<path>') with a safe relative path."
-            );
+            return ("Invalid workspace path: "
+                    + relative
+                    + "\n\nUse api.fs.read('workspace/<path>') with a safe relative path.");
         }
         if (!Files.exists(p) || Files.isDirectory(p)) {
-            return (
-                "Workspace file not found: workspace/" +
-                relative +
-                "\n\nUse api.fs.list('workspace/') to browse saved files."
-            );
+            return ("Workspace file not found: workspace/"
+                    + relative
+                    + "\n\nUse api.fs.list('workspace/') to browse saved files.");
         }
 
         try {
             long size = Files.size(p);
             long max = maxWorkspaceFileBytes();
             if (size > max) {
-                return (
-                    "Workspace file too large to read safely: workspace/" +
-                    relative +
-                    " (" +
-                    size +
-                    " bytes, max " +
-                    max +
-                    ")\n"
-                );
+                return ("Workspace file too large to read safely: workspace/"
+                        + relative
+                        + " ("
+                        + size
+                        + " bytes, max "
+                        + max
+                        + ")\n");
             }
             return Files.readString(p, StandardCharsets.UTF_8);
         } catch (IOException e) {
@@ -944,9 +871,10 @@ public final class FileSystemAPI {
     }
 
     private static List<String> listWorkspaceEntries(String relativeDir) {
-        Path dir = (relativeDir == null || relativeDir.isBlank())
-            ? workspaceRoot()
-            : resolveWorkspacePath(relativeDir);
+        Path dir =
+                (relativeDir == null || relativeDir.isBlank())
+                        ? workspaceRoot()
+                        : resolveWorkspacePath(relativeDir);
         if (dir == null) {
             return List.of();
         }
@@ -958,19 +886,21 @@ public final class FileSystemAPI {
         }
 
         try (Stream<Path> stream = Files.list(dir)) {
-            return stream
-                .filter(p -> {
-                    String name = p.getFileName() != null ? p.getFileName().toString() : "";
-                    if (name.isBlank()) return false;
-                    if (name.startsWith(".")) return false;
-                    return true;
-                })
-                .sorted()
-                .map(p -> {
-                    String name = p.getFileName().toString();
-                    return Files.isDirectory(p) ? name + "/" : name;
-                })
-                .collect(Collectors.toList());
+            return stream.filter(
+                            p -> {
+                                String name =
+                                        p.getFileName() != null ? p.getFileName().toString() : "";
+                                if (name.isBlank()) return false;
+                                if (name.startsWith(".")) return false;
+                                return true;
+                            })
+                    .sorted()
+                    .map(
+                            p -> {
+                                String name = p.getFileName().toString();
+                                return Files.isDirectory(p) ? name + "/" : name;
+                            })
+                    .collect(Collectors.toList());
         } catch (IOException e) {
             return List.of();
         }
@@ -982,44 +912,47 @@ public final class FileSystemAPI {
             return 0L;
         }
         try (Stream<Path> stream = Files.walk(root)) {
-            return stream
-                .filter(Files::isRegularFile)
-                .filter(p -> {
-                    String name = p.getFileName() != null ? p.getFileName().toString() : "";
-                    if (name.equals(WORKSPACE_AUDIT_LOG) || name.equals(WORKSPACE_QUOTA_FILE)) {
-                        return false;
-                    }
-                    return true;
-                })
-                .mapToLong(p -> {
-                    try {
-                        return Files.size(p);
-                    } catch (IOException e) {
-                        return 0L;
-                    }
-                })
-                .sum();
+            return stream.filter(Files::isRegularFile)
+                    .filter(
+                            p -> {
+                                String name =
+                                        p.getFileName() != null ? p.getFileName().toString() : "";
+                                if (name.equals(WORKSPACE_AUDIT_LOG)
+                                        || name.equals(WORKSPACE_QUOTA_FILE)) {
+                                    return false;
+                                }
+                                return true;
+                            })
+                    .mapToLong(
+                            p -> {
+                                try {
+                                    return Files.size(p);
+                                } catch (IOException e) {
+                                    return 0L;
+                                }
+                            })
+                    .sum();
         }
     }
 
     private static void writeWorkspaceAudit(String op, String relative, long bytes) {
         try {
             Path logFile = workspaceRoot().resolve(WORKSPACE_AUDIT_LOG);
-            String line = java.time.Instant.now() +
-                " " +
-                op +
-                " workspace/" +
-                relative +
-                " bytes=" +
-                bytes +
-                "\n";
+            String line =
+                    java.time.Instant.now()
+                            + " "
+                            + op
+                            + " workspace/"
+                            + relative
+                            + " bytes="
+                            + bytes
+                            + "\n";
             Files.writeString(
-                logFile,
-                line,
-                StandardCharsets.UTF_8,
-                java.nio.file.StandardOpenOption.CREATE,
-                java.nio.file.StandardOpenOption.APPEND
-            );
+                    logFile,
+                    line,
+                    StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.APPEND);
         } catch (Exception e) {
             // Best effort only.
         }
@@ -1028,11 +961,18 @@ public final class FileSystemAPI {
     private static void writeWorkspaceQuota(long totalBytes) {
         try {
             Path quotaFile = workspaceRoot().resolve(WORKSPACE_QUOTA_FILE);
-            String json = "{\n" +
-                "  \"totalBytes\": " + totalBytes + ",\n" +
-                "  \"maxTotalBytes\": " + maxWorkspaceTotalBytes() + ",\n" +
-                "  \"maxFileBytes\": " + maxWorkspaceFileBytes() + "\n" +
-                "}\n";
+            String json =
+                    "{\n"
+                            + "  \"totalBytes\": "
+                            + totalBytes
+                            + ",\n"
+                            + "  \"maxTotalBytes\": "
+                            + maxWorkspaceTotalBytes()
+                            + ",\n"
+                            + "  \"maxFileBytes\": "
+                            + maxWorkspaceFileBytes()
+                            + "\n"
+                            + "}\n";
             Files.writeString(quotaFile, json, StandardCharsets.UTF_8);
         } catch (Exception e) {
             // Best effort only.
@@ -1127,24 +1067,17 @@ public final class FileSystemAPI {
                 if (!Files.exists(md)) {
                     continue;
                 }
-            try {
-                String content = Files.readString(md, StandardCharsets.UTF_8);
-                String path =
-                    USER_SKILLS_PREFIX +
-                    dir.getFileName().toString() +
-                    "/SKILL.md";
-                SkillMetadata meta = parseSkillMetadata(path, content);
-                if (meta != null) {
-                    results.add(meta);
+                try {
+                    String content = Files.readString(md, StandardCharsets.UTF_8);
+                    String path = USER_SKILLS_PREFIX + dir.getFileName().toString() + "/SKILL.md";
+                    SkillMetadata meta = parseSkillMetadata(path, content);
+                    if (meta != null) {
+                        results.add(meta);
+                    }
+                } catch (IOException e) {
+                    LOG.log(Level.WARNING, "Failed to read user skill metadata: " + md, e);
                 }
-            } catch (IOException e) {
-                LOG.log(
-                    Level.WARNING,
-                    "Failed to read user skill metadata: " + md,
-                    e
-                );
             }
-        }
         } catch (IOException e) {
             return List.of();
         }
@@ -1181,14 +1114,13 @@ public final class FileSystemAPI {
         }
 
         return new SkillMetadata(
-            name.trim(),
-            summary != null ? summary.trim() : "",
-            keywords,
-            layers,
-            whenToUse,
-            difficulty,
-            path
-        );
+                name.trim(),
+                summary != null ? summary.trim() : "",
+                keywords,
+                layers,
+                whenToUse,
+                difficulty,
+                path);
     }
 
     private static final class Frontmatter {
@@ -1253,8 +1185,8 @@ public final class FileSystemAPI {
         if (value == null || value.length() < 2) {
             return value;
         }
-        if ((value.startsWith("\"") && value.endsWith("\"")) ||
-            (value.startsWith("'") && value.endsWith("'"))) {
+        if ((value.startsWith("\"") && value.endsWith("\""))
+                || (value.startsWith("'") && value.endsWith("'"))) {
             return value.substring(1, value.length() - 1);
         }
         return value;
@@ -1285,23 +1217,18 @@ public final class FileSystemAPI {
             return "";
         }
         return content.lines()
-            .filter(l -> !l.isBlank() && !l.startsWith("#") && !l.startsWith("---"))
-            .findFirst()
-            .orElse("")
-            .trim();
+                .filter(l -> !l.isBlank() && !l.startsWith("#") && !l.startsWith("---"))
+                .findFirst()
+                .orElse("")
+                .trim();
     }
 
-    private List<String> listFromJar(URI jarUri, String basePath)
-        throws IOException {
+    private List<String> listFromJar(URI jarUri, String basePath) throws IOException {
         List<String> results = new ArrayList<>();
         String jarPath = jarUri.toString().split("!")[0];
 
-        try (
-            FileSystem fs = FileSystems.newFileSystem(
-                URI.create(jarPath),
-                Collections.emptyMap()
-            )
-        ) {
+        try (FileSystem fs =
+                FileSystems.newFileSystem(URI.create(jarPath), Collections.emptyMap())) {
             String searchPath = DOCS_ROOT + "/" + basePath;
             if (searchPath.endsWith("/")) {
                 searchPath = searchPath.substring(0, searchPath.length() - 1);
@@ -1310,12 +1237,13 @@ public final class FileSystemAPI {
             Path dir = fs.getPath(searchPath);
             if (Files.exists(dir) && Files.isDirectory(dir)) {
                 try (Stream<Path> entries = Files.list(dir)) {
-                    results = entries
-                        .map(p -> {
-                            String name = p.getFileName().toString();
-                            return Files.isDirectory(p) ? name + "/" : name;
-                        })
-                        .collect(Collectors.toList());
+                    results =
+                            entries.map(
+                                            p -> {
+                                                String name = p.getFileName().toString();
+                                                return Files.isDirectory(p) ? name + "/" : name;
+                                            })
+                                    .collect(Collectors.toList());
                 }
             }
         } catch (Exception e) {
@@ -1331,18 +1259,14 @@ public final class FileSystemAPI {
         String resourcePath = DOCS_ROOT + "/" + basePath;
 
         try {
-            Enumeration<URL> resources = getClass()
-                .getClassLoader()
-                .getResources(resourcePath);
+            Enumeration<URL> resources = getClass().getClassLoader().getResources(resourcePath);
 
             while (resources.hasMoreElements()) {
                 URL url = resources.nextElement();
-                try (
-                    InputStream is = url.openStream();
-                    BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(is, StandardCharsets.UTF_8)
-                    )
-                ) {
+                try (InputStream is = url.openStream();
+                        BufferedReader reader =
+                                new BufferedReader(
+                                        new InputStreamReader(is, StandardCharsets.UTF_8))) {
                     // For directory listing from classpath
                     String line;
                     while ((line = reader.readLine()) != null) {
@@ -1355,39 +1279,31 @@ public final class FileSystemAPI {
                 }
             }
         } catch (IOException e) {
-            LOG.log(
-                Level.FINE,
-                "Error listing classpath resources: " + basePath,
-                e
-            );
+            LOG.log(Level.FINE, "Error listing classpath resources: " + basePath, e);
         }
 
         return results;
     }
 
-    private List<String> listFromFileSystem(Path dir, String basePath)
-        throws IOException {
+    private List<String> listFromFileSystem(Path dir, String basePath) throws IOException {
         List<String> results = new ArrayList<>();
 
         if (Files.exists(dir) && Files.isDirectory(dir)) {
             try (Stream<Path> entries = Files.list(dir)) {
-                results = entries
-                    .map(p -> {
-                        String name = p.getFileName().toString();
-                        return Files.isDirectory(p) ? name + "/" : name;
-                    })
-                    .collect(Collectors.toList());
+                results =
+                        entries.map(
+                                        p -> {
+                                            String name = p.getFileName().toString();
+                                            return Files.isDirectory(p) ? name + "/" : name;
+                                        })
+                                .collect(Collectors.toList());
             }
         }
 
         return results;
     }
 
-    private void searchRecursive(
-        String currentPath,
-        String keyword,
-        List<String> results
-    ) {
+    private void searchRecursive(String currentPath, String keyword, List<String> results) {
         if (results.size() >= MAX_SEARCH_RESULTS) {
             return;
         }
@@ -1398,9 +1314,7 @@ public final class FileSystemAPI {
                 break;
             }
 
-            String fullPath = currentPath.isEmpty()
-                ? entry
-                : currentPath + entry;
+            String fullPath = currentPath.isEmpty() ? entry : currentPath + entry;
 
             if (entry.endsWith("/")) {
                 // Recurse into directory
@@ -1428,11 +1342,7 @@ public final class FileSystemAPI {
         int start = Math.max(0, index - 40);
         int end = Math.min(content.length(), index + keyword.length() + 40);
 
-        String snippet = content
-            .substring(start, end)
-            .replace('\n', ' ')
-            .replace('\r', ' ')
-            .trim();
+        String snippet = content.substring(start, end).replace('\n', ' ').replace('\r', ' ').trim();
 
         if (start > 0) {
             snippet = "..." + snippet;
@@ -1445,11 +1355,7 @@ public final class FileSystemAPI {
     }
 
     private void searchRecursiveWithDetail(
-        String currentPath,
-        String keyword,
-        List<String> results,
-        DetailLevel detail
-    ) {
+            String currentPath, String keyword, List<String> results, DetailLevel detail) {
         if (results.size() >= MAX_SEARCH_RESULTS) {
             return;
         }
@@ -1460,9 +1366,7 @@ public final class FileSystemAPI {
                 break;
             }
 
-            String fullPath = currentPath.isEmpty()
-                ? entry
-                : currentPath + entry;
+            String fullPath = currentPath.isEmpty() ? entry : currentPath + entry;
 
             if (entry.endsWith("/")) {
                 // Recurse into directory
@@ -1471,18 +1375,19 @@ public final class FileSystemAPI {
                 // Search in markdown file
                 String content = read(fullPath);
                 if (content.toLowerCase().contains(keyword)) {
-                    String result = switch (detail) {
-                        case NAME_ONLY -> fullPath;
-                        case NAME_AND_DESCRIPTION -> {
-                            String firstLine = content
-                                .lines()
-                                .filter(l -> !l.isBlank() && !l.startsWith("#"))
-                                .findFirst()
-                                .orElse("");
-                            yield fullPath + ": " + truncate(firstLine, 60);
-                        }
-                        case FULL -> fullPath + "\n" + content;
-                    };
+                    String result =
+                            switch (detail) {
+                                case NAME_ONLY -> fullPath;
+                                case NAME_AND_DESCRIPTION -> {
+                                    String firstLine =
+                                            content.lines()
+                                                    .filter(l -> !l.isBlank() && !l.startsWith("#"))
+                                                    .findFirst()
+                                                    .orElse("");
+                                    yield fullPath + ": " + truncate(firstLine, 60);
+                                }
+                                case FULL -> fullPath + "\n" + content;
+                            };
                     results.add(result);
                 }
             }
@@ -1506,11 +1411,7 @@ public final class FileSystemAPI {
         }
         try {
             Files.createDirectories(md.getParent());
-            Files.writeString(
-                md,
-                buildUserSkillSkillMd(safeName, code),
-                StandardCharsets.UTF_8
-            );
+            Files.writeString(md, buildUserSkillSkillMd(safeName, code), StandardCharsets.UTF_8);
             return true;
         } catch (IOException e) {
             return false;
@@ -1556,12 +1457,11 @@ public final class FileSystemAPI {
         if (end <= start) {
             return null;
         }
-        return code
-            .substring(start + 3, end)
-            .lines()
-            .map(l -> l.replaceFirst("^\\s*\\*\\s?", ""))
-            .collect(Collectors.joining("\n"))
-            .trim();
+        return code.substring(start + 3, end)
+                .lines()
+                .map(l -> l.replaceFirst("^\\s*\\*\\s?", ""))
+                .collect(Collectors.joining("\n"))
+                .trim();
     }
 
     private static String extractOneLineDescription(String code) {

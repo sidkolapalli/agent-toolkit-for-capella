@@ -2,14 +2,6 @@ package org.polarsys.capella.ai.scripting;
 
 import static org.junit.Assert.*;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.lang.reflect.Proxy;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EObject;
@@ -53,14 +45,27 @@ import org.polarsys.capella.core.data.oa.OperationalCapability;
 import org.polarsys.capella.core.data.pa.PaFactory;
 import org.polarsys.capella.core.model.handler.helpers.CapellaProjectHelper;
 import org.polarsys.capella.core.model.handler.helpers.CapellaProjectHelper.ProjectApproach;
-import org.polarsys.capella.core.model.helpers.ScenarioExt;
 import org.polarsys.capella.core.model.helpers.AbstractFunctionExt;
+import org.polarsys.capella.core.model.helpers.ScenarioExt;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /** Actual Capella semantic objects and transactions; only the Sirius session service is a proxy. */
 public class ArcadiaBehaviorAPITest {
-    private static final String[] LAYERS = { "OA", "SA", "LA", "PA" };
-    private static final String[] FUNCTIONS = { "OperationalActivity", "SystemFunction", "LogicalFunction", "PhysicalFunction" };
-    private static final String[] COMPONENTS = { "Entity", "SystemComponent", "LogicalComponent", "PhysicalComponent" };
+    private static final String[] LAYERS = {"OA", "SA", "LA", "PA"};
+    private static final String[] FUNCTIONS = {
+        "OperationalActivity", "SystemFunction", "LogicalFunction", "PhysicalFunction"
+    };
+    private static final String[] COMPONENTS = {
+        "Entity", "SystemComponent", "LogicalComponent", "PhysicalComponent"
+    };
     private ResourceSet resources;
     private Resource resource;
     private TransactionalEditingDomain domain;
@@ -89,24 +94,30 @@ public class ArcadiaBehaviorAPITest {
         }
         domain = TransactionalEditingDomain.Factory.INSTANCE.createEditingDomain(resources);
         open = true;
-        session = (Session) Proxy.newProxyInstance(Session.class.getClassLoader(), new Class<?>[] { Session.class },
-            (proxy, method, arguments) -> switch (method.getName()) {
-                case "getTransactionalEditingDomain" -> domain;
-                case "getSemanticResources" -> List.of(resource);
-                case "getSessionResource" -> resource;
-                case "isOpen" -> open;
-                case "save" -> {
-                    ByteArrayOutputStream output = new ByteArrayOutputStream();
-                    resource.save(output, Map.of());
-                    saved = output.toByteArray();
-                    saves++;
-                    yield null;
-                }
-                case "equals" -> proxy == arguments[0];
-                case "hashCode" -> System.identityHashCode(proxy);
-                case "toString" -> "Behavior API session";
-                default -> null;
-            });
+        session =
+                (Session)
+                        Proxy.newProxyInstance(
+                                Session.class.getClassLoader(),
+                                new Class<?>[] {Session.class},
+                                (proxy, method, arguments) ->
+                                        switch (method.getName()) {
+                                            case "getTransactionalEditingDomain" -> domain;
+                                            case "getSemanticResources" -> List.of(resource);
+                                            case "getSessionResource" -> resource;
+                                            case "isOpen" -> open;
+                                            case "save" -> {
+                                                ByteArrayOutputStream output =
+                                                        new ByteArrayOutputStream();
+                                                resource.save(output, Map.of());
+                                                saved = output.toByteArray();
+                                                saves++;
+                                                yield null;
+                                            }
+                                            case "equals" -> proxy == arguments[0];
+                                            case "hashCode" -> System.identityHashCode(proxy);
+                                            case "toString" -> "Behavior API session";
+                                            default -> null;
+                                        });
         api = new CapellaAPI(session);
         behavior = new ArcadiaBehaviorAPI(session);
     }
@@ -121,7 +132,12 @@ public class ArcadiaBehaviorAPITest {
     public void nativeCapabilityInvolvementsSupportAllFourArchitecturesAndAreIdempotent() {
         for (int layer = 0; layer < 4; layer++) {
             AbstractFunction function = function(layer, "Involved function " + layer);
-            Component component = (Component) api.create(LAYERS[layer], COMPONENTS[layer], "Involved component " + layer);
+            Component component =
+                    (Component)
+                            api.create(
+                                    LAYERS[layer],
+                                    COMPONENTS[layer],
+                                    "Involved component " + layer);
             var functionLink = behavior.involveFunction(capabilities[layer], function);
             var componentLink = behavior.involveComponent(capabilities[layer], component);
             assertSame(capabilities[layer], functionLink.eContainer());
@@ -132,33 +148,49 @@ public class ArcadiaBehaviorAPITest {
             assertSame(functionLink, behavior.involveFunction(capabilities[layer], function));
             assertSame(componentLink, behavior.involveComponent(capabilities[layer], component));
             assertEquals(saveCount, saves);
-            assertTrue(capabilities[layer].getOwnedAbstractFunctionAbstractCapabilityInvolvements().stream().anyMatch(link -> link.getInvolved() == function));
-            if (Platform.isRunning()) assertTrue(capabilities[layer].getInvolvedAbstractFunctions().contains(function));
+            assertTrue(
+                    capabilities[layer]
+                            .getOwnedAbstractFunctionAbstractCapabilityInvolvements()
+                            .stream()
+                            .anyMatch(link -> link.getInvolved() == function));
+            if (Platform.isRunning())
+                assertTrue(capabilities[layer].getInvolvedAbstractFunctions().contains(function));
         }
     }
 
     @Test
-    public void adjacentCapabilityRealizationsPersistTheirDirectionAndRejectSkippedLevels() throws Exception {
+    public void adjacentCapabilityRealizationsPersistTheirDirectionAndRejectSkippedLevels()
+            throws Exception {
         for (int index = 1; index < 4; index++) {
             var link = behavior.realizeCapability(capabilities[index], capabilities[index - 1]);
             assertSame(capabilities[index], link.eContainer());
             assertSame(capabilities[index], link.getSourceElement());
             assertSame(capabilities[index - 1], link.getTargetElement());
             int saveCount = saves;
-            assertSame(link, behavior.realizeCapability(capabilities[index], capabilities[index - 1]));
+            assertSame(
+                    link, behavior.realizeCapability(capabilities[index], capabilities[index - 1]));
             assertEquals(saveCount, saves);
-            var persisted = (org.polarsys.capella.core.data.interaction.AbstractCapabilityRealization) ModelOps.findById(reload(), link.getId());
-            assertEquals(capabilities[index].getId(), ((CapellaElement) persisted.getSourceElement()).getId());
-            assertEquals(capabilities[index - 1].getId(), ((CapellaElement) persisted.getTargetElement()).getId());
+            var persisted =
+                    (org.polarsys.capella.core.data.interaction.AbstractCapabilityRealization)
+                            ModelOps.findById(reload(), link.getId());
+            assertEquals(
+                    capabilities[index].getId(),
+                    ((CapellaElement) persisted.getSourceElement()).getId());
+            assertEquals(
+                    capabilities[index - 1].getId(),
+                    ((CapellaElement) persisted.getTargetElement()).getId());
         }
         unchanged(() -> behavior.realizeCapability(capabilities[2], capabilities[0]));
         unchanged(() -> behavior.realizeCapability(capabilities[0], capabilities[1]));
     }
 
     @Test
-    public void sixFunctionChainHasActualOrderedInvolvementsAndExchangeEndpointsAfterReload() throws Exception {
+    public void sixFunctionChainHasActualOrderedInvolvementsAndExchangeEndpointsAfterReload()
+            throws Exception {
         Flow flow = flow(1, 6);
-        FunctionalChain chain = behavior.linearChain(roots[1], "Authorise electric drive", flow.functions(), flow.exchanges());
+        FunctionalChain chain =
+                behavior.linearChain(
+                        roots[1], "Authorise electric drive", flow.functions(), flow.exchanges());
         assertChain(chain, flow);
         var involvement = behavior.involveChain(capabilities[1], chain);
         assertSame(chain, involvement.getInvolved());
@@ -181,7 +213,10 @@ public class ArcadiaBehaviorAPITest {
     public void chainsUseNativeLogicalAndPhysicalFunctions() {
         for (int layer : List.of(2, 3)) {
             Flow flow = flow(layer, 3);
-            assertChain(behavior.linearChain(roots[layer], "Chain " + layer, flow.functions(), flow.exchanges()), flow);
+            assertChain(
+                    behavior.linearChain(
+                            roots[layer], "Chain " + layer, flow.functions(), flow.exchanges()),
+                    flow);
         }
     }
 
@@ -189,54 +224,125 @@ public class ArcadiaBehaviorAPITest {
     public void facadeInvalidatesPrimedLookupInsideOneWriteAndSavesOnlyAfterCommit() {
         Flow flow = flow(1, 3);
         int saveCount = saves;
-        FunctionalChain chain = SessionSafeguards.runWrite(session, "Reviewed behavior proposal", () -> {
-            assertTrue(api.findAll("FunctionalChain").isEmpty());
-            FunctionalChain created = api.arcadia.linearChain(roots[1], "Newly visible chain", flow.functions(), flow.exchanges());
-            assertSame(created, api.find("FunctionalChain", "Newly visible chain"));
-            assertTrue(api.findAll("FunctionalChain").contains(created));
-            assertEquals(saveCount, saves);
-            api.arcadia.involveChain(capabilities[1], created);
-            return created;
-        });
+        FunctionalChain chain =
+                SessionSafeguards.runWrite(
+                        session,
+                        "Reviewed behavior proposal",
+                        () -> {
+                            assertTrue(api.findAll("FunctionalChain").isEmpty());
+                            FunctionalChain created =
+                                    api.arcadia.linearChain(
+                                            roots[1],
+                                            "Newly visible chain",
+                                            flow.functions(),
+                                            flow.exchanges());
+                            assertSame(created, api.find("FunctionalChain", "Newly visible chain"));
+                            assertTrue(api.findAll("FunctionalChain").contains(created));
+                            assertEquals(saveCount, saves);
+                            api.arcadia.involveChain(capabilities[1], created);
+                            return created;
+                        });
         assertEquals(saveCount + 1, saves);
         assertSame(roots[1], chain.eContainer());
         domain.getCommandStack().undo();
         assertTrue(roots[1].getOwnedFunctionalChains().isEmpty());
-        assertTrue(capabilities[1].getOwnedFunctionalChainAbstractCapabilityInvolvements().isEmpty());
+        assertTrue(
+                capabilities[1].getOwnedFunctionalChainAbstractCapabilityInvolvements().isEmpty());
         domain.getCommandStack().redo();
         assertSame(chain, roots[1].getOwnedFunctionalChains().get(0));
-        assertSame(chain, capabilities[1].getOwnedFunctionalChainAbstractCapabilityInvolvements().get(0).getInvolved());
+        assertSame(
+                chain,
+                capabilities[1]
+                        .getOwnedFunctionalChainAbstractCapabilityInvolvements()
+                        .get(0)
+                        .getInvolved());
     }
 
     @Test
     public void rejectsDisconnectedDuplicateWrongLayerAndAggregateChainFunctionsBeforeChanges() {
         Flow flow = flow(1, 3);
-        unchanged(() -> behavior.linearChain(roots[1], "Disconnected", List.of(flow.functions().get(1), flow.functions().get(0)), List.of(flow.exchanges().get(0))));
-        unchanged(() -> behavior.linearChain(roots[1], "Duplicate", List.of(flow.functions().get(0), flow.functions().get(0)), List.of(flow.exchanges().get(0))));
-        unchanged(() -> behavior.linearChain(roots[2], "Wrong architecture", flow.functions(), flow.exchanges()));
-        unchanged(() -> behavior.linearChain(roots[0], "OA unsupported", flow.functions(), flow.exchanges()));
-        unchanged(() -> behavior.linearChain(roots[1], "Root as leaf", List.of(roots[1], flow.functions().get(0)), List.of(flow.exchanges().get(0))));
+        unchanged(
+                () ->
+                        behavior.linearChain(
+                                roots[1],
+                                "Disconnected",
+                                List.of(flow.functions().get(1), flow.functions().get(0)),
+                                List.of(flow.exchanges().get(0))));
+        unchanged(
+                () ->
+                        behavior.linearChain(
+                                roots[1],
+                                "Duplicate",
+                                List.of(flow.functions().get(0), flow.functions().get(0)),
+                                List.of(flow.exchanges().get(0))));
+        unchanged(
+                () ->
+                        behavior.linearChain(
+                                roots[2],
+                                "Wrong architecture",
+                                flow.functions(),
+                                flow.exchanges()));
+        unchanged(
+                () ->
+                        behavior.linearChain(
+                                roots[0], "OA unsupported", flow.functions(), flow.exchanges()));
+        unchanged(
+                () ->
+                        behavior.linearChain(
+                                roots[1],
+                                "Root as leaf",
+                                List.of(roots[1], flow.functions().get(0)),
+                                List.of(flow.exchanges().get(0))));
         behavior.linearChain(roots[1], "Duplicate name", flow.functions(), flow.exchanges());
-        unchanged(() -> behavior.linearChain(roots[1], "Duplicate name", flow.functions(), flow.exchanges()));
+        unchanged(
+                () ->
+                        behavior.linearChain(
+                                roots[1], "Duplicate name", flow.functions(), flow.exchanges()));
     }
 
     @Test
     public void rejectsAChainOwnedByAnotherRootInTheSameArchitecture() {
         Flow flow = flow(1, 2);
         var otherRoot = identified(CtxFactory.eINSTANCE.createSystemFunction());
-        SessionSafeguards.runWrite(session, "Additional root fixture", () -> { add(architectures[1].getOwnedFunctionPkg(), "ownedSystemFunctions", otherRoot); return null; });
-        unchanged(() -> behavior.linearChain(otherRoot, "Wrong root ownership", flow.functions(), flow.exchanges()));
+        SessionSafeguards.runWrite(
+                session,
+                "Additional root fixture",
+                () -> {
+                    add(architectures[1].getOwnedFunctionPkg(), "ownedSystemFunctions", otherRoot);
+                    return null;
+                });
+        unchanged(
+                () ->
+                        behavior.linearChain(
+                                otherRoot,
+                                "Wrong root ownership",
+                                flow.functions(),
+                                flow.exchanges()));
     }
 
     @Test
-    public void operationalScenarioBuildsNativeActivityRolesEventsMessagesAndOrderedExecutions() throws Exception {
+    public void operationalScenarioBuildsNativeActivityRolesEventsMessagesAndOrderedExecutions()
+            throws Exception {
         Flow flow = flow(0, 5);
-        for (AbstractFunction activity : flow.functions()) behavior.involveFunction(capabilities[0], activity);
-        Scenario scenario = behavior.operationalScenario((OperationalCapability) capabilities[0], "Nominal drive request", flow.exchanges(),
-            "Driver requests motion and the vehicle is available", "Vehicle reports the resulting motion status");
+        for (AbstractFunction activity : flow.functions())
+            behavior.involveFunction(capabilities[0], activity);
+        Scenario scenario =
+                behavior.operationalScenario(
+                        (OperationalCapability) capabilities[0],
+                        "Nominal drive request",
+                        flow.exchanges(),
+                        "Driver requests motion and the vehicle is available",
+                        "Vehicle reports the resulting motion status");
         assertScenario(scenario, flow);
-        assertEquals(List.of("capella:linkedText"), ((OpaqueExpression) scenario.getPreCondition().getOwnedSpecification()).getLanguages());
-        assertEquals("Driver requests motion and the vehicle is available", ((OpaqueExpression) scenario.getPreCondition().getOwnedSpecification()).getBodies().get(0));
+        assertEquals(
+                List.of("capella:linkedText"),
+                ((OpaqueExpression) scenario.getPreCondition().getOwnedSpecification())
+                        .getLanguages());
+        assertEquals(
+                "Driver requests motion and the vehicle is available",
+                ((OpaqueExpression) scenario.getPreCondition().getOwnedSpecification())
+                        .getBodies()
+                        .get(0));
         Scenario persisted = (Scenario) ModelOps.findById(reload(), scenario.getId());
         assertEquals(ScenarioKind.INTERACTION, persisted.getKind());
         assertTrue(ScenarioExt.checkOrdering(persisted));
@@ -244,7 +350,9 @@ public class ArcadiaBehaviorAPITest {
         for (var message : persisted.getOwnedMessages()) {
             assertNotNull(operation(message));
             assertFalse(operation(message).eIsProxy());
-            assertSame(operation(message), ((EventReceiptOperation) message.getReceivingEnd().getEvent()).getOperation());
+            assertSame(
+                    operation(message),
+                    ((EventReceiptOperation) message.getReceivingEnd().getEvent()).getOperation());
             if (Platform.isRunning()) assertSame(operation(message), message.getInvokedOperation());
         }
     }
@@ -252,14 +360,35 @@ public class ArcadiaBehaviorAPITest {
     @Test
     public void nominalAndInhibitedScenariosRemainDistinctModelsWithExplicitConditions() {
         Flow flow = flow(0, 4);
-        for (AbstractFunction activity : flow.functions()) behavior.involveFunction(capabilities[0], activity);
-        var bypass = (FunctionalExchange) api.link(flow.functions().get(1), flow.functions().get(3), "FunctionalExchange");
-        Scenario nominal = behavior.operationalScenario((OperationalCapability) capabilities[0], "Nominal", flow.exchanges(), "Demand is permitted", "Motion is produced and reported");
-        Scenario inhibited = behavior.operationalScenario((OperationalCapability) capabilities[0], "Inhibited", List.of(flow.exchanges().get(0), bypass), "Demand is inhibited", "Inhibited status is reported without a motion command");
+        for (AbstractFunction activity : flow.functions())
+            behavior.involveFunction(capabilities[0], activity);
+        var bypass =
+                (FunctionalExchange)
+                        api.link(
+                                flow.functions().get(1),
+                                flow.functions().get(3),
+                                "FunctionalExchange");
+        Scenario nominal =
+                behavior.operationalScenario(
+                        (OperationalCapability) capabilities[0],
+                        "Nominal",
+                        flow.exchanges(),
+                        "Demand is permitted",
+                        "Motion is produced and reported");
+        Scenario inhibited =
+                behavior.operationalScenario(
+                        (OperationalCapability) capabilities[0],
+                        "Inhibited",
+                        List.of(flow.exchanges().get(0), bypass),
+                        "Demand is inhibited",
+                        "Inhibited status is reported without a motion command");
         assertEquals(3, nominal.getOwnedMessages().size());
         assertEquals(2, inhibited.getOwnedMessages().size());
         assertSame(bypass, operation(inhibited.getOwnedMessages().get(1)));
-        assertFalse(inhibited.getOwnedInstanceRoles().stream().anyMatch(role -> role.getRepresentedInstance() == flow.functions().get(2)));
+        assertFalse(
+                inhibited.getOwnedInstanceRoles().stream()
+                        .anyMatch(
+                                role -> role.getRepresentedInstance() == flow.functions().get(2)));
         assertNotEquals(nominal.getPostCondition().getId(), inhibited.getPostCondition().getId());
     }
 
@@ -267,13 +396,37 @@ public class ArcadiaBehaviorAPITest {
     public void scenarioRejectsUninvolvedActivitiesDuplicatesBlankConditionsAndRepeatedNames() {
         Flow flow = flow(0, 2);
         OperationalCapability capability = (OperationalCapability) capabilities[0];
-        unchanged(() -> behavior.operationalScenario(capability, "Uninvolved", flow.exchanges(), "Before", "After"));
-        for (AbstractFunction activity : flow.functions()) behavior.involveFunction(capability, activity);
-        unchanged(() -> behavior.operationalScenario(capability, "Duplicate exchange", List.of(flow.exchanges().get(0), flow.exchanges().get(0)), "Before", "After"));
-        unchanged(() -> behavior.operationalScenario(capability, "Blank condition", flow.exchanges(), " ", "After"));
-        unchanged(() -> behavior.operationalScenario(capability, "NUL condition", flow.exchanges(), "Before\0hidden", "After"));
+        unchanged(
+                () ->
+                        behavior.operationalScenario(
+                                capability, "Uninvolved", flow.exchanges(), "Before", "After"));
+        for (AbstractFunction activity : flow.functions())
+            behavior.involveFunction(capability, activity);
+        unchanged(
+                () ->
+                        behavior.operationalScenario(
+                                capability,
+                                "Duplicate exchange",
+                                List.of(flow.exchanges().get(0), flow.exchanges().get(0)),
+                                "Before",
+                                "After"));
+        unchanged(
+                () ->
+                        behavior.operationalScenario(
+                                capability, "Blank condition", flow.exchanges(), " ", "After"));
+        unchanged(
+                () ->
+                        behavior.operationalScenario(
+                                capability,
+                                "NUL condition",
+                                flow.exchanges(),
+                                "Before\0hidden",
+                                "After"));
         behavior.operationalScenario(capability, "Existing", flow.exchanges(), "Before", "After");
-        unchanged(() -> behavior.operationalScenario(capability, "Existing", flow.exchanges(), "Before", "After"));
+        unchanged(
+                () ->
+                        behavior.operationalScenario(
+                                capability, "Existing", flow.exchanges(), "Before", "After"));
     }
 
     /** Live FSAE run: the agent had no way to create a system exchange scenario. */
@@ -283,8 +436,12 @@ public class ArcadiaBehaviorAPITest {
         assertSame(capabilities[1], exchange.eContainer());
         assertEquals(ScenarioKind.DATA_FLOW, exchange.getKind());
         assertNotNull(exchange.getId());
-        assertEquals(ScenarioKind.FUNCTIONAL, behavior.scenario(capabilities[2], "Shutdown functions", "functional").getKind());
-        assertEquals(ScenarioKind.INTERFACE, behavior.scenario(capabilities[3], "Shutdown interfaces", "interface").getKind());
+        assertEquals(
+                ScenarioKind.FUNCTIONAL,
+                behavior.scenario(capabilities[2], "Shutdown functions", "functional").getKind());
+        assertEquals(
+                ScenarioKind.INTERFACE,
+                behavior.scenario(capabilities[3], "Shutdown interfaces", "interface").getKind());
         unchanged(() -> behavior.scenario(capabilities[1], "IMD fault shutdown", "exchange"));
         unchanged(() -> behavior.scenario(capabilities[1], "Unknown kind", "sequence"));
         unchanged(() -> behavior.scenario(capabilities[0], "Operational", "exchange"));
@@ -293,15 +450,31 @@ public class ArcadiaBehaviorAPITest {
     @Test
     public void failedOuterProposalRollsBackAllBehaviorObjectsAndDoesNotSave() {
         Flow system = flow(1, 2), operational = flow(0, 2);
-        for (AbstractFunction activity : operational.functions()) behavior.involveFunction(capabilities[0], activity);
+        for (AbstractFunction activity : operational.functions())
+            behavior.involveFunction(capabilities[0], activity);
         domain.getCommandStack().flush();
         int count = count(), saveCount = saves;
-        assertThrows(IllegalStateException.class, () -> SessionSafeguards.runWrite(session, "Fail reviewed proposal", () -> {
-            behavior.linearChain(roots[1], "Must roll back", system.functions(), system.exchanges());
-            behavior.operationalScenario((OperationalCapability) capabilities[0], "Must roll back", operational.exchanges(), "Before", "After");
-            behavior.realizeCapability(capabilities[1], capabilities[0]);
-            throw new IllegalStateException("A later proposal step failed");
-        }));
+        assertThrows(
+                IllegalStateException.class,
+                () ->
+                        SessionSafeguards.runWrite(
+                                session,
+                                "Fail reviewed proposal",
+                                () -> {
+                                    behavior.linearChain(
+                                            roots[1],
+                                            "Must roll back",
+                                            system.functions(),
+                                            system.exchanges());
+                                    behavior.operationalScenario(
+                                            (OperationalCapability) capabilities[0],
+                                            "Must roll back",
+                                            operational.exchanges(),
+                                            "Before",
+                                            "After");
+                                    behavior.realizeCapability(capabilities[1], capabilities[0]);
+                                    throw new IllegalStateException("A later proposal step failed");
+                                }));
         assertEquals(count, count());
         assertEquals(saveCount, saves);
         assertTrue(roots[1].getOwnedFunctionalChains().isEmpty());
@@ -313,8 +486,15 @@ public class ArcadiaBehaviorAPITest {
     @Test
     public void scenarioUndoRedoRestoresAllEventAndConditionRelationships() {
         Flow flow = flow(0, 3);
-        for (AbstractFunction activity : flow.functions()) behavior.involveFunction(capabilities[0], activity);
-        Scenario scenario = behavior.operationalScenario((OperationalCapability) capabilities[0], "Undo scenario", flow.exchanges(), "Before", "After");
+        for (AbstractFunction activity : flow.functions())
+            behavior.involveFunction(capabilities[0], activity);
+        Scenario scenario =
+                behavior.operationalScenario(
+                        (OperationalCapability) capabilities[0],
+                        "Undo scenario",
+                        flow.exchanges(),
+                        "Before",
+                        "After");
         domain.getCommandStack().undo();
         assertFalse(capabilities[0].getOwnedScenarios().contains(scenario));
         assertNull(scenario.eResource());
@@ -327,19 +507,27 @@ public class ArcadiaBehaviorAPITest {
     @Test
     public void allGeneratedIdentitiesResolveImmediatelyAndAfterPersistence() throws Exception {
         Flow flow = flow(0, 3);
-        for (AbstractFunction activity : flow.functions()) behavior.involveFunction(capabilities[0], activity);
-        Scenario scenario = behavior.operationalScenario((OperationalCapability) capabilities[0], "Identity scenario", flow.exchanges(), "Before", "After");
+        for (AbstractFunction activity : flow.functions())
+            behavior.involveFunction(capabilities[0], activity);
+        Scenario scenario =
+                behavior.operationalScenario(
+                        (OperationalCapability) capabilities[0],
+                        "Identity scenario",
+                        flow.exchanges(),
+                        "Before",
+                        "After");
         List<EObject> objects = new ArrayList<>(List.of(scenario));
         var iterator = scenario.eAllContents();
         while (iterator.hasNext()) objects.add(iterator.next());
         var ids = new HashSet<String>();
         ResourceSet reloaded = reload();
-        for (EObject object : objects) if (object instanceof CapellaElement element) {
-            assertNotNull(element.getId());
-            assertTrue(ids.add(element.getId()));
-            assertSame(element, resource.getEObject(element.getId()));
-            assertNotNull(ModelOps.findById(reloaded, element.getId()));
-        }
+        for (EObject object : objects)
+            if (object instanceof CapellaElement element) {
+                assertNotNull(element.getId());
+                assertTrue(ids.add(element.getId()));
+                assertSame(element, resource.getEObject(element.getId()));
+                assertNotNull(ModelOps.findById(reloaded, element.getId()));
+            }
         assertTrue(ids.size() > 20);
     }
 
@@ -348,29 +536,43 @@ public class ArcadiaBehaviorAPITest {
         AbstractFunction system = function(1, "System function");
         AbstractFunction logical = function(2, "Logical function");
         unchanged(() -> behavior.involveFunction(capabilities[1], logical));
-        unchanged(() -> behavior.involveFunction(capabilities[1], CtxFactory.eINSTANCE.createSystemFunction()));
+        unchanged(
+                () ->
+                        behavior.involveFunction(
+                                capabilities[1], CtxFactory.eINSTANCE.createSystemFunction()));
         ResourceSet foreign = resourceSet();
         Resource foreignResource = foreign.createResource(URI.createURI("memory:/foreign.xmi"));
         var foreignFunction = CtxFactory.eINSTANCE.createSystemFunction();
         foreignResource.getContents().add(foreignFunction);
         unchanged(() -> behavior.involveFunction(capabilities[1], foreignFunction));
         open = false;
-        assertThrows(IllegalStateException.class, () -> behavior.involveFunction(capabilities[1], system));
+        assertThrows(
+                IllegalStateException.class,
+                () -> behavior.involveFunction(capabilities[1], system));
     }
 
     @Test
     public void malformedExistingDuplicateInvolvementsAreRejectedWithoutAddingAnother() {
         AbstractFunction function = function(1, "Already duplicated");
-        SessionSafeguards.runWrite(session, "Malformed fixture", () -> {
-            for (int index = 0; index < 2; index++) {
-                var link = identified(InteractionFactory.eINSTANCE.createAbstractFunctionAbstractCapabilityInvolvement());
-                link.setInvolved(function);
-                capabilities[1].getOwnedAbstractFunctionAbstractCapabilityInvolvements().add(link);
-            }
-            return null;
-        });
+        SessionSafeguards.runWrite(
+                session,
+                "Malformed fixture",
+                () -> {
+                    for (int index = 0; index < 2; index++) {
+                        var link =
+                                identified(
+                                        InteractionFactory.eINSTANCE
+                                                .createAbstractFunctionAbstractCapabilityInvolvement());
+                        link.setInvolved(function);
+                        capabilities[1]
+                                .getOwnedAbstractFunctionAbstractCapabilityInvolvements()
+                                .add(link);
+                    }
+                    return null;
+                });
         unchanged(() -> behavior.involveFunction(capabilities[1], function));
-        assertEquals(2, capabilities[1].getOwnedAbstractFunctionAbstractCapabilityInvolvements().size());
+        assertEquals(
+                2, capabilities[1].getOwnedAbstractFunctionAbstractCapabilityInvolvements().size());
     }
 
     @Test
@@ -379,66 +581,116 @@ public class ArcadiaBehaviorAPITest {
         assertNotNull(noSession.arcadia);
         AbstractFunction function = function(1, "Captured function");
         int count = count(), saveCount = saves;
-        assertThrows(IllegalStateException.class, () -> noSession.arcadia.involveFunction(capabilities[1], function));
-        assertThrows(IllegalStateException.class, () -> new ArcadiaBehaviorAPI(null).involveComponent(capabilities[0], OaFactory.eINSTANCE.createEntity()));
+        assertThrows(
+                IllegalStateException.class,
+                () -> noSession.arcadia.involveFunction(capabilities[1], function));
+        assertThrows(
+                IllegalStateException.class,
+                () ->
+                        new ArcadiaBehaviorAPI(null)
+                                .involveComponent(
+                                        capabilities[0], OaFactory.eINSTANCE.createEntity()));
         assertEquals(count, count());
         assertEquals(saveCount, saves);
     }
 
     @Test
     public void packagedDecompositionIsRejectedAcrossAllLayersWithoutChangesSaveOrUndo() {
-        String[] packageFeatures = { "ownedOperationalActivityPkgs", "ownedSystemFunctionPkgs", "ownedLogicalFunctionPkgs", "ownedPhysicalFunctionPkgs" };
-        String[] functionFeatures = { "ownedOperationalActivities", "ownedSystemFunctions", "ownedLogicalFunctions", "ownedPhysicalFunctions" };
+        String[] packageFeatures = {
+            "ownedOperationalActivityPkgs",
+            "ownedSystemFunctionPkgs",
+            "ownedLogicalFunctionPkgs",
+            "ownedPhysicalFunctionPkgs"
+        };
+        String[] functionFeatures = {
+            "ownedOperationalActivities",
+            "ownedSystemFunctions",
+            "ownedLogicalFunctions",
+            "ownedPhysicalFunctions"
+        };
         for (int layer = 0; layer < 4; layer++) {
             Flow flow = flow(layer, 2);
             int selected = layer;
-            if (layer == 0) for (AbstractFunction activity : flow.functions()) behavior.involveFunction(capabilities[0], activity);
-            SessionSafeguards.runWrite(session, "Packaged decomposition fixture", () -> {
-                EObject outer = newPackage(selected), inner = newPackage(selected);
-                AbstractFunction child = newFunction(selected);
-                add(flow.functions().get(0), packageFeatures[selected], outer);
-                add(outer, packageFeatures[selected], inner);
-                add(inner, functionFeatures[selected], child);
-                return null;
-            });
+            if (layer == 0)
+                for (AbstractFunction activity : flow.functions())
+                    behavior.involveFunction(capabilities[0], activity);
+            SessionSafeguards.runWrite(
+                    session,
+                    "Packaged decomposition fixture",
+                    () -> {
+                        EObject outer = newPackage(selected), inner = newPackage(selected);
+                        AbstractFunction child = newFunction(selected);
+                        add(flow.functions().get(0), packageFeatures[selected], outer);
+                        add(outer, packageFeatures[selected], inner);
+                        add(inner, functionFeatures[selected], child);
+                        return null;
+                    });
             assertTrue(flow.functions().get(0).getOwnedFunctions().isEmpty());
-            if (Platform.isRunning()) assertFalse(AbstractFunctionExt.isLeaf(flow.functions().get(0)));
+            if (Platform.isRunning())
+                assertFalse(AbstractFunctionExt.isLeaf(flow.functions().get(0)));
             var lastCommand = domain.getCommandStack().getUndoCommand();
-            if (layer == 0) unchanged(() -> behavior.operationalScenario((OperationalCapability) capabilities[0], "Reject packaged OA decomposition", flow.exchanges(), "Before", "After"));
-            else unchanged(() -> behavior.linearChain(roots[selected], "Reject packaged decomposition " + selected, flow.functions(), flow.exchanges()));
+            if (layer == 0)
+                unchanged(
+                        () ->
+                                behavior.operationalScenario(
+                                        (OperationalCapability) capabilities[0],
+                                        "Reject packaged OA decomposition",
+                                        flow.exchanges(),
+                                        "Before",
+                                        "After"));
+            else
+                unchanged(
+                        () ->
+                                behavior.linearChain(
+                                        roots[selected],
+                                        "Reject packaged decomposition " + selected,
+                                        flow.functions(),
+                                        flow.exchanges()));
             assertSame(lastCommand, domain.getCommandStack().getUndoCommand());
         }
     }
 
     private static EObject newPackage(int layer) {
-        return identified(switch (layer) {
-            case 0 -> OaFactory.eINSTANCE.createOperationalActivityPkg();
-            case 1 -> CtxFactory.eINSTANCE.createSystemFunctionPkg();
-            case 2 -> LaFactory.eINSTANCE.createLogicalFunctionPkg();
-            default -> PaFactory.eINSTANCE.createPhysicalFunctionPkg();
-        });
+        return identified(
+                switch (layer) {
+                    case 0 -> OaFactory.eINSTANCE.createOperationalActivityPkg();
+                    case 1 -> CtxFactory.eINSTANCE.createSystemFunctionPkg();
+                    case 2 -> LaFactory.eINSTANCE.createLogicalFunctionPkg();
+                    default -> PaFactory.eINSTANCE.createPhysicalFunctionPkg();
+                });
     }
 
     private static AbstractFunction newFunction(int layer) {
-        return identified(switch (layer) {
-            case 0 -> OaFactory.eINSTANCE.createOperationalActivity();
-            case 1 -> CtxFactory.eINSTANCE.createSystemFunction();
-            case 2 -> LaFactory.eINSTANCE.createLogicalFunction();
-            default -> PaFactory.eINSTANCE.createPhysicalFunction();
-        });
+        return identified(
+                switch (layer) {
+                    case 0 -> OaFactory.eINSTANCE.createOperationalActivity();
+                    case 1 -> CtxFactory.eINSTANCE.createSystemFunction();
+                    case 2 -> LaFactory.eINSTANCE.createLogicalFunction();
+                    default -> PaFactory.eINSTANCE.createPhysicalFunction();
+                });
     }
 
     private void assertChain(FunctionalChain chain, Flow flow) {
         assertEquals(FunctionalChainKind.SIMPLE, chain.getKind());
-        assertEquals(flow.functions().size() + flow.exchanges().size(), chain.getOwnedFunctionalChainInvolvements().size());
+        assertEquals(
+                flow.functions().size() + flow.exchanges().size(),
+                chain.getOwnedFunctionalChainInvolvements().size());
         for (int index = 0; index < flow.functions().size(); index++) {
-            assertSame(flow.functions().get(index), ((FunctionalChainInvolvementFunction) chain.getOwnedFunctionalChainInvolvements().get(index)).getInvolved());
+            assertSame(
+                    flow.functions().get(index),
+                    ((FunctionalChainInvolvementFunction)
+                                    chain.getOwnedFunctionalChainInvolvements().get(index))
+                            .getInvolved());
         }
         for (int index = 0; index < flow.exchanges().size(); index++) {
-            var link = (FunctionalChainInvolvementLink) chain.getOwnedFunctionalChainInvolvements().get(flow.functions().size() + index);
+            var link =
+                    (FunctionalChainInvolvementLink)
+                            chain.getOwnedFunctionalChainInvolvements()
+                                    .get(flow.functions().size() + index);
             assertSame(flow.exchanges().get(index), link.getInvolved());
             assertSame(chain.getOwnedFunctionalChainInvolvements().get(index), link.getSource());
-            assertSame(chain.getOwnedFunctionalChainInvolvements().get(index + 1), link.getTarget());
+            assertSame(
+                    chain.getOwnedFunctionalChainInvolvements().get(index + 1), link.getTarget());
         }
     }
 
@@ -455,27 +707,55 @@ public class ArcadiaBehaviorAPITest {
             var message = scenario.getOwnedMessages().get(index);
             assertEquals(MessageKind.ASYNCHRONOUS_CALL, message.getKind());
             assertSame(flow.exchanges().get(index), operation(message));
-            if (Platform.isRunning()) assertSame(flow.exchanges().get(index), message.getInvokedOperation());
-            assertSame(flow.exchanges().get(index), ((EventSentOperation) message.getSendingEnd().getEvent()).getOperation());
-            assertSame(flow.exchanges().get(index), ((EventReceiptOperation) message.getReceivingEnd().getEvent()).getOperation());
-            assertSame(flow.functions().get(index), message.getSendingEnd().getCoveredInstanceRoles().get(0).getRepresentedInstance());
-            assertSame(flow.functions().get(index + 1), message.getReceivingEnd().getCoveredInstanceRoles().get(0).getRepresentedInstance());
+            if (Platform.isRunning())
+                assertSame(flow.exchanges().get(index), message.getInvokedOperation());
+            assertSame(
+                    flow.exchanges().get(index),
+                    ((EventSentOperation) message.getSendingEnd().getEvent()).getOperation());
+            assertSame(
+                    flow.exchanges().get(index),
+                    ((EventReceiptOperation) message.getReceivingEnd().getEvent()).getOperation());
+            assertSame(
+                    flow.functions().get(index),
+                    message.getSendingEnd()
+                            .getCoveredInstanceRoles()
+                            .get(0)
+                            .getRepresentedInstance());
+            assertSame(
+                    flow.functions().get(index + 1),
+                    message.getReceivingEnd()
+                            .getCoveredInstanceRoles()
+                            .get(0)
+                            .getRepresentedInstance());
             Execution execution = (Execution) scenario.getOwnedTimeLapses().get(index);
             assertSame(message.getReceivingEnd(), execution.getStart());
             assertTrue(execution.getFinish() instanceof ExecutionEnd);
-            assertEquals(index * 3 + 2, scenario.getOwnedInteractionFragments().indexOf(execution.getFinish()));
+            assertEquals(
+                    index * 3 + 2,
+                    scenario.getOwnedInteractionFragments().indexOf(execution.getFinish()));
         }
     }
 
-    private AbstractFunction function(int layer, String name) { return (AbstractFunction) api.create(LAYERS[layer], FUNCTIONS[layer], name); }
+    private AbstractFunction function(int layer, String name) {
+        return (AbstractFunction) api.create(LAYERS[layer], FUNCTIONS[layer], name);
+    }
 
-    private static EObject operation(SequenceMessage message) { return ((EventSentOperation) message.getSendingEnd().getEvent()).getOperation(); }
+    private static EObject operation(SequenceMessage message) {
+        return ((EventSentOperation) message.getSendingEnd().getEvent()).getOperation();
+    }
 
     private Flow flow(int layer, int size) {
         List<AbstractFunction> functions = new ArrayList<>();
         List<FunctionalExchange> exchanges = new ArrayList<>();
-        for (int index = 0; index < size; index++) functions.add(function(layer, "Step " + layer + " " + index));
-        for (int index = 0; index < size - 1; index++) exchanges.add((FunctionalExchange) api.link(functions.get(index), functions.get(index + 1), "FunctionalExchange"));
+        for (int index = 0; index < size; index++)
+            functions.add(function(layer, "Step " + layer + " " + index));
+        for (int index = 0; index < size - 1; index++)
+            exchanges.add(
+                    (FunctionalExchange)
+                            api.link(
+                                    functions.get(index),
+                                    functions.get(index + 1),
+                                    "FunctionalExchange"));
         return new Flow(List.copyOf(functions), List.copyOf(exchanges));
     }
 
@@ -491,7 +771,10 @@ public class ArcadiaBehaviorAPITest {
     private int count() {
         int count = 0;
         var iterator = resource.getAllContents();
-        while (iterator.hasNext()) { iterator.next(); count++; }
+        while (iterator.hasNext()) {
+            iterator.next();
+            count++;
+        }
         return count;
     }
 
@@ -516,7 +799,9 @@ public class ArcadiaBehaviorAPITest {
                 roots[index] = OaFactory.eINSTANCE.createOperationalActivity();
                 capabilityPkg = OaFactory.eINSTANCE.createOperationalCapabilityPkg();
                 capabilities[index] = OaFactory.eINSTANCE.createOperationalCapability();
-                functionFeature = "ownedOperationalActivities"; componentFeature = "ownedEntityPkg"; capabilityFeature = "ownedOperationalCapabilities";
+                functionFeature = "ownedOperationalActivities";
+                componentFeature = "ownedEntityPkg";
+                capabilityFeature = "ownedOperationalCapabilities";
                 break;
             case 1:
                 result = CtxFactory.eINSTANCE.createSystemAnalysis();
@@ -525,7 +810,9 @@ public class ArcadiaBehaviorAPITest {
                 roots[index] = CtxFactory.eINSTANCE.createSystemFunction();
                 capabilityPkg = CtxFactory.eINSTANCE.createCapabilityPkg();
                 capabilities[index] = CtxFactory.eINSTANCE.createCapability();
-                functionFeature = "ownedSystemFunctions"; componentFeature = "ownedSystemComponentPkg"; capabilityFeature = "ownedCapabilities";
+                functionFeature = "ownedSystemFunctions";
+                componentFeature = "ownedSystemComponentPkg";
+                capabilityFeature = "ownedCapabilities";
                 break;
             case 2:
                 result = LaFactory.eINSTANCE.createLogicalArchitecture();
@@ -534,7 +821,9 @@ public class ArcadiaBehaviorAPITest {
                 roots[index] = LaFactory.eINSTANCE.createLogicalFunction();
                 capabilityPkg = LaFactory.eINSTANCE.createCapabilityRealizationPkg();
                 capabilities[index] = LaFactory.eINSTANCE.createCapabilityRealization();
-                functionFeature = "ownedLogicalFunctions"; componentFeature = "ownedLogicalComponentPkg"; capabilityFeature = "ownedCapabilityRealizations";
+                functionFeature = "ownedLogicalFunctions";
+                componentFeature = "ownedLogicalComponentPkg";
+                capabilityFeature = "ownedCapabilityRealizations";
                 break;
             default:
                 result = PaFactory.eINSTANCE.createPhysicalArchitecture();
@@ -543,11 +832,18 @@ public class ArcadiaBehaviorAPITest {
                 roots[index] = PaFactory.eINSTANCE.createPhysicalFunction();
                 capabilityPkg = LaFactory.eINSTANCE.createCapabilityRealizationPkg();
                 capabilities[index] = LaFactory.eINSTANCE.createCapabilityRealization();
-                functionFeature = "ownedPhysicalFunctions"; componentFeature = "ownedPhysicalComponentPkg"; capabilityFeature = "ownedCapabilityRealizations";
+                functionFeature = "ownedPhysicalFunctions";
+                componentFeature = "ownedPhysicalComponentPkg";
+                capabilityFeature = "ownedCapabilityRealizations";
         }
-        identified(result); identified((CapellaElement) functions); identified((CapellaElement) components); identified((CapellaElement) capabilityPkg);
-        identified(roots[index]); roots[index].setName(LAYERS[index] + " root function");
-        identified(capabilities[index]); capabilities[index].setName(LAYERS[index] + " capability");
+        identified(result);
+        identified((CapellaElement) functions);
+        identified((CapellaElement) components);
+        identified((CapellaElement) capabilityPkg);
+        identified(roots[index]);
+        roots[index].setName(LAYERS[index] + " root function");
+        identified(capabilities[index]);
+        capabilities[index].setName(LAYERS[index] + " capability");
         result.setName(LAYERS[index]);
         set(result, "ownedFunctionPkg", functions);
         set(result, componentFeature, components);
@@ -557,13 +853,25 @@ public class ArcadiaBehaviorAPITest {
         return result;
     }
 
-    private static <T extends CapellaElement> T identified(T element) { element.setId(UUID.randomUUID().toString()); return element; }
-    private static void set(EObject owner, String feature, EObject value) { owner.eSet(owner.eClass().getEStructuralFeature(feature), value); }
+    private static <T extends CapellaElement> T identified(T element) {
+        element.setId(UUID.randomUUID().toString());
+        return element;
+    }
+
+    private static void set(EObject owner, String feature, EObject value) {
+        owner.eSet(owner.eClass().getEStructuralFeature(feature), value);
+    }
+
     @SuppressWarnings("unchecked")
-    private static void add(EObject owner, String feature, EObject value) { ((List<EObject>) owner.eGet(owner.eClass().getEStructuralFeature(feature))).add(value); }
+    private static void add(EObject owner, String feature, EObject value) {
+        ((List<EObject>) owner.eGet(owner.eClass().getEStructuralFeature(feature))).add(value);
+    }
+
     private static ResourceSet resourceSet() {
         ResourceSet result = new ResourceSetImpl();
-        result.getResourceFactoryRegistry().getExtensionToFactoryMap().put("xmi", new XMIResourceFactoryImpl());
+        result.getResourceFactoryRegistry()
+                .getExtensionToFactoryMap()
+                .put("xmi", new XMIResourceFactoryImpl());
         return result;
     }
 }

@@ -9,9 +9,9 @@ import java.util.Map;
 /**
  * Skill registry for built-in and user-defined skills.
  *
- * <p>Built-in skills live under {@code resources/capella-api/skills/<skill>/}.
- * User skills live under {@code ~/.capella-ai/skills/<skill>/SKILL.md} and are
- * discoverable via {@code api.fs.list("user-skills/")}.
+ * <p>Built-in skills live under {@code resources/capella-api/skills/<skill>/}. User skills live
+ * under {@code ~/.capella-ai/skills/<skill>/SKILL.md} and are discoverable via {@code
+ * api.fs.list("user-skills/")}.
  */
 public final class SkillRegistry {
 
@@ -21,14 +21,13 @@ public final class SkillRegistry {
     }
 
     public record SkillInfo(
-        String name,
-        String description,
-        String version,
-        Trust trust,
-        List<String> requiredInputs,
-        String skillMdPath,
-        String codePath
-    ) {}
+            String name,
+            String description,
+            String version,
+            Trust trust,
+            List<String> requiredInputs,
+            String skillMdPath,
+            String codePath) {}
 
     private SkillRegistry() {}
 
@@ -60,9 +59,11 @@ public final class SkillRegistry {
             }
         }
 
-        out.sort((a, b) ->
-            a.name().toLowerCase(Locale.ROOT).compareTo(b.name().toLowerCase(Locale.ROOT))
-        );
+        out.sort(
+                (a, b) ->
+                        a.name()
+                                .toLowerCase(Locale.ROOT)
+                                .compareTo(b.name().toLowerCase(Locale.ROOT)));
         return List.copyOf(out);
     }
 
@@ -112,14 +113,13 @@ public final class SkillRegistry {
         List<String> required = parseCsvList(fm.get("required_inputs"));
         String codePath = "skills/" + name + "/skill.groovy";
         return new SkillInfo(
-            fm.getOrDefault("name", name),
-            desc != null ? desc : "",
-            version,
-            Trust.BUILT_IN,
-            required,
-            mdPath,
-            codePath
-        );
+                fm.getOrDefault("name", name),
+                desc != null ? desc : "",
+                version,
+                Trust.BUILT_IN,
+                required,
+                mdPath,
+                codePath);
     }
 
     private static SkillInfo loadUser(FileSystemAPI fs, String name) {
@@ -133,14 +133,13 @@ public final class SkillRegistry {
         String version = fm.getOrDefault("version", "0.0.0");
         List<String> required = parseCsvList(fm.get("required_inputs"));
         return new SkillInfo(
-            fm.getOrDefault("name", name),
-            desc != null ? desc : "",
-            version,
-            Trust.USER,
-            required,
-            mdPath,
-            null
-        );
+                fm.getOrDefault("name", name),
+                desc != null ? desc : "",
+                version,
+                Trust.USER,
+                required,
+                mdPath,
+                null);
     }
 
     private static Map<String, String> parseFrontmatter(String content) {
@@ -193,4 +192,3 @@ public final class SkillRegistry {
         return null;
     }
 }
-

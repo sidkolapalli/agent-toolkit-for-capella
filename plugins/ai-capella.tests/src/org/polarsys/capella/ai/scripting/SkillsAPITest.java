@@ -2,12 +2,13 @@ package org.polarsys.capella.ai.scripting;
 
 import static org.junit.Assert.*;
 
+import org.junit.Test;
+import org.polarsys.capella.ai.preferences.SkillPreferences;
+
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import org.junit.Test;
-import org.polarsys.capella.ai.preferences.SkillPreferences;
 
 public class SkillsAPITest {
 
@@ -58,16 +59,15 @@ public class SkillsAPITest {
             Path userSkill = skillsDir.resolve("user-skill").resolve("SKILL.md");
             Files.createDirectories(userSkill.getParent());
             Files.writeString(
-                userSkill,
-                "---\n" +
-                "name: user-skill\n" +
-                "description: demo user skill\n" +
-                "---\n\n" +
-                "```groovy\n" +
-                "return 1\n" +
-                "```\n",
-                StandardCharsets.UTF_8
-            );
+                    userSkill,
+                    "---\n"
+                            + "name: user-skill\n"
+                            + "description: demo user skill\n"
+                            + "---\n\n"
+                            + "```groovy\n"
+                            + "return 1\n"
+                            + "```\n",
+                    StandardCharsets.UTF_8);
 
             SkillsAPI api = new SkillsAPI(null);
             ExecutionResult res = api.run("user-skill", Map.of());
@@ -82,4 +82,3 @@ public class SkillsAPITest {
         }
     }
 }
-

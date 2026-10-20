@@ -2,8 +2,6 @@ package org.polarsys.capella.ai.scripting;
 
 import static org.junit.Assert.*;
 
-import java.lang.reflect.Proxy;
-import java.util.List;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
@@ -18,6 +16,9 @@ import org.polarsys.capella.core.data.ctx.CtxFactory;
 import org.polarsys.capella.core.data.la.LaFactory;
 import org.polarsys.capella.core.data.oa.OaFactory;
 import org.polarsys.capella.core.data.pa.PaFactory;
+
+import java.lang.reflect.Proxy;
+import java.util.List;
 
 /** Native EClass lookup semantics; no SWT, writes, save or mocked metamodel required. */
 public class CapellaAPIFindAllTypeTest {
@@ -41,13 +42,18 @@ public class CapellaAPIFindAllTypeTest {
             components[layer].setName("System responsibility");
             components[layer].setActor(false);
         }
-        Session session = (Session) Proxy.newProxyInstance(Session.class.getClassLoader(), new Class<?>[] { Session.class },
-            (proxy, method, arguments) -> switch (method.getName()) {
-                case "getSemanticResources" -> List.of(resource);
-                case "hashCode" -> System.identityHashCode(proxy);
-                case "equals" -> proxy == arguments[0];
-                default -> null;
-            });
+        Session session =
+                (Session)
+                        Proxy.newProxyInstance(
+                                Session.class.getClassLoader(),
+                                new Class<?>[] {Session.class},
+                                (proxy, method, arguments) ->
+                                        switch (method.getName()) {
+                                            case "getSemanticResources" -> List.of(resource);
+                                            case "hashCode" -> System.identityHashCode(proxy);
+                                            case "equals" -> proxy == arguments[0];
+                                            default -> null;
+                                        });
         api = new CapellaAPI(session);
     }
 
@@ -55,7 +61,8 @@ public class CapellaAPIFindAllTypeTest {
     public void sameNamedOperationalAndSystemCapabilitiesDoNotCollide() {
         assertEquals(List.of(capabilities[1]), api.findAll("Capability"));
         assertEquals(List.of(capabilities[0]), api.findAll("OperationalCapability"));
-        assertEquals(List.of(capabilities[2], capabilities[3]), api.findAll("CapabilityRealization"));
+        assertEquals(
+                List.of(capabilities[2], capabilities[3]), api.findAll("CapabilityRealization"));
     }
 
     @Test
@@ -71,7 +78,8 @@ public class CapellaAPIFindAllTypeTest {
 
     @Test
     public void suffixesAndCaseVariantsCannotMatchUnrelatedNativeTypes() {
-        for (String type : List.of("lCapability", "ity", "Actor", "capability", " Capability", "", " ")) {
+        for (String type :
+                List.of("lCapability", "ity", "Actor", "capability", " Capability", "", " ")) {
             assertTrue("Unexpected suffix/case match for " + type, api.findAll(type).isEmpty());
         }
         assertTrue(api.findAll(null).isEmpty());
@@ -79,11 +87,14 @@ public class CapellaAPIFindAllTypeTest {
 
     @Test
     public void documentedActorAliasesFilterNativeActorFlags() {
-        String[] aliases = { "OperationalActor", "SystemActor", "LogicalActor", "PhysicalActor" };
-        String[] nativeTypes = { "Entity", "SystemComponent", "LogicalComponent", "PhysicalComponent" };
+        String[] aliases = {"OperationalActor", "SystemActor", "LogicalActor", "PhysicalActor"};
+        String[] nativeTypes = {
+            "Entity", "SystemComponent", "LogicalComponent", "PhysicalComponent"
+        };
         for (int layer = 0; layer < 4; layer++) {
             assertEquals(List.of(actors[layer]), api.findAll(aliases[layer]));
-            assertEquals(List.of(components[layer], actors[layer]), api.findAll(nativeTypes[layer]));
+            assertEquals(
+                    List.of(components[layer], actors[layer]), api.findAll(nativeTypes[layer]));
         }
     }
 
@@ -147,7 +158,8 @@ public class CapellaAPIFindAllTypeTest {
                 componentPackageFeature = "ownedPhysicalComponentPkg";
                 componentFeature = "ownedPhysicalComponents";
                 break;
-            default: throw new AssertionError(layer);
+            default:
+                throw new AssertionError(layer);
         }
         set(architecture, "ownedAbstractCapabilityPkg", capabilityPackage);
         set(architecture, componentPackageFeature, componentPackage);

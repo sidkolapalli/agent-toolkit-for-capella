@@ -5,14 +5,18 @@ import static org.junit.Assert.*;
 import org.junit.Test;
 import org.polarsys.capella.ai.scripting.ExecutionResult.ErrorCode;
 
-/**
- * Unit tests for GroovyExecutor.
- */
+/** Unit tests for GroovyExecutor. */
 public class GroovyExecutorTest {
 
     @Test
     public void testExtractCodeFromGroovyBlock() {
-        String response = "Here is the code:\n```groovy\ndef x = 1\napi.create(\"Component\", \"Test\")\n```\nDone!";
+        String response =
+                "Here is the code:\n"
+                    + "```groovy\n"
+                    + "def x = 1\n"
+                    + "api.create(\"Component\", \"Test\")\n"
+                    + "```\n"
+                    + "Done!";
         String code = GroovyExecutor.extractCode(response);
 
         assertEquals("def x = 1\napi.create(\"Component\", \"Test\")", code);

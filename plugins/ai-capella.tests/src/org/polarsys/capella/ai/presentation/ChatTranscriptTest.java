@@ -2,10 +2,6 @@ package org.polarsys.capella.ai.presentation;
 
 import static org.junit.Assert.*;
 
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Consumer;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.StyledText;
@@ -20,6 +16,11 @@ import org.junit.Test;
 import org.osgi.framework.FrameworkUtil;
 import org.polarsys.capella.ai.scripting.ScriptRouter;
 
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+
 /** Native selection, wrapping, scrolling, and resource-lifecycle regressions. */
 public class ChatTranscriptTest {
     private Shell shell;
@@ -29,13 +30,18 @@ public class ChatTranscriptTest {
 
     @Before
     public void setUp() throws Exception {
-        assertSame("The platform harness must use its SWT UI thread", Display.getDefault(), Display.getCurrent());
+        assertSame(
+                "The platform harness must use its SWT UI thread",
+                Display.getDefault(),
+                Display.getCurrent());
         shell = new Shell(Display.getCurrent());
         shell.setLayout(new FillLayout());
         shell.setSize(300, 190);
         var bundle = FrameworkUtil.getBundle(ScriptRouter.class);
-        type = bundle == null ? Class.forName("org.polarsys.capella.ai.ChatTranscript")
-            : bundle.loadClass("org.polarsys.capella.ai.ChatTranscript");
+        type =
+                bundle == null
+                        ? Class.forName("org.polarsys.capella.ai.ChatTranscript")
+                        : bundle.loadClass("org.polarsys.capella.ai.ChatTranscript");
         var constructor = type.getDeclaredConstructor(org.eclipse.swt.widgets.Composite.class);
         constructor.setAccessible(true);
         transcript = constructor.newInstance(shell);
@@ -50,8 +56,12 @@ public class ChatTranscriptTest {
 
     @Test
     public void nativeTextHasSemanticStylesAndSafeSelectableCode() throws Exception {
-        append("Capella AI", "## Plan\nUse **review** and `api.find`.\n```groovy\nprintln '**literal**'\n```");
-        assertEquals("Capella AI\nPlan\nUse review and api.find.\nprintln '**literal**'\n", control.getText());
+        append(
+                "Capella AI",
+                "## Plan\nUse **review** and `api.find`.\n```groovy\nprintln '**literal**'\n```");
+        assertEquals(
+                "Capella AI\nPlan\nUse review and api.find.\nprintln '**literal**'\n",
+                control.getText());
         assertEquals(SWT.BOLD, control.getStyleRangeAtOffset(0).fontStyle);
         int code = control.getText().indexOf("println");
         assertSame(JFaceResources.getTextFont(), control.getStyleRangeAtOffset(code).font);
@@ -91,7 +101,10 @@ public class ChatTranscriptTest {
     @Test
     public void clearResetsUnreadAndSignalsStateChanges() throws Exception {
         List<Boolean> states = new ArrayList<>();
-        invoke("setUnreadListener", new Class<?>[] {Consumer.class}, (Consumer<Boolean>) states::add);
+        invoke(
+                "setUnreadListener",
+                new Class<?>[] {Consumer.class},
+                (Consumer<Boolean>) states::add);
         fillConversation();
         control.setTopPixel(0);
         append("Capella AI", "Unread reply");
@@ -105,27 +118,41 @@ public class ChatTranscriptTest {
     public void disposalReleasesOwnedFontsAndCodeColor() throws Exception {
         append("Capella AI", "## A heading\n```groovy\nprintln 1\n```");
         var heading = control.getStyleRangeAtOffset(control.getText().indexOf("A heading")).font;
-        Color color = control.getStyleRangeAtOffset(control.getText().indexOf("println")).background;
+        Color color =
+                control.getStyleRangeAtOffset(control.getText().indexOf("println")).background;
         shell.dispose();
         assertTrue(color.isDisposed());
         assertTrue(heading.isDisposed());
     }
 
     private void fillConversation() throws Exception {
-        for (int index = 0; index < 20; index++) append("Capella AI", "Response " + index + ": a readable line that wraps in this narrow native pane. ".repeat(3));
+        for (int index = 0; index < 20; index++)
+            append(
+                    "Capella AI",
+                    "Response "
+                            + index
+                            + ": a readable line that wraps in this narrow native pane. "
+                                    .repeat(3));
     }
 
-    /** Seen in Capella: the last wrapped lines of a reply stayed below the fold while following the chat. */
+    /**
+     * Seen in Capella: the last wrapped lines of a reply stayed below the fold while following the
+     * chat.
+     */
     @Test
-    public void followingTheChatShowsTheLastWrappedLineEvenAfterTheTranscriptShrinks() throws Exception {
-        String paragraph = "The execution feedback and model reads describe the actual result and native validation diagnostics "
-            + "are reported separately, so this long reply must wrap across many lines in a narrow dock. ";
-        for (int i = 0; i < 6; i++) append(i % 2 == 0 ? "Capella AI" : "Model changes", paragraph.repeat(3));
-        while (Display.getCurrent().readAndDispatch()) { }
+    public void followingTheChatShowsTheLastWrappedLineEvenAfterTheTranscriptShrinks()
+            throws Exception {
+        String paragraph =
+                "The execution feedback and model reads describe the actual result and native"
+                    + " validation diagnostics are reported separately, so this long reply must"
+                    + " wrap across many lines in a narrow dock. ";
+        for (int i = 0; i < 6; i++)
+            append(i % 2 == 0 ? "Capella AI" : "Model changes", paragraph.repeat(3));
+        while (Display.getCurrent().readAndDispatch()) {}
         assertTrue("Scrolled to the very end after appending", atEnd());
         shell.setSize(300, 140);
         shell.layout(true, true);
-        while (Display.getCurrent().readAndDispatch()) { }
+        while (Display.getCurrent().readAndDispatch()) {}
         assertTrue("Still at the end after the transcript got shorter", atEnd());
     }
 

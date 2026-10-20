@@ -1,5 +1,13 @@
 package org.polarsys.capella.ai.model.index;
 
+import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.EStructuralFeature;
+import org.eclipse.emf.ecore.resource.Resource;
+import org.eclipse.emf.ecore.resource.ResourceSet;
+import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.eclipse.sirius.business.api.session.Session;
+import org.polarsys.capella.ai.session.SessionBridge;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -15,13 +23,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import org.eclipse.emf.ecore.EObject;
-import org.eclipse.emf.ecore.EStructuralFeature;
-import org.eclipse.emf.ecore.resource.Resource;
-import org.eclipse.emf.ecore.resource.ResourceSet;
-import org.eclipse.emf.ecore.util.EcoreUtil;
-import org.eclipse.sirius.business.api.session.Session;
-import org.polarsys.capella.ai.session.SessionBridge;
 
 /** Builds a lightweight search index over Capella model elements. */
 public final class ModelIndex {
@@ -29,11 +30,12 @@ public final class ModelIndex {
     private static final Map<Session, CacheEntry> CACHE = new WeakHashMap<>();
     private static final Map<Session, Future<?>> INFLIGHT = new WeakHashMap<>();
     private static final ExecutorService INDEX_EXEC =
-        Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "capella-ai-model-index");
-            t.setDaemon(true);
-            return t;
-        });
+            Executors.newSingleThreadExecutor(
+                    r -> {
+                        Thread t = new Thread(r, "capella-ai-model-index");
+                        t.setDaemon(true);
+                        return t;
+                    });
 
     private ModelIndex() {}
 
@@ -45,32 +47,28 @@ public final class ModelIndex {
 
         CacheEntry(Session session, List<IndexedElement> elements) {
             this.elements = elements;
-            this.byUuid = elements
-                .stream()
-                .filter(element -> element.uuid != null)
-                .collect(
-                    Collectors.toConcurrentMap(
-                        element -> element.uuid,
-                        element -> element,
-                        (left, right) -> left
-                    )
-                );
+            this.byUuid =
+                    elements.stream()
+                            .filter(element -> element.uuid != null)
+                            .collect(
+                                    Collectors.toConcurrentMap(
+                                            element -> element.uuid,
+                                            element -> element,
+                                            (left, right) -> left));
             // Invalidate the cache on any committed model change
             this.listener =
-                new org.eclipse.emf.transaction.ResourceSetListenerImpl() {
-                    @Override
-                    public void resourceSetChanged(
-                        org.eclipse.emf.transaction.ResourceSetChangeEvent event
-                    ) {
-                        if (
-                            org.polarsys.capella.ai.preferences.AdvancedPreferences.isAsyncIndexingEnabled()
-                        ) {
-                            ModelIndex.rebuildAsync(session);
-                        } else {
-                            ModelIndex.invalidate(session);
+                    new org.eclipse.emf.transaction.ResourceSetListenerImpl() {
+                        @Override
+                        public void resourceSetChanged(
+                                org.eclipse.emf.transaction.ResourceSetChangeEvent event) {
+                            if (org.polarsys.capella.ai.preferences.AdvancedPreferences
+                                    .isAsyncIndexingEnabled()) {
+                                ModelIndex.rebuildAsync(session);
+                            } else {
+                                ModelIndex.invalidate(session);
+                            }
                         }
-                    }
-                };
+                    };
         }
     }
 
@@ -85,13 +83,7 @@ public final class ModelIndex {
         public final String summary;
 
         IndexedElement(
-            String name,
-            String type,
-            String layer,
-            String uuid,
-            String path,
-            String summary
-        ) {
+                String name, String type, String layer, String uuid, String path, String summary) {
             this.name = name;
             this.type = type;
             this.layer = layer;
@@ -107,27 +99,21 @@ public final class ModelIndex {
     }
 
     public static synchronized List<IndexedElement> search(
-        Session session,
-        String query,
-        int limit
-    ) {
+            Session session, String query, int limit) {
         if (session == null || query == null || query.isBlank()) {
             return List.of();
         }
         List<IndexedElement> index = ensureIndex(session);
         String[] tokens = query.toLowerCase(Locale.ROOT).split("\\s+");
-        return index
-            .stream()
-            .map(element -> new ScoredElement(element, score(element, tokens)))
-            .filter(scored -> scored.score > 0)
-            .sorted(
-                Comparator.comparingInt((ScoredElement s) ->
-                    -s.score
-                ).thenComparing(s -> s.element.name)
-            )
-            .limit(limit)
-            .map(scored -> scored.element)
-            .collect(Collectors.toList());
+        return index.stream()
+                .map(element -> new ScoredElement(element, score(element, tokens)))
+                .filter(scored -> scored.score > 0)
+                .sorted(
+                        Comparator.comparingInt((ScoredElement s) -> -s.score)
+                                .thenComparing(s -> s.element.name))
+                .limit(limit)
+                .map(scored -> scored.element)
+                .collect(Collectors.toList());
     }
 
     /** Clears cached index for a session. */
@@ -143,9 +129,8 @@ public final class ModelIndex {
                 }
             } catch (Exception ex) {
                 System.err.println(
-                    "[ModelIndex] Error removing listener during invalidation: " +
-                        ex.getMessage()
-                );
+                        "[ModelIndex] Error removing listener during invalidation: "
+                                + ex.getMessage());
             }
         }
     }
@@ -155,53 +140,52 @@ public final class ModelIndex {
         if (session == null) return;
         Future<?> f = INFLIGHT.get(session);
         if (f != null && !f.isDone()) return;
-        Future<?> submitted = INDEX_EXEC.submit(() -> {
-            try {
-                List<IndexedElement> rebuilt;
-                var domain = session.getTransactionalEditingDomain();
-                if (domain != null) {
-                    final List<IndexedElement>[] holder = new List[] {
-                        List.of(),
-                    };
-                    try {
-                        domain.runExclusive(() -> holder[0] = rebuild(session));
-                    } catch (Exception e) {
-                        // Fallback without exclusive lock
-                        holder[0] = rebuild(session);
-                    }
-                    rebuilt = holder[0];
-                } else {
-                    rebuilt = rebuild(session);
-                }
-                synchronized (ModelIndex.class) {
-                    CacheEntry old = CACHE.get(session);
-                    try {
-                        if (old != null) {
-                            var oldDomain =
-                                session.getTransactionalEditingDomain();
-                            if (oldDomain != null && old.listener != null) {
-                                oldDomain.removeResourceSetListener(
-                                    old.listener
-                                );
+        Future<?> submitted =
+                INDEX_EXEC.submit(
+                        () -> {
+                            try {
+                                List<IndexedElement> rebuilt;
+                                var domain = session.getTransactionalEditingDomain();
+                                if (domain != null) {
+                                    final List<IndexedElement>[] holder =
+                                            new List[] {
+                                                List.of(),
+                                            };
+                                    try {
+                                        domain.runExclusive(() -> holder[0] = rebuild(session));
+                                    } catch (Exception e) {
+                                        // Fallback without exclusive lock
+                                        holder[0] = rebuild(session);
+                                    }
+                                    rebuilt = holder[0];
+                                } else {
+                                    rebuilt = rebuild(session);
+                                }
+                                synchronized (ModelIndex.class) {
+                                    CacheEntry old = CACHE.get(session);
+                                    try {
+                                        if (old != null) {
+                                            var oldDomain = session.getTransactionalEditingDomain();
+                                            if (oldDomain != null && old.listener != null) {
+                                                oldDomain.removeResourceSetListener(old.listener);
+                                            }
+                                        }
+                                    } catch (Exception ex) {
+                                        System.err.println(
+                                                "[ModelIndex] Error removing old listener during"
+                                                    + " rebuild: "
+                                                        + ex.getMessage());
+                                    }
+                                    CacheEntry refreshed = new CacheEntry(session, rebuilt);
+                                    CACHE.put(session, refreshed);
+                                    attachListener(session, refreshed);
+                                }
+                            } catch (Exception ex) {
+                                System.err.println(
+                                        "[ModelIndex] Error during async rebuild: "
+                                                + ex.getMessage());
                             }
-                        }
-                    } catch (Exception ex) {
-                        System.err.println(
-                            "[ModelIndex] Error removing old listener during rebuild: " +
-                                ex.getMessage()
-                        );
-                    }
-                    CacheEntry refreshed = new CacheEntry(session, rebuilt);
-                    CACHE.put(session, refreshed);
-                    attachListener(session, refreshed);
-                }
-            } catch (Exception ex) {
-                System.err.println(
-                    "[ModelIndex] Error during async rebuild: " +
-                        ex.getMessage()
-                );
-            }
-        });
+                        });
         INFLIGHT.put(session, submitted);
     }
 
@@ -228,16 +212,12 @@ public final class ModelIndex {
                 domain.addResourceSetListener(entry.listener);
             }
         } catch (Exception ex) {
-            System.err.println(
-                "[ModelIndex] Error attaching listener: " + ex.getMessage()
-            );
+            System.err.println("[ModelIndex] Error attaching listener: " + ex.getMessage());
         }
     }
 
     private static List<IndexedElement> rebuild(Session session) {
-        if (
-            session == null || session.getTransactionalEditingDomain() == null
-        ) {
+        if (session == null || session.getTransactionalEditingDomain() == null) {
             return List.of();
         }
         // Limit indexing to semantic resources for performance
@@ -247,9 +227,7 @@ public final class ModelIndex {
         } catch (Exception ex) {
             resources = null;
         }
-        ResourceSet resourceSet = session
-            .getTransactionalEditingDomain()
-            .getResourceSet();
+        ResourceSet resourceSet = session.getTransactionalEditingDomain().getResourceSet();
         if (resources == null || resources.isEmpty()) {
             resources = resourceSet.getResources();
         }
@@ -260,16 +238,14 @@ public final class ModelIndex {
                 continue;
             }
             for (EObject root : resource.getContents()) {
-                visit(root, eo -> {
-                    IndexedElement element = indexElement(
-                        eo,
-                        layerCache,
-                        resourceSet
-                    );
-                    if (element != null) {
-                        elements.add(element);
-                    }
-                });
+                visit(
+                        root,
+                        eo -> {
+                            IndexedElement element = indexElement(eo, layerCache, resourceSet);
+                            if (element != null) {
+                                elements.add(element);
+                            }
+                        });
             }
         }
         return elements;
@@ -279,10 +255,7 @@ public final class ModelIndex {
         return describe(SessionBridge.getActiveSession(), eo);
     }
 
-    public static synchronized IndexedElement describe(
-        Session session,
-        EObject eo
-    ) {
+    public static synchronized IndexedElement describe(Session session, EObject eo) {
         if (session == null || eo == null) {
             return null;
         }
@@ -297,10 +270,10 @@ public final class ModelIndex {
                 return cached;
             }
         }
-        ResourceSet resourceSet = session.getTransactionalEditingDomain() !=
-            null
-            ? session.getTransactionalEditingDomain().getResourceSet()
-            : null;
+        ResourceSet resourceSet =
+                session.getTransactionalEditingDomain() != null
+                        ? session.getTransactionalEditingDomain().getResourceSet()
+                        : null;
         if (resourceSet == null) {
             return null;
         }
@@ -320,10 +293,7 @@ public final class ModelIndex {
     }
 
     private static IndexedElement indexElement(
-        EObject eo,
-        Map<EObject, String> layerCache,
-        ResourceSet resourceSet
-    ) {
+            EObject eo, Map<EObject, String> layerCache, ResourceSet resourceSet) {
         String name = readFeature(eo, "name");
         String type = eo.eClass().getName();
         String uuid = readFeature(eo, "uuid");
@@ -338,9 +308,7 @@ public final class ModelIndex {
     }
 
     private static String readFeature(EObject eo, String featureName) {
-        EStructuralFeature feature = eo
-            .eClass()
-            .getEStructuralFeature(featureName);
+        EStructuralFeature feature = eo.eClass().getEStructuralFeature(featureName);
         if (feature != null) {
             Object value = eo.eGet(feature);
             if (value != null && !String.valueOf(value).isBlank()) {
@@ -351,23 +319,30 @@ public final class ModelIndex {
     }
 
     private static String resolveLayer(
-        EObject eo,
-        Map<EObject, String> cache,
-        ResourceSet resourceSet
-    ) {
-        return cache.computeIfAbsent(eo, key -> {
-            for (EObject ancestor = key; ancestor != null; ancestor = ancestor.eContainer()) {
-                switch (ancestor.eClass().getName()) {
-                    case "OperationalAnalysis": return "OA";
-                    case "SystemAnalysis": return "SA";
-                    case "LogicalArchitecture": return "LA";
-                    case "PhysicalArchitecture": return "PA";
-                    case "EPBSArchitecture": return "EPBS";
-                    default: break;
-                }
-            }
-            return "";
-        });
+            EObject eo, Map<EObject, String> cache, ResourceSet resourceSet) {
+        return cache.computeIfAbsent(
+                eo,
+                key -> {
+                    for (EObject ancestor = key;
+                            ancestor != null;
+                            ancestor = ancestor.eContainer()) {
+                        switch (ancestor.eClass().getName()) {
+                            case "OperationalAnalysis":
+                                return "OA";
+                            case "SystemAnalysis":
+                                return "SA";
+                            case "LogicalArchitecture":
+                                return "LA";
+                            case "PhysicalArchitecture":
+                                return "PA";
+                            case "EPBSArchitecture":
+                                return "EPBS";
+                            default:
+                                break;
+                        }
+                    }
+                    return "";
+                });
     }
 
     private static String buildPath(EObject eo) {
@@ -385,12 +360,7 @@ public final class ModelIndex {
         return String.join(" / ", segments);
     }
 
-    private static String composeSummary(
-        String name,
-        String type,
-        String layer,
-        String path
-    ) {
+    private static String composeSummary(String name, String type, String layer, String path) {
         StringJoiner joiner = new StringJoiner(" · ");
         joiner.add(type);
         if (name != null && !name.isBlank()) {

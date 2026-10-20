@@ -1,104 +1,84 @@
 package org.polarsys.capella.ai.model;
 
-import java.util.List;
-
 import org.eclipse.emf.ecore.EObject;
 import org.polarsys.capella.ai.model.ActionResult.ErrorCode;
 
+import java.util.List;
+
 /**
- * Structured result from element lookup with diagnostic information.
- * Provides alternatives for "did you mean?" suggestions when lookup fails.
+ * Structured result from element lookup with diagnostic information. Provides alternatives for "did
+ * you mean?" suggestions when lookup fails.
  */
 public record FindResult(
-    EObject element,
-    ErrorCode code,
-    String message,
-    int matchCount,
-    List<String> alternatives
-) {
+        EObject element,
+        ErrorCode code,
+        String message,
+        int matchCount,
+        List<String> alternatives) {
 
-    /**
-     * Compact constructor ensuring immutable collections.
-     */
+    /** Compact constructor ensuring immutable collections. */
     public FindResult {
         alternatives = alternatives != null ? List.copyOf(alternatives) : List.of();
     }
 
     // ========== Query Methods ==========
 
-    /**
-     * Check if lookup was successful (exactly one match found).
-     */
+    /** Check if lookup was successful (exactly one match found). */
     public boolean success() {
         return element != null && code == ErrorCode.SUCCESS;
     }
 
-    /**
-     * Check if lookup failed.
-     */
+    /** Check if lookup failed. */
     public boolean failed() {
         return !success();
     }
 
-    /**
-     * Check if result is ambiguous (multiple matches found).
-     */
+    /** Check if result is ambiguous (multiple matches found). */
     public boolean ambiguous() {
         return code == ErrorCode.DUPLICATE_AMBIGUOUS;
     }
 
-    /**
-     * Check if alternatives are available for correction.
-     */
+    /** Check if alternatives are available for correction. */
     public boolean hasAlternatives() {
         return !alternatives.isEmpty();
     }
 
     // ========== Factory Methods ==========
 
-    /**
-     * Create a success result with the found element.
-     */
+    /** Create a success result with the found element. */
     public static FindResult success(EObject element) {
         return new FindResult(element, ErrorCode.SUCCESS, null, 1, List.of());
     }
 
-    /**
-     * Create a not-found result with similar element suggestions.
-     */
+    /** Create a not-found result with similar element suggestions. */
     public static FindResult notFound(String className, String name, List<String> similar) {
         String msg = "No " + className + " named '" + name + "' found";
         return new FindResult(null, ErrorCode.ELEMENT_NOT_FOUND, msg, 0, similar);
     }
 
-    /**
-     * Create a not-found result with custom message and suggestions.
-     */
-    public static FindResult notFound(String className, String name, List<String> similar, String customMessage) {
+    /** Create a not-found result with custom message and suggestions. */
+    public static FindResult notFound(
+            String className, String name, List<String> similar, String customMessage) {
         return new FindResult(null, ErrorCode.ELEMENT_NOT_FOUND, customMessage, 0, similar);
     }
 
     /**
-     * Create an ambiguous result when multiple elements match.
-     * Returns the first match but indicates ambiguity.
+     * Create an ambiguous result when multiple elements match. Returns the first match but
+     * indicates ambiguity.
      */
     public static FindResult ambiguous(EObject first, int count, List<String> allNames) {
         String msg = count + " elements match - specify index to disambiguate";
         return new FindResult(first, ErrorCode.DUPLICATE_AMBIGUOUS, msg, count, allNames);
     }
 
-    /**
-     * Create an error result for session or input issues.
-     */
+    /** Create an error result for session or input issues. */
     public static FindResult error(ErrorCode code, String message) {
         return new FindResult(null, code, message, 0, List.of());
     }
 
     // ========== Conversion Methods ==========
 
-    /**
-     * Convert to ActionResult for use in action handlers.
-     */
+    /** Convert to ActionResult for use in action handlers. */
     public ActionResult toActionResult() {
         if (success()) {
             return ActionResult.ok();
@@ -109,9 +89,7 @@ public record FindResult(
         return ActionResult.fail(code, message);
     }
 
-    /**
-     * Convert to ActionResult with custom error code.
-     */
+    /** Convert to ActionResult with custom error code. */
     public ActionResult toActionResult(ErrorCode overrideCode) {
         if (success()) {
             return ActionResult.ok();
@@ -122,9 +100,7 @@ public record FindResult(
         return ActionResult.fail(overrideCode, message);
     }
 
-    /**
-     * Format result for LLM consumption.
-     */
+    /** Format result for LLM consumption. */
     public String formatForLLM() {
         if (success()) {
             return "FOUND: " + getElementDescription();

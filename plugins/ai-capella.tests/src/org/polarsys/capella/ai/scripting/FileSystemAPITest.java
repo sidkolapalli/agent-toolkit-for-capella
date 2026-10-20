@@ -2,16 +2,15 @@ package org.polarsys.capella.ai.scripting;
 
 import static org.junit.Assert.*;
 
+import org.junit.Before;
+import org.junit.Test;
+import org.polarsys.capella.ai.model.ActionResult;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import org.polarsys.capella.ai.model.ActionResult;
-import org.junit.Before;
-import org.junit.Test;
 
-/**
- * Tests for FileSystemAPI - Anthropic discovery pattern implementation.
- */
+/** Tests for FileSystemAPI - Anthropic discovery pattern implementation. */
 public class FileSystemAPITest {
 
     private FileSystemAPI fs;
@@ -27,9 +26,8 @@ public class FileSystemAPITest {
 
         // Should contain main directories
         assertTrue(
-            "Root should contain api/ or SKILL.md, got: " + entries,
-            entries.contains("api/") || entries.contains("SKILL.md")
-        );
+                "Root should contain api/ or SKILL.md, got: " + entries,
+                entries.contains("api/") || entries.contains("SKILL.md"));
     }
 
     @Test
@@ -46,14 +44,10 @@ public class FileSystemAPITest {
 
         // Root SKILL.md should exist and contain key content
         assertNotNull(content);
-        assertFalse(
-            "SKILL.md should exist",
-            content.contains("File not found")
-        );
+        assertFalse("SKILL.md should exist", content.contains("File not found"));
         assertTrue(
-            "SKILL.md should document the API",
-            content.contains("api.fs") || content.contains("Capella")
-        );
+                "SKILL.md should document the API",
+                content.contains("api.fs") || content.contains("Capella"));
     }
 
     @Test
@@ -63,9 +57,8 @@ public class FileSystemAPITest {
         assertNotNull(content);
         // Should contain create documentation
         assertTrue(
-            "create.md should document create operations",
-            content.contains("create") || content.contains("Create")
-        );
+                "create.md should document create operations",
+                content.contains("create") || content.contains("Create"));
     }
 
     @Test
@@ -75,9 +68,8 @@ public class FileSystemAPITest {
         // Should return helpful error message
         assertNotNull(content);
         assertTrue(
-            "Should indicate file not found",
-            content.contains("not found") || content.contains("File not found")
-        );
+                "Should indicate file not found",
+                content.contains("not found") || content.contains("File not found"));
     }
 
     @Test
@@ -113,10 +105,7 @@ public class FileSystemAPITest {
 
         // Should be safe - either not found or returns safe content
         assertNotNull(content);
-        assertFalse(
-            "Path traversal should be blocked",
-            content.contains("root:")
-        );
+        assertFalse("Path traversal should be blocked", content.contains("root:"));
     }
 
     @Test
@@ -151,10 +140,7 @@ public class FileSystemAPITest {
             System.setProperty("capella.ai.workspace.dir", workspace.toString());
             FileSystemAPI localFs = new FileSystemAPI();
 
-            ActionResult write = localFs.write(
-                "state/run-1.json",
-                "{\"ok\":true}"
-            );
+            ActionResult write = localFs.write("state/run-1.json", "{\"ok\":true}");
             assertTrue("write should succeed: " + write, write.success());
 
             assertTrue(localFs.exists("workspace/state/run-1.json"));
@@ -165,7 +151,9 @@ public class FileSystemAPITest {
             assertTrue("workspace root should include state/: " + root, root.contains("state/"));
 
             List<String> state = localFs.list("workspace/state/");
-            assertTrue("workspace/state should include run-1.json: " + state, state.contains("run-1.json"));
+            assertTrue(
+                    "workspace/state should include run-1.json: " + state,
+                    state.contains("run-1.json"));
         } finally {
             if (prevDir != null) {
                 System.setProperty("capella.ai.workspace.dir", prevDir);
@@ -256,9 +244,11 @@ public class FileSystemAPITest {
         } finally {
             if (prevDir != null) System.setProperty("capella.ai.workspace.dir", prevDir);
             else System.clearProperty("capella.ai.workspace.dir");
-            if (prevMaxTotal != null) System.setProperty("capella.ai.workspace.maxTotalBytes", prevMaxTotal);
+            if (prevMaxTotal != null)
+                System.setProperty("capella.ai.workspace.maxTotalBytes", prevMaxTotal);
             else System.clearProperty("capella.ai.workspace.maxTotalBytes");
-            if (prevMaxFile != null) System.setProperty("capella.ai.workspace.maxFileBytes", prevMaxFile);
+            if (prevMaxFile != null)
+                System.setProperty("capella.ai.workspace.maxFileBytes", prevMaxFile);
             else System.clearProperty("capella.ai.workspace.maxFileBytes");
         }
     }

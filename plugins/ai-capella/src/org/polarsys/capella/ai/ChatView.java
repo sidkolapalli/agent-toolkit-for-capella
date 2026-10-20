@@ -1,32 +1,16 @@
 package org.polarsys.capella.ai;
 
-import java.util.HashMap;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.lang.reflect.InvocationTargetException;
-import java.net.URI;
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
 import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.IToolBarManager;
-import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.dialogs.ProgressMonitorDialog;
+import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.window.Window;
 import org.eclipse.jface.wizard.WizardDialog;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.custom.StackLayout;
 import org.eclipse.swt.custom.ScrolledComposite;
+import org.eclipse.swt.custom.StackLayout;
 import org.eclipse.swt.events.KeyAdapter;
 import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.layout.GridData;
@@ -43,39 +27,55 @@ import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.dialogs.PreferencesUtil;
 import org.eclipse.ui.part.ViewPart;
-import org.polarsys.capella.ai.llm.LLMService;
-import org.polarsys.capella.ai.agent.ArcadiaAgent;
-import org.polarsys.capella.ai.agent.AgentRuntime;
 import org.polarsys.capella.ai.agent.AgentJson;
+import org.polarsys.capella.ai.agent.AgentRuntime;
+import org.polarsys.capella.ai.agent.ArcadiaAgent;
+import org.polarsys.capella.ai.agent.ModelChangeSummary;
+import org.polarsys.capella.ai.agent.ModelVerification;
 import org.polarsys.capella.ai.agent.ReviewedEdit;
 import org.polarsys.capella.ai.agent.TaskContinuation;
 import org.polarsys.capella.ai.agent.TaskTermination;
-import org.polarsys.capella.ai.codex.CodexPreferences;
 import org.polarsys.capella.ai.codex.BundledCodexRuntime;
 import org.polarsys.capella.ai.codex.CodexAccountService;
-import org.polarsys.capella.ai.agent.ModelChangeSummary;
-import org.polarsys.capella.ai.agent.ModelVerification;
-import org.polarsys.capella.ai.agent.ModelPostconditions;
+import org.polarsys.capella.ai.codex.CodexPreferences;
+import org.polarsys.capella.ai.llm.LLMService;
 import org.polarsys.capella.ai.preferences.AdvancedPreferences;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.presentation.ConversationState;
 import org.polarsys.capella.ai.presentation.ConversationStore;
 import org.polarsys.capella.ai.scripting.ExecutionResult;
-import org.polarsys.capella.ai.scripting.GroovyExecutor;
 import org.polarsys.capella.ai.scripting.GroovyCompilationValidator;
-import org.polarsys.capella.ai.scripting.ScriptRouter;
+import org.polarsys.capella.ai.scripting.GroovyExecutor;
 import org.polarsys.capella.ai.scripting.RequirementsAPI;
+import org.polarsys.capella.ai.scripting.ScriptRouter;
 import org.polarsys.capella.ai.session.SelectionContext;
 import org.polarsys.capella.ai.session.SessionBridge;
+
+import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /** Docked assistant grounded in the current model, with review before execution. */
 public class ChatView extends ViewPart {
     public static final String ID = "org.polarsys.capella.ai.chatview";
-    private final ExecutorService requests = Executors.newSingleThreadExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "Capella AI chat");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ExecutorService requests =
+            Executors.newSingleThreadExecutor(
+                    runnable -> {
+                        Thread thread = new Thread(runnable, "Capella AI chat");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
     private final Map<String, ConversationState> conversations = new HashMap<>();
     private ConversationState conversation = new ConversationState();
     private ConversationStore conversationStore;
@@ -87,12 +87,27 @@ public class ChatView extends ViewPart {
     private Composite conversationArea, welcomeArea, reviewArea, taskPlanArea;
     private ScrolledComposite welcomeScroll;
     private StackLayout conversationLayout;
-    private Label modelLabel, contextLabel, providerLabel, welcomeTitle, welcomeDescription, activityLabel, reviewLabel;
+    private Label modelLabel,
+            contextLabel,
+            providerLabel,
+            welcomeTitle,
+            welcomeDescription,
+            activityLabel,
+            reviewLabel;
     private Text inputField;
     private Text taskPlanText;
     private Button taskPlanToggle;
-    private Button sendButton, stopButton, reviewButton, dismissButton, retryButton, latestButton,
-        contextButton, preferencesButton, signInButton, explainButton, newModelButton;
+    private Button sendButton,
+            stopButton,
+            reviewButton,
+            dismissButton,
+            retryButton,
+            latestButton,
+            contextButton,
+            preferencesButton,
+            signInButton,
+            explainButton,
+            newModelButton;
     private ProgressBar progress;
     private Display display;
     private Action newConversationAction, preferencesAction, requirementsAction;
@@ -102,7 +117,12 @@ public class ChatView extends ViewPart {
     private volatile Thread requestThread;
     private volatile CompletableFuture<Boolean> pendingReview;
     private String reviewCode;
-    private String reviewModelName, reviewContextSummary, reviewProposalSummary, reviewExpectedChecks, retryInput, stopReason;
+    private String reviewModelName,
+            reviewContextSummary,
+            reviewProposalSummary,
+            reviewExpectedChecks,
+            retryInput,
+            stopReason;
     private String connectionStatus;
     private SelectionContext retryContext;
     private SelectionContext requestContext;
@@ -114,10 +134,16 @@ public class ChatView extends ViewPart {
     private long requestStarted;
     private String activityText = "";
     private TaskTermination taskTermination;
-    /** Fresh requests started for one user message when a task runs out of budget with edits pending. */
+
+    /**
+     * Fresh requests started for one user message when a task runs out of budget with edits
+     * pending.
+     */
     static final int MAX_AUTOMATIC_CONTINUATIONS = 4;
+
     /** A correction receives its own review; no prompt can silently run an unbounded sequence. */
     static final int MAX_PROPOSALS_PER_REQUEST = 3;
+
     private int automaticContinuations;
     private Session terminationSession;
     private ConversationState terminationConversation;
@@ -128,7 +154,13 @@ public class ChatView extends ViewPart {
     public void createPartControl(Composite parent) {
         display = parent.getDisplay();
         if (Activator.getDefault() != null) {
-            conversationStore = new ConversationStore(Activator.getDefault().getStateLocation().toFile().toPath().resolve("conversations"));
+            conversationStore =
+                    new ConversationStore(
+                            Activator.getDefault()
+                                    .getStateLocation()
+                                    .toFile()
+                                    .toPath()
+                                    .resolve("conversations"));
         }
         refreshProvider();
         Composite container = new Composite(parent, SWT.NONE);
@@ -148,17 +180,24 @@ public class ChatView extends ViewPart {
         composerLayout.marginHeight = 0;
         composerLayout.verticalSpacing = 8;
         composer.setLayout(composerLayout);
-        // A resize re-lays the composer from cached child sizes; refresh them first (runs before that layout).
+        // A resize re-lays the composer from cached child sizes; refresh them first (runs before
+        // that layout).
         composer.addListener(SWT.Resize, event -> composer.layout(true, true));
         createComposer(composer);
         createToolbar();
         installContextListeners();
         refreshContext();
         setBusy(false);
-        // The workbench theme restyles widgets after creation and resize layouts reuse cached sizes,
-        // which left the Send row clipped in a themed workbench. Flush on every resize and once styled.
+        // The workbench theme restyles widgets after creation and resize layouts reuse cached
+        // sizes,
+        // which left the Send row clipped in a themed workbench. Flush on every resize and once
+        // styled.
         container.addListener(SWT.Resize, event -> container.layout(true, true));
-        display.timerExec(500, () -> { if (!container.isDisposed()) container.layout(true, true); });
+        display.timerExec(
+                500,
+                () -> {
+                    if (!container.isDisposed()) container.layout(true, true);
+                });
     }
 
     private void createContextHeader(Composite parent) {
@@ -192,7 +231,8 @@ public class ChatView extends ViewPart {
         providerLabel.setLayoutData(providerData);
         signInButton = new Button(header, SWT.PUSH);
         signInButton.setText("Sign in with ChatGPT");
-        signInButton.setToolTipText("Use your existing OpenAI connection or sign in through your browser");
+        signInButton.setToolTipText(
+                "Use your existing OpenAI connection or sign in through your browser");
         signInButton.addListener(SWT.Selection, event -> signInWithChatGPT());
         modelLabel.setToolTipText("Conversation and draft are saved locally for this model");
         Label separator = new Label(parent, SWT.SEPARATOR | SWT.HORIZONTAL);
@@ -209,11 +249,12 @@ public class ChatView extends ViewPart {
         conversationLayout = new StackLayout();
         conversationArea.setLayout(conversationLayout);
         transcript = new ChatTranscript(conversationArea);
-        transcript.setUnreadListener(unread -> {
-            if (latestButton != null && !latestButton.isDisposed()) {
-                showControl(latestButton, unread);
-            }
-        });
+        transcript.setUnreadListener(
+                unread -> {
+                    if (latestButton != null && !latestButton.isDisposed()) {
+                        showControl(latestButton, unread);
+                    }
+                });
         welcomeScroll = new ScrolledComposite(conversationArea, SWT.V_SCROLL);
         welcomeScroll.setExpandHorizontal(true);
         welcomeScroll.setExpandVertical(true);
@@ -232,12 +273,22 @@ public class ChatView extends ViewPart {
         newModelButton.setText("New Capella model…");
         newModelButton.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
         newModelButton.addListener(SWT.Selection, event -> openNewModelWizard());
-        explainButton = starter(welcomeArea, "Explain selection",
-            "Explain the selected elements, their responsibilities and their relationships in this model.");
-        starter(welcomeArea, "Summarize model",
-            "Summarize this model across OA, SA, LA, PA and EPBS. Identify the main architecture and any gaps.");
-        starter(welcomeArea, "Plan a change",
-            "Help me plan the next change in this architecture. Ask for missing details before proposing model changes.");
+        explainButton =
+                starter(
+                        welcomeArea,
+                        "Explain selection",
+                        "Explain the selected elements, their responsibilities and their"
+                            + " relationships in this model.");
+        starter(
+                welcomeArea,
+                "Summarize model",
+                "Summarize this model across OA, SA, LA, PA and EPBS. Identify the main"
+                    + " architecture and any gaps.");
+        starter(
+                welcomeArea,
+                "Plan a change",
+                "Help me plan the next change in this architecture. Ask for missing details before"
+                    + " proposing model changes.");
         welcomeScroll.setContent(welcomeArea);
         welcomeScroll.addListener(SWT.Resize, event -> layoutWelcome());
         conversationLayout.topControl = welcomeScroll;
@@ -248,11 +299,13 @@ public class ChatView extends ViewPart {
         button.setText(label);
         button.setToolTipText(prompt);
         button.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
-        button.addListener(SWT.Selection, event -> {
-            inputField.setText(prompt);
-            inputField.setSelection(inputField.getCharCount());
-            inputField.setFocus();
-        });
+        button.addListener(
+                SWT.Selection,
+                event -> {
+                    inputField.setText(prompt);
+                    inputField.setSelection(inputField.getCharCount());
+                    inputField.setFocus();
+                });
         return button;
     }
 
@@ -270,11 +323,13 @@ public class ChatView extends ViewPart {
         taskPlanToggle = new Button(taskPlanArea, SWT.PUSH);
         taskPlanToggle.setText("Hide");
         taskPlanToggle.setToolTipText("Show or hide the current task plan");
-        taskPlanToggle.addListener(SWT.Selection, event -> {
-            boolean visible = !taskPlanText.getVisible();
-            showControl(taskPlanText, visible);
-            taskPlanToggle.setText(visible ? "Hide" : "Show");
-        });
+        taskPlanToggle.addListener(
+                SWT.Selection,
+                event -> {
+                    boolean visible = !taskPlanText.getVisible();
+                    showControl(taskPlanText, visible);
+                    taskPlanToggle.setText(visible ? "Hide" : "Show");
+                });
         taskPlanText = new Text(taskPlanArea, SWT.READ_ONLY | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL);
         taskPlanText.setFont(JFaceResources.getDefaultFont());
         GridData data = new GridData(SWT.FILL, SWT.TOP, true, false);
@@ -282,11 +337,16 @@ public class ChatView extends ViewPart {
         data.widthHint = 1;
         data.heightHint = taskPlanText.getLineHeight() * 4;
         taskPlanText.setLayoutData(data);
-        taskPlanText.getAccessible().addAccessibleListener(new org.eclipse.swt.accessibility.AccessibleAdapter() {
-            @Override public void getName(org.eclipse.swt.accessibility.AccessibleEvent event) {
-                event.result = "Arcadia task plan and step status";
-            }
-        });
+        taskPlanText
+                .getAccessible()
+                .addAccessibleListener(
+                        new org.eclipse.swt.accessibility.AccessibleAdapter() {
+                            @Override
+                            public void getName(
+                                    org.eclipse.swt.accessibility.AccessibleEvent event) {
+                                event.result = "Arcadia task plan and step status";
+                            }
+                        });
         showControl(taskPlanArea, false);
     }
 
@@ -309,7 +369,9 @@ public class ChatView extends ViewPart {
         activityLabel.setLayoutData(activityData);
         retryButton = new Button(activity, SWT.PUSH);
         retryButton.setText("Retry reply");
-        retryButton.setToolTipText("Generate the failed reply again using its original selection. Existing changes are not applied again.");
+        retryButton.setToolTipText(
+                "Generate the failed reply again using its original selection. Existing changes are"
+                    + " not applied again.");
         retryButton.addListener(SWT.Selection, event -> retryRequest());
         showControl(retryButton, false);
         latestButton = new Button(activity, SWT.PUSH);
@@ -335,7 +397,9 @@ public class ChatView extends ViewPart {
         reviewButton = new Button(reviewArea, SWT.PUSH);
         reviewButton.setText("Review changes…");
         reviewButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        reviewButton.setToolTipText("Review the proposed model changes and checks; the exact script is available separately");
+        reviewButton.setToolTipText(
+                "Review the proposed model changes and checks; the exact script is available"
+                    + " separately");
         reviewButton.addListener(SWT.Selection, event -> reviewPendingCode());
         dismissButton = new Button(reviewArea, SWT.PUSH);
         dismissButton.setText("Dismiss");
@@ -348,33 +412,41 @@ public class ChatView extends ViewPart {
         inputData.widthHint = 1;
         inputField.setLayoutData(inputData);
         inputField.setMessage("Ask about this model or describe a change…");
-        inputField.getAccessible().addAccessibleListener(new org.eclipse.swt.accessibility.AccessibleAdapter() {
-            @Override
-            public void getName(org.eclipse.swt.accessibility.AccessibleEvent event) {
-                event.result = "Message to Capella AI. Enter to send; Shift Enter for a new line.";
-            }
-        });
-        inputField.addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent event) {
-                if ((event.keyCode == SWT.CR || event.keyCode == SWT.KEYPAD_CR)
-                    && (event.stateMask & SWT.SHIFT) == 0) {
-                    event.doit = false;
-                    handleSend();
-                } else if (event.keyCode == SWT.ESC && busy) {
-                    event.doit = false;
-                    stopRequest();
-                }
-            }
-        });
-        inputField.addModifyListener(event -> {
-            if (!restoringConversation) {
-                conversation.draft(inputField.getText());
-                scheduleDraftSave();
-            }
-            resizeComposer();
-            updateControls();
-        });
+        inputField
+                .getAccessible()
+                .addAccessibleListener(
+                        new org.eclipse.swt.accessibility.AccessibleAdapter() {
+                            @Override
+                            public void getName(
+                                    org.eclipse.swt.accessibility.AccessibleEvent event) {
+                                event.result =
+                                        "Message to Capella AI. Enter to send; Shift Enter for a"
+                                            + " new line.";
+                            }
+                        });
+        inputField.addKeyListener(
+                new KeyAdapter() {
+                    @Override
+                    public void keyPressed(KeyEvent event) {
+                        if ((event.keyCode == SWT.CR || event.keyCode == SWT.KEYPAD_CR)
+                                && (event.stateMask & SWT.SHIFT) == 0) {
+                            event.doit = false;
+                            handleSend();
+                        } else if (event.keyCode == SWT.ESC && busy) {
+                            event.doit = false;
+                            stopRequest();
+                        }
+                    }
+                });
+        inputField.addModifyListener(
+                event -> {
+                    if (!restoringConversation) {
+                        conversation.draft(inputField.getText());
+                        scheduleDraftSave();
+                    }
+                    resizeComposer();
+                    updateControls();
+                });
         inputField.addListener(SWT.Resize, event -> resizeComposer());
         Composite actions = new Composite(parent, SWT.NONE);
         actions.setLayoutData(new GridData(SWT.FILL, SWT.BOTTOM, true, false));
@@ -389,7 +461,9 @@ public class ChatView extends ViewPart {
         hint.setLayoutData(hintData);
         stopButton = new Button(actions, SWT.PUSH);
         stopButton.setText("Stop");
-        stopButton.setToolTipText("Stop generation or pending review. Model writes stop at their next cancellation check. Escape also stops.");
+        stopButton.setToolTipText(
+                "Stop generation or pending review. Model writes stop at their next cancellation"
+                    + " check. Escape also stops.");
         stopButton.addListener(SWT.Selection, event -> stopRequest());
         sendButton = new Button(actions, SWT.PUSH);
         sendButton.setText("Send");
@@ -398,39 +472,69 @@ public class ChatView extends ViewPart {
 
     private void createToolbar() {
         IToolBarManager toolbar = getViewSite().getActionBars().getToolBarManager();
-        newConversationAction = new Action("New conversation") {
-            @Override
-            public void run() {
-                if (!busy) resetConversation(SessionBridge.getActiveSession(), true);
-            }
-        };
-        newConversationAction.setToolTipText("Start a new conversation for this model and clear saved script variables");
+        newConversationAction =
+                new Action("New conversation") {
+                    @Override
+                    public void run() {
+                        if (!busy) resetConversation(SessionBridge.getActiveSession(), true);
+                    }
+                };
+        newConversationAction.setToolTipText(
+                "Start a new conversation for this model and clear saved script variables");
         toolbar.add(newConversationAction);
-        preferencesAction = new Action("Settings") {
-            @Override
-            public void run() { openPreferences(); }
-        };
+        preferencesAction =
+                new Action("Settings") {
+                    @Override
+                    public void run() {
+                        openPreferences();
+                    }
+                };
         preferencesAction.setToolTipText("Configure the AI provider and model");
         // Settings remains a named header action rather than a duplicate toolbar item.
-        requirementsAction = new Action("Enable requirements") {
-            @Override
-            public void run() { enableRequirements(); }
-        };
+        requirementsAction =
+                new Action("Enable requirements") {
+                    @Override
+                    public void run() {
+                        enableRequirements();
+                    }
+                };
         requirementsAction.setId("enable-requirements");
-        requirementsAction.setToolTipText("Enable the native Requirements viewpoint for this model");
+        requirementsAction.setToolTipText(
+                "Enable the native Requirements viewpoint for this model");
         toolbar.add(requirementsAction);
     }
 
     private void installContextListeners() {
         selectionListener = (part, selection) -> refreshContext();
-        getSite().getWorkbenchWindow().getSelectionService().addPostSelectionListener(selectionListener);
-        partListener = new IPartListener() {
-            @Override public void partActivated(IWorkbenchPart part) { refreshContext(); }
-            @Override public void partClosed(IWorkbenchPart part) { refreshContext(); }
-            @Override public void partOpened(IWorkbenchPart part) { refreshContext(); }
-            @Override public void partBroughtToTop(IWorkbenchPart part) { refreshContext(); }
-            @Override public void partDeactivated(IWorkbenchPart part) {}
-        };
+        getSite()
+                .getWorkbenchWindow()
+                .getSelectionService()
+                .addPostSelectionListener(selectionListener);
+        partListener =
+                new IPartListener() {
+                    @Override
+                    public void partActivated(IWorkbenchPart part) {
+                        refreshContext();
+                    }
+
+                    @Override
+                    public void partClosed(IWorkbenchPart part) {
+                        refreshContext();
+                    }
+
+                    @Override
+                    public void partOpened(IWorkbenchPart part) {
+                        refreshContext();
+                    }
+
+                    @Override
+                    public void partBroughtToTop(IWorkbenchPart part) {
+                        refreshContext();
+                    }
+
+                    @Override
+                    public void partDeactivated(IWorkbenchPart part) {}
+                };
         getSite().getPage().addPartListener(partListener);
     }
 
@@ -439,30 +543,52 @@ public class ChatView extends ViewPart {
         refreshProvider();
         activeSession = SessionBridge.getActiveSession();
         if (busy && requestSession != null && activeSession != requestSession && !stopRequested) {
-            stopReason = "The active model changed. The previous request was stopped; its conversation remains with that model.";
+            stopReason =
+                    "The active model changed. The previous request was stopped; its conversation"
+                        + " remains with that model.";
             stopRequest();
         }
         if (!busy && activeSession != conversationSession) switchConversation(activeSession);
-        selectionContext = busy && requestContext != null ? requestContext : SessionBridge.getSelectionContext();
+        selectionContext =
+                busy && requestContext != null
+                        ? requestContext
+                        : SessionBridge.getSelectionContext();
         Session shownSession = busy && requestSession != null ? requestSession : activeSession;
         String model = ChatContextDetails.modelName(shownSession);
         modelLabel.setText(model);
         modelLabel.setToolTipText(model + "\nConversation and draft are saved in this workspace.");
         contextLabel.setText(ChatContextDetails.selectionSummary(selectionContext));
-        contextLabel.setToolTipText(ChatContextDetails.selectionSummary(selectionContext)
-            + (busy ? "\nThis is the context captured for the current request." : "\nCaptured when you send a message."));
-        providerLabel.setText(runtimeLabel()
-            + (usesCodexRuntime() && connectionStatus != null ? " · " + connectionStatus : "")
-            + (providerConfigured ? "" : " · Setup needed"));
-        welcomeTitle.setText(activeSession == null ? "Work with your architecture" : "Work with " + model);
-        welcomeDescription.setText(activeSession == null
-            ? "Open a Capella model to start. Select an element or open a diagram to give the assistant context."
-            : !providerConfigured ? "Choose Settings to configure the assistant. Then ask about this model or describe a change."
-            : "Ask about this architecture or describe a change. Your selected elements travel with the request. " + reviewGuidance());
+        contextLabel.setToolTipText(
+                ChatContextDetails.selectionSummary(selectionContext)
+                        + (busy
+                                ? "\nThis is the context captured for the current request."
+                                : "\nCaptured when you send a message."));
+        providerLabel.setText(
+                runtimeLabel()
+                        + (usesCodexRuntime() && connectionStatus != null
+                                ? " · " + connectionStatus
+                                : "")
+                        + (providerConfigured ? "" : " · Setup needed"));
+        welcomeTitle.setText(
+                activeSession == null ? "Work with your architecture" : "Work with " + model);
+        welcomeDescription.setText(
+                activeSession == null
+                        ? "Open a Capella model to start. Select an element or open a diagram to"
+                              + " give the assistant context."
+                        : !providerConfigured
+                                ? "Choose Settings to configure the assistant. Then ask about this"
+                                      + " model or describe a change."
+                                : "Ask about this architecture or describe a change. Your selected"
+                                      + " elements travel with the request. "
+                                        + reviewGuidance());
         explainButton.setEnabled(!busy && selectionContext.hasSelection());
         contextButton.setEnabled(!busy && activeSession != null);
-        boolean canCreate = PlatformUI.isWorkbenchRunning()
-            && PlatformUI.getWorkbench().getNewWizardRegistry().findWizard("capella.project.wizard") != null;
+        boolean canCreate =
+                PlatformUI.isWorkbenchRunning()
+                        && PlatformUI.getWorkbench()
+                                        .getNewWizardRegistry()
+                                        .findWizard("capella.project.wizard")
+                                != null;
         newModelButton.setVisible(activeSession == null && canCreate);
         ((GridData) newModelButton.getLayoutData()).exclude = !newModelButton.getVisible();
         modelLabel.getParent().getParent().layout(true, true);
@@ -480,8 +606,12 @@ public class ChatView extends ViewPart {
 
     private void openPreferences() {
         if (busy || signingIn) return;
-        var dialog = PreferencesUtil.createPreferenceDialogOn(getSite().getShell(),
-            "org.polarsys.capella.ai.preferences.llm", null, null);
+        var dialog =
+                PreferencesUtil.createPreferenceDialogOn(
+                        getSite().getShell(),
+                        "org.polarsys.capella.ai.preferences.llm",
+                        null,
+                        null);
         if (dialog != null) dialog.open();
         connectionStatus = null;
         refreshProvider();
@@ -492,24 +622,47 @@ public class ChatView extends ViewPart {
         if (busy || signingIn || !usesCodexRuntime() || !isUsable()) return;
         signingIn = true;
         updateControls();
-        CodexAccountService.Connected[] connected = { null };
+        CodexAccountService.Connected[] connected = {null};
         String message;
         try {
-            new ProgressMonitorDialog(getSite().getShell()).run(true, true, monitor -> {
-                monitor.beginTask("Connecting to ChatGPT", org.eclipse.core.runtime.IProgressMonitor.UNKNOWN);
-                try (CodexAccountService account = CodexAccountService.configured(uri ->
-                        openSignInBrowser(uri, () -> disposed || monitor.isCanceled()))) {
-                    connected[0] = account.connect(() -> disposed || monitor.isCanceled(), monitor::subTask);
-                } catch (CancellationException cancelled) {
-                    throw new InterruptedException("ChatGPT sign-in cancelled.");
-                } catch (RuntimeException failure) {
-                    if (disposed || monitor.isCanceled()) throw new InterruptedException("ChatGPT sign-in cancelled.");
-                    throw new InvocationTargetException(failure);
-                } finally { monitor.done(); }
-            });
-            if (connected[0] == null) throw new IllegalStateException("No account connection was confirmed.");
-            connectionStatus = "chatgpt".equals(connected[0].authMode())
-                ? "ChatGPT connected" : "OpenAI connected";
+            new ProgressMonitorDialog(getSite().getShell())
+                    .run(
+                            true,
+                            true,
+                            monitor -> {
+                                monitor.beginTask(
+                                        "Connecting to ChatGPT",
+                                        org.eclipse.core.runtime.IProgressMonitor.UNKNOWN);
+                                try (CodexAccountService account =
+                                        CodexAccountService.configured(
+                                                uri ->
+                                                        openSignInBrowser(
+                                                                uri,
+                                                                () ->
+                                                                        disposed
+                                                                                || monitor
+                                                                                        .isCanceled()))) {
+                                    connected[0] =
+                                            account.connect(
+                                                    () -> disposed || monitor.isCanceled(),
+                                                    monitor::subTask);
+                                } catch (CancellationException cancelled) {
+                                    throw new InterruptedException("ChatGPT sign-in cancelled.");
+                                } catch (RuntimeException failure) {
+                                    if (disposed || monitor.isCanceled())
+                                        throw new InterruptedException(
+                                                "ChatGPT sign-in cancelled.");
+                                    throw new InvocationTargetException(failure);
+                                } finally {
+                                    monitor.done();
+                                }
+                            });
+            if (connected[0] == null)
+                throw new IllegalStateException("No account connection was confirmed.");
+            connectionStatus =
+                    "chatgpt".equals(connected[0].authMode())
+                            ? "ChatGPT connected"
+                            : "OpenAI connected";
             message = connectionStatus + ". You can now send a message about your model.";
             accountConfirmed(true);
         } catch (InterruptedException cancelled) {
@@ -518,7 +671,9 @@ public class ChatView extends ViewPart {
             message = signInFailureMessage(failure.getTargetException());
         } catch (RuntimeException unavailable) {
             message = "ChatGPT sign-in could not start. Try again or check Settings.";
-        } finally { signingIn = false; }
+        } finally {
+            signingIn = false;
+        }
         if (isUsable()) {
             refreshContext();
             setActivity(message);
@@ -529,28 +684,41 @@ public class ChatView extends ViewPart {
     private void accountConfirmed(boolean confirmed) {
         if (signInButton == null || signInButton.isDisposed()) return;
         signInButton.setText(confirmed ? "ChatGPT account" : "Sign in with ChatGPT");
-        signInButton.setToolTipText(confirmed ? "Connected. Sign in again to reconnect or switch accounts."
-            : "Use your existing OpenAI connection or sign in through your browser");
+        signInButton.setToolTipText(
+                confirmed
+                        ? "Connected. Sign in again to reconnect or switch accounts."
+                        : "Use your existing OpenAI connection or sign in through your browser");
         signInButton.getParent().layout(true);
     }
 
     private static String signInFailureMessage(Throwable failure) {
         return failure instanceof CodexAccountService.AccountException safe
-            ? safe.getMessage() : "ChatGPT sign-in could not complete. Try again or check Settings.";
+                ? safe.getMessage()
+                : "ChatGPT sign-in could not complete. Try again or check Settings.";
     }
 
     private void openSignInBrowser(URI officialUrl, java.util.function.BooleanSupplier cancelled) {
-        if (display == null || display.isDisposed() || cancelled.getAsBoolean()) throw new CancellationException();
-        RuntimeException[] failure = { null };
-        display.syncExec(() -> {
-            try {
-                if (!isUsable() || cancelled.getAsBoolean()) throw new CancellationException();
-                PlatformUI.getWorkbench().getBrowserSupport().getExternalBrowser().openURL(officialUrl.toURL());
-            } catch (Exception unavailable) {
-                // Never put an OAuth URL, query, remote exception or credentials in the chat or an error.
-                failure[0] = new IllegalStateException("The sign-in page could not open. Check your default browser and try again.");
-            }
-        });
+        if (display == null || display.isDisposed() || cancelled.getAsBoolean())
+            throw new CancellationException();
+        RuntimeException[] failure = {null};
+        display.syncExec(
+                () -> {
+                    try {
+                        if (!isUsable() || cancelled.getAsBoolean())
+                            throw new CancellationException();
+                        PlatformUI.getWorkbench()
+                                .getBrowserSupport()
+                                .getExternalBrowser()
+                                .openURL(officialUrl.toURL());
+                    } catch (Exception unavailable) {
+                        // Never put an OAuth URL, query, remote exception or credentials in the
+                        // chat or an error.
+                        failure[0] =
+                                new IllegalStateException(
+                                        "The sign-in page could not open. Check your default"
+                                            + " browser and try again.");
+                    }
+                });
         if (failure[0] != null) throw failure[0];
     }
 
@@ -573,37 +741,54 @@ public class ChatView extends ViewPart {
         if (busy) return;
         Session session = SessionBridge.getActiveSession();
         if (session == null || !session.isOpen()) {
-            appendMessage("Model unavailable", "Open a Capella model before enabling requirements.");
+            appendMessage(
+                    "Model unavailable", "Open a Capella model before enabling requirements.");
             return;
         }
         stopRequested = false;
         requestCancellable = false;
         setBusy(true);
         setActivity("Enabling the Requirements viewpoint…");
-        requests.execute(() -> {
-            requestThread = Thread.currentThread();
-            try {
-                if (disposed || !isCurrentSession(session)) return;
-                boolean changed = new RequirementsAPI(session).enableViewpoint();
-                ui(() -> appendMessage("Requirements", changed
-                    ? "The native Requirements viewpoint is enabled and the model was saved. You can now create and edit requirements."
-                    : "The native Requirements viewpoint is already enabled for this model."));
-            } catch (RuntimeException failure) {
-                ui(() -> appendMessage("Requirements activation failed", failure.getMessage()));
-            } finally {
-                requestThread = null;
-                ui(() -> {
-                    requestCancellable = true;
-                    setBusy(false);
+        requests.execute(
+                () -> {
+                    requestThread = Thread.currentThread();
+                    try {
+                        if (disposed || !isCurrentSession(session)) return;
+                        boolean changed = new RequirementsAPI(session).enableViewpoint();
+                        ui(
+                                () ->
+                                        appendMessage(
+                                                "Requirements",
+                                                changed
+                                                        ? "The native Requirements viewpoint is"
+                                                              + " enabled and the model was saved."
+                                                              + " You can now create and edit"
+                                                              + " requirements."
+                                                        : "The native Requirements viewpoint is"
+                                                              + " already enabled for this"
+                                                              + " model."));
+                    } catch (RuntimeException failure) {
+                        ui(
+                                () ->
+                                        appendMessage(
+                                                "Requirements activation failed",
+                                                failure.getMessage()));
+                    } finally {
+                        requestThread = null;
+                        ui(
+                                () -> {
+                                    requestCancellable = true;
+                                    setBusy(false);
+                                });
+                    }
                 });
-            }
-        });
     }
 
     private void resetConversation(Session session, boolean clearDraft) {
         clearTaskTermination();
         if (conversationSession != null) {
-            GroovyExecutor.resetSession(GroovyExecutor.buildSessionKey(conversationSession, conversationId));
+            GroovyExecutor.resetSession(
+                    GroovyExecutor.buildSessionKey(conversationSession, conversationId));
         }
         if (session != null && session != conversationSession) {
             GroovyExecutor.resetSession(GroovyExecutor.buildSessionKey(session, conversationId));
@@ -630,13 +815,22 @@ public class ChatView extends ViewPart {
         persistConversation();
         conversationSession = session;
         conversationKey = modelKey(session);
-        ConversationState restored = conversationKey == null ? new ConversationState() : conversations.get(conversationKey);
+        ConversationState restored =
+                conversationKey == null
+                        ? new ConversationState()
+                        : conversations.get(conversationKey);
         String restoreError = null;
         if (restored == null) {
-            try { restored = conversationStore == null ? new ConversationState() : conversationStore.load(conversationKey); }
-            catch (java.io.IOException failure) {
+            try {
+                restored =
+                        conversationStore == null
+                                ? new ConversationState()
+                                : conversationStore.load(conversationKey);
+            } catch (java.io.IOException failure) {
                 restored = new ConversationState();
-                restoreError = "The saved conversation could not be read. This chat starts empty; your Capella model is unaffected.";
+                restoreError =
+                        "The saved conversation could not be read. This chat starts empty; your"
+                            + " Capella model is unaffected.";
             }
             conversations.put(conversationKey, restored);
         }
@@ -647,16 +841,22 @@ public class ChatView extends ViewPart {
         conversationLayout.topControl = transcript.isEmpty() ? welcomeScroll : transcript.control();
         conversationArea.layout();
         restoringConversation = true;
-        try { inputField.setText(conversation.draft()); }
-        finally { restoringConversation = false; }
+        try {
+            inputField.setText(conversation.draft());
+        } finally {
+            restoringConversation = false;
+        }
         retryInput = null;
         retrySession = null;
         if (restoreError != null) appendMessage("Conversation recovery", restoreError);
     }
 
     private static String modelKey(Session session) {
-        return session == null || session.getSessionResource() == null || session.getSessionResource().getURI() == null
-            ? null : session.getSessionResource().getURI().toString();
+        return session == null
+                        || session.getSessionResource() == null
+                        || session.getSessionResource().getURI() == null
+                ? null
+                : session.getSessionResource().getURI().toString();
     }
 
     private void refreshProvider() {
@@ -672,44 +872,59 @@ public class ChatView extends ViewPart {
             if (!configured.isBlank()) Path.of(configured);
             else if (BundledCodexRuntime.isPackagedAvailable()) return null;
             return null; // PATH/desktop discovery, when needed, belongs to the launch worker.
+        } catch (InvalidPathException invalid) {
+            return "The Codex executable path is invalid. Choose the executable in Settings.";
+        } catch (RuntimeException unavailable) {
+            return unavailable.getMessage();
         }
-        catch (InvalidPathException invalid) { return "The Codex executable path is invalid. Choose the executable in Settings."; }
-        catch (RuntimeException unavailable) { return unavailable.getMessage(); }
     }
 
     private static boolean usesCodexRuntime() {
-        try { return CodexPreferences.isCodex(); }
-        catch (RuntimeException invalid) { return false; }
+        try {
+            return CodexPreferences.isCodex();
+        } catch (RuntimeException invalid) {
+            return false;
+        }
     }
 
     private static String reviewGuidance() {
-        if (!LLMPreferences.isToolActionsEnabled()) return "Model changes are disabled in Settings.";
+        if (!LLMPreferences.isToolActionsEnabled())
+            return "Model changes are disabled in Settings.";
         return AdvancedPreferences.isConfirmBeforeApplyEnabled()
-            ? "Proposed model changes stay unapplied until you review them."
-            : "Your settings allow model changes to apply without review.";
+                ? "Proposed model changes stay unapplied until you review them."
+                : "Your settings allow model changes to apply without review.";
     }
 
     private static String runtimeLabel() {
         try {
-            return CodexPreferences.isCodex() ? "Codex · " +
-                (CodexPreferences.getModel().isBlank() ? "Runtime default" : CodexPreferences.getModel())
-                : LLMPreferences.getProvider() + " · " + LLMPreferences.getModel();
-        } catch (RuntimeException invalid) { return "Assistant configuration"; }
+            return CodexPreferences.isCodex()
+                    ? "Codex · "
+                            + (CodexPreferences.getModel().isBlank()
+                                    ? "Runtime default"
+                                    : CodexPreferences.getModel())
+                    : LLMPreferences.getProvider() + " · " + LLMPreferences.getModel();
+        } catch (RuntimeException invalid) {
+            return "Assistant configuration";
+        }
     }
 
     private void scheduleDraftSave() {
         if (draftSaver != null) display.timerExec(-1, draftSaver);
-        draftSaver = () -> { if (isUsable()) persistConversation(); };
+        draftSaver =
+                () -> {
+                    if (isUsable()) persistConversation();
+                };
         display.timerExec(500, draftSaver);
     }
 
     private void persistConversation() {
         if (conversationStore == null || conversationKey == null) return;
         try {
-            synchronized (ConversationStore.class) { conversationStore.save(conversationKey, conversation); }
+            synchronized (ConversationStore.class) {
+                conversationStore.save(conversationKey, conversation);
+            }
             historySaveFailed = false;
-        }
-        catch (java.io.IOException failure) {
+        } catch (java.io.IOException failure) {
             historySaveFailed = true;
             if (activityLabel != null && !activityLabel.isDisposed() && !busy) {
                 activityLabel.setText("Chat is available · Local history could not be saved");
@@ -722,11 +937,12 @@ public class ChatView extends ViewPart {
         if (activityTimer != null) display.timerExec(-1, activityTimer);
         if (value) {
             requestStarted = System.nanoTime();
-            activityTimer = () -> {
-                if (!isUsable() || !busy) return;
-                renderActivity();
-                display.timerExec(1000, activityTimer);
-            };
+            activityTimer =
+                    () -> {
+                        if (!isUsable() || !busy) return;
+                        renderActivity();
+                        display.timerExec(1000, activityTimer);
+                    };
             display.timerExec(1000, activityTimer);
         }
         updateControls();
@@ -739,7 +955,12 @@ public class ChatView extends ViewPart {
 
     private void updateControls() {
         if (sendButton == null || sendButton.isDisposed()) return;
-        sendButton.setEnabled(!busy && !signingIn && providerConfigured && activeSession != null && !inputField.getText().isBlank());
+        sendButton.setEnabled(
+                !busy
+                        && !signingIn
+                        && providerConfigured
+                        && activeSession != null
+                        && !inputField.getText().isBlank());
         stopButton.setEnabled(busy && requestCancellable && !stopRequested);
         showControl(stopButton, busy);
         showControl(sendButton, !busy);
@@ -750,7 +971,8 @@ public class ChatView extends ViewPart {
         showControl(signInButton, codex);
         signInButton.setEnabled(codex && !busy && !signingIn);
         ((GridData) providerLabel.getLayoutData()).horizontalSpan = codex ? 1 : 2;
-        if (newConversationAction != null) newConversationAction.setEnabled(!busy && !signingIn && activeSession != null);
+        if (newConversationAction != null)
+            newConversationAction.setEnabled(!busy && !signingIn && activeSession != null);
         if (preferencesAction != null) preferencesAction.setEnabled(!busy && !signingIn);
     }
 
@@ -760,12 +982,16 @@ public class ChatView extends ViewPart {
             boolean available = requirements.available();
             boolean enabled = false;
             if (available && activeSession != null) {
-                try { enabled = requirements.viewpointEnabled(); }
-                catch (RuntimeException unavailableStatus) { /* Activation reports native diagnostics on click. */ }
+                try {
+                    enabled = requirements.viewpointEnabled();
+                } catch (RuntimeException unavailableStatus) {
+                    /* Activation reports native diagnostics on click. */
+                }
             }
             requirementsAction.setText(enabled ? "Requirements enabled" : "Enable requirements");
             requirementsAction.setEnabled(available && activeSession != null && !busy && !enabled);
-            var item = getViewSite().getActionBars().getToolBarManager().find("enable-requirements");
+            var item =
+                    getViewSite().getActionBars().getToolBarManager().find("enable-requirements");
             if (item != null && item.isVisible() != available) {
                 item.setVisible(available);
                 getViewSite().getActionBars().getToolBarManager().update(true);
@@ -776,10 +1002,16 @@ public class ChatView extends ViewPart {
     private void setReadyActivity() {
         if (activeSession == null) setActivity("Open a model to start");
         else if (!providerConfigured) setActivity(configurationIssue());
-        else if (taskTermination != null && terminationSession == activeSession && terminationConversation == conversation) setActivity(taskTermination.activityText());
-        else if (historySaveFailed) setActivity("Chat is available · Local history could not be saved");
-        else if (!LLMPreferences.isToolActionsEnabled()) setActivity("Ready · Model actions are disabled");
-        else if (AdvancedPreferences.isConfirmBeforeApplyEnabled()) setActivity("Ready · Model changes require review");
+        else if (taskTermination != null
+                && terminationSession == activeSession
+                && terminationConversation == conversation)
+            setActivity(taskTermination.activityText());
+        else if (historySaveFailed)
+            setActivity("Chat is available · Local history could not be saved");
+        else if (!LLMPreferences.isToolActionsEnabled())
+            setActivity("Ready · Model actions are disabled");
+        else if (AdvancedPreferences.isConfirmBeforeApplyEnabled())
+            setActivity("Ready · Model changes require review");
         else setActivity("Ready · Changes apply without review");
     }
 
@@ -789,7 +1021,10 @@ public class ChatView extends ViewPart {
     }
 
     private void renderActivity() {
-        long seconds = busy && pendingReview == null ? (System.nanoTime() - requestStarted) / 1000000000L : 0;
+        long seconds =
+                busy && pendingReview == null
+                        ? (System.nanoTime() - requestStarted) / 1000000000L
+                        : 0;
         String text = activityText + (seconds >= 3 ? " · " + seconds + "s" : "");
         if (text.equals(activityLabel.getText())) return;
         activityLabel.setText(text);
@@ -798,21 +1033,25 @@ public class ChatView extends ViewPart {
 
     private static void showControl(org.eclipse.swt.widgets.Control control, boolean visible) {
         if (control == null || control.isDisposed()) return;
-        if (control.getLayoutData() == null) control.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
-        boolean changed = control.getVisible() != visible || ((GridData) control.getLayoutData()).exclude == visible;
+        if (control.getLayoutData() == null)
+            control.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+        boolean changed =
+                control.getVisible() != visible
+                        || ((GridData) control.getLayoutData()).exclude == visible;
         control.setVisible(visible);
         ((GridData) control.getLayoutData()).exclude = !visible;
         if (changed) relayoutView(control);
     }
 
     /**
-     * Flushes cached sizes and lays out the whole view. Composer rows change height (wrapped status,
-     * review, composer growth), and the workbench theme restyles widgets after creation, so laying out
-     * only the changed control's parent leaves stale positions that clip the Send row.
+     * Flushes cached sizes and lays out the whole view. Composer rows change height (wrapped
+     * status, review, composer growth), and the workbench theme restyles widgets after creation, so
+     * laying out only the changed control's parent leaves stale positions that clip the Send row.
      */
     private static void relayoutView(org.eclipse.swt.widgets.Control control) {
         Composite top = control instanceof Composite composite ? composite : control.getParent();
-        while (top.getParent() != null && top.getParent().getLayout() instanceof GridLayout) top = top.getParent();
+        while (top.getParent() != null && top.getParent().getLayout() instanceof GridLayout)
+            top = top.getParent();
         top.layout(true, true);
     }
 
@@ -851,35 +1090,61 @@ public class ChatView extends ViewPart {
         startRequest(session, input, context, true);
     }
 
-    private void startRequest(Session session, String input, SelectionContext context, boolean clearDraft) {
+    private void startRequest(
+            Session session, String input, SelectionContext context, boolean clearDraft) {
         startRequest(session, input, context, clearDraft, "You", input);
     }
 
     /**
-     * Continues a task whose request ran out of budget with edit steps pending. It is a fresh request
-     * with its own budget and runtime; each proposal still needs its own review, and Stop ends the chain.
+     * Continues a task whose request ran out of budget with edit steps pending. It is a fresh
+     * request with its own budget and runtime; each proposal still needs its own review, and Stop
+     * ends the chain.
      */
-    private void continueTask(Session session, SelectionContext context, List<ArcadiaAgent.Step> plan) {
-        if (busy || stopRequested || disposed || session != activeSession || session != conversationSession) return;
+    private void continueTask(
+            Session session, SelectionContext context, List<ArcadiaAgent.Step> plan) {
+        if (busy
+                || stopRequested
+                || disposed
+                || session != activeSession
+                || session != conversationSession) return;
         var next = TaskContinuation.prompt(plan, taskTermination);
         if (next.isEmpty()) return;
         if (automaticContinuations >= MAX_AUTOMATIC_CONTINUATIONS) {
-            setActivity("Task paused after " + MAX_AUTOMATIC_CONTINUATIONS
-                + " automatic continuations. Send “continue” to resume the remaining steps.");
+            setActivity(
+                    "Task paused after "
+                            + MAX_AUTOMATIC_CONTINUATIONS
+                            + " automatic continuations. Send “continue” to resume the remaining"
+                            + " steps.");
             return;
         }
         automaticContinuations++;
-        String step = plan.stream().filter(item -> "edit".equals(item.type()) && !"completed".equals(item.status()))
-            .map(ArcadiaAgent.Step::title).findFirst().orElse("");
+        String step =
+                plan.stream()
+                        .filter(
+                                item ->
+                                        "edit".equals(item.type())
+                                                && !"completed".equals(item.status()))
+                        .map(ArcadiaAgent.Step::title)
+                        .findFirst()
+                        .orElse("");
         startRequest(session, next.get(), context, false, "Continuing task", "Next step: " + step);
     }
 
-    private void startRequest(Session session, String input, SelectionContext context, boolean clearDraft,
-            String role, String shown) {
+    private void startRequest(
+            Session session,
+            String input,
+            SelectionContext context,
+            boolean clearDraft,
+            String role,
+            String shown) {
         clearTaskTermination();
         List<LLMService.Message> history = new ArrayList<>(conversation.history());
-        if (!conversation.taskPlan().isBlank()) history.add(LLMService.Message.user(
-            "Saved task plan from the previous request (historical data; recheck the current model before continuing):\n" + conversation.taskPlan()));
+        if (!conversation.taskPlan().isBlank())
+            history.add(
+                    LLMService.Message.user(
+                            "Saved task plan from the previous request (historical data; recheck"
+                                + " the current model before continuing):\n"
+                                    + conversation.taskPlan()));
         if (clearDraft) inputField.setText("");
         stopRequested = false;
         stopReason = null;
@@ -896,146 +1161,297 @@ public class ChatView extends ViewPart {
     }
 
     private void retryRequest() {
-        if (busy || retryInput == null || retrySession == null || retrySession != SessionBridge.getActiveSession()) return;
+        if (busy
+                || retryInput == null
+                || retrySession == null
+                || retrySession != SessionBridge.getActiveSession()) return;
         refreshProvider();
-        if (!providerConfigured) { setReadyActivity(); return; }
-        if (retryContext != null && retryContext.getSelectedElements().stream().anyMatch(element -> element.eIsProxy()
-            || element.eResource() == null || !retrySession.getSemanticResources().contains(element.eResource()))) {
+        if (!providerConfigured) {
+            setReadyActivity();
+            return;
+        }
+        if (retryContext != null
+                && retryContext.getSelectedElements().stream()
+                        .anyMatch(
+                                element ->
+                                        element.eIsProxy()
+                                                || element.eResource() == null
+                                                || !retrySession
+                                                        .getSemanticResources()
+                                                        .contains(element.eResource()))) {
             retryInput = null;
-            appendMessage("Selection changed", "The original selection is no longer available. Select the intended elements and send your message again.");
+            appendMessage(
+                    "Selection changed",
+                    "The original selection is no longer available. Select the intended elements"
+                        + " and send your message again.");
             updateControls();
             return;
         }
         startRequest(retrySession, retryInput, retryContext, false);
     }
 
-    private void processRequest(Session session, String input, List<LLMService.Message> history, SelectionContext context) {
+    private void processRequest(
+            Session session,
+            String input,
+            List<LLMService.Message> history,
+            SelectionContext context) {
         requestThread = Thread.currentThread();
         boolean applied = false;
         boolean proposalReceived = false;
         boolean executionAttempted = false;
         ConversationState requestConversation = conversation;
-        RequestHistory requestHistory = new RequestHistory(requestConversation, conversationKey, conversationStore);
+        RequestHistory requestHistory =
+                new RequestHistory(requestConversation, conversationKey, conversationStore);
         ArcadiaAgent.ExecutionOutcome recordedOutcome = null;
         List<ArcadiaAgent.Step> latestPlan = List.of();
         boolean privacyEnabled = LLMPreferences.isPrivacyTokenizationEnabled();
-        try (AgentRuntime agent = ScriptRouter.createRuntime(session, conversationId,
-                requestConversation.resumableCodexThreadId(privacyEnabled), id -> display.syncExec(() -> {
-                    requestConversation.codexThreadId(id);
-                    requestConversation.codexPrivacyMode(privacyEnabled);
-                    if (conversation == requestConversation) persistConversation();
-                }))) {
+        try (AgentRuntime agent =
+                ScriptRouter.createRuntime(
+                        session,
+                        conversationId,
+                        requestConversation.resumableCodexThreadId(privacyEnabled),
+                        id ->
+                                display.syncExec(
+                                        () -> {
+                                            requestConversation.codexThreadId(id);
+                                            requestConversation.codexPrivacyMode(privacyEnabled);
+                                            if (conversation == requestConversation)
+                                                persistConversation();
+                                        }))) {
             if (stopRequested || disposed) return;
-            ArcadiaAgent.Turn turn = agent.run(ScriptRouter.agentSystemPrompt(session, conversationId, context),
-                history, input, this::requestCancelled, this::showAgentProgress);
+            ArcadiaAgent.Turn turn =
+                    agent.run(
+                            ScriptRouter.agentSystemPrompt(session, conversationId, context),
+                            history,
+                            input,
+                            this::requestCancelled,
+                            this::showAgentProgress);
             if (usesCodexRuntime()) ui(() -> accountConfirmed(true));
             int proposals = 0;
-            for (;;) {
+            for (; ; ) {
                 latestPlan = turn.plan();
                 if (requestCancelled()) return;
                 if (!turn.hasProposal() && agent.canContinueReadOnly(turn)) {
                     if (!isCurrentSession(session)) return;
                     ArcadiaAgent.Turn remaining = turn;
-                    ui(() -> {
-                        conversation.restoreHistory(remaining.messages());
-                        saveTaskPlan(remaining.plan());
-                        setActivity("Checking the remaining task…");
-                        persistConversation();
-                    });
-                    turn = agent.continueRemaining(turn, this::requestCancelled, this::showAgentProgress);
+                    ui(
+                            () -> {
+                                conversation.restoreHistory(remaining.messages());
+                                saveTaskPlan(remaining.plan());
+                                setActivity("Checking the remaining task…");
+                                persistConversation();
+                            });
+                    turn =
+                            agent.continueRemaining(
+                                    turn, this::requestCancelled, this::showAgentProgress);
                     continue;
                 }
                 ArcadiaAgent.Turn displayed = turn;
                 proposalReceived |= turn.hasProposal();
-                TaskTermination ending = displayed.hasProposal() ? displayed.termination()
-                    : TaskContinuation.afterRequest(displayed.termination(), displayed.plan(), proposals, MAX_PROPOSALS_PER_REQUEST);
-                display.syncExec(() -> {
-                    if (!isUsable()) return;
-                    conversation.restoreHistory(displayed.messages());
-                    appendMessage("Capella AI", displayedReply(displayed));
-                    saveTaskPlan(displayed.plan());
-                    if (ending != displayed.termination()) appendMessage("Request budget reached", "All " + MAX_PROPOSALS_PER_REQUEST
-                        + " proposals of this request were used. The remaining planned edits continue in a fresh request; each proposal still needs your review.");
-                    rememberTaskTermination(session, requestConversation, ending);
-                    if (!displayed.hasProposal() && ending != null) {
-                        conversation.addOutcome("TASK STATUS (declared plan or response only; no engineering completeness claim)\n"
-                            + AgentJson.write(ending.feedback()));
-                        persistConversation();
-                    }
-                });
+                TaskTermination ending =
+                        displayed.hasProposal()
+                                ? displayed.termination()
+                                : TaskContinuation.afterRequest(
+                                        displayed.termination(),
+                                        displayed.plan(),
+                                        proposals,
+                                        MAX_PROPOSALS_PER_REQUEST);
+                display.syncExec(
+                        () -> {
+                            if (!isUsable()) return;
+                            conversation.restoreHistory(displayed.messages());
+                            appendMessage("Capella AI", displayedReply(displayed));
+                            saveTaskPlan(displayed.plan());
+                            if (ending != displayed.termination())
+                                appendMessage(
+                                        "Request budget reached",
+                                        "All "
+                                                + MAX_PROPOSALS_PER_REQUEST
+                                                + " proposals of this request were used. The"
+                                                + " remaining planned edits continue in a fresh"
+                                                + " request; each proposal still needs your"
+                                                + " review.");
+                            rememberTaskTermination(session, requestConversation, ending);
+                            if (!displayed.hasProposal() && ending != null) {
+                                conversation.addOutcome(
+                                        "TASK STATUS (declared plan or response only; no"
+                                            + " engineering completeness claim)\n"
+                                                + AgentJson.write(ending.feedback()));
+                                persistConversation();
+                            }
+                        });
                 if (!turn.hasProposal()) return;
-                // A correction receives its own review. No prompt can silently run an unbounded sequence.
+                // A correction receives its own review. No prompt can silently run an unbounded
+                // sequence.
                 if (proposals >= MAX_PROPOSALS_PER_REQUEST) {
-                    ui(() -> {
-                        appendMessage("Request budget reached", "Three proposals were handled in this request. Remaining planned edits continue in a fresh request; each proposal still needs your review.");
-                        rememberTaskTermination(session, requestConversation, TaskTermination.budget("Three proposals were handled. Review the results and send a follow-up to continue; no additional proposal was run.", displayed.plan()));
-                    });
+                    ui(
+                            () -> {
+                                appendMessage(
+                                        "Request budget reached",
+                                        "Three proposals were handled in this request. Remaining"
+                                            + " planned edits continue in a fresh request; each"
+                                            + " proposal still needs your review.");
+                                rememberTaskTermination(
+                                        session,
+                                        requestConversation,
+                                        TaskTermination.budget(
+                                                "Three proposals were handled. Review the results"
+                                                    + " and send a follow-up to continue; no"
+                                                    + " additional proposal was run.",
+                                                displayed.plan()));
+                            });
                     return;
                 }
                 if (!isCurrentSession(session)) {
-                    ui(() -> appendMessage("Model changed", "The active model changed. Send the request again for the model you want to edit."));
+                    ui(
+                            () ->
+                                    appendMessage(
+                                            "Model changed",
+                                            "The active model changed. Send the request again for"
+                                                + " the model you want to edit."));
                     return;
                 }
                 final String code = turn.proposalCode();
                 final String proposalSummary = turn.reply();
-                final String expectedChecks = org.polarsys.capella.ai.presentation.NativeCheckDescription.describeAll(turn.postconditions());
+                final String expectedChecks =
+                        org.polarsys.capella.ai.presentation.NativeCheckDescription.describeAll(
+                                turn.postconditions());
                 ui(() -> setActivity("Checking the proposal…"));
-                GroovyCompilationValidator.Report compilation = GroovyExecutor.compileDecoded(code,
-                    this::requestCancelled, 10_000);
+                GroovyCompilationValidator.Report compilation =
+                        GroovyExecutor.compileDecoded(code, this::requestCancelled, 10_000);
                 if (requestCancelled() || !isCurrentSession(session)) return;
                 if (!compilation.success()) {
                     String preparationFeedback = compilation.formatForRepair();
-                    boolean repairing = compilation.repairable() && agent.canRepairCompilation(turn);
-                    ui(() -> {
-                        appendMessage(repairing ? "Correcting proposal" : "Proposal needs attention", repairing
-                            ? "The proposed script did not pass its checks. I’m correcting it before review. No code has run or model changes have been made."
-                            : preparationFeedback);
-                        conversation.addOutcome(preparationFeedback);
-                        persistConversation();
-                    });
+                    boolean repairing =
+                            compilation.repairable() && agent.canRepairCompilation(turn);
+                    ui(
+                            () -> {
+                                appendMessage(
+                                        repairing
+                                                ? "Correcting proposal"
+                                                : "Proposal needs attention",
+                                        repairing
+                                                ? "The proposed script did not pass its checks. I’m"
+                                                      + " correcting it before review. No code has"
+                                                      + " run or model changes have been made."
+                                                : preparationFeedback);
+                                conversation.addOutcome(preparationFeedback);
+                                persistConversation();
+                            });
                     if (repairing) {
                         ui(() -> setActivity("Correcting the proposal…"));
-                        turn = agent.repairCompilation(turn, preparationFeedback,
-                            this::requestCancelled, this::showAgentProgress);
+                        turn =
+                                agent.repairCompilation(
+                                        turn,
+                                        preparationFeedback,
+                                        this::requestCancelled,
+                                        this::showAgentProgress);
                         continue;
                     }
-                    ui(() -> rememberTaskTermination(session, requestConversation,
-                        TaskTermination.blocked("The proposed script could not pass its preparation check. No code was executed. Review the preceding diagnostics before continuing.", displayed.plan())));
+                    ui(
+                            () ->
+                                    rememberTaskTermination(
+                                            session,
+                                            requestConversation,
+                                            TaskTermination.blocked(
+                                                    "The proposed script could not pass its"
+                                                        + " preparation check. No code was"
+                                                        + " executed. Review the preceding"
+                                                        + " diagnostics before continuing.",
+                                                    displayed.plan())));
                     return;
                 }
                 proposals++;
-                // Recorded as soon as the script returns, so a later capture failure still reports committed changes.
-                boolean[] ranAttempt = { false }, ranCommit = { false };
+                // Recorded as soon as the script returns, so a later capture failure still reports
+                // committed changes.
+                boolean[] ranAttempt = {false}, ranCommit = {false};
                 ReviewedEdit.Outcome edit;
                 try {
-                    edit = ReviewedEdit.apply(session, new ReviewedEdit.Request(input, turn.reply(), code,
-                        turn.postconditions(), conversationId, context, () -> confirmCode(session, code, proposalSummary, expectedChecks),
-                        this::requestCancelled, () -> isCurrentSession(session), ModelVerification::snapshot), new ReviewedEdit.Listener() {
-                            @Override public void activity(String text) { ui(() -> setActivity(text)); }
-                            @Override public void ran(ScriptRouter.Result executed) {
-                                ranAttempt[0] |= executed.attempts > 0;
-                                ranCommit[0] |= executed.executionResult != null && (executed.executionResult.success()
-                                    || executed.executionResult.code() == ExecutionResult.ErrorCode.SAVE_FAILED_AFTER_COMMIT);
-                            }
-                            @Override public void executed(ScriptRouter.Result executed, String feedback, ModelChangeSummary.ChangeReport report) {
-                                ui(() -> {
-                                    if (executed.executionResult != null) showExecutionResult(executed.executionResult);
-                                    else appendMessage("Model action", feedback);
-                                    if (report != null) appendMessage("Model changes", report.markdownSummary());
-                                    conversation.addOutcome(feedback);
-                                    persistConversation();
-                                });
-                            }
-                            @Override public void checks(String markdown) {
-                                ui(() -> { appendMessage("Model result checks", markdown); conversation.addOutcome(markdown); persistConversation(); });
-                            }
-                            @Override public void validation(String markdown) {
-                                ui(() -> { appendMessage("Capella validation", markdown); conversation.addOutcome(markdown); persistConversation(); });
-                            }
-                        });
+                    edit =
+                            ReviewedEdit.apply(
+                                    session,
+                                    new ReviewedEdit.Request(
+                                            input,
+                                            turn.reply(),
+                                            code,
+                                            turn.postconditions(),
+                                            conversationId,
+                                            context,
+                                            () ->
+                                                    confirmCode(
+                                                            session,
+                                                            code,
+                                                            proposalSummary,
+                                                            expectedChecks),
+                                            this::requestCancelled,
+                                            () -> isCurrentSession(session),
+                                            ModelVerification::snapshot),
+                                    new ReviewedEdit.Listener() {
+                                        @Override
+                                        public void activity(String text) {
+                                            ui(() -> setActivity(text));
+                                        }
+
+                                        @Override
+                                        public void ran(ScriptRouter.Result executed) {
+                                            ranAttempt[0] |= executed.attempts > 0;
+                                            ranCommit[0] |=
+                                                    executed.executionResult != null
+                                                            && (executed.executionResult.success()
+                                                                    || executed.executionResult
+                                                                                    .code()
+                                                                            == ExecutionResult
+                                                                                    .ErrorCode
+                                                                                    .SAVE_FAILED_AFTER_COMMIT);
+                                        }
+
+                                        @Override
+                                        public void executed(
+                                                ScriptRouter.Result executed,
+                                                String feedback,
+                                                ModelChangeSummary.ChangeReport report) {
+                                            ui(
+                                                    () -> {
+                                                        if (executed.executionResult != null)
+                                                            showExecutionResult(
+                                                                    executed.executionResult);
+                                                        else
+                                                            appendMessage("Model action", feedback);
+                                                        if (report != null)
+                                                            appendMessage(
+                                                                    "Model changes",
+                                                                    report.markdownSummary());
+                                                        conversation.addOutcome(feedback);
+                                                        persistConversation();
+                                                    });
+                                        }
+
+                                        @Override
+                                        public void checks(String markdown) {
+                                            ui(
+                                                    () -> {
+                                                        appendMessage(
+                                                                "Model result checks", markdown);
+                                                        conversation.addOutcome(markdown);
+                                                        persistConversation();
+                                                    });
+                                        }
+
+                                        @Override
+                                        public void validation(String markdown) {
+                                            ui(
+                                                    () -> {
+                                                        appendMessage(
+                                                                "Capella validation", markdown);
+                                                        conversation.addOutcome(markdown);
+                                                        persistConversation();
+                                                    });
+                                        }
+                                    });
                 } finally {
                     executionAttempted |= ranAttempt[0];
-                    // A committed save failure must never be mistaken for rollback or an invitation to retry.
+                    // A committed save failure must never be mistaken for rollback or an invitation
+                    // to retry.
                     applied |= ranCommit[0];
                 }
                 ScriptRouter.Result result = edit.result();
@@ -1043,26 +1459,56 @@ public class ChatView extends ViewPart {
                 ModelChangeSummary.ChangeReport changes = edit.changes();
                 ArcadiaAgent.ExecutionOutcome outcome = edit.execution();
                 recordedOutcome = outcome;
-                if (requestCancelled() || !result.codeExecuted
-                    || result.executionResult.code() == ExecutionResult.ErrorCode.SAVE_FAILED_AFTER_COMMIT) {
+                if (requestCancelled()
+                        || !result.codeExecuted
+                        || result.executionResult.code()
+                                == ExecutionResult.ErrorCode.SAVE_FAILED_AFTER_COMMIT) {
                     recordExecutionOutcome(agent, turn, outcome, requestHistory);
                     if (!requestCancelled()) {
-                        String reason = committed && result.executionResult != null && result.executionResult.code() == ExecutionResult.ErrorCode.SAVE_FAILED_AFTER_COMMIT
-                            ? "The model change committed, but saving failed. Save the model in Capella; do not rerun the committed change."
-                            : "The proposal was not applied. Review the model action result before continuing.";
-                        ui(() -> rememberTaskTermination(session, requestConversation, TaskTermination.blocked(reason, displayed.plan())));
+                        String reason =
+                                committed
+                                                && result.executionResult != null
+                                                && result.executionResult.code()
+                                                        == ExecutionResult.ErrorCode
+                                                                .SAVE_FAILED_AFTER_COMMIT
+                                        ? "The model change committed, but saving failed. Save the"
+                                              + " model in Capella; do not rerun the committed"
+                                              + " change."
+                                        : "The proposal was not applied. Review the model action"
+                                              + " result before continuing.";
+                        ui(
+                                () ->
+                                        rememberTaskTermination(
+                                                session,
+                                                requestConversation,
+                                                TaskTermination.blocked(reason, displayed.plan())));
                     }
                     return;
                 }
                 if (committed && (changes == null || !changes.available())) {
                     recordExecutionOutcome(agent, turn, outcome, requestHistory);
-                    ui(() -> appendMessage("Task paused", "The script committed, but its model changes could not be confirmed. Inspect the model before continuing."));
-                    ui(() -> rememberTaskTermination(session, requestConversation, TaskTermination.blocked("The script committed, but its model changes could not be confirmed. Inspect the model before continuing; do not replay the committed change.", displayed.plan())));
+                    ui(
+                            () ->
+                                    appendMessage(
+                                            "Task paused",
+                                            "The script committed, but its model changes could not"
+                                                + " be confirmed. Inspect the model before"
+                                                + " continuing."));
+                    ui(
+                            () ->
+                                    rememberTaskTermination(
+                                            session,
+                                            requestConversation,
+                                            TaskTermination.blocked(
+                                                    "The script committed, but its model changes"
+                                                        + " could not be confirmed. Inspect the"
+                                                        + " model before continuing; do not replay"
+                                                        + " the committed change.",
+                                                    displayed.plan())));
                     return;
                 }
                 ui(() -> setActivity("Reviewing the execution result…"));
-                turn = agent.finish(turn, outcome,
-                    this::requestCancelled, this::showAgentProgress);
+                turn = agent.finish(turn, outcome, this::requestCancelled, this::showAgentProgress);
                 if (requestCancelled()) restoreRequestOutcome(requestHistory, turn, outcome);
             }
         } catch (Exception ex) {
@@ -1071,7 +1517,12 @@ public class ChatView extends ViewPart {
                 // continuation built from the older plan would redo a committed edit.
                 if (!failure.turn().plan().isEmpty()) latestPlan = failure.turn().plan();
                 restoreRequestOutcome(requestHistory, failure.turn(), recordedOutcome);
-                ui(() -> rememberTaskTermination(session, requestConversation, failure.turn().termination()));
+                ui(
+                        () ->
+                                rememberTaskTermination(
+                                        session,
+                                        requestConversation,
+                                        failure.turn().termination()));
             } else if (recordedOutcome != null) {
                 restoreRequestOutcome(requestHistory, null, recordedOutcome);
             }
@@ -1080,95 +1531,162 @@ public class ChatView extends ViewPart {
                 boolean anyApplied = applied;
                 boolean retrySafe = !proposalReceived && !anyApplied;
                 String failure = LLMService.userFacingError(ex);
-                ui(() -> {
-                    if (failure.contains("sign-in has expired") || failure.contains("Sign in with ChatGPT")) accountConfirmed(false);
-                    appendMessage(anyApplied ? "Changes applied · Task could not finish" : "Request could not finish", failure);
-                    if (!(ex instanceof ArcadiaAgent.AgentException)) rememberTaskTermination(session, requestConversation,
-                        TaskTermination.blocked(anyApplied ? "Changes committed, but the task could not finish. Check the preceding execution/save facts; do not replay the change."
-                            : "The request could not finish. Review the reported connection or model action error.", failedPlan));
-                    if (retrySafe) {
-                        retryInput = input;
-                        retrySession = session;
-                        retryContext = context;
-                    }
-                    if (!anyApplied && inputField.getText().isBlank()) inputField.setText(input);
-                });
+                ui(
+                        () -> {
+                            if (failure.contains("sign-in has expired")
+                                    || failure.contains("Sign in with ChatGPT"))
+                                accountConfirmed(false);
+                            appendMessage(
+                                    anyApplied
+                                            ? "Changes applied · Task could not finish"
+                                            : "Request could not finish",
+                                    failure);
+                            if (!(ex instanceof ArcadiaAgent.AgentException))
+                                rememberTaskTermination(
+                                        session,
+                                        requestConversation,
+                                        TaskTermination.blocked(
+                                                anyApplied
+                                                        ? "Changes committed, but the task could"
+                                                              + " not finish. Check the preceding"
+                                                              + " execution/save facts; do not"
+                                                              + " replay the change."
+                                                        : "The request could not finish. Review the"
+                                                              + " reported connection or model"
+                                                              + " action error.",
+                                                failedPlan));
+                            if (retrySafe) {
+                                retryInput = input;
+                                retrySession = session;
+                                retryContext = context;
+                            }
+                            if (!anyApplied && inputField.getText().isBlank())
+                                inputField.setText(input);
+                        });
             }
         } finally {
             requestThread = null;
             boolean anyApplied = applied;
             boolean attempted = executionAttempted;
             List<ArcadiaAgent.Step> stoppedPlan = latestPlan;
-            ui(() -> {
-                if (stopRequested) {
-                    rememberTaskTermination(session, requestConversation, TaskTermination.blocked(anyApplied
-                        ? "Stopped after committed execution. Check the preceding execution/save facts before continuing; do not replay the change."
-                        : "The request was stopped. Pending model work is not complete.", stoppedPlan));
-                    conversation.addOutcome(anyApplied
-                        ? "Request stopped after committed execution. The preceding execution/save facts remain authoritative; do not rerun the script automatically."
-                        : attempted ? "Request stopped. No committed changes were confirmed; preceding execution feedback remains authoritative."
-                            : "Request stopped before execution. No code was run.");
-                    appendMessage("Request stopped", stopReason == null
-                        ? anyApplied ? "The request stopped after committed execution. Check the execution and validation results before continuing."
-                            : "The request stopped. You can revise your message and send it again." : stopReason);
-                    if (!anyApplied && inputField.getText().isBlank()) inputField.setText(input);
-                }
-                requestSession = null;
-                requestContext = null;
-                persistConversation();
-                setBusy(false);
-                continueTask(session, context, stoppedPlan);
-            });
+            ui(
+                    () -> {
+                        if (stopRequested) {
+                            rememberTaskTermination(
+                                    session,
+                                    requestConversation,
+                                    TaskTermination.blocked(
+                                            anyApplied
+                                                    ? "Stopped after committed execution. Check the"
+                                                          + " preceding execution/save facts before"
+                                                          + " continuing; do not replay the change."
+                                                    : "The request was stopped. Pending model work"
+                                                          + " is not complete.",
+                                            stoppedPlan));
+                            conversation.addOutcome(
+                                    anyApplied
+                                            ? "Request stopped after committed execution. The"
+                                                  + " preceding execution/save facts remain"
+                                                  + " authoritative; do not rerun the script"
+                                                  + " automatically."
+                                            : attempted
+                                                    ? "Request stopped. No committed changes were"
+                                                          + " confirmed; preceding execution"
+                                                          + " feedback remains authoritative."
+                                                    : "Request stopped before execution. No code"
+                                                          + " was run.");
+                            appendMessage(
+                                    "Request stopped",
+                                    stopReason == null
+                                            ? anyApplied
+                                                    ? "The request stopped after committed"
+                                                          + " execution. Check the execution and"
+                                                          + " validation results before continuing."
+                                                    : "The request stopped. You can revise your"
+                                                          + " message and send it again."
+                                            : stopReason);
+                            if (!anyApplied && inputField.getText().isBlank())
+                                inputField.setText(input);
+                        }
+                        requestSession = null;
+                        requestContext = null;
+                        persistConversation();
+                        setBusy(false);
+                        continueTask(session, context, stoppedPlan);
+                    });
         }
     }
 
-    private boolean requestCancelled() { return stopRequested || disposed || Thread.currentThread().isInterrupted(); }
-
-    private void clearTaskTermination() {
-        taskTermination = null; terminationSession = null; terminationConversation = null;
+    private boolean requestCancelled() {
+        return stopRequested || disposed || Thread.currentThread().isInterrupted();
     }
 
-    /** Transient status belongs only to this captured model and conversation, never to a future request. */
-    private void rememberTaskTermination(Session session, ConversationState owner, TaskTermination value) {
+    private void clearTaskTermination() {
+        taskTermination = null;
+        terminationSession = null;
+        terminationConversation = null;
+    }
+
+    /**
+     * Transient status belongs only to this captured model and conversation, never to a future
+     * request.
+     */
+    private void rememberTaskTermination(
+            Session session, ConversationState owner, TaskTermination value) {
         if (value == null || conversation != owner || conversationSession != session) return;
-        taskTermination = value; terminationSession = session; terminationConversation = owner;
+        taskTermination = value;
+        terminationSession = session;
+        terminationConversation = owner;
         if (activeSession == session) setActivity(value.activityText());
     }
 
-    private void recordExecutionOutcome(AgentRuntime agent, ArcadiaAgent.Turn turn,
-            ArcadiaAgent.ExecutionOutcome outcome, RequestHistory requestHistory) {
+    private void recordExecutionOutcome(
+            AgentRuntime agent,
+            ArcadiaAgent.Turn turn,
+            ArcadiaAgent.ExecutionOutcome outcome,
+            RequestHistory requestHistory) {
         agent.recordOutcome(turn, outcome);
         restoreRequestOutcome(requestHistory, agent.outcomeSnapshot(), outcome);
     }
 
     private record RequestHistory(ConversationState state, String key, ConversationStore store) {}
 
-    private void restoreRequestOutcome(RequestHistory request, ArcadiaAgent.Turn recorded,
+    private void restoreRequestOutcome(
+            RequestHistory request,
+            ArcadiaAgent.Turn recorded,
             ArcadiaAgent.ExecutionOutcome outcome) {
-        Runnable restore = () -> {
-            if (isUsable() && conversation == request.state()) {
-                // Direct runtimes retain the execution feedback already appended by the UI.
-                if (recorded == null) return;
-                conversation.restoreHistory(recorded.messages());
-                saveTaskPlan(recorded.plan());
-                persistConversation();
-                return;
-            }
-            try { persistClosedOutcome(request, recorded, outcome); }
-            catch (java.io.IOException failure) { historySaveFailed = true; }
-        };
+        Runnable restore =
+                () -> {
+                    if (isUsable() && conversation == request.state()) {
+                        // Direct runtimes retain the execution feedback already appended by the UI.
+                        if (recorded == null) return;
+                        conversation.restoreHistory(recorded.messages());
+                        saveTaskPlan(recorded.plan());
+                        persistConversation();
+                        return;
+                    }
+                    try {
+                        persistClosedOutcome(request, recorded, outcome);
+                    } catch (java.io.IOException failure) {
+                        historySaveFailed = true;
+                    }
+                };
         if (display == null || display.isDisposed()) restore.run();
         else {
-            try { display.syncExec(restore); }
-            catch (org.eclipse.swt.SWTException failure) {
+            try {
+                display.syncExec(restore);
+            } catch (org.eclipse.swt.SWTException failure) {
                 if (failure.code != SWT.ERROR_DEVICE_DISPOSED) throw failure;
                 restore.run();
             }
         }
     }
 
-    private static void persistClosedOutcome(RequestHistory request, ArcadiaAgent.Turn recorded,
-            ArcadiaAgent.ExecutionOutcome outcome) throws java.io.IOException {
+    private static void persistClosedOutcome(
+            RequestHistory request,
+            ArcadiaAgent.Turn recorded,
+            ArcadiaAgent.ExecutionOutcome outcome)
+            throws java.io.IOException {
         String priorPlan = request.state().taskPlan();
         List<LLMService.Message> priorHistory = request.state().history();
         if (recorded != null) request.state().restoreHistory(recorded.messages());
@@ -1180,7 +1698,7 @@ public class ChatView extends ViewPart {
             synchronized (ConversationStore.class) {
                 ConversationState latest = request.store().load(request.key());
                 if (!sameHistory(latest.history(), priorHistory)
-                    || !latest.codexThreadId().equals(request.state().codexThreadId())) return;
+                        || !latest.codexThreadId().equals(request.state().codexThreadId())) return;
                 latest.restoreHistory(recorded.messages());
                 if (!recorded.plan().isEmpty() && latest.taskPlan().equals(priorPlan)) {
                     latest.taskPlan(formatTaskPlan(recorded.plan()));
@@ -1193,86 +1711,123 @@ public class ChatView extends ViewPart {
         if (recorded != null) {
             for (var message : recorded.messages()) {
                 if (message.getRole() == LLMService.Message.Role.USER
-                    && matchesOutcomeReceipt(message.getContent(), outcome)) receipt = message.getContent();
+                        && matchesOutcomeReceipt(message.getContent(), outcome))
+                    receipt = message.getContent();
             }
         }
         String facts = receipt == null ? outcome.feedback() : receipt;
         synchronized (ConversationStore.class) {
             ConversationState latest = request.store().load(request.key());
-            if (latest.history().stream().noneMatch(message -> message.getContent().equals(facts))) {
+            if (latest.history().stream()
+                    .noneMatch(message -> message.getContent().equals(facts))) {
                 List<LLMService.Message> history = new ArrayList<>(latest.history());
                 history.add(LLMService.Message.user(facts));
                 latest.restoreHistory(history);
             }
-            if (latest.entries().stream().noneMatch(entry -> "Execution outcome".equals(entry.role())
-                && outcome.feedback().equals(entry.text()))) latest.append("Execution outcome", outcome.feedback());
-            if (recorded != null && !recorded.plan().isEmpty() && latest.taskPlan().equals(priorPlan)
-                && latest.codexThreadId().equals(request.state().codexThreadId())) latest.taskPlan(formatTaskPlan(recorded.plan()));
+            if (latest.entries().stream()
+                    .noneMatch(
+                            entry ->
+                                    "Execution outcome".equals(entry.role())
+                                            && outcome.feedback().equals(entry.text())))
+                latest.append("Execution outcome", outcome.feedback());
+            if (recorded != null
+                    && !recorded.plan().isEmpty()
+                    && latest.taskPlan().equals(priorPlan)
+                    && latest.codexThreadId().equals(request.state().codexThreadId()))
+                latest.taskPlan(formatTaskPlan(recorded.plan()));
             request.store().save(request.key(), latest);
         }
     }
 
-    private static boolean sameHistory(List<LLMService.Message> first, List<LLMService.Message> second) {
+    private static boolean sameHistory(
+            List<LLMService.Message> first, List<LLMService.Message> second) {
         if (first.size() != second.size()) return false;
         for (int index = 0; index < first.size(); index++) {
             if (first.get(index).getRole() != second.get(index).getRole()
-                || !first.get(index).getContent().equals(second.get(index).getContent())) return false;
+                    || !first.get(index).getContent().equals(second.get(index).getContent()))
+                return false;
         }
         return true;
     }
 
-    private static boolean matchesOutcomeReceipt(String text, ArcadiaAgent.ExecutionOutcome outcome) {
+    private static boolean matchesOutcomeReceipt(
+            String text, ArcadiaAgent.ExecutionOutcome outcome) {
         String prefix = "AUTHORITATIVE CAPELLA EXECUTION OUTCOME\n";
         if (!text.startsWith(prefix)) return false;
         try {
-            if (!(AgentJson.parse(text.substring(prefix.length()), 200000) instanceof Map<?, ?> facts)) return false;
+            if (!(AgentJson.parse(text.substring(prefix.length()), 200000)
+                    instanceof Map<?, ?> facts)) return false;
             if (!Boolean.valueOf(outcome.applied()).equals(facts.get("applied"))
-                || !Boolean.valueOf(outcome.committed()).equals(facts.get("committed"))
-                || !Boolean.valueOf(outcome.saved()).equals(facts.get("saved"))
-                || !(facts.get("completedStepIds") instanceof List<?> ids)
-                || !new java.util.HashSet<>(ids).equals(outcome.completedStepIds())
-                || !(facts.get("feedback") instanceof String feedback)) return false;
-            return outcome.feedback().equals(feedback) || Boolean.TRUE.equals(facts.get("feedbackTruncated"))
-                && feedback.startsWith(outcome.feedback().substring(0, Math.min(32000, outcome.feedback().length())));
-        } catch (IllegalArgumentException malformed) { return false; }
+                    || !Boolean.valueOf(outcome.committed()).equals(facts.get("committed"))
+                    || !Boolean.valueOf(outcome.saved()).equals(facts.get("saved"))
+                    || !(facts.get("completedStepIds") instanceof List<?> ids)
+                    || !new java.util.HashSet<>(ids).equals(outcome.completedStepIds())
+                    || !(facts.get("feedback") instanceof String feedback)) return false;
+            return outcome.feedback().equals(feedback)
+                    || Boolean.TRUE.equals(facts.get("feedbackTruncated"))
+                            && feedback.startsWith(
+                                    outcome.feedback()
+                                            .substring(
+                                                    0,
+                                                    Math.min(32000, outcome.feedback().length())));
+        } catch (IllegalArgumentException malformed) {
+            return false;
+        }
     }
 
     private static String displayedReply(ArcadiaAgent.Turn turn) {
         String text = turn.reply();
         if (turn.hasProposal()) {
-            if (text == null || text.isBlank()) text = "Proposed model changes are ready for review.";
-            if (!turn.postconditions().isEmpty()) text += "\n\n**Expected model checks**\n" + org.polarsys.capella.ai.presentation.NativeCheckDescription.describeAll(turn.postconditions());
+            if (text == null || text.isBlank())
+                text = "Proposed model changes are ready for review.";
+            if (!turn.postconditions().isEmpty())
+                text +=
+                        "\n\n**Expected model checks**\n"
+                                + org.polarsys.capella.ai.presentation.NativeCheckDescription
+                                        .describeAll(turn.postconditions());
         }
         return text == null ? "" : text;
     }
 
     private void showAgentProgress(ArcadiaAgent.Progress event) {
-        ui(() -> {
-            if (stopRequested) return;
-            saveTaskPlan(event.plan());
-            if ("commentary".equals(event.type())) appendMessage("Codex", event.message());
-            if ("plan".equals(event.type()) && !"Read evidence received".equals(event.message())) {
-                appendMessage("Task plan", event.message());
-            }
-            if ("tool".equals(event.type()) || "tool_result".equals(event.type())) {
-                String action = event.message().replace("Reading ", "").replace("Read completed: ", "").replace("Read failed: ", "");
-                String label = switch (action) {
-                    case "model_summary" -> "Summarizing the model";
-                    case "model_search" -> "Finding model elements";
-                    case "model_inspect" -> "Inspecting model elements";
-                    case "model_relationships" -> "Checking model relationships";
-                    case "model_validate" -> "Checking model structure";
-                    case "native_validation" -> "Running Capella validation";
-                    case "capella_docs" -> "Reading Capella guidance";
-                    case "capella_capabilities" -> "Checking available model actions";
-                    default -> "Reading model evidence";
-                };
-                setActivity(label + "…");
-                if ("tool_result".equals(event.type()) && event.message().startsWith("Read failed:")) {
-                    appendMessage("Model inspection", label + " failed. The agent has the error details.");
-                }
-            } else if ("thinking".equals(event.type())) setActivity("Working through the task…");
-        });
+        ui(
+                () -> {
+                    if (stopRequested) return;
+                    saveTaskPlan(event.plan());
+                    if ("commentary".equals(event.type())) appendMessage("Codex", event.message());
+                    if ("plan".equals(event.type())
+                            && !"Read evidence received".equals(event.message())) {
+                        appendMessage("Task plan", event.message());
+                    }
+                    if ("tool".equals(event.type()) || "tool_result".equals(event.type())) {
+                        String action =
+                                event.message()
+                                        .replace("Reading ", "")
+                                        .replace("Read completed: ", "")
+                                        .replace("Read failed: ", "");
+                        String label =
+                                switch (action) {
+                                    case "model_summary" -> "Summarizing the model";
+                                    case "model_search" -> "Finding model elements";
+                                    case "model_inspect" -> "Inspecting model elements";
+                                    case "model_relationships" -> "Checking model relationships";
+                                    case "model_validate" -> "Checking model structure";
+                                    case "native_validation" -> "Running Capella validation";
+                                    case "capella_docs" -> "Reading Capella guidance";
+                                    case "capella_capabilities" ->
+                                            "Checking available model actions";
+                                    default -> "Reading model evidence";
+                                };
+                        setActivity(label + "…");
+                        if ("tool_result".equals(event.type())
+                                && event.message().startsWith("Read failed:")) {
+                            appendMessage(
+                                    "Model inspection",
+                                    label + " failed. The agent has the error details.");
+                        }
+                    } else if ("thinking".equals(event.type()))
+                        setActivity("Working through the task…");
+                });
     }
 
     private void saveTaskPlan(List<ArcadiaAgent.Step> steps) {
@@ -1283,18 +1838,28 @@ public class ChatView extends ViewPart {
     }
 
     private static String formatTaskPlan(List<ArcadiaAgent.Step> steps) {
-        return steps.stream().map(step -> switch (step.status()) {
-            case "completed" -> "Done · ";
-            case "in_progress" -> "In progress · ";
-            default -> "Pending · ";
-        } + step.title()).collect(java.util.stream.Collectors.joining("\n"));
+        return steps.stream()
+                .map(
+                        step ->
+                                switch (step.status()) {
+                                            case "completed" -> "Done · ";
+                                            case "in_progress" -> "In progress · ";
+                                            default -> "Pending · ";
+                                        }
+                                        + step.title())
+                .collect(java.util.stream.Collectors.joining("\n"));
     }
 
     private boolean isCurrentSession(Session session) {
-        boolean[] current = { false };
+        boolean[] current = {false};
         if (display == null || display.isDisposed() || disposed) return false;
-        display.syncExec(() -> current[0] = isUsable() && !stopRequested
-            && session.isOpen() && SessionBridge.getActiveSession() == session);
+        display.syncExec(
+                () ->
+                        current[0] =
+                                isUsable()
+                                        && !stopRequested
+                                        && session.isOpen()
+                                        && SessionBridge.getActiveSession() == session);
         return current[0];
     }
 
@@ -1302,28 +1867,38 @@ public class ChatView extends ViewPart {
         return confirmCode(session, code, "", "");
     }
 
-    private boolean confirmCode(Session session, String code, String proposalSummary, String expectedChecks) {
+    private boolean confirmCode(
+            Session session, String code, String proposalSummary, String expectedChecks) {
         CompletableFuture<Boolean> review = new CompletableFuture<>();
         if (display == null || display.isDisposed() || disposed) return false;
-        display.syncExec(() -> {
-            if (!isUsable() || stopRequested || !session.isOpen()
-                || SessionBridge.getActiveSession() != session) {
-                review.complete(false);
-                return;
-            }
-            reviewSession = session;
-            reviewCode = code;
-            reviewProposalSummary = proposalSummary;
-            reviewExpectedChecks = expectedChecks;
-            reviewModelName = ChatContextDetails.modelName(session);
-            reviewContextSummary = ChatContextDetails.selectionSummary(requestContext == null ? selectionContext : requestContext);
-            pendingReview = review;
-            reviewLabel.setText("Proposed model changes\n" + reviewModelName + "\n"
-                + "Review the changes and expected checks before applying. Dismiss to revise your request.");
-            showControl(reviewArea, true);
-            updateControls();
-            setActivity("Waiting for your review · No code has run");
-        });
+        display.syncExec(
+                () -> {
+                    if (!isUsable()
+                            || stopRequested
+                            || !session.isOpen()
+                            || SessionBridge.getActiveSession() != session) {
+                        review.complete(false);
+                        return;
+                    }
+                    reviewSession = session;
+                    reviewCode = code;
+                    reviewProposalSummary = proposalSummary;
+                    reviewExpectedChecks = expectedChecks;
+                    reviewModelName = ChatContextDetails.modelName(session);
+                    reviewContextSummary =
+                            ChatContextDetails.selectionSummary(
+                                    requestContext == null ? selectionContext : requestContext);
+                    pendingReview = review;
+                    reviewLabel.setText(
+                            "Proposed model changes\n"
+                                    + reviewModelName
+                                    + "\n"
+                                    + "Review the changes and expected checks before applying."
+                                    + " Dismiss to revise your request.");
+                    showControl(reviewArea, true);
+                    updateControls();
+                    setActivity("Waiting for your review · No code has run");
+                });
         try {
             return review.get() && !stopRequested && isCurrentSession(session);
         } catch (InterruptedException ex) {
@@ -1341,17 +1916,32 @@ public class ChatView extends ViewPart {
     private void reviewPendingCode() {
         CompletableFuture<Boolean> review = pendingReview;
         if (review == null || review.isDone() || stopRequested) return;
-        if (reviewSession == null || !reviewSession.isOpen()
-            || SessionBridge.getActiveSession() != reviewSession) {
-            appendMessage("Model changed", "The review was cancelled because its model is no longer active.");
+        if (reviewSession == null
+                || !reviewSession.isOpen()
+                || SessionBridge.getActiveSession() != reviewSession) {
+            appendMessage(
+                    "Model changed",
+                    "The review was cancelled because its model is no longer active.");
             review.complete(false);
             hideReview();
             return;
         }
-        boolean accepted = new CodePreviewDialog(getSite().getShell(), reviewCode, reviewModelName, reviewContextSummary,
-            reviewProposalSummary, reviewExpectedChecks).open() == Window.OK;
-        accepted = accepted && !stopRequested && !disposed && reviewSession.isOpen()
-            && SessionBridge.getActiveSession() == reviewSession;
+        boolean accepted =
+                new CodePreviewDialog(
+                                        getSite().getShell(),
+                                        reviewCode,
+                                        reviewModelName,
+                                        reviewContextSummary,
+                                        reviewProposalSummary,
+                                        reviewExpectedChecks)
+                                .open()
+                        == Window.OK;
+        accepted =
+                accepted
+                        && !stopRequested
+                        && !disposed
+                        && reviewSession.isOpen()
+                        && SessionBridge.getActiveSession() == reviewSession;
         review.complete(accepted);
         hideReview();
         if (accepted) requestStarted = System.nanoTime();
@@ -1378,7 +1968,8 @@ public class ChatView extends ViewPart {
 
     private void resizeComposer() {
         // At creation a hidden view is a few pixels wide; sizing for wrapped text then would stick.
-        if (inputField == null || inputField.isDisposed() || inputField.getClientArea().width < 100) return;
+        if (inputField == null || inputField.isDisposed() || inputField.getClientArea().width < 100)
+            return;
         int lineHeight = inputField.getLineHeight();
         int preferred = inputField.computeSize(inputField.getSize().x, SWT.DEFAULT).y;
         int height = Math.max(lineHeight * 3, Math.min(lineHeight * 7, preferred));
@@ -1395,8 +1986,12 @@ public class ChatView extends ViewPart {
         String role;
         if (result.success()) {
             role = "Script completed";
-            message.append("Finished in ").append(result.durationMs()).append(" ms. Use Capella Undo for model changes.");
-            if (result.value() != null) message.append("\n\n**Result**\n").append(ExecutionFeedback.valueForDisplay(result.value()));
+            message.append("Finished in ")
+                    .append(result.durationMs())
+                    .append(" ms. Use Capella Undo for model changes.");
+            if (result.value() != null)
+                message.append("\n\n**Result**\n")
+                        .append(ExecutionFeedback.valueForDisplay(result.value()));
         } else if (result.code() == ExecutionResult.ErrorCode.SAVE_FAILED_AFTER_COMMIT) {
             role = "Changes applied · Save failed";
             message.append(result.message());
@@ -1412,13 +2007,19 @@ public class ChatView extends ViewPart {
     }
 
     private boolean isUsable() {
-        return !disposed && transcript != null && !transcript.control().isDisposed()
-            && inputField != null && !inputField.isDisposed();
+        return !disposed
+                && transcript != null
+                && !transcript.control().isDisposed()
+                && inputField != null
+                && !inputField.isDisposed();
     }
 
     private void ui(Runnable operation) {
         if (display == null || display.isDisposed() || disposed) return;
-        display.asyncExec(() -> { if (isUsable()) operation.run(); });
+        display.asyncExec(
+                () -> {
+                    if (isUsable()) operation.run();
+                });
     }
 
     private void appendMessage(String role, String text) {
@@ -1442,7 +2043,8 @@ public class ChatView extends ViewPart {
 
     @Override
     public void dispose() {
-        if (inputField != null && !inputField.isDisposed()) conversation.draft(inputField.getText());
+        if (inputField != null && !inputField.isDisposed())
+            conversation.draft(inputField.getText());
         persistConversation();
         if (display != null && !display.isDisposed()) {
             if (activityTimer != null) display.timerExec(-1, activityTimer);
@@ -1456,7 +2058,10 @@ public class ChatView extends ViewPart {
         if (worker != null) worker.interrupt();
         requests.shutdownNow();
         if (selectionListener != null) {
-            getSite().getWorkbenchWindow().getSelectionService().removePostSelectionListener(selectionListener);
+            getSite()
+                    .getWorkbenchWindow()
+                    .getSelectionService()
+                    .removePostSelectionListener(selectionListener);
         }
         if (partListener != null) getSite().getPage().removePartListener(partListener);
         super.dispose();

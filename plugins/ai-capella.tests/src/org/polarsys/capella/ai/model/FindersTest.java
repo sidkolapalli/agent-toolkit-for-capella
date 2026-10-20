@@ -2,14 +2,12 @@ package org.polarsys.capella.ai.model;
 
 import static org.junit.Assert.*;
 
-import java.lang.reflect.Method;
-
 import org.junit.Before;
 import org.junit.Test;
 
-/**
- * Unit tests for Finders utility class, particularly the Levenshtein distance algorithm.
- */
+import java.lang.reflect.Method;
+
+/** Unit tests for Finders utility class, particularly the Levenshtein distance algorithm. */
 public class FindersTest {
 
     private Method levenshteinMethod;
@@ -17,7 +15,8 @@ public class FindersTest {
     @Before
     public void setUp() throws Exception {
         // Access the private levenshteinDistance method via reflection
-        levenshteinMethod = Finders.class.getDeclaredMethod("levenshteinDistance", String.class, String.class);
+        levenshteinMethod =
+                Finders.class.getDeclaredMethod("levenshteinDistance", String.class, String.class);
         levenshteinMethod.setAccessible(true);
     }
 
@@ -46,11 +45,11 @@ public class FindersTest {
         assertEquals(1, levenshtein("cat", "bat"));
         assertEquals(1, levenshtein("cat", "cut"));
         assertEquals(1, levenshtein("cat", "car"));
-        
+
         // Insertion
         assertEquals(1, levenshtein("cat", "cats"));
         assertEquals(1, levenshtein("at", "cat"));
-        
+
         // Deletion
         assertEquals(1, levenshtein("cats", "cat"));
         assertEquals(1, levenshtein("cat", "at"));
@@ -59,10 +58,10 @@ public class FindersTest {
     @Test
     public void testTypicalTypos() throws Exception {
         // Common typos should have small distance
-        assertEquals(1, levenshtein("sensor", "sensr"));      // missing 'o'
+        assertEquals(1, levenshtein("sensor", "sensr")); // missing 'o'
         assertEquals(1, levenshtein("component", "coponent")); // missing 'm'
-        assertEquals(1, levenshtein("function", "funcion"));   // missing 't'
-        assertEquals(2, levenshtein("logical", "logcial"));    // transposition-like
+        assertEquals(1, levenshtein("function", "funcion")); // missing 't'
+        assertEquals(2, levenshtein("logical", "logcial")); // transposition-like
     }
 
     @Test
@@ -134,7 +133,7 @@ public class FindersTest {
     public void testKnownDistances() throws Exception {
         // Classic example: kitten -> sitting
         assertEquals(3, levenshtein("kitten", "sitting"));
-        
+
         // Saturday -> Sunday
         assertEquals(3, levenshtein("saturday", "sunday"));
     }

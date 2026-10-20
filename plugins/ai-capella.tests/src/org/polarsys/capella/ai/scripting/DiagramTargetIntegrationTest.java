@@ -2,9 +2,6 @@ package org.polarsys.capella.ai.scripting;
 
 import static org.junit.Assert.*;
 
-import java.io.InputStream;
-import java.lang.reflect.Method;
-import javax.xml.parsers.DocumentBuilderFactory;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.emf.common.util.EList;
 import org.eclipse.emf.ecore.EClass;
@@ -19,6 +16,11 @@ import org.polarsys.capella.core.data.oa.OaFactory;
 import org.polarsys.capella.core.data.pa.PaFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
+
+import java.io.InputStream;
+import java.lang.reflect.Method;
+
+import javax.xml.parsers.DocumentBuilderFactory;
 
 /** Checks target selection against Capella's deployed descriptors and real model types. */
 public class DiagramTargetIntegrationTest {
@@ -41,7 +43,8 @@ public class DiagramTargetIntegrationTest {
             EObject fromPackage = resolve(name, fixture.functionPackage);
             assertSame(fixture.rootFunction, fromArchitecture);
             assertSame(fixture.rootFunction, fromPackage);
-            assertNativeApplicable(nativeDescription(descriptorFile(layer), name), fromArchitecture);
+            assertNativeApplicable(
+                    nativeDescription(descriptorFile(layer), name), fromArchitecture);
         }
     }
 
@@ -58,8 +61,15 @@ public class DiagramTargetIntegrationTest {
             assertNativeApplicable(descriptor, child);
             assertNativeApplicable(descriptor, fixture.capability);
             if (layer >= 2) {
-                assertTrue(descriptor.getAttribute("preconditionExpression")
-                    .contains("oclIsKindOf(" + (layer == 2 ? "la::LogicalArchitecture" : "pa::PhysicalArchitecture") + ")"));
+                assertTrue(
+                        descriptor
+                                .getAttribute("preconditionExpression")
+                                .contains(
+                                        "oclIsKindOf("
+                                                + (layer == 2
+                                                        ? "la::LogicalArchitecture"
+                                                        : "pa::PhysicalArchitecture")
+                                                + ")"));
             }
         }
     }
@@ -91,13 +101,16 @@ public class DiagramTargetIntegrationTest {
     }
 
     private String description(String abbreviation) throws Exception {
-        Method method = DiagramAPI.class.getDeclaredMethod("resolveDiagramDescription", String.class);
+        Method method =
+                DiagramAPI.class.getDeclaredMethod("resolveDiagramDescription", String.class);
         method.setAccessible(true);
         return (String) method.invoke(api, abbreviation);
     }
 
     private EObject resolve(String description, EObject target) throws Exception {
-        Method method = DiagramAPI.class.getDeclaredMethod("resolveTargetForDescription", String.class, EObject.class);
+        Method method =
+                DiagramAPI.class.getDeclaredMethod(
+                        "resolveTargetForDescription", String.class, EObject.class);
         method.setAccessible(true);
         return (EObject) method.invoke(api, description, target);
     }
@@ -105,16 +118,22 @@ public class DiagramTargetIntegrationTest {
     private static Element nativeDescription(String file, String name) throws Exception {
         String path = "description/" + file + ".odesign";
         Bundle bundle = Platform.getBundle("org.polarsys.capella.core.sirius.analysis");
-        InputStream stream = bundle != null && bundle.getEntry(path) != null
-            ? bundle.getEntry(path).openStream()
-            : DiagramTargetIntegrationTest.class.getClassLoader().getResourceAsStream(path);
+        InputStream stream =
+                bundle != null && bundle.getEntry(path) != null
+                        ? bundle.getEntry(path).openStream()
+                        : DiagramTargetIntegrationTest.class
+                                .getClassLoader()
+                                .getResourceAsStream(path);
         assertNotNull("Native Capella descriptor resource missing: " + path, stream);
         try (InputStream input = stream) {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
             factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            NodeList descriptions = factory.newDocumentBuilder().parse(input).getElementsByTagName("ownedRepresentations");
+            NodeList descriptions =
+                    factory.newDocumentBuilder()
+                            .parse(input)
+                            .getElementsByTagName("ownedRepresentations");
             for (int i = 0; i < descriptions.getLength(); i++) {
                 Element descriptor = (Element) descriptions.item(i);
                 if (name.equals(descriptor.getAttribute("name"))) return descriptor;
@@ -125,11 +144,19 @@ public class DiagramTargetIntegrationTest {
 
     private static void assertNativeApplicable(Element descriptor, EObject target) {
         String domain = descriptor.getAttribute("domainClass");
-        assertTrue("Target " + target.eClass().getName() + " does not match native domain " + domain,
-            hasType(target, domain));
+        assertTrue(
+                "Target " + target.eClass().getName() + " does not match native domain " + domain,
+                hasType(target, domain));
         String expression = descriptor.getAttribute("preconditionExpression");
-        String targetType = "self.oclIsKindOf(" + target.eClass().getEPackage().getName() + "::" + target.eClass().getName() + ")";
-        assertTrue("Native target precondition excludes " + targetType, expression.contains(targetType));
+        String targetType =
+                "self.oclIsKindOf("
+                        + target.eClass().getEPackage().getName()
+                        + "::"
+                        + target.eClass().getName()
+                        + ")";
+        assertTrue(
+                "Native target precondition excludes " + targetType,
+                expression.contains(targetType));
     }
 
     private static boolean hasType(EObject target, String name) {
@@ -180,7 +207,8 @@ public class DiagramTargetIntegrationTest {
                 functions = "ownedPhysicalFunctions";
                 capabilities = "ownedCapabilityRealizations";
                 break;
-            default: throw new AssertionError(layer);
+            default:
+                throw new AssertionError(layer);
         }
         result.rootFunction = function(layer);
         set(result.architecture, "ownedFunctionPkg", result.functionPackage);

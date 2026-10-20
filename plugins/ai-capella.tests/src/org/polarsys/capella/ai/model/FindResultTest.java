@@ -2,14 +2,12 @@ package org.polarsys.capella.ai.model;
 
 import static org.junit.Assert.*;
 
-import java.util.List;
-
 import org.junit.Test;
 import org.polarsys.capella.ai.model.ActionResult.ErrorCode;
 
-/**
- * Unit tests for FindResult record and its factory methods.
- */
+import java.util.List;
+
+/** Unit tests for FindResult record and its factory methods. */
 public class FindResultTest {
 
     @Test
@@ -17,7 +15,7 @@ public class FindResultTest {
         // Note: We can't easily create EObjects without EMF runtime,
         // but we can test with null to verify the logic
         FindResult result = FindResult.success(null);
-        
+
         // With null element, success() returns false (element != null check)
         assertFalse("success with null element should return false", result.success());
     }
@@ -26,7 +24,7 @@ public class FindResultTest {
     public void testNotFoundWithAlternatives() {
         List<String> similar = List.of("SensorA", "SensorB");
         FindResult result = FindResult.notFound("Component", "Sensr", similar);
-        
+
         assertTrue("notFound should return failed=true", result.failed());
         assertFalse(result.success());
         assertEquals(ErrorCode.ELEMENT_NOT_FOUND, result.code());
@@ -37,13 +35,13 @@ public class FindResultTest {
 
     @Test
     public void testNotFoundWithCustomMessage() {
-        FindResult result = FindResult.notFound(
-            "LogicalComponent",
-            "LC1",
-            List.of("LogicalComponent1"),
-            "Custom error: LC1 does not exist in LA layer"
-        );
-        
+        FindResult result =
+                FindResult.notFound(
+                        "LogicalComponent",
+                        "LC1",
+                        List.of("LogicalComponent1"),
+                        "Custom error: LC1 does not exist in LA layer");
+
         assertEquals("Custom error: LC1 does not exist in LA layer", result.message());
     }
 
@@ -51,7 +49,7 @@ public class FindResultTest {
     public void testAmbiguousResult() {
         List<String> names = List.of("Sensor", "Sensor_v2", "Sensor_backup");
         FindResult result = FindResult.ambiguous(null, 3, names);
-        
+
         assertTrue(result.ambiguous());
         assertEquals(ErrorCode.DUPLICATE_AMBIGUOUS, result.code());
         assertEquals(3, result.matchCount());
@@ -61,7 +59,7 @@ public class FindResultTest {
     @Test
     public void testErrorResult() {
         FindResult result = FindResult.error(ErrorCode.SESSION_ERROR, "No active session");
-        
+
         assertTrue(result.failed());
         assertEquals(ErrorCode.SESSION_ERROR, result.code());
         assertEquals("No active session", result.message());
@@ -70,14 +68,11 @@ public class FindResultTest {
 
     @Test
     public void testToActionResult_NotFound() {
-        FindResult findResult = FindResult.notFound(
-            "Component",
-            "Foo",
-            List.of("FooBar", "FooBaz")
-        );
-        
+        FindResult findResult =
+                FindResult.notFound("Component", "Foo", List.of("FooBar", "FooBaz"));
+
         ActionResult actionResult = findResult.toActionResult();
-        
+
         assertFalse(actionResult.success());
         assertEquals(ErrorCode.ELEMENT_NOT_FOUND, actionResult.code());
         assertTrue(actionResult.hasAlternatives());
@@ -87,9 +82,9 @@ public class FindResultTest {
     @Test
     public void testToActionResult_Error() {
         FindResult findResult = FindResult.error(ErrorCode.INVALID_INPUT, "Name is blank");
-        
+
         ActionResult actionResult = findResult.toActionResult();
-        
+
         assertFalse(actionResult.success());
         assertEquals(ErrorCode.INVALID_INPUT, actionResult.code());
         assertEquals("Name is blank", actionResult.message());
@@ -99,17 +94,17 @@ public class FindResultTest {
     public void testImmutableAlternatives() {
         List<String> original = new java.util.ArrayList<>();
         original.add("A");
-        
+
         FindResult result = FindResult.notFound("Test", "X", original);
         original.add("B");
-        
+
         assertEquals("Alternatives should be immutable copy", 1, result.alternatives().size());
     }
 
     @Test
     public void testNullAlternativesHandled() {
         FindResult result = new FindResult(null, ErrorCode.ELEMENT_NOT_FOUND, "msg", 0, null);
-        
+
         assertNotNull(result.alternatives());
         assertTrue(result.alternatives().isEmpty());
     }

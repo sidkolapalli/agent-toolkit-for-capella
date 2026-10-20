@@ -32,19 +32,43 @@ public class AdvancedPreferencePage extends PreferencePage implements IWorkbench
         Composite root = new Composite(parent, SWT.NONE);
         root.setLayout(new GridLayout(2, false));
 
-        quickValidation = checkbox(root, "Enable quick validation after apply", AdvancedPreferences.isQuickValidationEnabled());
-        coverageGates = checkbox(root, "Enable coverage gates (advisory)", AdvancedPreferences.isCoverageGatesEnabled());
-        traceabilityGates = checkbox(root, "Enable traceability gates (advisory)", AdvancedPreferences.isTraceabilityGatesEnabled());
-        autoFixes = checkbox(root, "Enable auto-fixes (safe cleanups)", AdvancedPreferences.isAutoFixesEnabled());
+        quickValidation =
+                checkbox(
+                        root,
+                        "Enable quick validation after apply",
+                        AdvancedPreferences.isQuickValidationEnabled());
+        coverageGates =
+                checkbox(
+                        root,
+                        "Enable coverage gates (advisory)",
+                        AdvancedPreferences.isCoverageGatesEnabled());
+        traceabilityGates =
+                checkbox(
+                        root,
+                        "Enable traceability gates (advisory)",
+                        AdvancedPreferences.isTraceabilityGatesEnabled());
+        autoFixes =
+                checkbox(
+                        root,
+                        "Enable auto-fixes (safe cleanups)",
+                        AdvancedPreferences.isAutoFixesEnabled());
 
-        orchestrationEnabled = checkbox(root, "Enable orchestration (checkpoint/resume)", AdvancedPreferences.isOrchestrationEnabled());
+        orchestrationEnabled =
+                checkbox(
+                        root,
+                        "Enable orchestration (checkpoint/resume)",
+                        AdvancedPreferences.isOrchestrationEnabled());
 
         mkLabel(root, "Auto-save interval (sec):");
         autoSaveInterval = new Text(root, SWT.BORDER);
         autoSaveInterval.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         autoSaveInterval.setText(String.valueOf(AdvancedPreferences.getAutoSaveIntervalSec()));
 
-        selfHealingEnabled = checkbox(root, "Enable self-healing (refine and reapply)", AdvancedPreferences.isSelfHealingEnabled());
+        selfHealingEnabled =
+                checkbox(
+                        root,
+                        "Enable self-healing (refine and reapply)",
+                        AdvancedPreferences.isSelfHealingEnabled());
 
         mkLabel(root, "Self-healing iterations:");
         selfHealingMaxIters = new Text(root, SWT.BORDER);
@@ -98,6 +122,10 @@ public class AdvancedPreferencePage extends PreferencePage implements IWorkbench
     }
 
     private static int parseInt(String s, int def) {
-        try { return Integer.parseInt(s.trim()); } catch (Exception e) { return def; }
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (Exception e) {
+            return def;
+        }
     }
 }

@@ -8,10 +8,11 @@ import java.util.Map;
 /**
  * ThreadLocal operation tracking for intelligent undo/redo label generation.
  *
- * <p>Tracks operations (create, delete, link, set, allocate) performed during
- * a transaction and generates human-readable labels for the undo/redo stack.
+ * <p>Tracks operations (create, delete, link, set, allocate) performed during a transaction and
+ * generates human-readable labels for the undo/redo stack.
  *
  * <p>Usage:
+ *
  * <pre>{@code
  * OperationInferencer.begin();
  * try {
@@ -26,8 +27,8 @@ import java.util.Map;
  * }
  * }</pre>
  *
- * <p>Thread-safe via ThreadLocal - each thread has its own tracker.
- * Supports nested tracking with depth counting.
+ * <p>Thread-safe via ThreadLocal - each thread has its own tracker. Supports nested tracking with
+ * depth counting.
  */
 public final class OperationInferencer {
 
@@ -36,31 +37,29 @@ public final class OperationInferencer {
     private static final int MAX_TRACKING_DEPTH = 100;
 
     private static final ThreadLocal<OperationTracker> TRACKER =
-        ThreadLocal.withInitial(OperationTracker::new);
-    private static final ThreadLocal<String> LABEL_HINT =
-        ThreadLocal.withInitial(() -> null);
+            ThreadLocal.withInitial(OperationTracker::new);
+    private static final ThreadLocal<String> LABEL_HINT = ThreadLocal.withInitial(() -> null);
 
     private OperationInferencer() {}
 
-    /**
-     * Operation types that can be tracked.
-     */
+    /** Operation types that can be tracked. */
     public enum OpType {
-        CREATE, DELETE, LINK, SET, ALLOCATE, DIAGRAM
+        CREATE,
+        DELETE,
+        LINK,
+        SET,
+        ALLOCATE,
+        DIAGRAM
     }
 
-    /**
-     * Record of a single operation.
-     */
+    /** Record of a single operation. */
     private record Operation(OpType type, String elementType, String elementName, String extra) {
         Operation(OpType type, String elementType, String elementName) {
             this(type, elementType, elementName, null);
         }
     }
 
-    /**
-     * Tracker state for a single thread.
-     */
+    /** Tracker state for a single thread. */
     private static final class OperationTracker {
         private final List<Operation> operations = new ArrayList<>();
         private int depth = 0;
@@ -81,8 +80,11 @@ public final class OperationInferencer {
 
         // Prevent unbounded depth (protects against infinite recursion bugs)
         if (tracker.depth >= MAX_TRACKING_DEPTH) {
-            System.err.println("OperationInferencer: Max tracking depth (" + MAX_TRACKING_DEPTH +
-                ") reached. Possible infinite recursion or missing endAndGenerateLabel() calls.");
+            System.err.println(
+                    "OperationInferencer: Max tracking depth ("
+                            + MAX_TRACKING_DEPTH
+                            + ") reached. Possible infinite recursion or missing"
+                            + " endAndGenerateLabel() calls.");
             return false;
         }
 
@@ -121,7 +123,8 @@ public final class OperationInferencer {
             TRACKER.get().operations.add(new Operation(OpType.CREATE, safeType, safeName));
         } catch (Exception e) {
             // Never let tracking failures break the actual operation
-            System.err.println("OperationInferencer.recordCreate failed (non-fatal): " + e.getMessage());
+            System.err.println(
+                    "OperationInferencer.recordCreate failed (non-fatal): " + e.getMessage());
         }
     }
 
@@ -140,7 +143,8 @@ public final class OperationInferencer {
             String safeName = name != null ? name : "unnamed";
             TRACKER.get().operations.add(new Operation(OpType.DELETE, safeType, safeName));
         } catch (Exception e) {
-            System.err.println("OperationInferencer.recordDelete failed (non-fatal): " + e.getMessage());
+            System.err.println(
+                    "OperationInferencer.recordDelete failed (non-fatal): " + e.getMessage());
         }
     }
 
@@ -159,10 +163,14 @@ public final class OperationInferencer {
             String safeSource = sourceType != null ? sourceType : "Unknown";
             String safeTarget = targetType != null ? targetType : "Unknown";
             String safeRelation = relationType != null ? relationType : "relationship";
-            TRACKER.get().operations.add(new Operation(
-                OpType.LINK, safeRelation, safeSource + " -> " + safeTarget));
+            TRACKER.get()
+                    .operations
+                    .add(
+                            new Operation(
+                                    OpType.LINK, safeRelation, safeSource + " -> " + safeTarget));
         } catch (Exception e) {
-            System.err.println("OperationInferencer.recordLink failed (non-fatal): " + e.getMessage());
+            System.err.println(
+                    "OperationInferencer.recordLink failed (non-fatal): " + e.getMessage());
         }
     }
 
@@ -181,7 +189,8 @@ public final class OperationInferencer {
             String safeProperty = property != null ? property : "property";
             TRACKER.get().operations.add(new Operation(OpType.SET, safeType, safeProperty));
         } catch (Exception e) {
-            System.err.println("OperationInferencer.recordSet failed (non-fatal): " + e.getMessage());
+            System.err.println(
+                    "OperationInferencer.recordSet failed (non-fatal): " + e.getMessage());
         }
     }
 
@@ -198,10 +207,12 @@ public final class OperationInferencer {
             }
             String safeFunction = functionType != null ? functionType : "function";
             String safeComponent = componentType != null ? componentType : "component";
-            TRACKER.get().operations.add(new Operation(
-                OpType.ALLOCATE, safeFunction, safeComponent));
+            TRACKER.get()
+                    .operations
+                    .add(new Operation(OpType.ALLOCATE, safeFunction, safeComponent));
         } catch (Exception e) {
-            System.err.println("OperationInferencer.recordAllocate failed (non-fatal): " + e.getMessage());
+            System.err.println(
+                    "OperationInferencer.recordAllocate failed (non-fatal): " + e.getMessage());
         }
     }
 
@@ -220,13 +231,14 @@ public final class OperationInferencer {
             String safeName = diagramName != null ? diagramName : "unnamed";
             TRACKER.get().operations.add(new Operation(OpType.DIAGRAM, safeType, safeName));
         } catch (Exception e) {
-            System.err.println("OperationInferencer.recordDiagram failed (non-fatal): " + e.getMessage());
+            System.err.println(
+                    "OperationInferencer.recordDiagram failed (non-fatal): " + e.getMessage());
         }
     }
 
     /**
-     * Check if we should add an operation to the tracker.
-     * Returns false if not tracking or if we've hit the size limit.
+     * Check if we should add an operation to the tracker. Returns false if not tracking or if we've
+     * hit the size limit.
      */
     private static boolean tryAddOperation() {
         if (!isTracking()) {
@@ -240,12 +252,15 @@ public final class OperationInferencer {
         if (currentSize >= MAX_TRACKED_OPERATIONS) {
             // Add overflow marker once when we hit the limit
             if (currentSize == MAX_TRACKED_OPERATIONS) {
-                tracker.operations.add(new Operation(
-                    OpType.CREATE,
-                    "OVERFLOW",
-                    "(" + (MAX_TRACKED_OPERATIONS - 1) + "+ operations)"));
-                System.err.println("OperationInferencer: Tracking limit reached (" +
-                    MAX_TRACKED_OPERATIONS + "). Further operations not individually tracked.");
+                tracker.operations.add(
+                        new Operation(
+                                OpType.CREATE,
+                                "OVERFLOW",
+                                "(" + (MAX_TRACKED_OPERATIONS - 1) + "+ operations)"));
+                System.err.println(
+                        "OperationInferencer: Tracking limit reached ("
+                                + MAX_TRACKED_OPERATIONS
+                                + "). Further operations not individually tracked.");
             }
             return false;
         }
@@ -256,8 +271,8 @@ public final class OperationInferencer {
     /**
      * End tracking and generate a descriptive label.
      *
-     * @return the generated label, or null if this was a nested context
-     *         or no operations were recorded
+     * @return the generated label, or null if this was a nested context or no operations were
+     *     recorded
      */
     public static String endAndGenerateLabel() {
         OperationTracker tracker = TRACKER.get();
@@ -289,17 +304,15 @@ public final class OperationInferencer {
         return label;
     }
 
-    /**
-     * Clear tracking state (for error recovery).
-     */
+    /** Clear tracking state (for error recovery). */
     public static void clear() {
         TRACKER.get().reset();
         LABEL_HINT.set(null);
     }
 
     /**
-     * Clear ThreadLocal state to avoid leaks when the plugin stops.
-     * This should be called from the plugin's Activator.stop() method.
+     * Clear ThreadLocal state to avoid leaks when the plugin stops. This should be called from the
+     * plugin's Activator.stop() method.
      */
     public static void cleanup() {
         TRACKER.remove();
@@ -307,8 +320,8 @@ public final class OperationInferencer {
     }
 
     /**
-     * Provide a label hint for the current tracking context.
-     * Useful when a caller wants to enforce a specific undo label.
+     * Provide a label hint for the current tracking context. Useful when a caller wants to enforce
+     * a specific undo label.
      */
     public static void hintLabel(String label) {
         if (label == null || label.isBlank()) {
@@ -321,11 +334,12 @@ public final class OperationInferencer {
      * Generate a human-readable label from tracked operations.
      *
      * <p>Rules:
+     *
      * <ul>
-     *   <li>Single operation: "Create SystemFunction 'Process Data'"</li>
-     *   <li>Multiple same type: "Create 3 SystemFunctions"</li>
-     *   <li>Mixed operations: "Create 2 elements, link 1 exchange"</li>
-     *   <li>Max length: 60 characters, truncate with "..."</li>
+     *   <li>Single operation: "Create SystemFunction 'Process Data'"
+     *   <li>Multiple same type: "Create 3 SystemFunctions"
+     *   <li>Mixed operations: "Create 2 elements, link 1 exchange"
+     *   <li>Max length: 60 characters, truncate with "..."
      * </ul>
      */
     private static String generateLabel(List<Operation> ops) {
@@ -356,14 +370,16 @@ public final class OperationInferencer {
     }
 
     private static String formatSingleOperation(Operation op) {
-        String label = switch (op.type()) {
-            case CREATE -> "Create " + op.elementType() + " '" + op.elementName() + "'";
-            case DELETE -> "Delete " + op.elementType() + " '" + op.elementName() + "'";
-            case LINK -> "Create " + op.elementType();
-            case SET -> "Set " + op.elementName() + " on " + op.elementType();
-            case ALLOCATE -> "Allocate " + op.elementType() + " to " + op.elementName();
-            case DIAGRAM -> "Create " + op.elementType() + " diagram '" + op.elementName() + "'";
-        };
+        String label =
+                switch (op.type()) {
+                    case CREATE -> "Create " + op.elementType() + " '" + op.elementName() + "'";
+                    case DELETE -> "Delete " + op.elementType() + " '" + op.elementName() + "'";
+                    case LINK -> "Create " + op.elementType();
+                    case SET -> "Set " + op.elementName() + " on " + op.elementType();
+                    case ALLOCATE -> "Allocate " + op.elementType() + " to " + op.elementName();
+                    case DIAGRAM ->
+                            "Create " + op.elementType() + " diagram '" + op.elementName() + "'";
+                };
         return truncate(label);
     }
 
@@ -372,28 +388,31 @@ public final class OperationInferencer {
 
         // Check if all same element type
         String firstElementType = ops.get(0).elementType();
-        boolean allSameType = ops.stream().allMatch(op -> firstElementType.equals(op.elementType()));
+        boolean allSameType =
+                ops.stream().allMatch(op -> firstElementType.equals(op.elementType()));
 
         String label;
         if (allSameType) {
             String plural = count > 1 ? pluralize(firstElementType) : firstElementType;
-            label = switch (type) {
-                case CREATE -> "Create " + count + " " + plural;
-                case DELETE -> "Delete " + count + " " + plural;
-                case LINK -> "Create " + count + " " + plural;
-                case SET -> "Set " + count + " properties";
-                case ALLOCATE -> "Allocate " + count + " functions";
-                case DIAGRAM -> "Create " + count + " diagrams";
-            };
+            label =
+                    switch (type) {
+                        case CREATE -> "Create " + count + " " + plural;
+                        case DELETE -> "Delete " + count + " " + plural;
+                        case LINK -> "Create " + count + " " + plural;
+                        case SET -> "Set " + count + " properties";
+                        case ALLOCATE -> "Allocate " + count + " functions";
+                        case DIAGRAM -> "Create " + count + " diagrams";
+                    };
         } else {
-            label = switch (type) {
-                case CREATE -> "Create " + count + " elements";
-                case DELETE -> "Delete " + count + " elements";
-                case LINK -> "Create " + count + " relationships";
-                case SET -> "Set " + count + " properties";
-                case ALLOCATE -> "Allocate " + count + " functions";
-                case DIAGRAM -> "Create " + count + " diagrams";
-            };
+            label =
+                    switch (type) {
+                        case CREATE -> "Create " + count + " elements";
+                        case DELETE -> "Delete " + count + " elements";
+                        case LINK -> "Create " + count + " relationships";
+                        case SET -> "Set " + count + " properties";
+                        case ALLOCATE -> "Allocate " + count + " functions";
+                        case DIAGRAM -> "Create " + count + " diagrams";
+                    };
         }
         return truncate(label);
     }
@@ -402,7 +421,9 @@ public final class OperationInferencer {
         StringBuilder sb = new StringBuilder();
 
         // Order: CREATE, DELETE, LINK, ALLOCATE, SET, DIAGRAM
-        OpType[] order = {OpType.CREATE, OpType.DELETE, OpType.LINK, OpType.ALLOCATE, OpType.SET, OpType.DIAGRAM};
+        OpType[] order = {
+            OpType.CREATE, OpType.DELETE, OpType.LINK, OpType.ALLOCATE, OpType.SET, OpType.DIAGRAM
+        };
 
         int partsAdded = 0;
         for (OpType type : order) {
@@ -411,14 +432,31 @@ public final class OperationInferencer {
                     sb.append(", ");
                 }
                 int count = byType.get(type).size();
-                sb.append(switch (type) {
-                    case CREATE -> count == 1 ? "create 1 element" : "create " + count + " elements";
-                    case DELETE -> count == 1 ? "delete 1 element" : "delete " + count + " elements";
-                    case LINK -> count == 1 ? "link 1 relationship" : "link " + count + " relationships";
-                    case SET -> count == 1 ? "set 1 property" : "set " + count + " properties";
-                    case ALLOCATE -> count == 1 ? "allocate 1 function" : "allocate " + count + " functions";
-                    case DIAGRAM -> count == 1 ? "create 1 diagram" : "create " + count + " diagrams";
-                });
+                sb.append(
+                        switch (type) {
+                            case CREATE ->
+                                    count == 1
+                                            ? "create 1 element"
+                                            : "create " + count + " elements";
+                            case DELETE ->
+                                    count == 1
+                                            ? "delete 1 element"
+                                            : "delete " + count + " elements";
+                            case LINK ->
+                                    count == 1
+                                            ? "link 1 relationship"
+                                            : "link " + count + " relationships";
+                            case SET ->
+                                    count == 1 ? "set 1 property" : "set " + count + " properties";
+                            case ALLOCATE ->
+                                    count == 1
+                                            ? "allocate 1 function"
+                                            : "allocate " + count + " functions";
+                            case DIAGRAM ->
+                                    count == 1
+                                            ? "create 1 diagram"
+                                            : "create " + count + " diagrams";
+                        });
                 partsAdded++;
             }
         }
@@ -438,7 +476,10 @@ public final class OperationInferencer {
         if (word.endsWith("y")) {
             return word.substring(0, word.length() - 1) + "ies";
         }
-        if (word.endsWith("s") || word.endsWith("x") || word.endsWith("ch") || word.endsWith("sh")) {
+        if (word.endsWith("s")
+                || word.endsWith("x")
+                || word.endsWith("ch")
+                || word.endsWith("sh")) {
             return word + "es";
         }
         return word + "s";

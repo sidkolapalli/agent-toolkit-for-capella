@@ -1,13 +1,14 @@
 package org.polarsys.capella.ai;
 
-import java.util.LinkedHashSet;
-import java.util.Set;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.viewpoint.DSemanticDecorator;
 import org.polarsys.capella.ai.session.SelectionContext;
+
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /** Small, read-only descriptions of the native selection. Called on SWT. */
 final class ChatContextDetails {
@@ -40,9 +41,14 @@ final class ChatContextDetails {
                 selection += " · " + context.getSelectedElements().size() + " selected";
             }
         } else if (context.hasDiagram()) {
-            String layer = context.getActiveDiagram().get() instanceof DSemanticDecorator semantic
-                ? layer(semantic.getTarget()) : "";
-            selection = (layer.isBlank() ? "" : layer + " · ") + "Diagram: " + context.getActiveDiagramName();
+            String layer =
+                    context.getActiveDiagram().get() instanceof DSemanticDecorator semantic
+                            ? layer(semantic.getTarget())
+                            : "";
+            selection =
+                    (layer.isBlank() ? "" : layer + " · ")
+                            + "Diagram: "
+                            + context.getActiveDiagramName();
         }
         return selection;
     }
@@ -53,8 +59,10 @@ final class ChatContextDetails {
             text.append("\nSession: ").append(session.getSessionResource().getURI());
         }
         if (context.hasDiagram()) {
-            text.append("\nDiagram: ").append(context.getActiveDiagramName())
-                .append("\nDiagram type: ").append(context.getActiveDiagramType());
+            text.append("\nDiagram: ")
+                    .append(context.getActiveDiagramName())
+                    .append("\nDiagram type: ")
+                    .append(context.getActiveDiagramType());
         }
         if (!context.hasSelection()) text.append("\nNo semantic element is selected.");
         int count = 0;
@@ -65,24 +73,32 @@ final class ChatContextDetails {
             if (!layer.isBlank()) text.append("\nLayer: ").append(layer);
             String id = feature(element, "id");
             if (!id.isBlank()) text.append("\nID: ").append(id);
-            if (element.eContainer() != null) text.append("\nContainer: ").append(describe(element.eContainer()));
+            if (element.eContainer() != null)
+                text.append("\nContainer: ").append(describe(element.eContainer()));
         }
-        if (context.getSelectedElements().size() > 50) text.append("\nShowing the first 50 selected elements.");
-        text.append("\n\nThis context is read locally. It does not send a request or change the model.");
+        if (context.getSelectedElements().size() > 50)
+            text.append("\nShowing the first 50 selected elements.");
+        text.append(
+                "\n\n"
+                    + "This context is read locally. It does not send a request or change the"
+                    + " model.");
         return text.toString();
     }
 
     static String layer(EObject element) {
         Set<EObject> visited = new LinkedHashSet<>();
-        for (EObject current = element; current != null && visited.add(current); current = current.eContainer()) {
-            String layer = switch (current.eClass().getName()) {
-                case "OperationalAnalysis" -> "OA";
-                case "SystemAnalysis" -> "SA";
-                case "LogicalArchitecture" -> "LA";
-                case "PhysicalArchitecture" -> "PA";
-                case "EPBSArchitecture" -> "EPBS";
-                default -> "";
-            };
+        for (EObject current = element;
+                current != null && visited.add(current);
+                current = current.eContainer()) {
+            String layer =
+                    switch (current.eClass().getName()) {
+                        case "OperationalAnalysis" -> "OA";
+                        case "SystemAnalysis" -> "SA";
+                        case "LogicalArchitecture" -> "LA";
+                        case "PhysicalArchitecture" -> "PA";
+                        case "EPBSArchitecture" -> "EPBS";
+                        default -> "";
+                    };
             if (!layer.isBlank()) return layer;
         }
         return "";

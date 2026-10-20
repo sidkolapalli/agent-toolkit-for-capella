@@ -1,19 +1,20 @@
 package org.polarsys.capella.ai.preferences;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.regex.Pattern;
 import org.eclipse.core.runtime.preferences.IEclipsePreferences;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.osgi.service.prefs.BackingStoreException;
 import org.polarsys.capella.ai.Activator;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Pattern;
+
 /**
- * Preferences for normalizing/redacting execution output before returning it to
- * the LLM and to external clients (e.g., the dev server).
+ * Preferences for normalizing/redacting execution output before returning it to the LLM and to
+ * external clients (e.g., the dev server).
  *
- * <p>These are intentionally "backend only" settings; they can be surfaced in a
- * preference page later.
+ * <p>These are intentionally "backend only" settings; they can be surfaced in a preference page
+ * later.
  */
 public final class OutputPreferences {
 
@@ -73,8 +74,8 @@ public final class OutputPreferences {
     }
 
     /**
-     * Additional redaction regex patterns to apply. One pattern per line.
-     * Blank lines and lines starting with '#' are ignored.
+     * Additional redaction regex patterns to apply. One pattern per line. Blank lines and lines
+     * starting with '#' are ignored.
      */
     public static List<Pattern> getAdditionalRedactionPatterns() {
         String raw = prefs().get(KEY_REDACTION_REGEX_LIST, "");
@@ -109,4 +110,3 @@ public final class OutputPreferences {
         }
     }
 }
-

@@ -1,14 +1,14 @@
 package org.polarsys.capella.ai.browse;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
 import org.eclipse.sirius.business.api.dialect.DialectManager;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.diagram.DDiagram;
 import org.eclipse.sirius.viewpoint.DRepresentation;
 import org.polarsys.capella.ai.session.SessionBridge;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /** Helpers to list diagrams from the active session. */
 public final class DiagramBrowser {
@@ -18,10 +18,17 @@ public final class DiagramBrowser {
         public final String uid;
         public final String name;
         public final String type;
+
         public DiagramInfo(String uid, String name, String type) {
-            this.uid = uid; this.name = name; this.type = type;
+            this.uid = uid;
+            this.name = name;
+            this.type = type;
         }
-        @Override public String toString() { return String.format("%s [%s] (%s)", name, type, uid); }
+
+        @Override
+        public String toString() {
+            return String.format("%s [%s] (%s)", name, type, uid);
+        }
     }
 
     public static List<DiagramInfo> listActive() {
@@ -37,4 +44,3 @@ public final class DiagramBrowser {
         return out;
     }
 }
-

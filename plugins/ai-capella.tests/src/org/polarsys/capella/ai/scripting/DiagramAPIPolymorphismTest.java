@@ -2,10 +2,11 @@ package org.polarsys.capella.ai.scripting;
 
 import static org.junit.Assert.*;
 
+import org.junit.Test;
+
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.List;
-import org.junit.Test;
 
 public class DiagramAPIPolymorphismTest {
 
@@ -35,22 +36,22 @@ public class DiagramAPIPolymorphismTest {
         Class<?> eObjectType = Class.forName("org.eclipse.emf.ecore.EObject", true, apiCl);
         Class<?> ddeType = Class.forName("org.eclipse.sirius.diagram.DDiagramElement", true, apiCl);
 
-        Object target = Proxy.newProxyInstance(
-            eObjectType.getClassLoader(),
-            new Class<?>[] { eObjectType },
-            (proxy, method, args) -> null
-        );
+        Object target =
+                Proxy.newProxyInstance(
+                        eObjectType.getClassLoader(),
+                        new Class<?>[] {eObjectType},
+                        (proxy, method, args) -> null);
 
-        Object dde = Proxy.newProxyInstance(
-            ddeType.getClassLoader(),
-            new Class<?>[] { ddeType },
-            (proxy, method, args) -> {
-                if ("getTarget".equals(method.getName())) {
-                    return target;
-                }
-                return null;
-            }
-        );
+        Object dde =
+                Proxy.newProxyInstance(
+                        ddeType.getClassLoader(),
+                        new Class<?>[] {ddeType},
+                        (proxy, method, args) -> {
+                            if ("getTarget".equals(method.getName())) {
+                                return target;
+                            }
+                            return null;
+                        });
 
         Method m = DiagramAPI.class.getDeclaredMethod("toSemanticTargets", List.class);
         m.setAccessible(true);

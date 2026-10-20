@@ -2,14 +2,6 @@ package org.polarsys.capella.ai.agent;
 
 import static org.junit.Assert.*;
 
-import java.lang.reflect.Proxy;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
@@ -29,6 +21,15 @@ import org.polarsys.capella.core.data.la.LogicalFunction;
 import org.polarsys.capella.core.model.handler.helpers.CapellaProjectHelper;
 import org.polarsys.capella.core.model.handler.helpers.CapellaProjectHelper.ProjectApproach;
 
+import java.lang.reflect.Proxy;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+
 /** The eval harness drives the real agent protocol headlessly and scores tasks by native checks. */
 public class EvalRunnerTest {
     private Resource resource;
@@ -37,14 +38,18 @@ public class EvalRunnerTest {
     private LogicalFunction root;
     private boolean actions, confirm;
 
-    @Before public void setUp() {
+    @Before
+    public void setUp() {
         Display.getDefault();
         actions = LLMPreferences.isToolActionsEnabled();
         confirm = AdvancedPreferences.isConfirmBeforeApplyEnabled();
         LLMPreferences.setToolActionsEnabled(true);
         AdvancedPreferences.setConfirmBeforeApplyEnabled(true);
         var resources = new ResourceSetImpl();
-        resources.getResourceFactoryRegistry().getExtensionToFactoryMap().put("xmi", new XMIResourceFactoryImpl());
+        resources
+                .getResourceFactoryRegistry()
+                .getExtensionToFactoryMap()
+                .put("xmi", new XMIResourceFactoryImpl());
         resource = resources.createResource(URI.createURI("memory:/eval.xmi"));
         var project = CapellamodellerFactory.eINSTANCE.createProject();
         CapellaProjectHelper.setProjectWithApproach(project, ProjectApproach.SingletonComponents);
@@ -60,38 +65,52 @@ public class EvalRunnerTest {
         la.setOwnedLogicalComponentPkg(LaFactory.eINSTANCE.createLogicalComponentPkg());
         engineering.getOwnedArchitectures().add(la);
         domain = TransactionalEditingDomain.Factory.INSTANCE.createEditingDomain(resources);
-        session = (Session) Proxy.newProxyInstance(Session.class.getClassLoader(), new Class<?>[] {Session.class},
-            (proxy, method, args) -> switch (method.getName()) {
-                case "getTransactionalEditingDomain" -> domain;
-                case "getSemanticResources" -> List.of(resource);
-                case "getSessionResource" -> resource;
-                case "isOpen" -> true;
-                case "save" -> null;
-                case "hashCode" -> System.identityHashCode(proxy);
-                case "equals" -> proxy == args[0];
-                default -> null;
-            });
+        session =
+                (Session)
+                        Proxy.newProxyInstance(
+                                Session.class.getClassLoader(),
+                                new Class<?>[] {Session.class},
+                                (proxy, method, args) ->
+                                        switch (method.getName()) {
+                                            case "getTransactionalEditingDomain" -> domain;
+                                            case "getSemanticResources" -> List.of(resource);
+                                            case "getSessionResource" -> resource;
+                                            case "isOpen" -> true;
+                                            case "save" -> null;
+                                            case "hashCode" -> System.identityHashCode(proxy);
+                                            case "equals" -> proxy == args[0];
+                                            default -> null;
+                                        });
     }
 
-    @After public void tearDown() {
+    @After
+    public void tearDown() {
         LLMPreferences.setToolActionsEnabled(actions);
         AdvancedPreferences.setConfirmBeforeApplyEnabled(confirm);
         if (domain != null) domain.dispose();
         SessionSafeguards.cleanup();
     }
 
-    @Test public void tasksParseFromTheEvalFileFormat() {
-        List<EvalRunner.Task> tasks = EvalRunner.parse("{\"tasks\":[{\"id\":\"la-probe\",\"prompt\":\"Create Probe\","
-            + "\"checks\":[{\"kind\":\"element_exists\",\"type\":\"LogicalFunction\",\"name\":\"Probe\",\"layer\":\"LA\"}]}]}");
+    @Test
+    public void tasksParseFromTheEvalFileFormat() {
+        List<EvalRunner.Task> tasks =
+                EvalRunner.parse(
+                        "{\"tasks\":[{\"id\":\"la-probe\",\"prompt\":\"Create Probe\","
+                            + "\"checks\":[{\"kind\":\"element_exists\",\"type\":\"LogicalFunction\",\"name\":\"Probe\",\"layer\":\"LA\"}]}]}");
         assertEquals(1, tasks.size());
         assertEquals("la-probe", tasks.get(0).id());
         assertEquals("element_exists", tasks.get(0).checks().get(0).kind());
-        assertThrows(IllegalArgumentException.class, () -> EvalRunner.parse("{\"tasks\":[{\"id\":\"no-checks\",\"prompt\":\"x\"}]}"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> EvalRunner.parse("{\"tasks\":[{\"id\":\"no-checks\",\"prompt\":\"x\"}]}"));
     }
 
-    @Test public void shippedTaskFilesAreValidDeclarations() throws Exception {
+    @Test
+    public void shippedTaskFilesAreValidDeclarations() throws Exception {
         java.nio.file.Path dir = null;
-        for (var root = java.nio.file.Path.of(System.getProperty("user.dir")).toAbsolutePath(); root != null && dir == null; root = root.getParent()) {
+        for (var root = java.nio.file.Path.of(System.getProperty("user.dir")).toAbsolutePath();
+                root != null && dir == null;
+                root = root.getParent()) {
             var candidate = root.resolve("test-models/evals");
             if (java.nio.file.Files.isDirectory(candidate)) dir = candidate;
         }
@@ -103,19 +122,30 @@ public class EvalRunnerTest {
                 files++;
                 String json = java.nio.file.Files.readString(file);
                 var raw = (Map<?, ?>) AgentJson.parse(json, 2_000_000);
-                // A file can need an optional Capella add-on (the FSAE tasks trace to Requirements Viewpoint
+                // A file can need an optional Capella add-on (the FSAE tasks trace to Requirements
+                // Viewpoint
                 // requirements); its native types exist only where that add-on is installed.
-                boolean typesAvailable = !(raw.get("requires") instanceof String namespace)
-                    || org.eclipse.emf.ecore.EPackage.Registry.INSTANCE.containsKey(namespace);
+                boolean typesAvailable =
+                        !(raw.get("requires") instanceof String namespace)
+                                || org.eclipse.emf.ecore.EPackage.Registry.INSTANCE.containsKey(
+                                        namespace);
                 if (typesAvailable) {
                     for (EvalRunner.Task task : EvalRunner.parse(json)) {
-                        assertTrue("Task ids are unique across files: " + task.id(), ids.add(task.id()));
+                        assertTrue(
+                                "Task ids are unique across files: " + task.id(),
+                                ids.add(task.id()));
                     }
                 } else {
                     for (Object task : (List<?>) raw.get("tasks")) {
                         Map<?, ?> fields = (Map<?, ?>) task;
-                        assertTrue("Every task has a prompt and checks", fields.get("prompt") instanceof String && fields.get("checks") instanceof List<?> checks && !checks.isEmpty());
-                        assertTrue("Task ids are unique across files: " + fields.get("id"), ids.add(String.valueOf(fields.get("id"))));
+                        assertTrue(
+                                "Every task has a prompt and checks",
+                                fields.get("prompt") instanceof String
+                                        && fields.get("checks") instanceof List<?> checks
+                                        && !checks.isEmpty());
+                        assertTrue(
+                                "Task ids are unique across files: " + fields.get("id"),
+                                ids.add(String.valueOf(fields.get("id"))));
                     }
                 }
             }
@@ -124,7 +154,8 @@ public class EvalRunnerTest {
         assertTrue(ids.size() >= 20);
     }
 
-    @Test public void solvedTaskPassesItsNativeChecksAndRecordsTheEffort() throws Exception {
+    @Test
+    public void solvedTaskPassesItsNativeChecksAndRecordsTheEffort() throws Exception {
         var result = run(task("Probe"), plan(), proposal("Probe"), finalReply());
         assertTrue(result.toString(), result.passed());
         assertEquals(1, result.proposals());
@@ -132,48 +163,102 @@ public class EvalRunnerTest {
         assertEquals(0, result.repairs());
         assertTrue(result.requests() >= 3);
         var edit = edit(result);
-        assertEquals(List.of("edit"), edit.get("step_ids")); assertEquals(1, edit.get("declared_checks"));
-        assertEquals("Each applied proposal records what was verified", List.of("edit"), edit.get("verified_step_ids"));
-        assertTrue("and why: " + edit, String.valueOf(edit.get("checks_and_validation")).startsWith("Declared postconditions independently checked: 1/1 passed"));
+        assertEquals(List.of("edit"), edit.get("step_ids"));
+        assertEquals(1, edit.get("declared_checks"));
+        assertEquals(
+                "Each applied proposal records what was verified",
+                List.of("edit"),
+                edit.get("verified_step_ids"));
+        assertTrue(
+                "and why: " + edit,
+                String.valueOf(edit.get("checks_and_validation"))
+                        .startsWith("Declared postconditions independently checked: 1/1 passed"));
     }
 
-    @Test public void aProposalWithoutChecksLeavesItsStepUnverifiedAndSaysSo() throws Exception {
-        String unchecked = AgentJson.write(Map.of("kind", "proposal", "message", "Create Probe",
-            "script", "api.create('LA', 'LogicalFunction', 'Probe')", "stepIds", List.of("edit")));
+    @Test
+    public void aProposalWithoutChecksLeavesItsStepUnverifiedAndSaysSo() throws Exception {
+        String unchecked =
+                AgentJson.write(
+                        Map.of(
+                                "kind",
+                                "proposal",
+                                "message",
+                                "Create Probe",
+                                "script",
+                                "api.create('LA', 'LogicalFunction', 'Probe')",
+                                "stepIds",
+                                List.of("edit")));
         var result = run(task("Probe"), plan(), unchecked, finalReply());
         assertTrue(result.passed());
         assertEquals("blocked", result.ending());
-        assertEquals(0, edit(result).get("declared_checks")); assertEquals(List.of(), edit(result).get("verified_step_ids"));
+        assertEquals(0, edit(result).get("declared_checks"));
+        assertEquals(List.of(), edit(result).get("verified_step_ids"));
         assertEquals("", edit(result).get("checks_and_validation"));
     }
 
-    @Test public void wrongModelChangeFailsEvenWhenTheAgentClaimsSuccess() throws Exception {
+    @Test
+    public void wrongModelChangeFailsEvenWhenTheAgentClaimsSuccess() throws Exception {
         var result = run(task("Probe"), plan(), proposal("Other"), finalReply());
         assertFalse(result.passed());
         assertEquals(1, result.committed());
         assertTrue(result.checks().contains("Failed"));
     }
 
-    @Test public void aBlockedTaskReportsWhyItsProposalDidNotApply() throws Exception {
-        String failing = AgentJson.write(Map.of("kind", "proposal", "message", "Fails at runtime",
-            "script", "assert false : 'deliberate runtime failure'", "stepIds", List.of("edit")));
+    @Test
+    public void aBlockedTaskReportsWhyItsProposalDidNotApply() throws Exception {
+        String failing =
+                AgentJson.write(
+                        Map.of(
+                                "kind",
+                                "proposal",
+                                "message",
+                                "Fails at runtime",
+                                "script",
+                                "assert false : 'deliberate runtime failure'",
+                                "stepIds",
+                                List.of("edit")));
         var result = run(task("Probe"), plan(), failing, finalReply());
         assertFalse(result.passed());
         assertTrue(result.ending(), result.ending().startsWith("blocked"));
-        assertTrue("The failure reason travels with the result: " + result.detail(), result.detail().contains("deliberate runtime failure"));
+        assertTrue(
+                "The failure reason travels with the result: " + result.detail(),
+                result.detail().contains("deliberate runtime failure"));
         assertEquals(result.detail(), result.json().get("detail"));
     }
 
-    @Test public void theAgentsOwnBlockedReasonIsReported() throws Exception {
-        String blocked = AgentJson.write(Map.of("kind", "final", "message", "Cannot finish.",
-            "task", Map.of("state", "blocked", "reason", "The diagram tool rejected the exchange")));
+    @Test
+    public void theAgentsOwnBlockedReasonIsReported() throws Exception {
+        String blocked =
+                AgentJson.write(
+                        Map.of(
+                                "kind",
+                                "final",
+                                "message",
+                                "Cannot finish.",
+                                "task",
+                                Map.of(
+                                        "state",
+                                        "blocked",
+                                        "reason",
+                                        "The diagram tool rejected the exchange")));
         var result = run(task("Probe"), plan(), proposal("Probe"), blocked);
         assertEquals("blocked", result.ending());
         assertTrue(result.detail(), result.detail().contains("diagram tool rejected"));
     }
 
-    @Test public void compileFailureIsRepairedBeforeReviewAndCounted() throws Exception {
-        String broken = AgentJson.write(Map.of("kind", "proposal", "message", "Broken", "script", "def x = (", "stepIds", List.of("edit")));
+    @Test
+    public void compileFailureIsRepairedBeforeReviewAndCounted() throws Exception {
+        String broken =
+                AgentJson.write(
+                        Map.of(
+                                "kind",
+                                "proposal",
+                                "message",
+                                "Broken",
+                                "script",
+                                "def x = (",
+                                "stepIds",
+                                List.of("edit")));
         var result = run(task("Probe"), plan(), broken, proposal("Probe"), finalReply());
         assertTrue(result.toString(), result.passed());
         assertEquals(1, result.repairs());
@@ -182,10 +267,25 @@ public class EvalRunnerTest {
 
     private EvalRunner.Result run(EvalRunner.Task task, String... replies) throws Exception {
         Deque<String> queue = new ArrayDeque<>(List.of(replies));
-        Supplier<AgentRuntime> runtimes = () -> new ArcadiaAgent(messages -> queue.isEmpty() ? finalReply() : queue.removeFirst(),
-            (tool, arguments) -> "{}", Set(), ArcadiaAgent.Limits.defaults());
-        var work = new FutureTask<>(() -> EvalRunner.run(session, task, runtimes, "You edit Capella models.",
-            ignored -> new ModelVerification.Snapshot(true, 0, 0, 0, List.of(), true, false, "")));
+        Supplier<AgentRuntime> runtimes =
+                () ->
+                        new ArcadiaAgent(
+                                messages -> queue.isEmpty() ? finalReply() : queue.removeFirst(),
+                                (tool, arguments) -> "{}",
+                                Set(),
+                                ArcadiaAgent.Limits.defaults());
+        var work =
+                new FutureTask<>(
+                        () ->
+                                EvalRunner.run(
+                                        session,
+                                        task,
+                                        runtimes,
+                                        "You edit Capella models.",
+                                        ignored ->
+                                                new ModelVerification.Snapshot(
+                                                        true, 0, 0, 0, List.of(), true, false,
+                                                        "")));
         Thread worker = new Thread(work, "EvalRunnerTest");
         worker.setDaemon(true);
         worker.start();
@@ -198,28 +298,80 @@ public class EvalRunnerTest {
     }
 
     private static Map<?, ?> edit(EvalRunner.Result result) {
-        List<?> edits = (List<?>) result.json().get("edits"); assertEquals(1, edits.size()); return (Map<?, ?>) edits.get(0);
+        List<?> edits = (List<?>) result.json().get("edits");
+        assertEquals(1, edits.size());
+        return (Map<?, ?>) edits.get(0);
     }
 
-    private static java.util.Set<String> Set() { return java.util.Set.of("model_summary"); }
+    private static java.util.Set<String> Set() {
+        return java.util.Set.of("model_summary");
+    }
 
     private static EvalRunner.Task task(String expected) {
-        return new EvalRunner.Task("la-probe", "Create the logical function " + expected,
-            List.of(new ArcadiaAgent.Postcondition("eval", "element_exists", Map.of("type", "LogicalFunction", "name", expected, "layer", "LA"))));
+        return new EvalRunner.Task(
+                "la-probe",
+                "Create the logical function " + expected,
+                List.of(
+                        new ArcadiaAgent.Postcondition(
+                                "eval",
+                                "element_exists",
+                                Map.of(
+                                        "type",
+                                        "LogicalFunction",
+                                        "name",
+                                        expected,
+                                        "layer",
+                                        "LA"))));
     }
 
     private static String plan() {
-        return AgentJson.write(Map.of("kind", "plan", "message", "Create it", "steps",
-            List.of(Map.of("id", "edit", "title", "Create the function", "type", "edit", "status", "pending"))));
+        return AgentJson.write(
+                Map.of(
+                        "kind",
+                        "plan",
+                        "message",
+                        "Create it",
+                        "steps",
+                        List.of(
+                                Map.of(
+                                        "id",
+                                        "edit",
+                                        "title",
+                                        "Create the function",
+                                        "type",
+                                        "edit",
+                                        "status",
+                                        "pending"))));
     }
 
     private static String proposal(String name) {
-        return AgentJson.write(Map.of("kind", "proposal", "message", "Create " + name,
-            "script", "api.create('LA', 'LogicalFunction', '" + name + "')", "stepIds", List.of("edit"),
-            "postconditions", List.of(Map.of("stepId", "edit", "kind", "element_exists", "type", "LogicalFunction", "name", name, "layer", "LA"))));
+        return AgentJson.write(
+                Map.of(
+                        "kind",
+                        "proposal",
+                        "message",
+                        "Create " + name,
+                        "script",
+                        "api.create('LA', 'LogicalFunction', '" + name + "')",
+                        "stepIds",
+                        List.of("edit"),
+                        "postconditions",
+                        List.of(
+                                Map.of(
+                                        "stepId",
+                                        "edit",
+                                        "kind",
+                                        "element_exists",
+                                        "type",
+                                        "LogicalFunction",
+                                        "name",
+                                        name,
+                                        "layer",
+                                        "LA"))));
     }
 
     private static String finalReply() {
-        return AgentJson.write(Map.of("kind", "final", "message", "Done.", "task", Map.of("state", "complete")));
+        return AgentJson.write(
+                Map.of("kind", "final", "message", "Done.", "task", Map.of("state", "complete")));
     }
 }

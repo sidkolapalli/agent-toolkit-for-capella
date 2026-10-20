@@ -1,8 +1,5 @@
 package org.polarsys.capella.ai.preferences;
 
-import java.nio.file.Path;
-import java.nio.file.Files;
-import java.util.Objects;
 import org.eclipse.jface.preference.PreferencePage;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
@@ -17,10 +14,14 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
-import org.polarsys.capella.ai.codex.CodexPreferences;
 import org.polarsys.capella.ai.codex.BundledCodexRuntime;
 import org.polarsys.capella.ai.codex.CodexLaunchConfig;
+import org.polarsys.capella.ai.codex.CodexPreferences;
 import org.polarsys.capella.ai.llm.LLMService;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Objects;
 
 public class LLMPreferencePage extends PreferencePage implements IWorkbenchPreferencePage {
     private final CodexPreferences.Configuration runtimeSettings;
@@ -46,7 +47,9 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
     private Button testButton;
     private volatile Thread connectionTest;
 
-    public LLMPreferencePage() { this(CodexPreferences.configuration()); }
+    public LLMPreferencePage() {
+        this(CodexPreferences.configuration());
+    }
 
     /** Injectable settings let native UI tests avoid changing saved runtime preferences. */
     public LLMPreferencePage(CodexPreferences.Configuration runtimeSettings) {
@@ -92,7 +95,8 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
         codexBinary = text(binaryRow, runtimeSettings.getBinary());
         codexBinary.setMessage("Auto-discover installed Codex");
         codexBinary.setEnabled(!runtimeSettings.isBinaryOverridden());
-        if (runtimeSettings.isBinaryOverridden()) codexBinary.setToolTipText("Set by CAPELLA_AI_CODEX_BINARY for this launch.");
+        if (runtimeSettings.isBinaryOverridden())
+            codexBinary.setToolTipText("Set by CAPELLA_AI_CODEX_BINARY for this launch.");
         Button browse = new Button(binaryRow, SWT.PUSH);
         browse.setText("Browse...");
         browse.setEnabled(!runtimeSettings.isBinaryOverridden());
@@ -101,15 +105,19 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
         codexModel = text(codexGroup, runtimeSettings.getModel());
         codexModel.setMessage("Use Codex runtime default");
         codexModel.setEnabled(!runtimeSettings.isModelOverridden());
-        if (runtimeSettings.isModelOverridden()) codexModel.setToolTipText("Set by CAPELLA_AI_CODEX_MODEL for this launch.");
+        if (runtimeSettings.isModelOverridden())
+            codexModel.setToolTipText("Set by CAPELLA_AI_CODEX_MODEL for this launch.");
         mkLabel(codexGroup, "Timeout (sec):");
         codexTimeout = text(codexGroup, String.valueOf(runtimeSettings.getTimeoutSec()));
-        codexTimeout.setToolTipText("1 to 1800 seconds of active Codex work. Time waiting for your review is excluded.");
+        codexTimeout.setToolTipText(
+                "1 to 1800 seconds of active Codex work. Time waiting for your review is"
+                    + " excluded.");
 
         directGroup = group(root, "Direct provider");
         mkLabel(directGroup, "Provider:");
         provider = new Combo(directGroup, SWT.DROP_DOWN | SWT.READ_ONLY);
-        provider.setItems(new String[] {"openai", "anthropic", "azure-openai", "openrouter", "custom"});
+        provider.setItems(
+                new String[] {"openai", "anthropic", "azure-openai", "openrouter", "custom"});
         provider.select(indexOf(provider, LLMPreferences.getProvider()));
         provider.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         mkLabel(directGroup, "API Base URL:");
@@ -127,9 +135,19 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
         apiKey.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         // Read secure storage only when the user selects Direct provider.
 
-        enableActions = checkbox(root, "Allow generated code to run", LLMPreferences.isToolActionsEnabled());
-        confirmBeforeApply = checkbox(root, "Review code before running", AdvancedPreferences.isConfirmBeforeApplyEnabled());
-        privacyTokenization = checkbox(root, "Replace quoted names and UUIDs before sending", LLMPreferences.isPrivacyTokenizationEnabled());
+        enableActions =
+                checkbox(
+                        root, "Allow generated code to run", LLMPreferences.isToolActionsEnabled());
+        confirmBeforeApply =
+                checkbox(
+                        root,
+                        "Review code before running",
+                        AdvancedPreferences.isConfirmBeforeApplyEnabled());
+        privacyTokenization =
+                checkbox(
+                        root,
+                        "Replace quoted names and UUIDs before sending",
+                        LLMPreferences.isPrivacyTokenizationEnabled());
         testButton = new Button(root, SWT.PUSH);
         testButton.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1));
         status = new Label(root, SWT.WRAP);
@@ -152,17 +170,23 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
         if (selected != null) codexBinary.setText(selected);
     }
 
-    private boolean codexSelected() { return runtime.getSelectionIndex() == 0; }
+    private boolean codexSelected() {
+        return runtime.getSelectionIndex() == 0;
+    }
 
     private void updateRuntimeControls() {
         boolean codex = codexSelected();
         show(codexGroup, codex);
         show(directGroup, !codex);
-        runtimeCaption.setText(codex
-            ? "Integration preview · Uses the local Codex app-server and your Codex sign-in. No provider API key is needed here."
-            : "Connect directly to a provider using its model, endpoint and API key.");
+        runtimeCaption.setText(
+                codex
+                        ? "Integration preview · Uses the local Codex app-server and your Codex"
+                              + " sign-in. No provider API key is needed here."
+                        : "Connect directly to a provider using its model, endpoint and API key.");
         if (runtimeSettings.isRuntimeOverridden()) {
-            runtimeCaption.setText(runtimeCaption.getText() + "\nCAPELLA_AI_RUNTIME selects the runtime for this launch.");
+            runtimeCaption.setText(
+                    runtimeCaption.getText()
+                            + "\nCAPELLA_AI_RUNTIME selects the runtime for this launch.");
         }
         testButton.setText(codex ? "Check Codex runtime" : "Test Connection");
         if (codex) {
@@ -182,20 +206,31 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
         try {
             String configured = codexBinary.getText().strip();
             if (configured.isEmpty()) {
-                status.setText(BundledCodexRuntime.isPackagedAvailable()
-                    ? "Bundled Codex " + BundledCodexRuntime.VERSION + " is available."
-                    : "Codex will be discovered when checked or when a conversation starts.");
+                status.setText(
+                        BundledCodexRuntime.isPackagedAvailable()
+                                ? "Bundled Codex " + BundledCodexRuntime.VERSION + " is available."
+                                : "Codex will be discovered when checked or when a conversation"
+                                      + " starts.");
             } else {
                 Path binary = Path.of(configured);
                 if (!Files.isRegularFile(binary) || !Files.isExecutable(binary)) {
-                    throw new IllegalArgumentException("The configured Codex binary is not an executable file. Choose the Codex executable (codex.exe on Windows, codex elsewhere) or clear the path to discover it automatically.");
+                    throw new IllegalArgumentException(
+                            "The configured Codex binary is not an executable file. Choose the"
+                                + " Codex executable (codex.exe on Windows, codex elsewhere) or"
+                                + " clear the path to discover it automatically.");
                 }
                 status.setText("Codex executable selected: " + binary);
             }
-            status.setText(status.getText() + "\nConnection and sign-in are checked when a conversation starts.");
+            status.setText(
+                    status.getText()
+                            + "\nConnection and sign-in are checked when a conversation starts.");
         } catch (RuntimeException exception) {
-            status.setText("Check the Codex binary path. Choose the Codex executable (codex.exe on Windows, codex elsewhere) or clear the path to discover it automatically.");
-            if (exception instanceof IllegalArgumentException && !(exception instanceof java.nio.file.InvalidPathException)) {
+            status.setText(
+                    "Check the Codex binary path. Choose the Codex executable (codex.exe on"
+                        + " Windows, codex elsewhere) or clear the path to discover it"
+                        + " automatically.");
+            if (exception instanceof IllegalArgumentException
+                    && !(exception instanceof java.nio.file.InvalidPathException)) {
                 status.setText(exception.getMessage());
             }
         }
@@ -218,36 +253,54 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
         String configuredBinary = codex ? runtimeSettings.getBinary() : "";
         status.setText(codex ? "Preparing and checking Codex runtime…" : "Testing connection...");
         status.getParent().layout(true, true);
-        Thread worker = new Thread(() -> {
-            String result;
-            try {
-                if (codex) {
-                    Path binary = runtimeSettings.resolveBinary(configuredBinary);
-                    verifyCodexRuntime(binary);
-                    result = "OK: Codex " + CodexLaunchConfig.SUPPORTED_VERSION + " is ready."
-                        + "\nConnection and sign-in are checked when a conversation starts.";
-                } else result = "OK: " + LLMService.get().testConnection();
-            } catch (Exception exception) {
-                if (exception instanceof InterruptedException) Thread.currentThread().interrupt();
-                String detail = String.valueOf(exception.getMessage());
-                result = codex && detail.contains("codex-code-mode-host") ? "ERROR: " + detail
-                    : codex ? "ERROR: Codex runtime could not be checked. Select Codex "
-                    + CodexLaunchConfig.SUPPORTED_VERSION + " or reinstall Capella AI, then try again."
-                    : "ERROR: " + exception.getMessage();
-            } finally {
-                connectionTest = null;
-            }
-            String message = result;
-            if (!display.isDisposed()) {
-                display.asyncExec(() -> {
-                    if (status.isDisposed() || testButton.isDisposed()) return;
-                    status.setText(message);
-                    testButton.setEnabled(true);
-                    runtime.setEnabled(!runtimeSettings.isRuntimeOverridden());
-                    status.getParent().layout(true, true);
-                });
-            }
-        }, "Capella AI connection test");
+        Thread worker =
+                new Thread(
+                        () -> {
+                            String result;
+                            try {
+                                if (codex) {
+                                    Path binary = runtimeSettings.resolveBinary(configuredBinary);
+                                    verifyCodexRuntime(binary);
+                                    result =
+                                            "OK: Codex "
+                                                    + CodexLaunchConfig.SUPPORTED_VERSION
+                                                    + " is ready.\n"
+                                                    + "Connection and sign-in are checked when a"
+                                                    + " conversation starts.";
+                                } else result = "OK: " + LLMService.get().testConnection();
+                            } catch (Exception exception) {
+                                if (exception instanceof InterruptedException)
+                                    Thread.currentThread().interrupt();
+                                String detail = String.valueOf(exception.getMessage());
+                                result =
+                                        codex && detail.contains("codex-code-mode-host")
+                                                ? "ERROR: " + detail
+                                                : codex
+                                                        ? "ERROR: Codex runtime could not be"
+                                                              + " checked. Select Codex "
+                                                                + CodexLaunchConfig
+                                                                        .SUPPORTED_VERSION
+                                                                + " or reinstall Capella AI, then"
+                                                                + " try again."
+                                                        : "ERROR: " + exception.getMessage();
+                            } finally {
+                                connectionTest = null;
+                            }
+                            String message = result;
+                            if (!display.isDisposed()) {
+                                display.asyncExec(
+                                        () -> {
+                                            if (status.isDisposed() || testButton.isDisposed())
+                                                return;
+                                            status.setText(message);
+                                            testButton.setEnabled(true);
+                                            runtime.setEnabled(
+                                                    !runtimeSettings.isRuntimeOverridden());
+                                            status.getParent().layout(true, true);
+                                        });
+                            }
+                        },
+                        "Capella AI connection test");
         worker.setDaemon(true);
         connectionTest = worker;
         worker.start();
@@ -288,14 +341,19 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
             double parsedTemperature = Double.parseDouble(temperature.getText().trim());
             int parsedMaxTokens = positiveInteger(maxTokens, "Max tokens");
             int parsedTimeout = positiveInteger(timeoutSec, "Provider timeout");
-            if (!Double.isFinite(parsedTemperature) || parsedTemperature < 0 || parsedTemperature > 2) {
+            if (!Double.isFinite(parsedTemperature)
+                    || parsedTemperature < 0
+                    || parsedTemperature > 2) {
                 throw new IllegalArgumentException("Temperature must be a number between 0 and 2.");
             }
-            if (model.getText().isBlank()) throw new IllegalArgumentException("Enter a provider model name.");
+            if (model.getText().isBlank())
+                throw new IllegalArgumentException("Enter a provider model name.");
             java.net.URI endpoint = java.net.URI.create(baseUrl.getText().trim());
-            if (!("https".equalsIgnoreCase(endpoint.getScheme()) || "http".equalsIgnoreCase(endpoint.getScheme()))
-                || endpoint.getHost() == null) {
-                throw new IllegalArgumentException("API Base URL must be a complete HTTP or HTTPS URL.");
+            if (!("https".equalsIgnoreCase(endpoint.getScheme())
+                            || "http".equalsIgnoreCase(endpoint.getScheme()))
+                    || endpoint.getHost() == null) {
+                throw new IllegalArgumentException(
+                        "API Base URL must be a complete HTTP or HTTPS URL.");
             }
             LLMPreferences.setProvider(provider.getText());
             LLMPreferences.setBaseUrl(baseUrl.getText().trim());
@@ -309,8 +367,11 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
                 initialApiKey = enteredApiKey;
             }
         }
-        runtimeSettings.setRuntime(codexSelected() ? CodexPreferences.CODEX : CodexPreferences.DIRECT);
-        runtimeSettings.getRuntime(); // Reject an invalid environment override instead of implying it was corrected.
+        runtimeSettings.setRuntime(
+                codexSelected() ? CodexPreferences.CODEX : CodexPreferences.DIRECT);
+        runtimeSettings
+                .getRuntime(); // Reject an invalid environment override instead of implying it was
+                               // corrected.
         LLMPreferences.setToolActionsEnabled(enableActions.getSelection());
         AdvancedPreferences.setConfirmBeforeApplyEnabled(confirmBeforeApply.getSelection());
         LLMPreferences.setPrivacyTokenizationEnabled(privacyTokenization.getSelection());

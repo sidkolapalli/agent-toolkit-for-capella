@@ -2,21 +2,18 @@ package org.polarsys.capella.ai.model;
 
 import static org.junit.Assert.*;
 
-import java.util.List;
-import java.util.Map;
-
 import org.junit.Test;
 import org.polarsys.capella.ai.model.ActionResult.ErrorCode;
 
-/**
- * Unit tests for ActionResult record and its factory methods.
- */
+import java.util.List;
+
+/** Unit tests for ActionResult record and its factory methods. */
 public class ActionResultTest {
 
     @Test
     public void testOkWithoutMessage() {
         ActionResult result = ActionResult.ok();
-        
+
         assertTrue("ok() should return success=true", result.success());
         assertFalse("ok() should not be failed", result.failed());
         assertEquals("ok() should have SUCCESS code", ErrorCode.SUCCESS, result.code());
@@ -28,7 +25,7 @@ public class ActionResultTest {
     @Test
     public void testOkWithMessage() {
         ActionResult result = ActionResult.ok("Created element successfully");
-        
+
         assertTrue(result.success());
         assertEquals(ErrorCode.SUCCESS, result.code());
         assertEquals("Created element successfully", result.message());
@@ -36,8 +33,9 @@ public class ActionResultTest {
 
     @Test
     public void testFailWithCodeAndMessage() {
-        ActionResult result = ActionResult.fail(ErrorCode.ELEMENT_NOT_FOUND, "Component 'Foo' not found");
-        
+        ActionResult result =
+                ActionResult.fail(ErrorCode.ELEMENT_NOT_FOUND, "Component 'Foo' not found");
+
         assertFalse("fail() should return success=false", result.success());
         assertTrue("fail() should be failed", result.failed());
         assertEquals(ErrorCode.ELEMENT_NOT_FOUND, result.code());
@@ -48,12 +46,12 @@ public class ActionResultTest {
 
     @Test
     public void testFailWithSuggestion() {
-        ActionResult result = ActionResult.fail(
-            ErrorCode.PARENT_NOT_FOUND,
-            "Parent 'Container' not found",
-            "Check if the parent element exists"
-        );
-        
+        ActionResult result =
+                ActionResult.fail(
+                        ErrorCode.PARENT_NOT_FOUND,
+                        "Parent 'Container' not found",
+                        "Check if the parent element exists");
+
         assertFalse(result.success());
         assertEquals(ErrorCode.PARENT_NOT_FOUND, result.code());
         assertEquals("Parent 'Container' not found", result.message());
@@ -63,12 +61,10 @@ public class ActionResultTest {
     @Test
     public void testFailWithAlternatives() {
         List<String> alternatives = List.of("SensorA", "SensorB", "SensorC");
-        ActionResult result = ActionResult.failWithAlternatives(
-            ErrorCode.ELEMENT_NOT_FOUND,
-            "Sensor 'Sensr' not found",
-            alternatives
-        );
-        
+        ActionResult result =
+                ActionResult.failWithAlternatives(
+                        ErrorCode.ELEMENT_NOT_FOUND, "Sensor 'Sensr' not found", alternatives);
+
         assertFalse(result.success());
         assertEquals(ErrorCode.ELEMENT_NOT_FOUND, result.code());
         assertTrue(result.hasAlternatives());
@@ -81,13 +77,13 @@ public class ActionResultTest {
     @Test
     public void testFailWithAlternativesAndCustomSuggestion() {
         List<String> alternatives = List.of("ComponentA", "ComponentB");
-        ActionResult result = ActionResult.failWithAlternatives(
-            ErrorCode.REFERENCE_NOT_FOUND,
-            "Source component 'Comp' not found",
-            "Try using the full component name",
-            alternatives
-        );
-        
+        ActionResult result =
+                ActionResult.failWithAlternatives(
+                        ErrorCode.REFERENCE_NOT_FOUND,
+                        "Source component 'Comp' not found",
+                        "Try using the full component name",
+                        alternatives);
+
         assertFalse(result.success());
         assertEquals(ErrorCode.REFERENCE_NOT_FOUND, result.code());
         assertEquals("Try using the full component name", result.suggestion());
@@ -114,19 +110,17 @@ public class ActionResultTest {
         List<String> original = new java.util.ArrayList<>();
         original.add("A");
         original.add("B");
-        
-        ActionResult result = ActionResult.failWithAlternatives(
-            ErrorCode.ELEMENT_NOT_FOUND,
-            "Not found",
-            original
-        );
-        
+
+        ActionResult result =
+                ActionResult.failWithAlternatives(
+                        ErrorCode.ELEMENT_NOT_FOUND, "Not found", original);
+
         // Modify original list
         original.add("C");
-        
+
         // Result should not be affected
         assertEquals(2, result.alternatives().size());
-        
+
         // Result alternatives should be immutable
         try {
             result.alternatives().add("D");
@@ -140,20 +134,20 @@ public class ActionResultTest {
     public void testFormatForLLM_Success() {
         ActionResult result = ActionResult.ok("Created Mission 'M1'");
         String formatted = result.formatForLLM();
-        
+
         assertTrue(formatted.contains("SUCCESS"));
         assertTrue(formatted.contains("Created Mission"));
     }
 
     @Test
     public void testFormatForLLM_Failure() {
-        ActionResult result = ActionResult.failWithAlternatives(
-            ErrorCode.ELEMENT_NOT_FOUND,
-            "Component 'Sensr' not found",
-            List.of("Sensor", "SensorA")
-        );
+        ActionResult result =
+                ActionResult.failWithAlternatives(
+                        ErrorCode.ELEMENT_NOT_FOUND,
+                        "Component 'Sensr' not found",
+                        List.of("Sensor", "SensorA"));
         String formatted = result.formatForLLM();
-        
+
         assertTrue(formatted.contains("FAILED"));
         assertTrue(formatted.contains("ELEMENT_NOT_FOUND"));
         assertTrue(formatted.contains("Sensr"));
@@ -162,25 +156,20 @@ public class ActionResultTest {
 
     @Test
     public void testNullAlternativesHandled() {
-        ActionResult result = ActionResult.failWithAlternatives(
-            ErrorCode.ELEMENT_NOT_FOUND,
-            "Not found",
-            "No suggestion",
-            null
-        );
-        
+        ActionResult result =
+                ActionResult.failWithAlternatives(
+                        ErrorCode.ELEMENT_NOT_FOUND, "Not found", "No suggestion", null);
+
         assertNotNull(result.alternatives());
         assertTrue(result.alternatives().isEmpty());
     }
 
     @Test
     public void testEmptyAlternativesNoSuggestion() {
-        ActionResult result = ActionResult.failWithAlternatives(
-            ErrorCode.ELEMENT_NOT_FOUND,
-            "Not found",
-            List.of()
-        );
-        
+        ActionResult result =
+                ActionResult.failWithAlternatives(
+                        ErrorCode.ELEMENT_NOT_FOUND, "Not found", List.of());
+
         // Empty alternatives should result in null suggestion
         assertNull(result.suggestion());
     }

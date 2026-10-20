@@ -1,17 +1,5 @@
 package org.polarsys.capella.ai.views;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -24,9 +12,20 @@ import org.eclipse.swt.widgets.TableItem;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.part.ViewPart;
 
-/**
- * Simple inspector for ~/.capella-ai/logs JSONL telemetry files.
- */
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/** Simple inspector for ~/.capella-ai/logs JSONL telemetry files. */
 public class LogInspectorView extends ViewPart {
 
     public static final String ID = "org.polarsys.capella.ai.logs";
@@ -46,14 +45,10 @@ public class LogInspectorView extends ViewPart {
         filterId.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         new Label(root, SWT.NONE).setText("Event:");
         filterEvent = new Text(root, SWT.BORDER);
-        filterEvent.setLayoutData(
-            new GridData(SWT.FILL, SWT.CENTER, true, false)
-        );
+        filterEvent.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         new Label(root, SWT.NONE).setText("Text contains:");
         filterText = new Text(root, SWT.BORDER);
-        filterText.setLayoutData(
-            new GridData(SWT.FILL, SWT.CENTER, true, false)
-        );
+        filterText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
         Button refresh = new Button(root, SWT.PUSH);
         refresh.setText("Refresh");
@@ -62,17 +57,14 @@ public class LogInspectorView extends ViewPart {
         refresh.setLayoutData(gd);
         refresh.addListener(SWT.Selection, e -> reload());
 
-        table = new Table(
-            root,
-            SWT.BORDER | SWT.FULL_SELECTION | SWT.V_SCROLL | SWT.H_SCROLL
-        );
+        table = new Table(root, SWT.BORDER | SWT.FULL_SELECTION | SWT.V_SCROLL | SWT.H_SCROLL);
         table.setHeaderVisible(true);
         table.setLinesVisible(true);
         GridData td = new GridData(SWT.FILL, SWT.FILL, true, true);
         td.horizontalSpan = 6;
         table.setLayoutData(td);
 
-        String[] cols = { "ts", "id", "event", "desc", "details" };
+        String[] cols = {"ts", "id", "event", "desc", "details"};
         for (String c : cols) {
             TableColumn col = new TableColumn(table, SWT.LEFT);
             col.setText(c);
@@ -85,12 +77,8 @@ public class LogInspectorView extends ViewPart {
     private void reload() {
         table.removeAll();
         String id = filterId.getText() != null ? filterId.getText().trim() : "";
-        String ev = filterEvent.getText() != null
-            ? filterEvent.getText().trim()
-            : "";
-        String tx = filterText.getText() != null
-            ? filterText.getText().trim()
-            : "";
+        String ev = filterEvent.getText() != null ? filterEvent.getText().trim() : "";
+        String tx = filterText.getText() != null ? filterText.getText().trim() : "";
         for (Path p : listLatestLogs()) {
             readJsonl(p, id, ev, tx).forEach(this::addRow);
         }
@@ -110,84 +98,54 @@ public class LogInspectorView extends ViewPart {
         String v = m.get(k);
         if (v != null) return v;
         // fallback to common keys
-        if ("desc".equals(k)) return m.getOrDefault(
-            "actions",
-            m.getOrDefault("context", "")
-        );
+        if ("desc".equals(k)) return m.getOrDefault("actions", m.getOrDefault("context", ""));
         return "";
     }
 
     private List<Path> listLatestLogs() {
         List<Path> out = new ArrayList<>();
         try {
-            Path dir = Paths.get(
-                System.getProperty("user.home"),
-                ".capella-ai",
-                "logs"
-            );
+            Path dir = Paths.get(System.getProperty("user.home"), ".capella-ai", "logs");
             if (!Files.exists(dir)) return out;
             try (var s = Files.list(dir)) {
-                s
-                    .filter(p -> p.getFileName().toString().endsWith(".jsonl"))
-                    .sorted((a, b) ->
-                        b
-                            .getFileName()
-                            .toString()
-                            .compareTo(a.getFileName().toString())
-                    )
-                    .limit(5)
-                    .forEach(out::add);
+                s.filter(p -> p.getFileName().toString().endsWith(".jsonl"))
+                        .sorted(
+                                (a, b) ->
+                                        b.getFileName()
+                                                .toString()
+                                                .compareTo(a.getFileName().toString()))
+                        .limit(5)
+                        .forEach(out::add);
             }
         } catch (Exception ex) {
-            System.err.println(
-                "[LogInspectorView] Error listing log files: " + ex.getMessage()
-            );
+            System.err.println("[LogInspectorView] Error listing log files: " + ex.getMessage());
         }
         return out;
     }
 
     private List<Map<String, String>> readJsonl(
-        Path p,
-        String idFilter,
-        String eventFilter,
-        String textFilter
-    ) {
+            Path p, String idFilter, String eventFilter, String textFilter) {
         List<Map<String, String>> rows = new ArrayList<>();
-        try (
-            BufferedReader br = Files.newBufferedReader(
-                p,
-                StandardCharsets.UTF_8
-            )
-        ) {
+        try (BufferedReader br = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
             String line;
             while ((line = br.readLine()) != null) {
                 Map<String, String> m = parse(line);
                 if (m == null) continue;
-                if (
-                    !idFilter.isBlank() &&
-                    !m.getOrDefault("id", "").contains(idFilter)
-                ) continue;
-                if (
-                    !eventFilter.isBlank() &&
-                    !m.getOrDefault("event", "").contains(eventFilter)
-                ) continue;
-                if (
-                    !textFilter.isBlank() && !line.contains(textFilter)
-                ) continue;
+                if (!idFilter.isBlank() && !m.getOrDefault("id", "").contains(idFilter)) continue;
+                if (!eventFilter.isBlank() && !m.getOrDefault("event", "").contains(eventFilter))
+                    continue;
+                if (!textFilter.isBlank() && !line.contains(textFilter)) continue;
                 rows.add(m);
             }
         } catch (IOException ex) {
-            System.err.println(
-                "[LogInspectorView] Error reading log file: " + ex.getMessage()
-            );
+            System.err.println("[LogInspectorView] Error reading log file: " + ex.getMessage());
         }
         return rows;
     }
 
     // Minimal JSON field extractor for flat {"k":"v",...}; tolerates escaped quotes
-    private static final Pattern FIELD = Pattern.compile(
-        "\\\"([^\\\\\"]+)\\\":\\\"([^\\\\\"]*)\\\""
-    );
+    private static final Pattern FIELD =
+            Pattern.compile("\\\"([^\\\\\"]+)\\\":\\\"([^\\\\\"]*)\\\"");
 
     private Map<String, String> parse(String json) {
         try {
@@ -208,12 +166,11 @@ public class LogInspectorView extends ViewPart {
     }
 
     private String unescape(String s) {
-        return s
-            .replace("\\\"", "\"")
-            .replace("\\n", " ")
-            .replace("\\r", " ")
-            .replace("\\t", " ")
-            .replace("\\\\", "\\");
+        return s.replace("\\\"", "\"")
+                .replace("\\n", " ")
+                .replace("\\r", " ")
+                .replace("\\t", " ")
+                .replace("\\\\", "\\");
     }
 
     @Override
