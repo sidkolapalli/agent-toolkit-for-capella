@@ -196,7 +196,10 @@ public final class NativeStructuralAssertions {
         Set<Resource> owned = new LinkedHashSet<>();
         if (session.getSessionResource() != null) owned.add(session.getSessionResource());
         if (session.getAllSessionResources() != null) owned.addAll(session.getAllSessionResources());
+        // Referenced libraries often hold diagrams with the same default names.
+        if (session.getReferencedSessionResources() != null) owned.removeAll(session.getReferencedSessionResources());
         List<org.eclipse.sirius.diagram.DDiagram> diagrams = new ArrayList<>();
+        int unreadable = 0;
         for (Resource resource : owned) {
             var contents = resource.getAllContents();
             while (contents.hasNext()) {
@@ -204,10 +207,13 @@ public final class NativeStructuralAssertions {
                 EObject next = contents.next();
                 // Sirius keeps the name on the descriptor; do not descend into representations.
                 if (next instanceof org.eclipse.sirius.viewpoint.DRepresentation) contents.prune();
-                else if (next instanceof org.eclipse.sirius.viewpoint.DRepresentationDescriptor descriptor && request.feature.equals(descriptor.getName())
-                        && descriptor.getRepresentation() instanceof org.eclipse.sirius.diagram.DDiagram diagram) diagrams.add(diagram);
+                else if (next instanceof org.eclipse.sirius.viewpoint.DRepresentationDescriptor descriptor && request.feature.equals(descriptor.getName())) {
+                    if (descriptor.getRepresentation() instanceof org.eclipse.sirius.diagram.DDiagram diagram) diagrams.add(diagram);
+                    else unreadable++;
+                }
             }
         }
+        if (unreadable > 0) throw unavailable("A diagram with this name could not be loaded; what it shows is unverified.");
         Map<String, Object> actual = new LinkedHashMap<>(); actual.put("diagrams", diagrams.size());
         if (diagrams.size() != 1) return failed(request, actual, diagrams.isEmpty() ? "No diagram has this name." : "Several diagrams have this name.");
         Set<EObject> shown = Collections.newSetFromMap(new IdentityHashMap<>());

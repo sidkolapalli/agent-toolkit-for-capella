@@ -482,6 +482,27 @@ public class NativeStructuralAssertionsTest {
         assertDetached(results.get(0).actual());
     }
 
+    @Test
+    public void diagramShowsIgnoresReferencedLibrariesAndReportsUnreadableDescriptorsAsUnavailable() {
+        Resource aird = new org.eclipse.emf.ecore.resource.impl.ResourceImpl(URI.createURI("memory:/own.aird"));
+        Resource library = new org.eclipse.emf.ecore.resource.impl.ResourceImpl(URI.createURI("memory:/library.aird"));
+        write(() -> {
+            resources.getResources().addAll(List.of(aird, library));
+            for (Resource target : List.of(aird, library)) {
+                var diagram = org.eclipse.sirius.diagram.DiagramFactory.eINSTANCE.createDSemanticDiagram();
+                var node = org.eclipse.sirius.diagram.DiagramFactory.eINSTANCE.createDNode(); node.setTarget(system);
+                diagram.getOwnedDiagramElements().add(node); target.getContents().add(diagram);
+                var descriptor = org.eclipse.sirius.viewpoint.ViewpointFactory.eINSTANCE.createDRepresentationDescriptor();
+                descriptor.setName("Shared view"); target.getContents().add(descriptor); descriptor.setRepresentation(diagram);
+            }
+            var dangling = org.eclipse.sirius.viewpoint.ViewpointFactory.eINSTANCE.createDRepresentationDescriptor();
+            dangling.setName("Dangling view"); aird.getContents().add(dangling);
+        });
+        session = session(List.of(resource), aird, library);
+        var results = check(shows("Shared view", id("system-demand")), shows("Dangling view", id("system-demand")));
+        assertEquals(List.of(Status.PASSED, Status.UNAVAILABLE), statuses(results));
+    }
+
     @SafeVarargs private static Map<String, Object> shows(String diagram, Map<String, Object>... elements) { return Map.of("kind", "diagram_shows", "diagram", diagram, "elements", List.of(elements)); }
     @SafeVarargs private final List<NativeStructuralAssertions.Result> check(Map<String, Object>... checks) { return NativeStructuralAssertions.check(session, List.of(checks)); }
     private static List<Status> statuses(List<NativeStructuralAssertions.Result> results) { return results.stream().map(NativeStructuralAssertions.Result::status).toList(); }
@@ -496,11 +517,14 @@ public class NativeStructuralAssertionsTest {
         Map<String, Object> result = new LinkedHashMap<>(); result.put("kind", "relation_exists"); result.put("type", "FunctionRealization"); result.put("predicates", predicates); if (owner != null) result.put("owner", owner); return result;
     }
     private Session session(List<Resource> semantic) { return session(semantic, null); }
-    private Session session(List<Resource> semantic, Resource aird) {
+    private Session session(List<Resource> semantic, Resource aird) { return session(semantic, aird, null); }
+    private Session session(List<Resource> semantic, Resource aird, Resource referenced) {
         return (Session) Proxy.newProxyInstance(Session.class.getClassLoader(), new Class<?>[] { Session.class },
             (proxy, method, arguments) -> switch (method.getName()) {
                 case "getTransactionalEditingDomain" -> domain; case "getSemanticResources" -> semantic; case "isOpen" -> open;
-                case "getSessionResource" -> aird; case "getAllSessionResources" -> aird == null ? Set.of() : Set.of(aird);
+                case "getSessionResource" -> aird;
+                case "getAllSessionResources" -> aird == null ? Set.of() : referenced == null ? Set.of(aird) : Set.of(aird, referenced);
+                case "getReferencedSessionResources" -> referenced == null ? Set.of() : Set.of(referenced);
                 case "save" -> { saves.incrementAndGet(); yield null; }
                 case "hashCode" -> System.identityHashCode(proxy); case "equals" -> proxy == arguments[0]; default -> null;
             });
