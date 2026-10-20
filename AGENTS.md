@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-The core Eclipse plug-in is in `plugins/ai-capella` with sources under `src/org/polarsys/capella/ai/**`, plus `plugin.xml` and `META-INF/MANIFEST.MF`. The Tycho reactor is defined in `plugins/pom.xml`, feature packaging lives in `plugins/ai-capella-feature`, and the p2 update site is emitted to `plugins/ai-capella-repository/target/repository`. Target platform metadata is in `releng/capella-target`. Design notes and plans are in `docs/` and `PLAN_NEXT.md`. Sample models live in `test-models/`.
+The core Eclipse plug-in is in `plugins/ai-capella` with sources under `src/org/polarsys/capella/ai/**`, plus `plugin.xml` and `META-INF/MANIFEST.MF`. The Tycho reactor is defined in `plugins/pom.xml`, feature packaging lives in `plugins/ai-capella-feature`, and the p2 update site is emitted to `plugins/ai-capella-repository/target/repository`. Target platform metadata is in `releng/capella-target`. Design notes are in `docs/`, `ARCHITECTURE.md` and `ROADMAP.md`. Sample models and evaluation tasks live in `test-models/`.
 
 ## Build, Test, and Development Commands
 - `export JAVA_TOOL_OPTIONS="-Djdk.xml.maxGeneralEntitySizeLimit=0 -Djdk.xml.totalEntitySizeLimit=0 -Djdk.xml.entityExpansionLimit=0"` - required once per shell for Eclipse update sites.
