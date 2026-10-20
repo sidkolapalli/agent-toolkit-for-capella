@@ -5,7 +5,9 @@ Control the visual arrangement of diagram elements.
 ## Layout Strategies
 
 ```groovy
-// Auto-layout (smart default)
+// Auto-layout (smart default): hierarchical layered layout by Eclipse ELK.
+// Shapes flow left to right along their connections, containers (components,
+// actors) grow to fit the functions inside them, and nothing overlaps.
 api.diagram.layout(diagram, "auto")
 
 // Grid layout (compact rows/columns)
@@ -17,7 +19,7 @@ api.diagram.layout(diagram, "flow")
 // Radial layout (circular)
 api.diagram.layout(diagram, "radial")
 
-// Layered layout (Sugiyama style)
+// Layered layout: same as "auto"
 api.diagram.layout(diagram, "layered")
 ```
 
