@@ -32,13 +32,15 @@ public final class EvalRunner {
         }
     }
 
+    /** {@code detail} is the execution or preparation feedback behind a blocked ending, bounded; empty otherwise. */
     public record Result(String id, boolean passed, String checks, int requests, int toolCalls, int proposals,
-            int committed, int repairs, int continuations, String ending, long durationMs) {
+            int committed, int repairs, int continuations, String ending, String detail, long durationMs) {
         public Map<String, Object> json() {
             Map<String, Object> json = new LinkedHashMap<>();
             json.put("id", id); json.put("passed", passed); json.put("requests", requests); json.put("tool_calls", toolCalls);
             json.put("proposals", proposals); json.put("committed", committed); json.put("repairs", repairs);
-            json.put("continuations", continuations); json.put("ending", ending); json.put("duration_ms", durationMs);
+            json.put("continuations", continuations); json.put("ending", ending); json.put("detail", detail);
+            json.put("duration_ms", durationMs);
             json.put("checks", checks);
             return json;
         }
@@ -74,7 +76,7 @@ public final class EvalRunner {
             Function<Session, ModelVerification.Snapshot> validator) {
         long started = System.nanoTime();
         int requests = 0, toolCalls = 0, proposals = 0, committed = 0, repairs = 0, continuations = 0;
-        String ending = "complete";
+        String ending = "complete", detail = "";
         List<Message> history = List.of();
         String input = task.prompt();
         requests:
@@ -100,6 +102,7 @@ public final class EvalRunner {
                             continue;
                         }
                         ending = "blocked: proposal did not compile";
+                        detail = bounded(compiled.formatForRepair());
                         break requests;
                     }
                     requestProposals++;
@@ -111,6 +114,7 @@ public final class EvalRunner {
                     if (!edit.result().codeExecuted || !edit.execution().saved()) {
                         agent.recordOutcome(turn, edit.execution());
                         ending = edit.committed() ? "blocked: committed but not saved" : "blocked: proposal did not apply";
+                        detail = bounded(edit.execution().feedback());
                         break requests;
                     }
                     turn = agent.finish(turn, edit.execution(), () -> false, progress -> {});
@@ -134,7 +138,11 @@ public final class EvalRunner {
         }
         ModelPostconditions.Report checks = ModelPostconditions.check(session, task.checks());
         return new Result(task.id(), checks.allPassed(), checks.markdownSummary(), requests, toolCalls, proposals,
-            committed, repairs, continuations, ending, (System.nanoTime() - started) / 1_000_000);
+            committed, repairs, continuations, ending, detail, (System.nanoTime() - started) / 1_000_000);
+    }
+
+    private static String bounded(String text) {
+        return text == null ? "" : text.length() <= 2000 ? text : text.substring(0, 2000);
     }
 
     private static ArcadiaAgent.Turn withTermination(ArcadiaAgent.Turn turn, TaskTermination termination) {

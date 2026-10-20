@@ -117,6 +117,16 @@ public class EvalRunnerTest {
         assertTrue(result.checks().contains("Failed"));
     }
 
+    @Test public void aBlockedTaskReportsWhyItsProposalDidNotApply() throws Exception {
+        String failing = AgentJson.write(Map.of("kind", "proposal", "message", "Fails at runtime",
+            "script", "assert false : 'deliberate runtime failure'", "stepIds", List.of("edit")));
+        var result = run(task("Probe"), plan(), failing, finalReply());
+        assertFalse(result.passed());
+        assertTrue(result.ending(), result.ending().startsWith("blocked"));
+        assertTrue("The failure reason travels with the result: " + result.detail(), result.detail().contains("deliberate runtime failure"));
+        assertEquals(result.detail(), result.json().get("detail"));
+    }
+
     @Test public void compileFailureIsRepairedBeforeReviewAndCounted() throws Exception {
         String broken = AgentJson.write(Map.of("kind", "proposal", "message", "Broken", "script", "def x = (", "stepIds", List.of("edit")));
         var result = run(task("Probe"), plan(), broken, proposal("Probe"), finalReply());
