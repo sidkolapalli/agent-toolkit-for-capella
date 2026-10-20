@@ -76,11 +76,12 @@ api.diagram.add(sab, func)  // Now visible inside Flight Controller
 ## Layout
 
 ```groovy
-// Auto-layout the diagram
-api.diagram.layout(diagram)
+// Clean, hierarchical left-to-right layout with orthogonal wiring (Eclipse ELK).
+// Use this after adding or changing elements; it sizes containers, places ports and labels.
+api.diagram.layout(diagram, "auto")
 
-// Layout with style
-api.diagram.layout(diagram, "hierarchical")
+// Geometric arrangements, if a specific shape is requested
+api.diagram.layout(diagram, "grid")
 api.diagram.layout(diagram, "flow")
 ```
 
@@ -169,7 +170,7 @@ functions.each { func ->
 }
 
 // Layout
-api.diagram.layout(diagram, "hierarchical")
+api.diagram.layout(diagram, "auto")
 
 log.info("Created diagram with ${components.size()} components")
 ```

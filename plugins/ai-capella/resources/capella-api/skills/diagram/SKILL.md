@@ -105,7 +105,7 @@ funcs.each { func ->
 }
 
 api.diagram.refresh(diagram)
-api.diagram.layout(diagram, "flow")
+api.diagram.layout(diagram, "auto")
 
 log.info("Added ${funcs.size()} functions")
 ```
@@ -117,7 +117,7 @@ log.info("Added ${funcs.size()} functions")
 2. **Prefer addSafe**: `addSafe()` falls back to UUID reveal when `add()` fails
 3. **Target element**: The third parameter to `create()`/`createSafe()` is the semantic target element
 2. **Functions need allocation**: Functions/activities only appear inside components if allocated with `api.allocate(func, comp)`
-3. **Layout after adding**: Always call `layout()` after adding multiple elements
+3. **Layout after adding**: Always call `api.diagram.layout(diagram, "auto")` after adding or changing elements. It produces the clean hierarchical layout with orthogonal wiring; do not position shapes, ports or bendpoints by hand
 4. **Refresh after changes**: Call `refresh()` to sync diagram with model changes
 5. **OABD target**: Operational Activity Breakdown diagrams must target an **OperationalActivity**
 6. **Displayability check**: Use `api.diagram.isDisplayable(diagram, element)` before add for clarity

@@ -6,7 +6,7 @@
       provider-name="Capella MCP Team">
 
    <description>
-      In-IDE AI assistant for Capella: chat view, diagram tools, draw.io import.
+      In-IDE AI assistant for Capella: reviewed model edits from chat or MCP clients, Arcadia method checks and clean diagram layout.
    </description>
 
    <plugin
