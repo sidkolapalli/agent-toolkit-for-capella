@@ -420,7 +420,8 @@ public final class ArcadiaModelTools {
                 roots.add(architecture);
             } else for (Resource resource : resources()) roots.addAll(resource.getContents());
         }
-        List<Object> issues = new ArrayList<>(); int inspected = 0, errors = 0;
+        List<Map<String, Object>> issues = new ArrayList<>(); int inspected = 0;
+        Methodology method = new Methodology();
         boolean truncated = false; long started = System.nanoTime();
         for (EObject root : roots) {
             Iterator<EObject> iterator = new RootIterator(root);
@@ -429,14 +430,14 @@ public final class ArcadiaModelTools {
                     truncated = true; break;
                 }
                 EObject element = iterator.next(); inspected++;
-                if (element.eIsProxy()) { errors++; issues.add(issue(element, "Unresolved contained proxy")); continue; }
+                if (element.eIsProxy()) { issues.add(issue(element, "error", "unresolved_reference", "Unresolved contained proxy")); continue; }
                 for (EReference reference : element.eClass().getEAllReferences()) {
                     if (reference.isDerived() || reference.isTransient()) continue;
                     Object value = element.eGet(reference, false); int checked = 0;
                     for (Object target : values(value)) {
                         if (checked++ == 100) { truncated = true; break; }
                         if (target instanceof EObject object && (object.eIsProxy() || object.eResource() == null)) {
-                            errors++; issues.add(issue(element, "Unresolved/detached target in " + reference.getName()));
+                            issues.add(issue(element, "error", "unresolved_reference", "Unresolved/detached target in " + reference.getName()));
                         }
                         if (issues.size() == limit) break;
                     }
@@ -444,14 +445,74 @@ public final class ArcadiaModelTools {
                 }
                 if (issues.size() < limit && element instanceof ComponentFunctionalAllocation allocation
                     && allocation.getTargetElement() instanceof AbstractFunction function && !function.getOwnedFunctions().isEmpty()) {
-                    errors++; issues.add(issue(element, "Function allocation targets a decomposed function instead of a leaf"));
+                    issues.add(issue(element, "error", "decomposed_allocation_target", "Function allocation targets a decomposed function instead of a leaf"));
                 }
+                method.observe(element, issues, limit);
             }
             if (truncated) break;
         }
-        return map("mode", "bounded_structural", "inspected", inspected, "errors", errors, "warnings", 0,
-            "issues", issues, "truncated", truncated, "scope",
-            "Counts cover inspected objects only. This checks stored references and leaf allocations, not all native constraints or engineering compliance. Use native_validation for the installed full-project validator.");
+        // Absence rules need every allocation in scope, so they never run on partial or ID-scoped reads.
+        boolean whole = ids.isEmpty() && !truncated;
+        if (whole) truncated = method.finish(issues, limit);
+        long errors = issues.stream().filter(issue -> "error".equals(issue.get("severity"))).count();
+        return map("mode", "bounded_structural", "inspected", inspected, "errors", errors, "warnings", issues.size() - errors,
+            "issues", issues, "truncated", truncated, "methodology_scope", whole ? "complete" : "local_only", "scope",
+            "Counts cover inspected objects only. Errors are stored-reference faults; warnings are Arcadia method gaps "
+                + "(unallocated or unrealized leaf functions, functional exchanges between components without a component exchange). "
+                + "methodology_scope local_only means absence rules were skipped. Not all native constraints or engineering compliance; use native_validation for the installed validator.");
+    }
+
+    /** Arcadia method gaps from stored references. Leaf functions directly under a function package are roots and exempt. */
+    private static final class Methodology {
+        final List<AbstractFunction> leaves = new ArrayList<>();
+        final Map<AbstractFunction, EObject> allocatedTo = new java.util.IdentityHashMap<>();
+        final List<org.polarsys.capella.core.data.fa.FunctionalExchange> exchanges = new ArrayList<>();
+        final Set<EObject> carried = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+        void observe(EObject element, List<Map<String, Object>> issues, int limit) {
+            String layer = layerOf(element);
+            if (element instanceof ComponentFunctionalAllocation allocation && allocation.getTargetElement() instanceof AbstractFunction function) {
+                allocatedTo.put(function, allocation.getSourceElement() != null ? allocation.getSourceElement() : allocation.eContainer());
+            } else if (element instanceof org.polarsys.capella.core.data.fa.ComponentExchangeFunctionalExchangeAllocation allocation) {
+                if (allocation.getTargetElement() != null) carried.add(allocation.getTargetElement());
+            } else if (element instanceof AbstractFunction function && Set.of("SA", "LA", "PA").contains(layer)
+                && function.getOwnedFunctions().isEmpty() && !(function.eContainer() instanceof org.polarsys.capella.core.data.fa.FunctionPkg)) {
+                leaves.add(function);
+                if (!"SA".equals(layer) && function.getOwnedFunctionRealizations().isEmpty() && issues.size() < limit) {
+                    issues.add(issue(function, "warning", "unrealized_function", "Leaf function does not realize a function of the previous perspective"));
+                }
+            } else if (element instanceof org.polarsys.capella.core.data.fa.FunctionalExchange exchange) {
+                exchanges.add(exchange);
+                if ((exchange.getSource() == null || exchange.getTarget() == null) && issues.size() < limit) {
+                    issues.add(issue(exchange, "error", "exchange_missing_end", "Functional exchange is missing its source or target"));
+                }
+            } else if (element instanceof org.polarsys.capella.core.data.fa.ComponentExchange exchange
+                && (exchange.getSource() == null || exchange.getTarget() == null) && issues.size() < limit) {
+                issues.add(issue(exchange, "error", "exchange_missing_end", "Component exchange is missing its source or target"));
+            }
+        }
+
+        /** Returns true when the issue limit cut the findings short. */
+        boolean finish(List<Map<String, Object>> issues, int limit) {
+            for (AbstractFunction leaf : leaves) {
+                if (allocatedTo.containsKey(leaf)) continue;
+                if (issues.size() == limit) return true;
+                issues.add(issue(leaf, "warning", "unallocated_leaf_function", "Leaf function is not allocated to a component"));
+            }
+            for (var exchange : exchanges) {
+                EObject from = allocatedTo.get(function(exchange.getSource())), to = allocatedTo.get(function(exchange.getTarget()));
+                if (from == null || to == null || from == to || carried.contains(exchange)) continue;
+                if (issues.size() == limit) return true;
+                issues.add(issue(exchange, "warning", "unallocated_functional_exchange",
+                    "Functional exchange between functions on different components is not allocated to a component exchange"));
+            }
+            return false;
+        }
+
+        private static AbstractFunction function(EObject end) {
+            return end instanceof AbstractFunction function ? function
+                : end != null && end.eContainer() instanceof AbstractFunction owner ? owner : null;
+        }
     }
 
     private Map<String, Object> nativeValidation(int limit, String cursor) {
@@ -838,7 +899,9 @@ public final class ArcadiaModelTools {
         return "[native datatype]";
     }
     private static Iterable<?> values(Object value) { return value == null ? List.of() : value instanceof List<?> list ? list : List.of(value); }
-    private static Map<String, Object> issue(EObject owner, String message) { return map("severity", "error", "id", nativeId(owner), "type", owner.eClass().getName(), "message", message); }
+    private static Map<String, Object> issue(EObject owner, String severity, String rule, String message) {
+        return map("severity", severity, "rule", rule, "id", nativeId(owner), "type", owner.eClass().getName(), "message", message);
+    }
     private static boolean sensitive(String name) { return name.toLowerCase(Locale.ROOT).matches(".*(password|secret|credential|api.?key|access.?token).*"); }
     private static String layer(Map<String, Object> args) {
         String value = optionalString(args, "layer", 10);

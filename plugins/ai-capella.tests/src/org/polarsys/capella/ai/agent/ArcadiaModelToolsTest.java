@@ -356,6 +356,94 @@ public class ArcadiaModelToolsTest {
         assertTrue(result, result.contains("decomposed function"));
     }
 
+    /** LA root function with leaves A and B, components C1 and C2, and an A to B exchange through ports. */
+    private record Logical(org.polarsys.capella.core.data.la.LogicalFunction a, org.polarsys.capella.core.data.la.LogicalFunction b,
+        org.polarsys.capella.core.data.la.LogicalComponent c1, org.polarsys.capella.core.data.la.LogicalComponent c2,
+        org.polarsys.capella.core.data.fa.FunctionalExchange exchange) {}
+
+    private Logical logicalFixture() {
+        Logical[] fixture = { null };
+        write(() -> {
+            var la = (org.polarsys.capella.core.data.la.LogicalArchitecture) architectures.get(2);
+            var root = LaFactory.eINSTANCE.createLogicalFunction(); root.setId("la-root"); root.setName("Root Logical Function");
+            ((org.polarsys.capella.core.data.la.LogicalFunctionPkg) la.getOwnedFunctionPkg()).getOwnedLogicalFunctions().add(root);
+            var a = LaFactory.eINSTANCE.createLogicalFunction(); a.setId("la-a"); a.setName("Acquire");
+            var b = LaFactory.eINSTANCE.createLogicalFunction(); b.setId("la-b"); b.setName("Process");
+            root.getOwnedFunctions().addAll(List.of(a, b));
+            la.setOwnedLogicalComponentPkg(LaFactory.eINSTANCE.createLogicalComponentPkg());
+            var c1 = LaFactory.eINSTANCE.createLogicalComponent(); c1.setId("la-c1"); c1.setName("Sensor");
+            var c2 = LaFactory.eINSTANCE.createLogicalComponent(); c2.setId("la-c2"); c2.setName("Computer");
+            la.getOwnedLogicalComponentPkg().getOwnedLogicalComponents().addAll(List.of(c1, c2));
+            var out = FaFactory.eINSTANCE.createFunctionOutputPort(); a.getOutputs().add(out);
+            var in = FaFactory.eINSTANCE.createFunctionInputPort(); b.getInputs().add(in);
+            var exchange = FaFactory.eINSTANCE.createFunctionalExchange(); exchange.setId("la-fe"); exchange.setName("Samples");
+            exchange.setSource(out); exchange.setTarget(in); root.getOwnedFunctionalExchanges().add(exchange);
+            fixture[0] = new Logical(a, b, c1, c2, exchange);
+        });
+        return fixture[0];
+    }
+
+    private void allocate(org.polarsys.capella.core.data.cs.Component component, AbstractFunction function) {
+        var allocation = FaFactory.eINSTANCE.createComponentFunctionalAllocation();
+        allocation.setSourceElement(component); allocation.setTargetElement(function);
+        component.getOwnedFunctionalAllocation().add(allocation);
+    }
+
+    private static List<Map<?, ?>> findings(String json, String rule) {
+        return ((List<?>) result(json).get("issues")).stream().<Map<?, ?>>map(issue -> (Map<?, ?>) issue)
+            .filter(issue -> rule.equals(issue.get("rule"))).toList();
+    }
+
+    @Test public void layerValidationReportsUnallocatedAndUnrealizedLeafFunctionsButNotTheRoot() throws Exception {
+        Logical model = logicalFixture();
+        write(() -> {
+            allocate(model.c1(), model.a());
+            var realization = FaFactory.eINSTANCE.createFunctionRealization();
+            realization.setSourceElement(model.a()); realization.setTargetElement((AbstractFunction) samples.get(1));
+            model.a().getOwnedFunctionRealizations().add(realization);
+        });
+        String json = tools.execute("model_validate", Map.of("layer", "LA"));
+        assertEquals(List.of("la-b"), findings(json, "unallocated_leaf_function").stream().map(issue -> issue.get("id")).toList());
+        assertEquals(List.of("la-b"), findings(json, "unrealized_function").stream().map(issue -> issue.get("id")).toList());
+        assertEquals("warning", findings(json, "unallocated_leaf_function").get(0).get("severity"));
+        assertEquals(2, ((Number) result(json).get("warnings")).intValue());
+        assertEquals(0, ((Number) result(json).get("errors")).intValue());
+        assertEquals("complete", result(json).get("methodology_scope"));
+    }
+
+    @Test public void crossComponentFunctionalExchangeNeedsAnAllocatingComponentExchange() throws Exception {
+        Logical model = logicalFixture();
+        write(() -> { allocate(model.c1(), model.a()); allocate(model.c2(), model.b()); });
+        String before = tools.execute("model_validate", Map.of("layer", "LA"));
+        assertEquals(List.of("la-fe"), findings(before, "unallocated_functional_exchange").stream().map(issue -> issue.get("id")).toList());
+        write(() -> {
+            var carrier = FaFactory.eINSTANCE.createComponentExchange(); carrier.setName("Bus");
+            model.c1().getOwnedComponentExchanges().add(carrier);
+            var allocation = FaFactory.eINSTANCE.createComponentExchangeFunctionalExchangeAllocation();
+            allocation.setSourceElement(carrier); allocation.setTargetElement(model.exchange());
+            carrier.getOwnedComponentExchangeFunctionalExchangeAllocations().add(allocation);
+        });
+        assertTrue(findings(tools.execute("model_validate", Map.of("layer", "LA")), "unallocated_functional_exchange").isEmpty());
+    }
+
+    @Test public void sameComponentExchangeNeedsNoCarrierAndDanglingExchangesAreErrors() throws Exception {
+        Logical model = logicalFixture();
+        write(() -> { allocate(model.c1(), model.a()); allocate(model.c1(), model.b()); });
+        assertTrue(findings(tools.execute("model_validate", Map.of("layer", "LA")), "unallocated_functional_exchange").isEmpty());
+        write(() -> model.exchange().setTarget(null));
+        String json = tools.execute("model_validate", Map.of("ids", List.of("la-fe")));
+        List<Map<?, ?>> dangling = findings(json, "exchange_missing_end");
+        assertEquals(1, dangling.size()); assertEquals("error", dangling.get(0).get("severity"));
+    }
+
+    @Test public void idScopedValidationSkipsRulesThatNeedTheWholeLayer() throws Exception {
+        logicalFixture();
+        String json = tools.execute("model_validate", Map.of("ids", List.of("la-b")));
+        assertTrue(findings(json, "unallocated_leaf_function").isEmpty());
+        assertEquals(1, findings(json, "unrealized_function").size());
+        assertEquals("local_only", result(json).get("methodology_scope"));
+    }
+
     @Test public void requirementSearchSkipsLargeMetadataBranchesButFindsNestedFolderRequirementsWithinReadBudget() throws Exception {
         var fixture = requirementFixture();
         write(() -> {

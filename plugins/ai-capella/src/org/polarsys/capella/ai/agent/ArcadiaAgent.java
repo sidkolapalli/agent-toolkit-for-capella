@@ -317,7 +317,7 @@ public final class ArcadiaAgent implements AgentRuntime {
             + "Tool argument schemas (only use names in the allowed list):\n"
             + "model_summary {}; model_search {query?:string,type?:string,layer?:string,limit?:1..50,cursor?:string} (query or type required); "
             + "model_inspect {id:string,limit?:1..30}; model_relationships {id:string,limit?:1..50,cursor?:string}; "
-            + "model_validate {id?:string,ids?:[1..50 ids],layer?:string,limit?:1..50} (id and ids are exclusive; bounded structural checks); "
+            + "model_validate {id?:string,ids?:[1..50 ids],layer?:string,limit?:1..50} (id and ids are exclusive; bounded structural checks plus Arcadia method warnings; use a layer for allocation/exchange checks); "
             + "native_validation {limit?:1..50,cursor?:string} (expensive complete native project validation; continue cursor to page the same result without rerunning; source_truncated discloses omitted findings); "
             + "capella_docs {path:string} (exact shipped relative documentation path); "
             + "capella_capabilities {module?:api|diagram|requirements|arcadia|skills|fs}.\n"

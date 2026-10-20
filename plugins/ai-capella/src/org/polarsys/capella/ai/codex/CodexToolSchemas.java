@@ -56,7 +56,7 @@ public final class CodexToolSchemas {
                 + "limit is 1–30, default15; 80 is invalid. Names, paths and ReqIF identifiers are not native IDs. Omit limit to use the default.";
             case "model_relationships" -> "Read stored outgoing and bounded incoming relationships of a native id returned by model_search. "
                 + "Example: {\"id\":\"native-uuid\"}. limit is 1–50, default20; continue returned cursor with the same id.";
-            case "model_validate" -> "Run bounded structural checks. Example: {\"ids\":[\"native-uuid\"]} or {\"layer\":\"LA\"}. "
+            case "model_validate" -> "Run bounded structural checks and Arcadia method checks (unallocated/unrealized leaf functions, cross-component functional exchanges without a component exchange). Use a layer for method checks. Example: {\"ids\":[\"native-uuid\"]} or {\"layer\":\"LA\"}. "
                 + "Choose id OR ids OR layer, never combine them; {} checks bounded whole-model scope. limit is 1–50, default30. This is not full native validation or compliance.";
             case "native_validation" -> "Run installed full-project native Capella constraints; complete counts with bounded messages. "
                 + "Example: {}. Optional limit is 1–50, default30. Continue the returned cursor for remaining messages from the SAME validation without rerunning it. "
