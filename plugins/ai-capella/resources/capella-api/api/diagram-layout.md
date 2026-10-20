@@ -28,6 +28,9 @@ orthogonal (Manhattan) routing, stale manual bendpoints are removed, and connect
 ports move to the side of their parent that faces what they connect to. Run `layout` after
 adding elements rather than positioning ports or bendpoints by hand.
 
+Layout does not make an overloaded view readable: keep a diagram to about eight components and
+split larger content into one view per subsystem (see the diagram skill).
+
 ## Alignment
 
 Aligns the **selected** elements (or passed list).

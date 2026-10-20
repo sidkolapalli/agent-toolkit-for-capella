@@ -26,6 +26,14 @@ Create and populate Capella diagrams.
 | PDFB | Physical Data Flow Blank | PA |
 | CDB | Class Diagram Blank | - |
 
+## Keep each view readable
+
+A view stays legible up to about eight components (with their functions and exchanges). For more,
+do not put everything in one diagram: make an overview with only the top-level components, then one
+diagram per subsystem (a parent component with its children, or one functional chain). Name each
+view after what it shows. A 100-component diagram takes about a minute to open and cannot be read
+as a whole.
+
 ## Examples
 
 <example>
@@ -53,18 +61,20 @@ User: Create a diagram and add all system components to it
 Correct code:
 ```groovy
 def saLayer = api.layer("SA")
-def diagram = api.diagram.createSafe("SAB", "All Components", saLayer)
-
-// Add all components to diagram
 def components = api.findAll("SystemComponent")
-components.each { comp ->
+// One readable view holds about eight components. Larger sets get one view per subsystem.
+if (components.size() > 8) {
+    log.warn("${components.size()} components: create an overview of the top-level ones and one view per subsystem")
+}
+def diagram = api.diagram.createSafe("SAB", "All Components", saLayer)
+components.take(8).each { comp ->
     api.diagram.addSafe(diagram, comp)
 }
 
 // Layout for readability
-api.diagram.layout(diagram, "layered")
+api.diagram.layout(diagram, "auto")
 
-log.info("Created diagram with ${components.size()} components")
+log.info("Created diagram with ${Math.min(8, components.size())} of ${components.size()} components")
 ```
 </example>
 
