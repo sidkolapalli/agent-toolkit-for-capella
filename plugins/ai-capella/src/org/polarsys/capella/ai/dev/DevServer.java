@@ -158,12 +158,7 @@ public final class DevServer {
             System.out.println("  POST /mcp     - Model Context Protocol (JSON-RPC) read tools");
             System.out.println(
                     "  POST /eval    - Score agent tasks on a disposable model (opt-in)");
-            System.out.println("  POST /chat    - Send prompt to LLM, execute result");
             System.out.println("  GET  /status  - Check server/session status");
-            System.out.println("  GET  /prompt  - Get system prompt for LLM");
-            System.out.println("  GET  /context - Get selection + active diagram context");
-            System.out.println("  GET  /config  - View configuration");
-            System.out.println("  GET  /debug   - View debug information");
         } catch (IOException e) {
             stop();
             LOG.log(Level.SEVERE, "DevServer failed to start on port " + port, e);
