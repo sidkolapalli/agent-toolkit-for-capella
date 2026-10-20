@@ -13,6 +13,11 @@ api.arcadia.realizeCapability(lowerCapability, upperCapability)
 def chain = api.arcadia.linearChain(rootFunction, "Nominal drive request",
     orderedLeafFunctions, orderedFunctionalExchanges)
 
+// SA/LA/PA: an empty scenario of kind exchange, functional or interface in a Capability or
+// CapabilityRealization; then its sequence diagram on the scenario (ES, FS or IS).
+def exchangeScenario = api.arcadia.scenario(systemCapability, "IMD fault shutdown", "exchange")
+api.diagram.create("ES", "IMD fault shutdown", exchangeScenario)
+
 def scenario = api.arcadia.operationalScenario(operationalCapability,
     "Nominal motion request", orderedOperationalInteractions,
     "Demand is valid and drive permission is present",

@@ -100,6 +100,12 @@ public final class DiagramAPI {
             }
         }
 
+        // Sequence diagrams show an existing scenario; Capella's UI creates the scenario first.
+        if (descriptionName.endsWith("Scenario") && target instanceof org.polarsys.capella.core.data.interaction.AbstractCapability) {
+            throw new IllegalArgumentException("A " + descriptionName + " diagram shows a scenario, not a capability. Create the scenario with "
+                + "api.arcadia.scenario(capability, name, 'exchange' | 'functional' | 'interface'), then create the diagram on that scenario.");
+        }
+
         // Find the correct target element for this diagram description.
         EObject actualTarget = resolveTargetForDescription(
             descriptionName,
@@ -109,12 +115,17 @@ public final class DiagramAPI {
             throw new IllegalArgumentException(buildTargetError(descriptionName, target));
         }
 
-        return DiagramCommands.createAndOpenDiagram(
+        DRepresentation created = DiagramCommands.createAndOpenDiagram(
             session,
             actualTarget,
             descriptionName,
             name
         );
+        if (created == null) {
+            throw new IllegalStateException("Capella did not create the " + descriptionName + " diagram on " + getElementName(actualTarget)
+                + ". Check that the element is a valid target for this diagram type.");
+        }
+        return created;
     }
 
     /**

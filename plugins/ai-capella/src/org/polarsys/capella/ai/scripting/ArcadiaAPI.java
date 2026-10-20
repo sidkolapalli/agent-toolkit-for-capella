@@ -59,6 +59,10 @@ public final class ArcadiaAPI {
         return change(() -> behavior.linearChain(owner, name, functions, exchanges));
     }
 
+    public Scenario scenario(org.polarsys.capella.core.data.interaction.AbstractCapability owner, String name, String kind) {
+        return change(() -> behavior.scenario(owner, name, kind));
+    }
+
     public Scenario operationalScenario(OperationalCapability owner, String name,
         List<? extends FunctionalExchange> orderedInteractions, String precondition, String postcondition) {
         return change(() -> behavior.operationalScenario(owner, name, orderedInteractions, precondition, postcondition));

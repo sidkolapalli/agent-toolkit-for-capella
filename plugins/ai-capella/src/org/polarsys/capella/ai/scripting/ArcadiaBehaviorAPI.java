@@ -214,6 +214,31 @@ public final class ArcadiaBehaviorAPI {
     }
 
     /**
+     * An empty SA, LA or PA scenario in its capability, as Capella's "New Exchange/Functional/Interface Scenario"
+     * creates it; its sequence diagram is then created on the scenario. Kind is exchange, functional or interface.
+     * Operational scenarios use {@link #operationalScenario}.
+     */
+    public Scenario scenario(AbstractCapability owner, String name, String kind) {
+        String label = text(name, "Scenario name", 2400);
+        ScenarioKind nativeKind = switch (text(kind, "Scenario kind", 40).toLowerCase(java.util.Locale.ROOT)) {
+            case "exchange" -> ScenarioKind.DATA_FLOW;
+            case "functional" -> ScenarioKind.FUNCTIONAL;
+            case "interface" -> ScenarioKind.INTERFACE;
+            default -> throw invalid("Scenario kind must be exchange, functional or interface");
+        };
+        return write("Create scenario", () -> {
+            if (capabilityLayer(owner) instanceof OperationalAnalysis) {
+                throw invalid("Operational scenarios use api.arcadia.operationalScenario(capability, name, interactions, pre, post)");
+            }
+            requireUniqueName(owner.getOwnedScenarios(), label, "scenario");
+            Scenario scenario = named(InteractionFactory.eINSTANCE.createScenario(), label);
+            scenario.setKind(nativeKind);
+            owner.getOwnedScenarios().add(scenario);
+            return changed(scenario);
+        });
+    }
+
+    /**
      * OA Activity Interaction Scenario from Capella 7 oa.odesign's asynchronous activity message tool:
      * INTERACTION kind, activity instance roles, operation events, sending/receiving ends and receiver executions.
      * Conditions are natural-language native Constraints, not evaluated control predicates.

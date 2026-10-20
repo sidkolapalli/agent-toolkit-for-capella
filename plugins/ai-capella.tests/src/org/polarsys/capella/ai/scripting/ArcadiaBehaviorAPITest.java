@@ -276,6 +276,20 @@ public class ArcadiaBehaviorAPITest {
         unchanged(() -> behavior.operationalScenario(capability, "Existing", flow.exchanges(), "Before", "After"));
     }
 
+    /** Live FSAE run: the agent had no way to create a system exchange scenario. */
+    @Test
+    public void systemLogicalAndPhysicalScenariosGetTheirNativeKindUnderTheCapability() {
+        Scenario exchange = behavior.scenario(capabilities[1], "IMD fault shutdown", "exchange");
+        assertSame(capabilities[1], exchange.eContainer());
+        assertEquals(ScenarioKind.DATA_FLOW, exchange.getKind());
+        assertNotNull(exchange.getId());
+        assertEquals(ScenarioKind.FUNCTIONAL, behavior.scenario(capabilities[2], "Shutdown functions", "functional").getKind());
+        assertEquals(ScenarioKind.INTERFACE, behavior.scenario(capabilities[3], "Shutdown interfaces", "interface").getKind());
+        unchanged(() -> behavior.scenario(capabilities[1], "IMD fault shutdown", "exchange"));
+        unchanged(() -> behavior.scenario(capabilities[1], "Unknown kind", "sequence"));
+        unchanged(() -> behavior.scenario(capabilities[0], "Operational", "exchange"));
+    }
+
     @Test
     public void failedOuterProposalRollsBackAllBehaviorObjectsAndDoesNotSave() {
         Flow system = flow(1, 2), operational = flow(0, 2);

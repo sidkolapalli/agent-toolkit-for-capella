@@ -74,4 +74,4 @@ def comms = api.create("LA", "LogicalComponent", "Communications")
 
 - `SAB` - System Architecture Blank (components)
 - `SDFB` - System Data Flow Blank (functions)
-- `ES` - Component Exchanges Scenario (sequences). Creating it on a capability also creates the scenario: `api.diagram.create("ES", "Scenario name", capability)`
+- `ES` - Component Exchanges Scenario (sequences). Create the scenario first, then its diagram: `def s = api.arcadia.scenario(capability, "Name", "exchange"); api.diagram.create("ES", "Name", s)`
