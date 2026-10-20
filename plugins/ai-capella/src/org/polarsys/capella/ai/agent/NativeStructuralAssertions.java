@@ -29,8 +29,9 @@ import org.polarsys.capella.core.data.cs.BlockArchitecture;
 public final class NativeStructuralAssertions {
     public static final int MAX_CHECKS = 12;
     public static final int MAX_ORDERED_TARGETS = 32;
-    public static final int MAX_SCAN_OBJECTS = 250_000;
-    private static final long MAX_SCAN_NANOS = 2_000_000_000L;
+    // The time budget is the real guard; the object cap only bounds memory (raised after a 312,000-object stress test).
+    public static final int MAX_SCAN_OBJECTS = 2_000_000;
+    private static final long MAX_SCAN_NANOS = 10_000_000_000L;
     private static final int MAX_INPUT_BYTES = 65_536;
     private static final int MAX_OUTPUT_BYTES = 131_072;
     private static final Set<String> LAYERS = Set.of("OA", "SA", "LA", "PA", "EPBS");

@@ -314,6 +314,16 @@ public class ModelChangeSummaryTest {
         assertEquals(1, report.editedCount()); assertDetached();
     }
 
+    /** Stress test: a 312,000-object model exceeded the old 250,000-object capture limit. */
+    @Test public void modelsAboveAQuarterMillionObjectsKeepChangeEvidence() {
+        write(() -> { for (int i = 0; i < 260_000; i++) semantic.getContents().add(org.eclipse.emf.ecore.EcoreFactory.eINSTANCE.createEAnnotation()); });
+        var recorder = ModelChangeSummary.capture(session);
+        write(() -> first.setName("Edited in a large model"));
+        var report = recorder.finish(true);
+        assertTrue(report.note(), report.available());
+        assertEquals(1, report.editedCount()); assertDetached();
+    }
+
     @Test public void closeWithoutFinishDetachesAndCannotReturnFalseZeroCounts() {
         var recorder = ModelChangeSummary.capture(session);
         assertTrue(semantic.eAdapters().stream().anyMatch(ModelChangeSummaryTest::isRecorderAdapter));

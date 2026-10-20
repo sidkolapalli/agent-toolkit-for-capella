@@ -102,6 +102,19 @@ public class ModelPostconditionsTest {
         }
     }
 
+    /** Stress test: checks on a 312,000-object model stopped at the old 250,000-object scan cap. */
+    @Test public void checksCompleteOnModelsAboveAQuarterMillionObjects() {
+        write(() -> { for (int i = 0; i < 260_000; i++) resource.getContents().add(org.polarsys.capella.core.data.capellacore.CapellacoreFactory.eINSTANCE.createKeyValue()); });
+        var name = ((NamedElement) samples.get(2)).getName();
+        var nullSelector = new java.util.HashMap<String, Object>(Map.of("kind", "reference_equals", "target", Map.of("id", "post-2"), "feature", "ownedDataPkg"));
+        nullSelector.put("expected", null);
+        var report = ModelPostconditions.check(session, List.of(named("large", "element_exists", "LogicalComponent", name, "LA"),
+            named("large", "element_absent", "LogicalComponent", "No such component", "LA"),
+            new Postcondition("large", "native_structure", Map.of("check", nullSelector))));
+        assertEquals(report.markdownSummary(), List.of(Status.PASSED, Status.PASSED, Status.PASSED),
+            report.results().stream().map(ModelPostconditions.Result::status).toList());
+    }
+
     @Test public void actorAliasDoesNotMatchAnOrdinaryComponent() {
         write(() -> ((org.polarsys.capella.core.data.ctx.SystemComponent) samples.get(1)).setActor(false));
         var result = ModelPostconditions.check(session, List.of(named("actor", "element_exists", "SystemActor", "Native candidate ⚡ 1", "SA")));

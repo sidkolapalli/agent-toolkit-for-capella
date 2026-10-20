@@ -32,7 +32,7 @@ import org.polarsys.capella.ai.session.SessionSafeguards;
  */
 public final class ModelChangeSummary {
     public static final int MAX_DISPLAY_ITEMS = 40;
-    private static final int MAX_BASELINE_OBJECTS = 250_000;
+    private static final int MAX_BASELINE_OBJECTS = 2_000_000; // about 64 MB of identities at the cap
     private static final int MAX_TOUCHED_OBJECTS = 50_000;
     private ModelChangeSummary() { }
 

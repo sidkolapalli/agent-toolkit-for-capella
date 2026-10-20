@@ -27,8 +27,9 @@ import org.polarsys.capella.core.data.cs.BlockArchitecture;
 /** Data-only assertions over the captured session. Never evaluates a supplied predicate. */
 public final class ModelPostconditions {
     public static final int MAX_CONDITIONS = 12;
-    public static final int MAX_SCAN_OBJECTS = 250_000;
-    private static final long MAX_SCAN_NANOS = 2_000_000_000L;
+    // The time budget is the real guard; the object cap only bounds memory (raised after a 312,000-object stress test).
+    public static final int MAX_SCAN_OBJECTS = 2_000_000;
+    private static final long MAX_SCAN_NANOS = 10_000_000_000L;
     private static final Set<String> LAYERS = Set.of("OA", "SA", "LA", "PA", "EPBS");
     private static final String SCOPE = "Independently checked declared native semantic model state only. "
         + "This does not establish goal completeness, requirements verification, safety or compliance.";
