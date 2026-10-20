@@ -240,6 +240,24 @@ public final class CodexArcadiaAgent implements AgentRuntime {
             + "Do not replay model writes or expand the declared task scope. Any corrected or new script remains a proposal for review.";
     }
 
+    /** The app-server's turn.error (message, codexErrorInfo) as something the user can act on. */
+    static String turnFailure(String status, Object error) {
+        String text = "Codex turn ended without completion (" + ("interrupted".equals(status) ? "interrupted" : "failed") + ")";
+        if (!(error instanceof Map<?, ?> details)) return text;
+        Object info = details.get("codexErrorInfo");
+        String code = info instanceof String name ? name : info instanceof Map<?, ?> variant && !variant.isEmpty() ? String.valueOf(variant.keySet().iterator().next()) : "";
+        String message = details.get("message") instanceof String value ? clip(value.replaceAll("\\p{Cntrl}", " ").strip(), 300) : "";
+        String hint = switch (code) {
+            case "unauthorized" -> "The ChatGPT sign-in has expired or was rejected. Sign in again in the Capella AI settings, then retry.";
+            case "usageLimitExceeded" -> "The ChatGPT plan's Codex usage limit is reached. Retry after it resets, or choose another provider in the Capella AI settings.";
+            case "rateLimitExceeded", "serverOverloaded" -> "The provider is busy. Try again in a moment.";
+            case "contextWindowExceeded" -> "The conversation is too long for the model. Start a new conversation.";
+            default -> "";
+        };
+        if (!hint.isEmpty()) return text + ": " + hint + (message.isEmpty() ? "" : " (" + message + ")");
+        return message.isEmpty() ? text : text + ": " + message;
+    }
+
     @Override public String protocolGuidance() {
         return "\n\nCAPELLA NATIVE TOOL PROTOCOL (supersedes earlier Groovy-fence/JSON-response instructions): "
             + "Use native function calls to inspect the captured model. Do not encode tool calls in assistant prose. "
@@ -450,7 +468,7 @@ public final class CodexArcadiaAgent implements AgentRuntime {
                 Map<String, Object> turn = object(params.get("turn")); if (!current.turnId.equals(turn.get("id"))) continue;
                 current.running = false;
                 String status = string(turn.get("status"), 80);
-                if (!"completed".equals(status)) throw new ProtocolFailure("Codex turn ended without completion (" + ("interrupted".equals(status) ? "interrupted" : "failed") + ")");
+                if (!"completed".equals(status)) throw new ProtocolFailure(turnFailure(status, turn.get("error")));
                 if (turn.get("items") instanceof List<?> items) for (Object value : items) observeItem(current, object(value), true);
                 String reply = current.finalText();
                 if (reply.isBlank()) throw new ProtocolFailure("Codex completed without a final answer");

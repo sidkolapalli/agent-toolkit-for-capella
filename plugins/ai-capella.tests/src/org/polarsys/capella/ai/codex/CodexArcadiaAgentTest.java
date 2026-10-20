@@ -462,6 +462,27 @@ public class CodexArcadiaAgentTest {
         }
     }
 
+    @Test public void failedTurnsExplainTheProviderErrorInActionableTerms() {
+        Map<String, String> expected = Map.of("unauthorized", "Sign in", "usageLimitExceeded", "usage limit",
+            "rateLimitExceeded", "Try again", "contextWindowExceeded", "new conversation");
+        for (var entry : expected.entrySet()) {
+            Fake transport = new Fake();
+            transport.add(notification("turn/completed", map("turn", map("id", "turn-1", "status", "failed", "items", List.of(),
+                "error", map("message", "Provider said no", "codexErrorInfo", entry.getKey())))));
+            try (CodexArcadiaAgent agent = agent(transport, successfulReads())) {
+                String message = assertThrows(ArcadiaAgent.AgentException.class, () -> run(agent)).getMessage();
+                assertTrue(entry.getKey() + ": " + message, message.contains(entry.getValue()));
+            }
+        }
+        Fake transport = new Fake();
+        transport.add(notification("turn/completed", map("turn", map("id", "turn-1", "status", "failed", "items", List.of(),
+            "error", map("message", "Upstream stream closed", "codexErrorInfo", map("responseStreamDisconnected", map("httpStatusCode", 502)))))));
+        try (CodexArcadiaAgent agent = agent(transport, successfulReads())) {
+            String message = assertThrows(ArcadiaAgent.AgentException.class, () -> run(agent)).getMessage();
+            assertTrue(message, message.contains("Upstream stream closed"));
+        }
+    }
+
     @Test public void ordinaryAssistantCodeAndJsonAreNeverParsedAsNativeToolCalls() {
         Fake transport = new Fake(); String prose = "```groovy\napi.delete('do-not-run')\n```\n{\"kind\":\"proposal\"}"; transport.add(done(prose));
         try (CodexArcadiaAgent agent = agent(transport, successfulReads())) { ArcadiaAgent.Turn result = run(agent); assertFalse(result.hasProposal()); assertEquals(prose, result.reply()); }
