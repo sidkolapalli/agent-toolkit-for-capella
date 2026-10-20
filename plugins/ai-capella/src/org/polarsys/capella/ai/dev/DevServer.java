@@ -271,12 +271,14 @@ public final class DevServer {
             sendResponse(exchange, 413, "{\"error\":\"MCP message exceeds 32768 bytes\"}");
             return;
         }
-        String response = McpServer.handle(SessionBridge.getActiveSession(), new String(body, StandardCharsets.UTF_8));
-        if (response == null) {
-            exchange.sendResponseHeaders(202, -1);
+        Map<String, String> headers = new LinkedHashMap<>();
+        exchange.getRequestHeaders().forEach((name, values) -> { if (!values.isEmpty()) headers.put(name, values.get(0)); });
+        McpServer.Response response = McpServer.handle(SessionBridge.getActiveSession(), headers, new String(body, StandardCharsets.UTF_8));
+        if (response.body() == null) {
+            exchange.sendResponseHeaders(response.status(), -1);
             exchange.close();
         } else {
-            sendResponse(exchange, 200, response);
+            sendResponse(exchange, response.status(), response.body());
         }
     }
 
