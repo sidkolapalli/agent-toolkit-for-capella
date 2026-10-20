@@ -29,6 +29,20 @@ public class ScriptLoggerTest {
         assertTrue(messages.get(0).contains("Test message"));
     }
 
+    /** Live eval: log.info(validationResults) aborted and rolled back two otherwise correct scripts. */
+    @Test
+    public void anyValueCanBeLoggedNotOnlyText() {
+        logger.info((Object) java.util.List.of("Model validation: 3 errors", "Diagnostic"));
+        logger.warn((Object) java.util.Map.of("errors", 3));
+        logger.error((Object) null);
+        logger.debug((Object) 42);
+        String all = String.join(" | ", logger.getMessages());
+        assertTrue(all, all.contains("Model validation: 3 errors"));
+        assertTrue(all, all.contains("errors=3"));
+        assertTrue(all, all.contains("null"));
+        assertTrue(all, all.contains("42"));
+    }
+
     @Test
     public void testWarnLogging() {
         logger.warn("Warning message");

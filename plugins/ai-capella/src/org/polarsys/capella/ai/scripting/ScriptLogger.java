@@ -26,31 +26,32 @@ public final class ScriptLogger {
     private final List<String> messages = Collections.synchronizedList(new ArrayList<>());
 
     /**
-     * Log an informational message.
+     * Log an informational message. Any value is accepted: scripts often log lists or maps, and a
+     * logging call must never be what makes a model change fail.
      */
-    public void info(String message) {
-        log("INFO", message);
+    public void info(Object message) {
+        log("INFO", String.valueOf(message));
     }
 
     /**
      * Log a warning message.
      */
-    public void warn(String message) {
-        log("WARN", message);
+    public void warn(Object message) {
+        log("WARN", String.valueOf(message));
     }
 
     /**
      * Log an error message.
      */
-    public void error(String message) {
-        log("ERROR", message);
+    public void error(Object message) {
+        log("ERROR", String.valueOf(message));
     }
 
     /**
      * Log a debug message.
      */
-    public void debug(String message) {
-        log("DEBUG", message);
+    public void debug(Object message) {
+        log("DEBUG", String.valueOf(message));
     }
 
     /**
