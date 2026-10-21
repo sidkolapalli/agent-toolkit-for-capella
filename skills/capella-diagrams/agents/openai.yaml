@@ -1,0 +1,10 @@
+interface:
+  display_name: "Capella Diagrams"
+  short_description: "Pick, build and lay out Capella diagrams through the API"
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "capella"
+      description: "Capella AI MCP server on the model open in Capella"
+      transport: "streamable_http"
+      url: "http://127.0.0.1:8765/mcp"
