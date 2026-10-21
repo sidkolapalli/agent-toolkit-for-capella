@@ -525,3 +525,34 @@ experiment-5 set (82ed60b) with `arcadia-depth` replaced by its state at **c58dd
 router rows). One solution per task, written only with those files' patterns, passed all four on the new build
 with no new validation error; its functional scenario renders correctly in Capella's FS diagram. The after runs
 start when the before runs finish, alongside experiment 7.
+
+## Experiment 5, result (2026-10-21; skills 82ed60b, plugin build 0.2.1.202610211401)
+
+Pass counts over the 4 tasks x 3 repetitions. Every run's model loaded; no arm added a validation error.
+
+| | K (Sonnet) | KS (Sonnet + skills) | KH (Haiku) | KSH (Haiku + skills) |
+|---|---|---|---|---|
+| Passed | 11/12 | 12/12 | 4/12 | 11/12 |
+| Median agent time | 70 s | 39 s (-45%) | 80 s | 50 s (-37%) |
+| Cost | $2.75 | $1.72 | $0.85 | $0.47 |
+
+| Task | K | KS | KH | KSH | Decision |
+|---|---|---|---|---|---|
+| roles | PPP | PPP | FFF | PFP | OPERATIONAL.md **kept** (Haiku +2, Sonnet equal) |
+| communication | PPP | PPP | FFF | PPP | OPERATIONAL.md **kept** (Haiku +3, Sonnet equal) |
+| capabilities | FPP | PPP | FFP | PPP | CAPABILITIES.md **kept** (both models better) |
+| categories-2 | PPP | PPP | PPP | PPP | CATEGORIES.md **not shown** |
+
+With the skill both models are faster on all 4 tasks (sign test per model p = 0.125: too few tasks to say more).
+The failures without the skill are the constructs the files teach: Haiku modelled the role as an operational
+capability involving the activities (3/3), left the interactions off the communication means (3/3), and reported
+capability include, extend and generalization as impossible because `api.link` refuses them (2/3, as did one
+Sonnet run). KSH's one roles failure built the right structure but named the role without the `FSAE2027:` prefix.
+
+The reworded categories task is now valid (12/12, against 0/12 in experiment 4) but no arm differs, so CATEGORIES.md
+is not shown to help; it stays (short, verified) and is marked untested in the coverage notes.
+
+Regression arm (KSH, experiment 4's tasks, larger skill): 17/18 valid tasks (`duplicate` FPP: one run put a second
+exchange on the source port instead of a DUPLICATE function; `categories` failed 3/3 as in every experiment-4 arm and
+stays excluded). Its only validation errors (2 or 3 in some runs) are the known exchange-item cardinality gap, as in
+experiment 4. The rule's floor of 17/18 is met, so the larger skill stays.

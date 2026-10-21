@@ -14,7 +14,7 @@ numbers refer to the matrix.
 | a4 transitions | every Capella transition kind, LA→PA and PA→EPBS included | `api.ops.transition`; TRANSITIONS.md |
 | a5 REC/RPL, libraries | open | |
 | b1–b6 | taught and measured (experiment 4) | MODES, DATA, INTERFACES, MISSIONS, CONTROL, PROPERTIES |
-| b5 categories, b8 roles and communication means, b9 capability relations | taught; measured in experiment 5 | CATEGORIES, OPERATIONAL, CAPABILITIES |
+| b5 categories, b8 roles and communication means, b9 capability relations | taught; experiment 5: roles, communication means and capability relations help (Haiku 1/9 to 8/9), categories untested (every arm passes) | CATEGORIES, OPERATIONAL, CAPABILITIES |
 | b7 port kind | dropped: Capella's glossary says FLOW vs STANDARD is graphical only | |
 | b10 validation vocabulary | open | |
 
