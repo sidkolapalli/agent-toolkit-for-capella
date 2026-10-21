@@ -24,12 +24,13 @@ TASKS = [
      "Model the car's charging subsystem in the logical architecture (LA): the functions and components involved in "
      "charging the accumulator, how they connect to the rest of the car, and the limits that apply.",
      [fact("The charger is an off-board commercial unit that stays in the paddock; no part of it is mounted on the car.",
-           r"(?i)off[- ]?board", r"(?i)on[- ]?board charger"),
+           r"(?i)off[- ]?(board|car|vehicle)", r"(?i)on[- ]?board charger"),
       fact("The charger and the BMS talk over CAN: the BMS sends the current and voltage setpoints and can tell the "
            "charger to stop.", r"\bCAN\b"),
       fact("The maximum charge current is 15 A.", r"\b15\s*(A\b|amps?\b|amperes?\b)"),
       fact("Charging stops when any cell reaches 4.15 V.", r"4\.15\s*(V\b|volts?\b)", r"4\.2\d*\s*(V\b|volts?\b)"),
-      fact("Charging also stops when any cell temperature exceeds 45 °C.", celsius(45), celsius(60)),
+      # No wrong-guess check: the rules' 60 °C cell limit is already in the model.
+      fact("Charging also stops when any cell temperature exceeds 45 °C.", celsius(45)),
       fact("The charging shutdown circuit runs through an HVIL loop in the charging connector: unplugging the connector "
            "opens it.", r"(?i)\bHVIL\b|high[- ]voltage interlock")]),
     ("fsae-e-thermal",

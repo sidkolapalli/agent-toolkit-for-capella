@@ -243,3 +243,10 @@ milliseconds). Regraded with them: 6 of 6 facts, no contradiction. The simulated
 calibration question with "I don't know", so it now has a fixed persona (leads the tractive-system electrics, new to
 Arcadia/MBSE, model for a design review) and confirms summaries that agree with its facts. Both changes apply to E
 and ES alike. Dry run repeated: pristine matches no fact, the briefs match every fact.
+
+## Experiment 3, amendment 1 (2026-10-21, during repetition 1, applied to every run by regrading)
+
+A grader bug hid every multi-valued text attribute, constraint bodies included: in the script sandbox
+`instanceof Collection` is false for EMF lists. Fixed with `instanceof Iterable`. With bodies visible, the pristine
+model already says 60 °C (the rules' cell limit), so that wrong-guess check is dropped. The off-board fact also
+accepts "off-car" and "off-vehicle". All runs are regraded from their saved models with the fixed grader.

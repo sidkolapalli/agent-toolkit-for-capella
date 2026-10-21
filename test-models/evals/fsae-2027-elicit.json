@@ -15,7 +15,7 @@
     {
      "kind": "mentions",
      "fact": "The charger is an off-board commercial unit that stays in the paddock; no part of it is mounted on the car.",
-     "pattern": "(?i)off[- ]?board"
+     "pattern": "(?i)off[- ]?(board|car|vehicle)"
     },
     {
      "kind": "mentions",
@@ -51,11 +51,6 @@
      "kind": "absent",
      "fact": "Charging stops when any cell reaches 4.15 V.",
      "pattern": "4\\.2\\d*\\s*(V\\b|volts?\\b)"
-    },
-    {
-     "kind": "absent",
-     "fact": "Charging also stops when any cell temperature exceeds 45 °C.",
-     "pattern": "\\b60\\s*(°|º|deg(rees?)?)?\\s*(C\\b|Celsius|℃)"
     }
    ]
   },

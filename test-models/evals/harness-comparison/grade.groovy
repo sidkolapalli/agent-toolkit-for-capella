@@ -180,7 +180,7 @@ def texts = {
                 def o = all.next()
                 if (!o.eClass().EPackage.nsURI.contains('/capella/core/')) continue
                 def text = o.eClass().EAllAttributes.findAll { !(it.name in ['id', 'sid']) }
-                    .collect { a -> def v = o.eGet(a); v instanceof Collection ? v.join(' ') : v }
+                    .collect { a -> def v = o.eGet(a); v instanceof Iterable ? v.join(' ') : v }
                     .findAll { it instanceof String || it instanceof Number }.join(' ')
                 if (text) corpus << [o, text]
             }
