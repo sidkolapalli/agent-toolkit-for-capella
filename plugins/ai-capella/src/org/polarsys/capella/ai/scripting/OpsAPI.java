@@ -9,6 +9,9 @@ import org.polarsys.capella.common.helpers.operations.LongRunningListenersRegist
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TreeSet;
 import java.util.logging.Logger;
 
 /**
@@ -24,53 +27,61 @@ public final class OpsAPI {
         this.session = session;
     }
 
+    private static final String HELPER =
+            "org.polarsys.capella.core.transition.system.topdown.commands.TransitionCommandHelper";
+
+    /** Each kind's TransitionCommandHelper method, as Capella's Transitions menu runs it. */
+    private static final Map<String, String> KINDS =
+            Map.ofEntries(
+                    Map.entry("la2pa", "getLC2PCTransitionCommand"),
+                    Map.entry("pa2epbs", "getPC2CITransitionCommand"),
+                    Map.entry("functional", "getFunctionalTransitionCommand"),
+                    Map.entry("capability", "getCapabilityTransitionCommand"),
+                    Map.entry("actor", "getActorTransitionCommand"),
+                    Map.entry("system", "getSystemTransitionCommand"),
+                    Map.entry("data", "getDataTransitionCommand"),
+                    Map.entry("exchange-item", "getExchangeItemTransitionCommand"),
+                    Map.entry("interface", "getInterfaceTransitionCommand"),
+                    Map.entry("state-machine", "getStateMachineTransitionCommand"),
+                    Map.entry("property-value", "getPropertyValueTransitionCommand"),
+                    Map.entry("entity-to-actor", "getOE2ActorTransitionCommand"),
+                    Map.entry("entity-to-system", "getOE2SystemTransitionCommand"));
+
     /**
-     * Perform a transition (e.g., System to Logical) on the selected elements.
-     *
-     * @param selection elements to transition
-     * @param kind transition kind. Supported: "SA2LA" (System to Logical), "OA2SA" (Operational to
-     *     System).
-     * @return true if transition command was triggered
+     * Run Capella's transition of the selected elements to the next perspective, with its
+     * realization links. "OA2SA" and "SA2LA" pick the functional, capability or system transition
+     * from the first element; the other kinds name the transition (see {@link #KINDS}).
      */
     public boolean transition(Collection<EObject> selection, String kind) {
         if (session == null || selection == null || selection.isEmpty()) {
             return false;
         }
-
-        String k = kind == null ? "" : kind.toUpperCase();
-
-        if ("SA2LA".equals(k) || "SYSTEMTOLOGICAL".equalsIgnoreCase(kind)) {
-            return triggerTransition(
-                    selection, "org.polarsys.capella.core.transition.system.topdown");
-        }
-        if ("OA2SA".equals(k) || "OPERATIONALTOSYSTEM".equalsIgnoreCase(kind)) {
-            // OA to SA usually shares the same topdown engine, but context differs.
-            // For now, mapping both to topdown.
-            return triggerTransition(
-                    selection, "org.polarsys.capella.core.transition.system.topdown");
+        return triggerTransition(selection, command(kind, selection.iterator().next()));
         }
 
+    public static String command(String kind, EObject first) {
+        String k = kind == null ? "" : kind.toLowerCase(Locale.ROOT);
+        if (k.equals("sa2la") || k.equals("oa2sa")) {
+            String type = first == null ? "" : first.eClass().getName();
+            return type.contains("Function") || type.contains("Activity")
+                    ? "getFunctionalTransitionCommand"
+                    : type.contains("Capability")
+                            ? "getCapabilityTransitionCommand"
+                            : "getSystemTransitionCommand";
+        }
+        String method = KINDS.get(k);
+        if (method == null)
         throw new IllegalArgumentException(
-                "Unknown transition kind: " + kind + ". Supported: OA2SA, SA2LA");
+                    "Unknown transition kind: "
+                            + kind
+                            + ". Supported: OA2SA, SA2LA, LA2PA, PA2EPBS, "
+                            + String.join(", ", new TreeSet<>(KINDS.keySet())));
+        return method;
     }
 
-    private boolean triggerTransition(Collection<EObject> selection, String packagePrefix) {
+    private boolean triggerTransition(Collection<EObject> selection, String methodName) {
         try {
-            Class<?> helperClass =
-                    Class.forName(packagePrefix + ".commands.TransitionCommandHelper");
-
-            // Determine the correct method based on selection type
-            String methodName = "getSystemTransitionCommand";
-            if (!selection.isEmpty()) {
-                EObject first = selection.iterator().next();
-                String type = first.eClass().getName();
-                if (type.contains("Function") || type.contains("Activity")) {
-                    methodName = "getFunctionalTransitionCommand";
-                } else if (type.contains("Capability")) {
-                    methodName = "getCapabilityTransitionCommand";
-                }
-            }
-
+            Class<?> helperClass = Class.forName(HELPER);
             LOG.info("Using transition method: " + methodName);
             var getInstanceMethod = helperClass.getMethod("getInstance");
             Object helperInstance = getInstanceMethod.invoke(null);
