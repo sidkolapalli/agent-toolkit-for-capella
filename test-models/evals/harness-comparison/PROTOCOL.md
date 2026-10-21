@@ -435,3 +435,84 @@ agent already gets from the MCP server's tool descriptions and `capella_docs` (t
 rules, the propose/receipt/repair workflow, the diagram-per-question table in `api/diagram.md`), which explains the
 null result. Rather than rewrite them, `arcadia-method`, `capella-model-edits` and `capella-diagrams` are removed;
 `capella-setup` stays (user-invoked installation, which no eval measures). Experiments 4 and 5 keep their frozen copies.
+
+# Experiment 6: the API gaps. Protocol (fixed before any scored run, 2026-10-21)
+
+Question: with the new API (functional and exchange scenarios with messages, branching chains, physical paths
+and component exchanges on them, every Capella transition; commits 5dd6df1 and 2db9d89) and a depth file for
+each, does a small model build what it could not before?
+
+This is an acceptance test of build plus skill together, not a skill-only comparison: the gaps could not be built
+without the API.
+
+## Setups
+
+| Arm | Plugin build | Skills |
+|---|---|---|
+| **before** | 0.2.1.202610211401 (experiments 4 and 5) | the experiment-5 skills (82ed60b) |
+| **after** | the build from 2db9d89 or later (recorded before the pilot) | those plus SCENARIOS.md, CHAINS.md, PHYSICAL.md, TRANSITIONS.md (commit recorded before the pilot) |
+
+Agent: headless Claude Code with `claude-haiku-5-5`, as KSH. Before runs first, on the installed old build;
+then the new build is installed and the after runs follow.
+
+## Tasks
+
+The 4 tasks of `../fsae-2027-depth-6.json`.
+
+| Task | Gap | Checks (all from the model) |
+|---|---|---|
+| `fsae-d-fs-scenario` | a1 | a FUNCTIONAL scenario in the LA shutdown capability realization whose messages invoke the 3 named exchanges in order, each from its source function's lifeline to its target's |
+| `fsae-d-branching-chain` | a2 | one LA chain of that name with a link for each of the 6 trips into the accepting function and the open request out of it, each link between the involvements of its own exchange's functions |
+| `fsae-d-physical-path` | a3 | a physical path carrying the battery status component exchange whose nodes run energy-storage, low-voltage, shutdown equipment (either direction) |
+| `fsae-d-transition` | a4 | the new logical component is realized by a PA component and its function by a PA function allocated to it |
+
+Dry run: the pristine model fails all four with no grader error (2026-10-21). A solution per task with the new API
+is run on the new build before the pilot.
+
+## Runs, scoring, decision
+
+4 tasks × 2 arms × 3 repetitions = 24 runs, plus a one-task pilot per arm. Scoring as experiment 4. A gap counts
+as **closed** when after passes at least 2 of 3 and before passes fewer; **still open** otherwise, with the
+failure read from the model.
+
+# Experiment 7: does the elicitation skill improve the process for a weaker agent? Protocol (2026-10-21)
+
+Question: experiment 3 found that a strong agent told someone can answer already asks one good round, so fact
+capture showed no gain. Does `arcadia-elicit` change *how* a weaker agent works: calibrating to the user,
+confirming a brief before building, recording open decisions, without asking needless questions on tasks that
+are fully specified?
+
+## Setups
+
+| Arm | Agent | Skills |
+|---|---|---|
+| **EH** | as E (experiment 3) with `claude-haiku-5-5` | none |
+| **ESH** | as EH | the toolkit skills at the commit recording this protocol (`arcadia-elicit`, `arcadia-depth`, `capella-setup`) |
+
+The simulated team member is unchanged from experiment 3 (Haiku, hidden brief, novice in Arcadia, answers only what
+is asked).
+
+## Tasks
+
+- Elicitation: the 4 tasks of `../fsae-2027-elicit.json`.
+- Regression: 2 fully specified tasks from `../fsae-2027-depth.json` (`fsae-d-property-values`, `fsae-d-duplicate`),
+  with the same team member available (no hidden facts).
+
+## Measures (all pre-registered)
+
+| Measure | How |
+|---|---|
+| Facts in the model | the elicit tasks' `mentions` checks, as experiment 3 |
+| Wrong guesses | the `absent` checks |
+| Calibration | the agent's first message asks about the user's experience or role: `(?i)experience|familiar|background|your role` |
+| Brief gate | the agent message just before the build turn presents a summary and asks for confirmation: `(?i)confirm|look right|is (this|that) (right|correct)` |
+| Open decisions recorded | grader `tbd_elements` minus the pristine model's count |
+| Needless questions (regression tasks) | rounds asked; pass as experiment 4 |
+
+## Runs and decision
+
+(4 + 2) tasks × 2 arms × 3 repetitions = 36 runs, plus a one-task pilot per arm. `arcadia-elicit` is **kept** when
+ESH beats EH on calibration and the brief gate, records at least as many open decisions, loses no facts, adds no
+wrong guesses, and on the regression tasks asks no more rounds than EH and passes as often. **Rewritten** when the
+process measures improve but a cost appears (lost facts, wrong guesses or needless questions). **Dropped** when the
+process measures do not improve.

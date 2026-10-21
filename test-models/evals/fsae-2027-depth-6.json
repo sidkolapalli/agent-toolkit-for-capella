@@ -1,0 +1,150 @@
+{
+ "description": "API-gap FSAE 2027 tasks for experiment 6 (scenarios, chains, physical paths, transitions). Scored as fsae-2027-depth.json.",
+ "requires": "The FSAE-2027-Electric-Arcadia model, the same pristine copy as fsae-2027.json.",
+ "tasks": [
+  {
+   "id": "fsae-d-fs-scenario",
+   "skill": "arcadia-method",
+   "prompt": "Illustrate the logical shutdown capability 'FSAE2027:shutdown Logical capability realization' with a functional scenario 'FSAE2027:BMS trip opens the shutdown path': the BMS issues its trip ('FSAE2027:SD LA Independent BMS shutdown trip'), the accepted trip requests the shutdown path to open ('FSAE2027:SD LA Any series path open request'), and the trip cause is latched ('FSAE2027:SD LA BMS IMD BSPD protective-trip cause'), in that order.",
+   "checks": [],
+   "method": [
+    {
+     "kind": "scenario_messages",
+     "capability": {
+      "type": "CapabilityRealization",
+      "name": "FSAE2027:shutdown Logical capability realization",
+      "layer": "LA"
+     },
+     "scenario_kind": "FUNCTIONAL",
+     "exchanges": [
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA Independent BMS shutdown trip",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA Any series path open request",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA BMS IMD BSPD protective-trip cause",
+       "layer": "LA"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fsae-d-branching-chain",
+   "skill": "arcadia-method",
+   "prompt": "In the logical architecture, model one functional chain 'FSAE2027:Any trip opens the shutdown path' that gathers every trip entering 'FSAE2027:SD Accept independent shutdown trips' and continues to 'FSAE2027:SD Open high-side shutdown current path'.",
+   "checks": [],
+   "method": [
+    {
+     "kind": "chain_exchanges",
+     "name": "FSAE2027:Any trip opens the shutdown path",
+     "exchanges": [
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA Independent IMD shutdown trip",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA GLV supply loss",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA Direct manual switch opening",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA Interlock continuity lost",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:DD LA BSPD trip request",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA Independent BMS shutdown trip",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA Any series path open request",
+       "layer": "LA"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fsae-d-physical-path",
+   "skill": "arcadia-method",
+   "prompt": "The battery safety status ('FSAE2027:PA Battery safety status transport') runs in a harness from 'FSAE2027:energy-storage Equipment' through 'FSAE2027:low-voltage Equipment' to 'FSAE2027:shutdown Equipment'. Model that physical route in the physical architecture and make the component exchange travel on it.",
+   "checks": [],
+   "method": [
+    {
+     "kind": "path_carries",
+     "exchange": {
+      "type": "ComponentExchange",
+      "name": "FSAE2027:PA Battery safety status transport",
+      "layer": "PA"
+     },
+     "stops": [
+      {
+       "type": "PhysicalComponent",
+       "name": "FSAE2027:energy-storage Equipment",
+       "layer": "PA"
+      },
+      {
+       "type": "PhysicalComponent",
+       "name": "FSAE2027:low-voltage Equipment",
+       "layer": "PA"
+      },
+      {
+       "type": "PhysicalComponent",
+       "name": "FSAE2027:shutdown Equipment",
+       "layer": "PA"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fsae-d-transition",
+   "skill": "arcadia-method",
+   "prompt": "Add a logical component 'FSAE2027:Charge port interlock monitor' inside 'FSAE2027:charging Logical subsystem', with a logical function 'FSAE2027:Monitor charge port interlock' allocated to it. Then carry both into the physical architecture the way Capella does, so that each keeps its traceability to the logical one.",
+   "checks": [
+    {
+     "kind": "element_exists",
+     "type": "LogicalComponent",
+     "name": "FSAE2027:Charge port interlock monitor",
+     "layer": "LA"
+    }
+   ],
+   "method": [
+    {
+     "kind": "realized_in_pa",
+     "component": {
+      "type": "LogicalComponent",
+      "name": "FSAE2027:Charge port interlock monitor",
+      "layer": "LA"
+     },
+     "function": {
+      "type": "LogicalFunction",
+      "name": "FSAE2027:Monitor charge port interlock",
+      "layer": "LA"
+     }
+    }
+   ]
+  }
+ ]
+}

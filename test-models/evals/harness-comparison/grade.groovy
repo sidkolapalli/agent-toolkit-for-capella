@@ -349,6 +349,42 @@ def CHECKS = [
         def targets = [include: { x -> x.includedAbstractCapabilities }, extend: { x -> x.extendedAbstractCapabilities }, generalization: { x -> x.super }][c.relation]
         boolean forward = targets(from).contains(to), backward = targets(to).contains(from)
         [forward && !backward, "${c.relation} '${from.name}' -> '${to.name}': ${forward}; reversed: ${backward}"] },
+    // ---- Experiment 6: the API gaps ----
+    scenario_messages: { c ->
+        def capability = find(c.capability), want = c.exchanges.collect { find(it) }
+        def instance = { end -> end.coveredInstanceRoles[0]?.representedInstance }
+        def ok = capability.ownedScenarios.findAll { it.kind.toString() == c.scenario_kind }.findAll { s ->
+            def ops = s.ownedMessages.collect { m -> m.sendingEnd?.event?.operation }
+            int at = 0
+            for (m in s.ownedMessages) if (at < want.size() && m.sendingEnd?.event?.operation == want[at]
+                    && instance(m.sendingEnd) == endFunction(want[at].source) && instance(m.receivingEnd) == endFunction(want[at].target)) at++
+            at == want.size()
+        }
+        [!ok.isEmpty(), "${capability.ownedScenarios.size()} scenarios (${capability.ownedScenarios.collect { it.kind.toString() + ' ' + it.ownedMessages.size() + ' msgs' }.join('; ')}); with the messages in order on the right lifelines: ${ok.size()}"] },
+    chain_exchanges: { c ->
+        def want = c.exchanges.collect { find(it) } as Set
+        def chains = api.findAll('FunctionalChain').findAll { it.name == c.name && layerOf(it) == 'LA' }
+        if (chains.size() != 1) return [false, "${chains.size()} LA chains named '${c.name}'"]
+        def links = chains[0].ownedFunctionalChainInvolvements.findAll { kind(it) == 'FunctionalChainInvolvementLink' }
+        def good = links.findAll { l -> l.source?.involved == endFunction(l.involved.source) && l.target?.involved == endFunction(l.involved.target) }*.involved as Set
+        def missing = want.findAll { !good.contains(it) }
+        [!missing, "${links.size()} links, ${good.size()} with matching ends; missing: ${names(missing as List)}"] },
+    path_carries: { c ->
+        def ce = find(c.exchange), stops = c.stops.collect { find(it) }
+        def paths = api.findAll('PhysicalPath').findAll { it.allocatedComponentExchanges.contains(ce) }
+        def nodesOf = { p ->
+            def inv = p.ownedPhysicalPathInvolvements
+            def first = inv.find { i -> !inv.any { it.nextInvolvements.contains(i) } }, seq = []
+            for (def s = first; s != null; s = s.nextInvolvements ? s.nextInvolvements[0] : null) if (kind(s.involved) == 'Part') seq << s.involved.abstractType
+            seq }
+        def ok = paths.findAll { def seq = nodesOf(it); seq == stops || seq == stops.reverse() }
+        [!ok.isEmpty(), "${paths.size()} paths carry it; node sequences: ${paths.collect { nodesOf(it)*.name }}"] },
+    realized_in_pa: { c ->
+        def lcomp = find(c.component), lfun = find(c.function)
+        def pcs = lcomp.incomingTraces.findAll { kind(it) == 'ComponentRealization' }*.sourceElement.findAll { it != null && layerOf(it) == 'PA' }
+        def pfs = realizers(lfun).findAll { layerOf(it) == 'PA' }
+        def allocated = pfs.findAll { f -> allocators(f).any { pcs.contains(it) } }
+        [pcs && pfs && allocated, "realizing PA components: ${names(pcs)}; realizing PA functions: ${names(pfs)}; allocated to them: ${allocated.size()}"] },
     diagram_quality: { c ->
         def matches = DialectManager.INSTANCE.getAllRepresentationDescriptors(session).findAll { it.name == c.diagram }
         if (matches.size() != 1) return [false, "${matches.size()} diagrams named '${c.diagram}'"]
@@ -381,7 +417,9 @@ def out = AgentJson.write([
     errors: validation.errors, warnings: validation.warnings,
     unresolved_proxies: proxies, dangling_diagram_elements: dangling, new_diagrams: fresh,
     // Each raises DWF_D_51; the API cannot set cardinalities, so experiment 4 discounts these errors.
-    eie_without_min_card: api.findAll('ExchangeItemElement').count { it.ownedMinCard == null }])
+    eie_without_min_card: api.findAll('ExchangeItemElement').count { it.ownedMinCard == null },
+    // Experiment 7: elements whose text marks an open decision; compare with the pristine model's count.
+    tbd_elements: texts().count { it[1] =~ /\bTBD\b/ }])
 // /execute caps a returned value at 200 characters; log lines carry up to 500.
 out.toList().collate(400)*.join().each { log.info('G|' + it) }
 return out.length()

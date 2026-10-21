@@ -7,7 +7,7 @@ S  B plus the toolkit skills in the agent's .agents/skills, where Codex discover
 K  as B with headless Claude Code as the agent; KS adds the skills in its .claude/skills.
 KH, KSH  K and KS with Claude Haiku as the agent (experiment 4).
 E  as K on an underspecified task, with a simulated team member answering the agent's questions; ES adds the skills
-   (experiment 3).
+   (experiment 3). EH, ESH: E and ES with Claude Haiku as the agent (experiment 7).
 Every run starts from a fresh copy of the pristine model and is scored by grade.groovy in a fresh Capella.
 """
 import collections, json, pathlib, shutil, subprocess, sys, threading, time
@@ -17,7 +17,7 @@ HERE = capella.HERE
 RESULTS = HERE / "results"
 CODEX = r"<local-path>"
 PYTHON = HERE / "bare-venv" / "Scripts" / "python.exe"
-PORTS = {"A": 8781, "B": 8782, "C": 8783, "S": 8784, "K": 8785, "KS": 8786, "E": 8787, "ES": 8788, "KH": 8789, "KSH": 8790}
+PORTS = {"A": 8781, "B": 8782, "C": 8783, "S": 8784, "K": 8785, "KS": 8786, "E": 8787, "ES": 8788, "KH": 8789, "KSH": 8790, "EH": 8791, "ESH": 8792}
 SKILLS = pathlib.Path(capella.os.environ.get("TOOLKIT_SKILLS", HERE.parents[2] / "skills"))
 AGENT_LIMIT = 1800  # seconds per task, every arm
 MODEL = "gpt-6.1-sol"  # what the plugin's runtime uses: model and effort from ~/.codex/config.toml
@@ -154,10 +154,10 @@ def stakeholder(task, question, out):
     return reply.get("result") or "", reply.get("total_cost_usd") or 0
 
 
-def conversation(cwd, out, task, port):
+def conversation(cwd, out, task, port, model=CLAUDE_MODEL):
     """The agent's turns; each turn that ends asking, without having proposed an edit, is answered by the stakeholder,
     until the agent stops asking or ROUNDS answers were given. The transcript goes to conversation.md."""
-    run = claude(cwd, out, CONTEXT_E + task["prompt"], port, keep=True)
+    run = claude(cwd, out, CONTEXT_E + task["prompt"], port, keep=True, model=model)
     total = {"exit": run["exit"], "agent_seconds": run["agent_seconds"], "cost_usd": run.get("cost_usd") or 0,
              "turns": run.get("turns") or 0, "rounds": 0, "questions": 0, "stakeholder_cost_usd": 0}
     usage = collections.Counter({k: v for k, v in (run.get("usage") or {}).items() if isinstance(v, int)})
@@ -168,7 +168,7 @@ def conversation(cwd, out, task, port):
         total["questions"] += sum("?" in line for line in run["text"].splitlines())
         total["stakeholder_cost_usd"] += cost
         transcript.append(f"## Stakeholder\n\n{answer}")
-        run = claude(cwd, out, answer, port, resume=run["session_id"])
+        run = claude(cwd, out, answer, port, resume=run["session_id"], model=model)
         transcript.append(f"## Agent\n\n{run.get('text', '')}")
         total.update(exit=run["exit"], agent_seconds=total["agent_seconds"] + run["agent_seconds"],
                      cost_usd=total["cost_usd"] + (run.get("cost_usd") or 0),
@@ -198,7 +198,7 @@ def arm_a(task, rep):
 def arm_b(task, rep, arm="B"):
     ws = workspace(arm, task, rep)
     (ws / "agent").mkdir()
-    if arm in ("S", "KS", "ES", "KSH"):
+    if arm in ("S", "KS", "ES", "KSH", "ESH"):
         shutil.copytree(SKILLS, ws / "agent" / (".agents" if arm == "S" else ".claude") / "skills")
     port = int(capella.os.environ.get("EVAL_PORT", PORTS[arm]))
     pid = capella.launch(ws, port)
@@ -218,8 +218,9 @@ def arm_b(task, rep, arm="B"):
                # Codex's own per-call approval; the Capella review dialog still runs.
                "-c", 'mcp_servers.capella.tools.propose_model_edit.approval_mode="approve"']
         prompt = CONTEXT_B + capella.TASKS[task]["prompt"]
-        run = (conversation(ws / "agent", ws, capella.TASKS[task], port) if arm.startswith("E")
-               else claude(ws / "agent", ws, prompt, port, model=HAIKU_MODEL if arm.endswith("H") else CLAUDE_MODEL)
+        model = HAIKU_MODEL if arm.endswith("H") else CLAUDE_MODEL
+        run = (conversation(ws / "agent", ws, capella.TASKS[task], port, model) if arm.startswith("E")
+               else claude(ws / "agent", ws, prompt, port, model=model)
                if arm.startswith("K")
                else codex(ws / "agent", ws, prompt, "read-only", mcp))
         done.set()

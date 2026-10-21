@@ -159,6 +159,53 @@ TASKS_5 = [
 ]
 
 
+def pc(name):
+    return {"type": "PhysicalComponent", "name": name, "layer": "PA"}
+
+
+ACCEPT = "FSAE2027:SD Accept independent shutdown trips"
+TRIPS_IN = ["FSAE2027:SD LA Independent IMD shutdown trip", "FSAE2027:SD LA GLV supply loss",
+            "FSAE2027:SD LA Direct manual switch opening", "FSAE2027:SD LA Interlock continuity lost",
+            "FSAE2027:DD LA BSPD trip request", "FSAE2027:SD LA Independent BMS shutdown trip"]
+
+# Experiment 6: the API gaps (GAPS.md category a), as acceptance probes: before and after the new build.
+TASKS_6 = [
+    {"id": "fsae-d-fs-scenario", "skill": "arcadia-method",
+     "prompt": "Illustrate the logical shutdown capability 'FSAE2027:shutdown Logical capability realization' with a "
+               "functional scenario 'FSAE2027:BMS trip opens the shutdown path': the BMS issues its trip "
+               "('FSAE2027:SD LA Independent BMS shutdown trip'), the accepted trip requests the shutdown path to open "
+               "('FSAE2027:SD LA Any series path open request'), and the trip cause is latched "
+               "('FSAE2027:SD LA BMS IMD BSPD protective-trip cause'), in that order.",
+     "checks": [],
+     "method": [{"kind": "scenario_messages", "capability": {"type": "CapabilityRealization", "name": "FSAE2027:shutdown Logical capability realization", "layer": "LA"},
+                 "scenario_kind": "FUNCTIONAL",
+                 "exchanges": [fe("FSAE2027:SD LA Independent BMS shutdown trip"), fe("FSAE2027:SD LA Any series path open request"),
+                               fe("FSAE2027:SD LA BMS IMD BSPD protective-trip cause")]}]},
+    {"id": "fsae-d-branching-chain", "skill": "arcadia-method",
+     "prompt": "In the logical architecture, model one functional chain 'FSAE2027:Any trip opens the shutdown path' that "
+               f"gathers every trip entering '{ACCEPT}' and continues to 'FSAE2027:SD Open high-side shutdown current path'.",
+     "checks": [],
+     "method": [{"kind": "chain_exchanges", "name": "FSAE2027:Any trip opens the shutdown path",
+                 "exchanges": [fe(n) for n in TRIPS_IN] + [fe("FSAE2027:SD LA Any series path open request")]}]},
+    {"id": "fsae-d-physical-path", "skill": "arcadia-method",
+     "prompt": "The battery safety status ('FSAE2027:PA Battery safety status transport') runs in a harness from "
+               "'FSAE2027:energy-storage Equipment' through 'FSAE2027:low-voltage Equipment' to 'FSAE2027:shutdown "
+               "Equipment'. Model that physical route in the physical architecture and make the component exchange "
+               "travel on it.",
+     "checks": [],
+     "method": [{"kind": "path_carries", "exchange": {"type": "ComponentExchange", "name": "FSAE2027:PA Battery safety status transport", "layer": "PA"},
+                 "stops": [pc("FSAE2027:energy-storage Equipment"), pc("FSAE2027:low-voltage Equipment"), pc("FSAE2027:shutdown Equipment")]}]},
+    {"id": "fsae-d-transition", "skill": "arcadia-method",
+     "prompt": "Add a logical component 'FSAE2027:Charge port interlock monitor' inside 'FSAE2027:charging Logical "
+               "subsystem', with a logical function 'FSAE2027:Monitor charge port interlock' allocated to it. Then carry "
+               "both into the physical architecture the way Capella does, so that each keeps its traceability to the "
+               "logical one.",
+     "checks": [{"kind": "element_exists", "type": "LogicalComponent", "name": "FSAE2027:Charge port interlock monitor", "layer": "LA"}],
+     "method": [{"kind": "realized_in_pa", "component": lc("FSAE2027:Charge port interlock monitor"),
+                 "function": lf("FSAE2027:Monitor charge port interlock")}]},
+]
+
+
 def write(name, description, tasks):
     doc = {"description": description,
            "requires": "The FSAE-2027-Electric-Arcadia model, the same pristine copy as fsae-2027.json.",
@@ -174,3 +221,5 @@ if __name__ == "__main__":
           TASKS)
     write("fsae-2027-depth-5.json", "Arcadia-depth FSAE 2027 tasks for experiment 5 (the second batch of depth files). "
           "Scored as fsae-2027-depth.json.", TASKS_5)
+    write("fsae-2027-depth-6.json", "API-gap FSAE 2027 tasks for experiment 6 (scenarios, chains, physical paths, "
+          "transitions). Scored as fsae-2027-depth.json.", TASKS_6)
