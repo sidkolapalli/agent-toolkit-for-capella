@@ -149,10 +149,10 @@ public class PersistedDiagramLayoutTest {
         assertTrue(DiagramCommands.arrangeSelection(session, target.semantic, "layered"));
         Bounds source = bounds(target.ports[0]), sink = bounds(target.ports[2]);
         assertEquals(
-                "An output feeding the next column sits on the east border",
-                320 - 6,
+                "An output feeding the next column sits on the east border, 8 px in as Sirius keeps it",
+                320 - 8,
                 source.getX());
-        assertEquals("The last input sits on the west border", -6, sink.getX());
+        assertEquals("The last input sits on the west border", 8 - 12, sink.getX());
         for (Node port : List.of(target.ports[0], target.ports[2])) {
             int y = bounds(port).getY();
             assertTrue("Ports stay within their parent's height", y >= 0 && y + 12 <= 90);
@@ -160,7 +160,7 @@ public class PersistedDiagramLayoutTest {
     }
 
     @Test
-    public void autoSizedPortsGetSiriusDefaultSizeCentredOnTheBorder() {
+    public void autoSizedPortsGetSiriusDefaultSizeAndOffset() {
         Fixture target = fixture(true);
         for (Node port : target.ports) {
             bounds(port).setWidth(-1);
@@ -171,8 +171,8 @@ public class PersistedDiagramLayoutTest {
         Bounds source = bounds(target.ports[0]), sink = bounds(target.ports[2]);
         assertEquals(10, source.getWidth());
         assertEquals(10, source.getHeight());
-        assertEquals("Centred on the east border", 320 - 5, source.getX());
-        assertEquals("Centred on the west border", -5, sink.getX());
+        assertEquals("8 px inside the east border", 320 - 8, source.getX());
+        assertEquals("8 px inside the west border", 8 - 10, sink.getX());
     }
 
     @Test
@@ -181,6 +181,47 @@ public class PersistedDiagramLayoutTest {
         startDomain();
         assertTrue(DiagramCommands.arrangeSelection(session, target.semantic, "auto"));
         assertTrue(bounds(target.nodes[0]).getX() != bounds(target.nodes[2]).getX());
+    }
+
+    @Test
+    public void aShortFunctionGrowsToFitItsPortsWithoutOverlap() {
+        // Sirius moves an overlapping border node to another side on an open editor's refresh.
+        Fixture target = fixture(true);
+        Node sink = target.nodes[2];
+        bounds(sink).setHeight(24);
+        List<Node> inputs = new java.util.ArrayList<>(List.of(target.ports[2]));
+        for (int i = 0; i < 4; i++) {
+            var port = FaFactory.eINSTANCE.createFunctionInputPort();
+            DNode portView = DiagramFactory.eINSTANCE.createDNode();
+            portView.setTarget(port);
+            ((DNode) sink.getElement()).getOwnedBorderedNodes().add(portView);
+            Node input = node(portView, 6, 7, 10, 10);
+            sink.getPersistedChildren().add(input);
+            inputs.add(input);
+            DEdge view = DiagramFactory.eINSTANCE.createDEdge();
+            view.setSourceNode((DNode) target.ports[0].getElement());
+            view.setTargetNode(portView);
+            view.setOwnedStyle(DiagramFactory.eINSTANCE.createEdgeStyle());
+            target.semantic.getOwnedDiagramElements().add(view);
+            var edge = NotationFactory.eINSTANCE.createEdge();
+            edge.setElement(view);
+            edge.setSource(target.ports[0]);
+            edge.setTarget(input);
+            target.notation.getPersistedEdges().add(edge);
+        }
+        startDomain();
+        assertTrue(DiagramCommands.arrangeSelection(session, target.semantic, "layered"));
+        for (Node a : inputs)
+            for (Node b : inputs)
+                if (a != b) {
+                    Bounds p = bounds(a), q = bounds(b);
+                    assertFalse(
+                            "Ports overlap: " + p + " / " + q,
+                            p.getX() < q.getX() + q.getWidth()
+                                    && q.getX() < p.getX() + p.getWidth()
+                                    && p.getY() < q.getY() + q.getHeight()
+                                    && q.getY() < p.getY() + p.getHeight());
+                }
     }
 
     @Test
