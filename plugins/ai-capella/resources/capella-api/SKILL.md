@@ -14,6 +14,7 @@ Generated code is a preview until execution is allowed. With **Review code befor
 4. **Search with detail**: `api.fs.search("component", "name")` - name only, "description", or "full"
 5. **Skills**: `api.fs.list("skills/")` - see reusable patterns
 6. **Skill metadata**: `api.fs.listSkillMetadata()` - view skill summaries without loading full files
+7. **Capella's own help**: the `capella_docs` read tool with `{"path":"capella-help"}` lists topics from this install's Capella help (data model, exchange items, state machines, transitions, chains, scenarios, each diagram's palette); read one with `capella-help/<topic>`
 
 ### Saving Your Own Skills
 

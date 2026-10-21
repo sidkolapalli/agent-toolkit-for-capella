@@ -594,7 +594,9 @@ public class ArcadiaModelToolsTest {
                         "workspace/secrets.txt",
                         "C:/secret.txt",
                         "api/../../secret.txt",
-                        "api/create.md\0")) {
+                        "api/create.md\0",
+                        "capella-help/../api/create.md",
+                        "capella-help/nope")) {
             assertThrows(
                     path,
                     IllegalArgumentException.class,
@@ -618,6 +620,9 @@ public class ArcadiaModelToolsTest {
         String capabilities = tools.execute("capella_capabilities", Map.of());
         assertTrue(capabilities.contains("limitations"));
         assertTrue(capabilities.contains("not evidence"));
+        assertTrue(capabilities.contains("capella-help/state-machines"));
+        String help = tools.execute("capella_docs", Map.of("path", "capella-help"));
+        assertTrue(help, help.contains("capella-help/transitions: "));
         assertEquals(8, ArcadiaModelTools.toolNames().size());
     }
 

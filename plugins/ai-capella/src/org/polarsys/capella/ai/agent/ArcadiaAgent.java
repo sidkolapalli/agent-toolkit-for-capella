@@ -578,7 +578,8 @@ public final class ArcadiaAgent implements AgentRuntime {
                 + " checks); native_validation {limit?:1..50,cursor?:string} (expensive complete"
                 + " native project validation; continue cursor to page the same result without"
                 + " rerunning; source_truncated discloses omitted findings); capella_docs"
-                + " {path:string} (exact shipped relative documentation path); capella_capabilities"
+                + " {path:string} (exact shipped relative documentation path, or capella-help to"
+                + " list Capella's own help topics); capella_capabilities"
                 + " {module?:api|diagram|requirements|arcadia|skills|fs}.\n"
                 + "Request budget: "
                 + limits.maxRequests()

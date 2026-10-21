@@ -137,8 +137,11 @@ public final class CodexToolSchemas {
                     case "capella_docs" ->
                             "Read a shipped API/methodology guide at an exact path from"
                                 + " capella_capabilities documentationPaths. Example:"
-                                + " {\"path\":\"api/create.md\"}. No arbitrary workspace paths or"
-                                + " user files.";
+                                + " {\"path\":\"api/create.md\"}. capella-help/<topic> reads"
+                                + " Capella's own help from this install (data model, state"
+                                + " machines, transitions, chains, scenarios, each diagram);"
+                                + " {\"path\":\"capella-help\"} lists the topics. No arbitrary"
+                                + " workspace paths or user files.";
                     case "capella_capabilities" ->
                             "Discover supported APIs, limitations and exact shipped documentation"
                                 + " paths. Example: {} or {\"module\":\"api\"}. Optional module is"
