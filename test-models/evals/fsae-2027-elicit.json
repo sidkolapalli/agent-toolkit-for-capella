@@ -25,17 +25,17 @@
     {
      "kind": "mentions",
      "fact": "The maximum charge current is 15 A.",
-     "pattern": "\\b15\\s*A\\b"
+     "pattern": "\\b15\\s*(A\\b|amps?\\b|amperes?\\b)"
     },
     {
      "kind": "mentions",
      "fact": "Charging stops when any cell reaches 4.15 V.",
-     "pattern": "4\\.15\\s*V"
+     "pattern": "4\\.15\\s*(V\\b|volts?\\b)"
     },
     {
      "kind": "mentions",
      "fact": "Charging also stops when any cell temperature exceeds 45 °C.",
-     "pattern": "\\b45\\s*°?\\s*C\\b"
+     "pattern": "\\b45\\s*(°|º|deg(rees?)?)?\\s*(C\\b|Celsius|℃)"
     },
     {
      "kind": "mentions",
@@ -50,12 +50,12 @@
     {
      "kind": "absent",
      "fact": "Charging stops when any cell reaches 4.15 V.",
-     "pattern": "4\\.2\\d*\\s*V"
+     "pattern": "4\\.2\\d*\\s*(V\\b|volts?\\b)"
     },
     {
      "kind": "absent",
      "fact": "Charging also stops when any cell temperature exceeds 45 °C.",
-     "pattern": "\\b60\\s*°?\\s*C\\b"
+     "pattern": "\\b60\\s*(°|º|deg(rees?)?)?\\s*(C\\b|Celsius|℃)"
     }
    ]
   },
@@ -84,17 +84,17 @@
     {
      "kind": "mentions",
      "fact": "The radiator fan switches on above 40 °C coolant temperature.",
-     "pattern": "\\b40\\s*°?\\s*C\\b"
+     "pattern": "\\b40\\s*(°|º|deg(rees?)?)?\\s*(C\\b|Celsius|℃)"
     },
     {
      "kind": "mentions",
      "fact": "The inverter derates torque when its coolant inlet exceeds 50 °C.",
-     "pattern": "\\b50\\s*°?\\s*C\\b"
+     "pattern": "\\b50\\s*(°|º|deg(rees?)?)?\\s*(C\\b|Celsius|℃)"
     },
     {
      "kind": "mentions",
      "fact": "The motor derates when its winding temperature reaches 120 °C.",
-     "pattern": "\\b120\\s*°?\\s*C\\b"
+     "pattern": "\\b120\\s*(°|º|deg(rees?)?)?\\s*(C\\b|Celsius|℃)"
     },
     {
      "kind": "mentions",
@@ -143,7 +143,7 @@
     {
      "kind": "mentions",
      "fact": "The VCU sends the torque request to the inverter over CAN every 10 ms.",
-     "pattern": "\\b10\\s*ms\\b"
+     "pattern": "\\b10\\s*(ms\\b|milliseconds?\\b)"
     },
     {
      "kind": "mentions",
@@ -196,7 +196,7 @@
     {
      "kind": "mentions",
      "fact": "The ESO keeps a charging log, signed at the start and the end of each charge.",
-     "pattern": "(?i)charg(ing|e) log(book)?\b"
+     "pattern": "(?i)charg(ing|e) log(book)?\\b"
     },
     {
      "kind": "absent",

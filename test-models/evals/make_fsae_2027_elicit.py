@@ -14,6 +14,11 @@ def fact(text, pattern, guess=None):
     return text, pattern, guess
 
 
+def celsius(n):
+    """n °C however it is written: °C, degC, deg C, degrees C, Celsius or ℃."""
+    return rf"\b{n}\s*(°|º|deg(rees?)?)?\s*(C\b|Celsius|℃)"
+
+
 TASKS = [
     ("fsae-e-charging",
      "Model the car's charging subsystem in the logical architecture (LA): the functions and components involved in "
@@ -22,9 +27,9 @@ TASKS = [
            r"(?i)off[- ]?board", r"(?i)on[- ]?board charger"),
       fact("The charger and the BMS talk over CAN: the BMS sends the current and voltage setpoints and can tell the "
            "charger to stop.", r"\bCAN\b"),
-      fact("The maximum charge current is 15 A.", r"\b15\s*A\b"),
-      fact("Charging stops when any cell reaches 4.15 V.", r"4\.15\s*V", r"4\.2\d*\s*V"),
-      fact("Charging also stops when any cell temperature exceeds 45 °C.", r"\b45\s*°?\s*C\b", r"\b60\s*°?\s*C\b"),
+      fact("The maximum charge current is 15 A.", r"\b15\s*(A\b|amps?\b|amperes?\b)"),
+      fact("Charging stops when any cell reaches 4.15 V.", r"4\.15\s*(V\b|volts?\b)", r"4\.2\d*\s*(V\b|volts?\b)"),
+      fact("Charging also stops when any cell temperature exceeds 45 °C.", celsius(45), celsius(60)),
       fact("The charging shutdown circuit runs through an HVIL loop in the charging connector: unplugging the connector "
            "opens it.", r"(?i)\bHVIL\b|high[- ]voltage interlock")]),
     ("fsae-e-thermal",
@@ -32,9 +37,9 @@ TASKS = [
      "and rejected, and the temperature limits that apply.",
      [fact("Motor and inverter share one liquid loop; the coolant is plain water.", r"(?i)\bwater\b", r"(?i)glycol"),
       fact("There is a single radiator, in the left sidepod.", r"(?i)left sidepod"),
-      fact("The radiator fan switches on above 40 °C coolant temperature.", r"\b40\s*°?\s*C\b"),
-      fact("The inverter derates torque when its coolant inlet exceeds 50 °C.", r"\b50\s*°?\s*C\b"),
-      fact("The motor derates when its winding temperature reaches 120 °C.", r"\b120\s*°?\s*C\b"),
+      fact("The radiator fan switches on above 40 °C coolant temperature.", celsius(40)),
+      fact("The inverter derates torque when its coolant inlet exceeds 50 °C.", celsius(50)),
+      fact("The motor derates when its winding temperature reaches 120 °C.", celsius(120)),
       fact("The accumulator is not on the water loop: it is air-cooled by two fans pulling air through the segments.",
            r"(?i)air[- ]?cool", r"(?i)cold ?plate")]),
     ("fsae-e-drive",
@@ -44,7 +49,7 @@ TASKS = [
            r"(?i)hub motor|in-wheel|four[- ]wheel drive|\b4WD\b|\bAWD\b"),
       fact("The motor is an Emrax 228, an axial-flux permanent-magnet motor.", r"(?i)emrax|axial[- ]flux"),
       fact("The inverter is a Cascadia PM100.", r"(?i)\bPM100\b|cascadia"),
-      fact("The VCU sends the torque request to the inverter over CAN every 10 ms.", r"\b10\s*ms\b"),
+      fact("The VCU sends the torque request to the inverter over CAN every 10 ms.", r"\b10\s*(ms\b|milliseconds?\b)"),
       fact("The torque request is capped at 180 N·m at the motor.", r"\b180\s*N\s*[·.\-]?\s*m\b"),
       fact("There is no differential: the rear axle is a spool.", r"(?i)\bspool\b")]),
     ("fsae-e-charging-ops",
@@ -55,7 +60,7 @@ TASKS = [
            r"(?i)charg\w* (in|inside) the (car|vehicle)"),
       fact("Only the ESO starts charging, with a key switch on the charging cart.", r"(?i)key[- ]?switch"),
       fact("A second team member stands fire watch for the whole charge.", r"(?i)fire[- ]?watch"),
-      fact("The ESO keeps a charging log, signed at the start and the end of each charge.", r"(?i)charg(ing|e) log(book)?")]),
+      fact("The ESO keeps a charging log, signed at the start and the end of each charge.", r"(?i)charg(ing|e) log(book)?\b")]),
 ]
 
 
