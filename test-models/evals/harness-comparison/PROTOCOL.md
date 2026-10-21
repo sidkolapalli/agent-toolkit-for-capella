@@ -93,7 +93,7 @@ passed nearly all of them.
 | | Agent | Model access |
 |---|---|---|
 | **B** | as in experiment 1 | the MCP server on a live Capella |
-| **B+S** | as B | as B, plus the four skills in `skills/` (arcadia-method, capella-model-edits, capella-diagrams, capella-setup), installed the way `capella-setup` documents for Codex |
+| **B+S** | as B | as B, plus the four skills in `skills/` (arcadia-method, capella-model-edits, capella-diagrams, capella-setup), copied into the agent's working directory as `.agents/skills/`, where Codex discovers repo skills (`run.py S`) |
 
 Held constant: everything experiment 1 holds constant for B, the same installed plugin build in both arms (commit
 recorded at the start), and the skills frozen at a commit recorded at the start. The pilot must show the B+S agent

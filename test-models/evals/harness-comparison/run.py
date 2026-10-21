@@ -3,6 +3,7 @@
 A  bare Codex CLI: shell + capellambse on a copy of the model files, no Capella.
 B  bare Codex CLI + the plugin's MCP server on a live Capella (edits approved by this script's clicker).
 C  the plugin's own agent loop through /eval.
+S  B plus the toolkit skills in the agent's .agents/skills, where Codex discovers them (experiment 2).
 Every run starts from a fresh copy of the pristine model and is scored by grade.groovy in a fresh Capella.
 """
 import json, pathlib, shutil, subprocess, sys, threading, time
@@ -12,7 +13,8 @@ HERE = capella.HERE
 RESULTS = HERE / "results"
 CODEX = r"<local-path>"
 PYTHON = HERE / "bare-venv" / "Scripts" / "python.exe"
-PORTS = {"A": 8781, "B": 8782, "C": 8783}
+PORTS = {"A": 8781, "B": 8782, "C": 8783, "S": 8784}
+SKILLS = HERE.parents[2] / "skills"
 AGENT_LIMIT = 1800  # seconds per task, every arm
 MODEL = "gpt-6.1-sol"  # what the plugin's runtime uses: model and effort from ~/.codex/config.toml
 EFFORT = "ultra"
@@ -93,10 +95,12 @@ def arm_a(task, rep):
     return scored(ws, PORTS["A"], task, run)
 
 
-def arm_b(task, rep):
-    ws = workspace("B", task, rep)
+def arm_b(task, rep, arm="B"):
+    ws = workspace(arm, task, rep)
     (ws / "agent").mkdir()
-    port = PORTS["B"]
+    if arm == "S":
+        shutil.copytree(SKILLS, ws / "agent" / ".agents" / "skills")
+    port = PORTS[arm]
     pid = capella.launch(ws, port)
     try:
         if not capella.wait_for_model(port):
@@ -168,7 +172,7 @@ def wait_for_quota():
 
 if __name__ == "__main__":
     arm, reps, chosen = sys.argv[1], [int(r) for r in sys.argv[2].split(",")], sys.argv[3:]
-    runner = {"A": arm_a, "B": arm_b, "C": arm_c}[arm]
+    runner = {"A": arm_a, "B": arm_b, "C": arm_c, "S": lambda task, rep: arm_b(task, rep, "S")}[arm]
     for rep in reps:
         for task in chosen or list(capella.TASKS):
             target = RESULTS / arm / f"{task}-r{rep}.json"

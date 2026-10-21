@@ -60,7 +60,7 @@ Any MCP client (Claude Code, Codex, ...) can work on the model open in Capella t
 - [`capella-model-edits`](skills/capella-model-edits/SKILL.md): read tools, reviewed edit proposals, receipts and repair.
 - [`capella-diagrams`](skills/capella-diagrams/SKILL.md): which view answers which question, and how to build it through the API.
 
-Copy the folders into your agent's skills directory (for Claude Code, `~/.claude/skills/` or the project's `.claude/skills/`), then run `/capella-setup` (Codex: `$capella-setup`). Setup runs only when you call it; the other three skills load on their own when a task needs them.
+Copy the folders into your agent's skills directory: `.claude/skills/` (Claude Code) or `.agents/skills/` (Codex), in your project or home directory, then run `/capella-setup` (Codex: `$capella-setup`). Setup runs only when you call it; the other three skills load on their own when a task needs them.
 
 ## Working with models
 
