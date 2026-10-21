@@ -529,6 +529,7 @@ start when the before runs finish, alongside experiment 7.
 ## Experiment 5, result (2026-10-21; skills 82ed60b, plugin build 0.2.1.202610211401)
 
 Pass counts over the 4 tasks x 3 repetitions. Every run's model loaded; no arm added a validation error.
+The pilot gate held: both skilled pilots read OPERATIONAL.md, and every scored skilled run read its task's file.
 
 | | K (Sonnet) | KS (Sonnet + skills) | KH (Haiku) | KSH (Haiku + skills) |
 |---|---|---|---|---|
@@ -545,9 +546,10 @@ Pass counts over the 4 tasks x 3 repetitions. Every run's model loaded; no arm a
 
 With the skill both models are faster on all 4 tasks (sign test per model p = 0.125: too few tasks to say more).
 The failures without the skill are the constructs the files teach: Haiku modelled the role as an operational
-capability involving the activities (3/3), left the interactions off the communication means (3/3), and reported
-capability include, extend and generalization as impossible because `api.link` refuses them (2/3, as did one
-Sonnet run). KSH's one roles failure built the right structure but named the role without the `FSAE2027:` prefix.
+capability involving the activities (3/3), left the interactions off the communication means (3/3), and on capability
+relations once reported them impossible (`api.link` refuses them) and once recorded them as constraints. The one
+Sonnet failure created the three relations in the capabilities' migration slot (`ownedMigratedElements`), where
+Capella does not see them. KSH's one roles failure built the right structure but named the role without the `FSAE2027:` prefix.
 
 The reworded categories task is now valid (12/12, against 0/12 in experiment 4) but no arm differs, so CATEGORIES.md
 is not shown to help; it stays (short, verified) and is marked untested in the coverage notes.
