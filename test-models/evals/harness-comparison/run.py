@@ -113,7 +113,8 @@ def claude(cwd, out, prompt, port, resume=None, keep=False, model=CLAUDE_MODEL):
     command = [shutil.which("claude"), "-p", "--output-format", "stream-json", "--verbose", "--model", model,
                "--setting-sources", "project,local", "--strict-mcp-config", "--mcp-config", str(config),
                *(["--resume", resume] if resume else []), *([] if keep or resume else ["--no-session-persistence"]),
-               "--allowedTools", "mcp__capella", "Skill", "Read", "Glob", "Grep",
+               # Read, Glob and Grep stay unlisted: Claude Code then allows them only inside the agent's own folder.
+               "--allowedTools", "mcp__capella", "Skill",
                "--disallowedTools", "Bash", "PowerShell", "Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch",
                "Agent"]
     started = time.time()

@@ -344,3 +344,16 @@ differences). The depth skill is **kept** when, for at least one model, it wins 
 integrity failures, and raises the pass rate (or equal pass and ≥20% less time or tokens); **rewritten** when it
 wins nothing and loses nothing; **dropped** when it loses more than it wins for both models. With 7 tasks only
 large effects can show.
+
+## Harness amendment: agent file access (2026-10-21, before experiment 4's scored runs)
+
+`run.py` listed Read, Glob and Grep in `--allowedTools`, which pre-approves them for every path. Agents could
+therefore search the whole disk. Audit of all 156 Claude runs so far:
+- Experiment 2: 10 of 33 K runs (no skills) grepped the user's home or temp folders for API examples; they saw
+  file names and match counts only and read no file outside their own folder. No KS run did. The experiment 2
+  result stands with this noted; it also shows the agents without skills searching where the skilled agents did not.
+- Experiment 3: one E run grepped the temp folder (counts only).
+- Experiment 4 pilot: the K agent grepped the temp folder and read KS's `arcadia-depth/INTERFACES.md`. That pilot,
+  and the Haiku pilot started under the same setting, are void.
+Fix: Read, Glob and Grep are no longer listed, so Claude Code allows them only inside the agent's folder (its own
+skills included) and denies the rest in `-p` mode; verified with a probe. Experiment 4 pilots rerun.
