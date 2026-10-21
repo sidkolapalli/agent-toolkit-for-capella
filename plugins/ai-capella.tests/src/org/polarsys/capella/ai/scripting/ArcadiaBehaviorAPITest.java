@@ -21,8 +21,10 @@ import org.polarsys.capella.core.data.capellacore.CapellaElement;
 import org.polarsys.capella.core.data.capellamodeller.CapellamodellerFactory;
 import org.polarsys.capella.core.data.cs.BlockArchitecture;
 import org.polarsys.capella.core.data.cs.Component;
+import org.polarsys.capella.core.data.cs.Part;
 import org.polarsys.capella.core.data.ctx.CtxFactory;
 import org.polarsys.capella.core.data.fa.AbstractFunction;
+import org.polarsys.capella.core.data.fa.ComponentExchange;
 import org.polarsys.capella.core.data.fa.FunctionalChain;
 import org.polarsys.capella.core.data.fa.FunctionalChainInvolvementFunction;
 import org.polarsys.capella.core.data.fa.FunctionalChainInvolvementLink;
@@ -333,7 +335,7 @@ public class ArcadiaBehaviorAPITest {
                         flow.exchanges(),
                         "Driver requests motion and the vehicle is available",
                         "Vehicle reports the resulting motion status");
-        assertScenario(scenario, flow);
+        assertScenario(scenario, flow, ScenarioKind.INTERACTION);
         assertEquals(
                 List.of("capella:linkedText"),
                 ((OpaqueExpression) scenario.getPreCondition().getOwnedSpecification())
@@ -429,6 +431,188 @@ public class ArcadiaBehaviorAPITest {
                                 capability, "Existing", flow.exchanges(), "Before", "After"));
     }
 
+    /** GAPS a2: chains could only be straight lines, and OA had no operational processes. */
+    @Test
+    public void branchingChainHasOneInvolvementPerFunctionAndOneLinkPerExchange() throws Exception {
+        AbstractFunction a = function(1, "Detect"),
+                b = function(1, "Left"),
+                c = function(1, "Right"),
+                d = function(1, "Open");
+        List<FunctionalExchange> exchanges = new ArrayList<>();
+        for (AbstractFunction[] pair :
+                List.of(
+                        new AbstractFunction[] {a, b},
+                        new AbstractFunction[] {a, c},
+                        new AbstractFunction[] {b, d},
+                        new AbstractFunction[] {c, d}))
+            exchanges.add((FunctionalExchange) api.link(pair[0], pair[1], "FunctionalExchange"));
+        FunctionalChain chain = behavior.chain(roots[1], "Trip sources", exchanges);
+        assertSame(roots[1], chain.eContainer());
+        var involvements = chain.getOwnedFunctionalChainInvolvements();
+        assertEquals(8, involvements.size());
+        for (var item : involvements)
+            if (item instanceof FunctionalChainInvolvementLink link) {
+                var exchange = (FunctionalExchange) link.getInvolved();
+                assertSame(
+                        exchange.getSource().eContainer(),
+                        ((FunctionalChainInvolvementFunction) link.getSource()).getInvolved());
+                assertSame(
+                        exchange.getTarget().eContainer(),
+                        ((FunctionalChainInvolvementFunction) link.getTarget()).getInvolved());
+            }
+        FunctionalChain persisted = (FunctionalChain) ModelOps.findById(reload(), chain.getId());
+        assertEquals(8, persisted.getOwnedFunctionalChainInvolvements().size());
+    }
+
+    @Test
+    public void operationalAnalysisGetsAnOperationalProcess() {
+        Flow flow = flow(0, 3);
+        FunctionalChain process = behavior.chain(roots[0], "Inspect the car", flow.exchanges());
+        assertTrue(process instanceof org.polarsys.capella.core.data.oa.OperationalProcess);
+        assertEquals(5, process.getOwnedFunctionalChainInvolvements().size());
+    }
+
+    @Test
+    public void chainRejectsDisconnectedExchangesAndOtherLayers() {
+        Flow first = flow(1, 2), second = flow(1, 2), logical = flow(2, 2);
+        unchanged(
+                () ->
+                        behavior.chain(
+                                roots[1],
+                                "Disconnected",
+                                List.of(first.exchanges().get(0), second.exchanges().get(0))));
+        unchanged(() -> behavior.chain(roots[1], "Wrong layer", logical.exchanges()));
+        behavior.chain(roots[1], "Existing", first.exchanges());
+        unchanged(() -> behavior.chain(roots[1], "Existing", first.exchanges()));
+    }
+
+    /** GAPS a1: SA/LA/PA scenarios had no way to get messages. */
+    @Test
+    public void functionalScenariosHaveOneLifelinePerFunctionInSystemLogicalAndPhysical()
+            throws Exception {
+        for (int layer = 1; layer < 4; layer++) {
+            Flow flow = flow(layer, 4);
+            for (AbstractFunction function : flow.functions())
+                behavior.involveFunction(capabilities[layer], function);
+            Scenario scenario =
+                    behavior.functionalScenario(
+                            capabilities[layer],
+                            "Shutdown " + layer,
+                            flow.exchanges(),
+                            "A fault is present",
+                            "The shutdown path is open");
+            assertSame(capabilities[layer], scenario.eContainer());
+            assertScenario(scenario, flow, ScenarioKind.FUNCTIONAL);
+            Scenario persisted = (Scenario) ModelOps.findById(reload(), scenario.getId());
+            assertTrue(ScenarioExt.checkOrdering(persisted));
+            assertEquals(3, persisted.getOwnedMessages().size());
+        }
+    }
+
+    @Test
+    public void functionalScenarioRejectsOperationalCapabilitiesAndUninvolvedFunctions() {
+        Flow system = flow(1, 2), operational = flow(0, 2);
+        unchanged(
+                () ->
+                        behavior.functionalScenario(
+                                capabilities[1],
+                                "Uninvolved",
+                                system.exchanges(),
+                                "Before",
+                                "After"));
+        for (AbstractFunction activity : operational.functions())
+            behavior.involveFunction(capabilities[0], activity);
+        unchanged(
+                () ->
+                        behavior.functionalScenario(
+                                capabilities[0],
+                                "Operational",
+                                operational.exchanges(),
+                                "Before",
+                                "After"));
+    }
+
+    @Test
+    public void exchangeScenarioPutsMessagesBetweenTheAllocatingComponentsParts() {
+        for (int layer = 1; layer < 4; layer++) {
+            Flow flow = flow(layer, 3);
+            List<Component> components = new ArrayList<>();
+            for (int index = 0; index < 3; index++) {
+                var component =
+                        (Component)
+                                api.create(
+                                        LAYERS[layer],
+                                        COMPONENTS[layer],
+                                        "Unit " + layer + " " + index);
+                api.allocate(flow.functions().get(index), component);
+                behavior.involveComponent(capabilities[layer], component);
+                components.add(component);
+            }
+            Scenario scenario =
+                    behavior.exchangeScenario(
+                            capabilities[layer],
+                            "Exchanges " + layer,
+                            flow.exchanges(),
+                            "Before",
+                            "After");
+            assertEquals(ScenarioKind.DATA_FLOW, scenario.getKind());
+            assertEquals(3, scenario.getOwnedInstanceRoles().size());
+            assertTrue(ScenarioExt.checkOrdering(scenario));
+            for (int index = 0; index < 2; index++) {
+                var message = scenario.getOwnedMessages().get(index);
+                assertSame(flow.exchanges().get(index), operation(message));
+                assertSame(components.get(index), lifeline(message.getSendingEnd()));
+                assertSame(components.get(index + 1), lifeline(message.getReceivingEnd()));
+            }
+            var exchange =
+                    (ComponentExchange)
+                            api.link(components.get(0), components.get(1), "ComponentExchange");
+            Scenario carried =
+                    behavior.exchangeScenario(
+                            capabilities[layer],
+                            "Component exchanges " + layer,
+                            List.of(exchange),
+                            "Before",
+                            "After");
+            assertSame(exchange, operation(carried.getOwnedMessages().get(0)));
+            assertSame(
+                    components.get(1),
+                    lifeline(carried.getOwnedMessages().get(0).getReceivingEnd()));
+            int selected = layer;
+            unchanged(
+                    () ->
+                            behavior.exchangeScenario(
+                                    capabilities[selected],
+                                    "Mixed",
+                                    List.of(flow.exchanges().get(0), exchange),
+                                    "Before",
+                                    "After"));
+        }
+    }
+
+    @Test
+    public void exchangeScenarioRejectsUninvolvedComponents() {
+        Flow flow = flow(2, 2);
+        for (int index = 0; index < 2; index++)
+            api.allocate(
+                    flow.functions().get(index),
+                    api.create("LA", "LogicalComponent", "Uninvolved " + index));
+        unchanged(
+                () ->
+                        behavior.exchangeScenario(
+                                capabilities[2],
+                                "Uninvolved",
+                                flow.exchanges(),
+                                "Before",
+                                "After"));
+    }
+
+    private static Component lifeline(org.polarsys.capella.core.data.interaction.MessageEnd end) {
+        return (Component)
+                ((Part) end.getCoveredInstanceRoles().get(0).getRepresentedInstance())
+                        .getAbstractType();
+    }
+
     /** Live FSAE run: the agent had no way to create a system exchange scenario. */
     @Test
     public void systemLogicalAndPhysicalScenariosGetTheirNativeKindUnderTheCapability() {
@@ -500,7 +684,7 @@ public class ArcadiaBehaviorAPITest {
         assertNull(scenario.eResource());
         domain.getCommandStack().redo();
         assertSame(capabilities[0], scenario.eContainer());
-        assertScenario(scenario, flow);
+        assertScenario(scenario, flow, ScenarioKind.INTERACTION);
         assertSame(scenario, scenario.getPostCondition().getConstrainedElements().get(0));
     }
 
@@ -694,8 +878,8 @@ public class ArcadiaBehaviorAPITest {
         }
     }
 
-    private void assertScenario(Scenario scenario, Flow flow) {
-        assertEquals(ScenarioKind.INTERACTION, scenario.getKind());
+    private void assertScenario(Scenario scenario, Flow flow, ScenarioKind kind) {
+        assertEquals(kind, scenario.getKind());
         assertEquals(flow.functions().size(), scenario.getOwnedInstanceRoles().size());
         assertEquals(flow.exchanges().size(), scenario.getOwnedMessages().size());
         assertEquals(flow.exchanges().size() * 3, scenario.getOwnedInteractionFragments().size());

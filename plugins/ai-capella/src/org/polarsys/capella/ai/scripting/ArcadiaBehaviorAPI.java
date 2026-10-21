@@ -15,12 +15,14 @@ import org.polarsys.capella.core.data.capellacore.Involvement;
 import org.polarsys.capella.core.data.capellacore.NamedElement;
 import org.polarsys.capella.core.data.cs.BlockArchitecture;
 import org.polarsys.capella.core.data.cs.Component;
+import org.polarsys.capella.core.data.cs.Part;
 import org.polarsys.capella.core.data.ctx.Capability;
 import org.polarsys.capella.core.data.ctx.CtxFactory;
 import org.polarsys.capella.core.data.ctx.SystemAnalysis;
 import org.polarsys.capella.core.data.ctx.SystemComponent;
 import org.polarsys.capella.core.data.ctx.SystemFunction;
 import org.polarsys.capella.core.data.fa.AbstractFunction;
+import org.polarsys.capella.core.data.fa.ComponentExchange;
 import org.polarsys.capella.core.data.fa.FaFactory;
 import org.polarsys.capella.core.data.fa.FunctionInputPort;
 import org.polarsys.capella.core.data.fa.FunctionOutputPort;
@@ -29,6 +31,8 @@ import org.polarsys.capella.core.data.fa.FunctionalChain;
 import org.polarsys.capella.core.data.fa.FunctionalChainInvolvementFunction;
 import org.polarsys.capella.core.data.fa.FunctionalChainKind;
 import org.polarsys.capella.core.data.fa.FunctionalExchange;
+import org.polarsys.capella.core.data.information.AbstractEventOperation;
+import org.polarsys.capella.core.data.information.AbstractInstance;
 import org.polarsys.capella.core.data.information.datavalue.DatavalueFactory;
 import org.polarsys.capella.core.data.interaction.AbstractCapability;
 import org.polarsys.capella.core.data.interaction.AbstractCapabilityRealization;
@@ -307,6 +311,85 @@ public final class ArcadiaBehaviorAPI {
     }
 
     /**
+     * A functional chain (an operational process in OA) through the given exchanges, which may
+     * branch and join: one involvement per function they connect and one link per exchange between
+     * those involvements, as Capella's chain tools build them. The exchanges must connect into one
+     * graph under the architecture root function.
+     */
+    public FunctionalChain chain(
+            AbstractFunction owner, String name, List<? extends FunctionalExchange> exchanges) {
+        String label = text(name, "Chain name", 2400);
+        var involved = ordered(exchanges, "Chain exchanges");
+        return write(
+                "Create functional chain",
+                () -> {
+                    requireOwned(owner);
+                    BlockArchitecture layer = architecture(owner);
+                    requireFunction(owner, layer, false);
+                    if (owner.eContainer() != layer.getOwnedFunctionPkg())
+                        throw invalid(
+                                "A functional chain must be owned by the architecture root"
+                                        + " function");
+                    requireUniqueName(owner.getOwnedFunctionalChains(), label, "functional chain");
+                    Map<AbstractFunction, AbstractFunction> group = new LinkedHashMap<>();
+                    for (FunctionalExchange exchange : involved) {
+                        requireExchange(exchange, layer);
+                        if (!below(exchange, owner))
+                            throw invalid(
+                                    "Every chain exchange must be contained under its owning root"
+                                            + " function");
+                        AbstractFunction a = top(group, source(exchange)),
+                                b = top(group, target(exchange));
+                        group.put(a, b);
+                    }
+                    if (group.keySet().stream().map(f -> top(group, f)).distinct().count() != 1)
+                        throw invalid("The chain exchanges must connect into one graph");
+                    FunctionalChain chain =
+                            named(
+                                    layer instanceof OperationalAnalysis
+                                            ? OaFactory.eINSTANCE.createOperationalProcess()
+                                            : FaFactory.eINSTANCE.createFunctionalChain(),
+                                    label);
+                    chain.setKind(FunctionalChainKind.SIMPLE);
+                    Map<AbstractFunction, FunctionalChainInvolvementFunction> nodes =
+                            new LinkedHashMap<>();
+                    for (FunctionalExchange exchange : involved)
+                        for (AbstractFunction function :
+                                List.of(source(exchange), target(exchange)))
+                            nodes.computeIfAbsent(
+                                    function,
+                                    key -> {
+                                        var node =
+                                                identify(
+                                                        FaFactory.eINSTANCE
+                                                                .createFunctionalChainInvolvementFunction());
+                                        node.setInvolved(key);
+                                        chain.getOwnedFunctionalChainInvolvements().add(node);
+                                        return node;
+                                    });
+                    for (FunctionalExchange exchange : involved) {
+                        var link =
+                                identify(
+                                        FaFactory.eINSTANCE.createFunctionalChainInvolvementLink());
+                        link.setInvolved(exchange);
+                        link.setSource(nodes.get(source(exchange)));
+                        link.setTarget(nodes.get(target(exchange)));
+                        chain.getOwnedFunctionalChainInvolvements().add(link);
+                    }
+                    owner.getOwnedFunctionalChains().add(chain);
+                    return changed(chain);
+                });
+    }
+
+    /** Union-find root of a function in the chain's connectivity groups. */
+    private static AbstractFunction top(
+            Map<AbstractFunction, AbstractFunction> group, AbstractFunction function) {
+        group.putIfAbsent(function, function);
+        while (group.get(function) != function) function = group.get(function);
+        return function;
+    }
+
+    /**
      * An empty SA, LA or PA scenario in its capability, as Capella's "New
      * Exchange/Functional/Interface Scenario" creates it; its sequence diagram is then created on
      * the scenario. Kind is exchange, functional or interface. Operational scenarios use {@link
@@ -352,101 +435,284 @@ public final class ArcadiaBehaviorAPI {
             List<? extends FunctionalExchange> orderedInteractions,
             String precondition,
             String postcondition) {
-        String label = text(name, "Scenario name", 2400);
+        return functionScenario(
+                owner,
+                name,
+                orderedInteractions,
+                precondition,
+                postcondition,
+                "Create operational activity scenario");
+    }
+
+    /**
+     * SA, LA or PA Functional Scenario, as its "Functional Exchange" tool builds it: FUNCTIONAL
+     * kind, one lifeline per function, one message per functional exchange in order. Every function
+     * must already be involved in the capability.
+     */
+    public Scenario functionalScenario(
+            AbstractCapability owner,
+            String name,
+            List<? extends FunctionalExchange> orderedExchanges,
+            String precondition,
+            String postcondition) {
+        if (owner instanceof OperationalCapability)
+            throw invalid(
+                    "Operational scenarios use api.arcadia.operationalScenario(capability, name,"
+                            + " interactions, pre, post)");
+        return functionScenario(
+                owner,
+                name,
+                orderedExchanges,
+                precondition,
+                postcondition,
+                "Create functional scenario");
+    }
+
+    private Scenario functionScenario(
+            AbstractCapability owner,
+            String name,
+            List<? extends FunctionalExchange> orderedExchanges,
+            String precondition,
+            String postcondition,
+            String label) {
+        String scenarioName = text(name, "Scenario name", 2400);
         String pre = text(precondition, "Scenario precondition", 16000),
                 post = text(postcondition, "Scenario postcondition", 16000);
-        var interactions = ordered(orderedInteractions, "Scenario interactions");
+        var exchanges = ordered(orderedExchanges, "Scenario interactions");
         return write(
-                "Create operational activity scenario",
+                label,
                 () -> {
                     BlockArchitecture layer = capabilityLayer(owner);
-                    requireUniqueName(owner.getOwnedScenarios(), label, "scenario");
-                    Map<AbstractFunction, InstanceRole> roles = new LinkedHashMap<>();
+                    requireUniqueName(owner.getOwnedScenarios(), scenarioName, "scenario");
                     // Complete preflight before constructing any semantic objects or touching the
                     // capability.
-                    for (FunctionalExchange exchange : interactions) {
+                    List<Message> messages = new ArrayList<>();
+                    for (FunctionalExchange exchange : exchanges) {
                         requireExchange(exchange, layer);
                         text(exchange.getName(), "Scenario interaction name", 2400);
-                        for (AbstractFunction activity :
+                        for (AbstractFunction function :
                                 List.of(source(exchange), target(exchange))) {
-                            requireFunction(activity, layer, true);
                             if (owner
                                     .getOwnedAbstractFunctionAbstractCapabilityInvolvements()
                                     .stream()
-                                    .noneMatch(link -> link.getInvolved() == activity)) {
+                                    .noneMatch(link -> link.getInvolved() == function)) {
                                 throw invalid(
-                                        "Every scenario activity must already be involved in its"
-                                            + " operational capability");
+                                        "Every scenario activity or function must already be"
+                                                + " involved in its capability"
+                                                + " (api.arcadia.involveFunction)");
                             }
-                            roles.putIfAbsent(activity, null);
                         }
+                        messages.add(
+                                new Message(
+                                        exchange,
+                                        exchange.getName(),
+                                        source(exchange),
+                                        target(exchange)));
                     }
-                    Scenario scenario = named(InteractionFactory.eINSTANCE.createScenario(), label);
-                    scenario.setKind(ScenarioKind.INTERACTION);
-                    for (var entry : roles.entrySet()) {
-                        InstanceRole role =
-                                named(
-                                        InteractionFactory.eINSTANCE.createInstanceRole(),
-                                        entry.getKey().getName());
-                        role.setRepresentedInstance(entry.getKey());
-                        scenario.getOwnedInstanceRoles().add(role);
-                        entry.setValue(role);
+                    Scenario scenario =
+                            messageScenario(
+                                    scenarioName,
+                                    layer instanceof OperationalAnalysis
+                                            ? ScenarioKind.INTERACTION
+                                            : ScenarioKind.FUNCTIONAL,
+                                    messages,
+                                    pre,
+                                    post);
+                    owner.getOwnedScenarios().add(scenario);
+                    return changed(scenario);
+                });
                     }
-                    for (FunctionalExchange exchange : interactions)
-                        addActivityMessage(
-                                scenario,
-                                exchange,
-                                roles.get(source(exchange)),
-                                roles.get(target(exchange)));
-                    Constraint before = condition("Precondition", pre, scenario),
-                            after = condition("Postcondition", post, scenario);
-                    scenario.getOwnedConstraints().addAll(List.of(before, after));
-                    scenario.setPreCondition(before);
-                    scenario.setPostCondition(after);
+
+    /**
+     * SA, LA or PA Exchange Scenario, as its "Functional Exchange" or "Component Exchange" tool
+     * builds it: DATA_FLOW kind, one lifeline per component part, one message per exchange in
+     * order. The exchanges are all functional exchanges (between the components their functions are
+     * allocated to) or all component exchanges, never mixed. Every component must already be
+     * involved in the capability.
+     */
+    public Scenario exchangeScenario(
+            AbstractCapability owner,
+            String name,
+            List<?> orderedExchanges,
+            String precondition,
+            String postcondition) {
+        String scenarioName = text(name, "Scenario name", 2400);
+        String pre = text(precondition, "Scenario precondition", 16000),
+                post = text(postcondition, "Scenario postcondition", 16000);
+        var exchanges = ordered(orderedExchanges, "Scenario exchanges");
+        return write(
+                "Create exchange scenario",
+                () -> {
+                    BlockArchitecture layer = capabilityLayer(owner);
+                    if (layer instanceof OperationalAnalysis)
+                        throw invalid("Operational scenarios use api.arcadia.operationalScenario");
+                    requireUniqueName(owner.getOwnedScenarios(), scenarioName, "scenario");
+                    boolean functional = exchanges.get(0) instanceof FunctionalExchange;
+                    List<Message> messages = new ArrayList<>();
+                    for (Object item : exchanges) {
+                        Component from, to;
+                        AbstractEventOperation operation;
+                        if (functional && item instanceof FunctionalExchange exchange) {
+                            requireExchange(exchange, layer);
+                            from = allocator(source(exchange));
+                            to = allocator(target(exchange));
+                            operation = exchange;
+                        } else if (!functional && item instanceof ComponentExchange exchange) {
+                            requireOwned(exchange);
+                            if (architecture(exchange) != layer)
+                                throw invalid(
+                                        "Scenario exchanges must belong to the capability's"
+                                                + " architecture");
+                            from = endComponent(exchange.getSource());
+                            to = endComponent(exchange.getTarget());
+                            operation = exchange;
+                        } else {
+                            throw invalid(
+                                    "Exchange scenario messages are all functional exchanges or"
+                                            + " all component exchanges");
+                        }
+                        String label =
+                                text(
+                                        ((NamedElement) item).getName(),
+                                        "Scenario exchange name",
+                                        2400);
+                        messages.add(
+                                new Message(
+                                        operation,
+                                        label,
+                                        lifeline(owner, from),
+                                        lifeline(owner, to)));
+                    }
+                    Scenario scenario =
+                            messageScenario(
+                                    scenarioName, ScenarioKind.DATA_FLOW, messages, pre, post);
                     owner.getOwnedScenarios().add(scenario);
                     return changed(scenario);
                 });
     }
 
-    private static void addActivityMessage(
+    private record Message(
+            AbstractEventOperation operation,
+            String name,
+            AbstractInstance sender,
+            AbstractInstance receiver) {}
+
+    /** The component allocating the function, from stored allocations (not the derived inverse). */
+    private static Component allocator(AbstractFunction function) {
+        List<Component> components = new ArrayList<>();
+        architecture(function)
+                .eAllContents()
+                .forEachRemaining(
+                        o -> {
+                            if (o instanceof Component component
+                                    && !components.contains(component)
+                                    && component.getOwnedFunctionalAllocation().stream()
+                                            .anyMatch(link -> link.getTargetElement() == function))
+                                components.add(component);
+                        });
+        if (components.size() != 1)
+            throw invalid(
+                    "Each exchange scenario function must be allocated to exactly one component: "
+                            + function.getName());
+        return components.get(0);
+    }
+
+    private static Component endComponent(EObject end) {
+        if (end instanceof Part part && part.getAbstractType() instanceof Component component)
+            return component;
+        if (end != null && end.eContainer() instanceof Component component) return component;
+        throw invalid("Component exchanges in a scenario need component or part ends");
+    }
+
+    /** The component's part, as the scenario's lifeline; the component must be involved. */
+    private static Part lifeline(AbstractCapability owner, Component component) {
+        if (involvements(owner).stream().noneMatch(link -> link.getInvolved() == component))
+            throw invalid(
+                    "Every scenario component must already be involved in its capability"
+                            + " (api.arcadia.involveComponent): "
+                            + component.getName());
+        // Stored parts, not the derived representingParts view (it needs an Eclipse adapter).
+        List<Part> parts = new ArrayList<>();
+        architecture(component)
+                .eAllContents()
+                .forEachRemaining(
+                        o -> {
+                            if (o instanceof Part part && part.getAbstractType() == component)
+                                parts.add(part);
+                        });
+        if (parts.size() != 1)
+            throw invalid(
+                    "A scenario lifeline needs the component's single part: "
+                            + component.getName());
+        return parts.get(0);
+    }
+
+    private static List<? extends Involvement> involvements(AbstractCapability capability) {
+        if (capability instanceof OperationalCapability operational)
+            return operational.getOwnedEntityOperationalCapabilityInvolvements();
+        if (capability instanceof Capability system) return system.getOwnedCapabilityInvolvements();
+        return ((CapabilityRealization) capability).getOwnedCapabilityRealizationInvolvements();
+    }
+
+    private static Scenario messageScenario(
+            String name, ScenarioKind kind, List<Message> messages, String pre, String post) {
+        Scenario scenario = named(InteractionFactory.eINSTANCE.createScenario(), name);
+        scenario.setKind(kind);
+        Map<AbstractInstance, InstanceRole> roles = new LinkedHashMap<>();
+        for (Message message : messages)
+            for (AbstractInstance instance : List.of(message.sender(), message.receiver()))
+                roles.computeIfAbsent(
+                        instance,
+                        key -> {
+                        InstanceRole role =
+                                named(
+                                        InteractionFactory.eINSTANCE.createInstanceRole(),
+                                            key.getName());
+                            role.setRepresentedInstance(key);
+                        scenario.getOwnedInstanceRoles().add(role);
+                            return role;
+                        });
+        for (Message message : messages)
+            addMessage(
+                                scenario,
+                    message.operation(),
+                    message.name(),
+                    roles.get(message.sender()),
+                    roles.get(message.receiver()));
+                    Constraint before = condition("Precondition", pre, scenario),
+                            after = condition("Postcondition", post, scenario);
+                    scenario.getOwnedConstraints().addAll(List.of(before, after));
+                    scenario.setPreCondition(before);
+                    scenario.setPostCondition(after);
+        return scenario;
+    }
+
+    private static void addMessage(
             Scenario scenario,
-            FunctionalExchange exchange,
+            AbstractEventOperation operation,
+            String name,
             InstanceRole sender,
             InstanceRole receiver) {
-        var message =
-                named(InteractionFactory.eINSTANCE.createSequenceMessage(), exchange.getName());
+        var message = named(InteractionFactory.eINSTANCE.createSequenceMessage(), name);
         message.setKind(MessageKind.ASYNCHRONOUS_CALL);
-        var sent =
-                named(
-                        InteractionFactory.eINSTANCE.createEventSentOperation(),
-                        "Send " + exchange.getName());
+        var sent = named(InteractionFactory.eINSTANCE.createEventSentOperation(), "Send " + name);
         var received =
                 named(
                         InteractionFactory.eINSTANCE.createEventReceiptOperation(),
-                        "Receive " + exchange.getName());
-        var finished =
-                named(
-                        InteractionFactory.eINSTANCE.createExecutionEvent(),
-                        "Finish " + exchange.getName());
-        sent.setOperation(exchange);
-        received.setOperation(exchange);
+                        "Receive " + name);
+        var finished = named(InteractionFactory.eINSTANCE.createExecutionEvent(), "Finish " + name);
+        sent.setOperation(operation);
+        received.setOperation(operation);
         scenario.getOwnedEvents().addAll(List.of(sent, received, finished));
-        var sendingEnd =
-                named(
-                        InteractionFactory.eINSTANCE.createMessageEnd(),
-                        "Send " + exchange.getName());
+        var sendingEnd = named(InteractionFactory.eINSTANCE.createMessageEnd(), "Send " + name);
         sendingEnd.getCoveredInstanceRoles().add(sender);
         sendingEnd.setEvent(sent);
         var receivingEnd =
-                named(
-                        InteractionFactory.eINSTANCE.createMessageEnd(),
-                        "Receive " + exchange.getName());
+                named(InteractionFactory.eINSTANCE.createMessageEnd(), "Receive " + name);
         receivingEnd.getCoveredInstanceRoles().add(receiver);
         receivingEnd.setEvent(received);
         var executionEnd =
-                named(
-                        InteractionFactory.eINSTANCE.createExecutionEnd(),
-                        "Finish " + exchange.getName());
+                named(InteractionFactory.eINSTANCE.createExecutionEnd(), "Finish " + name);
         executionEnd.getCoveredInstanceRoles().add(receiver);
         executionEnd.setEvent(finished);
         scenario.getOwnedInteractionFragments()
@@ -454,10 +720,7 @@ public final class ArcadiaBehaviorAPI {
         message.setSendingEnd(sendingEnd);
         message.setReceivingEnd(receivingEnd);
         scenario.getOwnedMessages().add(message);
-        var execution =
-                named(
-                        InteractionFactory.eINSTANCE.createExecution(),
-                        "Execute " + exchange.getName());
+        var execution = named(InteractionFactory.eINSTANCE.createExecution(), "Execute " + name);
         execution.setStart(receivingEnd);
         execution.setFinish(executionEnd);
         scenario.getOwnedTimeLapses().add(execution);

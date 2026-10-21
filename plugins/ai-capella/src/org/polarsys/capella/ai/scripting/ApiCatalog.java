@@ -83,12 +83,16 @@ public final class ApiCatalog {
                         "Typed native capability involvements and adjacent-layer capability"
                             + " realizations.",
                         "linearChain requires ordered leaf functions and matching exchanges;"
-                            + " operationalScenario creates activity roles, messages, ends and"
-                            + " events.",
+                                + " chain takes exchanges that may branch and join (an operational"
+                                + " process in OA); operationalScenario, functionalScenario and"
+                                + " exchangeScenario create lifelines, messages, ends and events.",
                         "FunctionalChainInvolvementFunction/Link have no name attribute: use native"
                             + " IDs or stored involved references beneath the owning chain.",
                         "deploy requires BEHAVIOR and NODE Parts; physicalLink requires NODE Parts;"
-                            + " allocateExchange creates native exchange and port allocations.",
+                                + " allocateExchange creates native exchange and port allocations;"
+                                + " physicalPath follows contiguous links; allocateOnLink carries a"
+                                + " component exchange on a link or path between its components'"
+                                + " nodes.",
                         "realizeInterface creates adjacent-layer exchange and endpoint port"
                             + " realizations atomically; realize the endpoint functions/components"
                             + " first.",

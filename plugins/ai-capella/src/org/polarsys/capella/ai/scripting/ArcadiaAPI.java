@@ -7,9 +7,12 @@ import org.polarsys.capella.core.data.capellacore.Constraint;
 import org.polarsys.capella.core.data.cs.Component;
 import org.polarsys.capella.core.data.cs.Part;
 import org.polarsys.capella.core.data.cs.PhysicalLink;
+import org.polarsys.capella.core.data.cs.PhysicalPath;
 import org.polarsys.capella.core.data.cs.PhysicalPort;
 import org.polarsys.capella.core.data.fa.AbstractFunction;
 import org.polarsys.capella.core.data.fa.ComponentExchange;
+import org.polarsys.capella.core.data.fa.ComponentExchangeAllocation;
+import org.polarsys.capella.core.data.fa.ComponentExchangeAllocator;
 import org.polarsys.capella.core.data.fa.ComponentExchangeFunctionalExchangeAllocation;
 import org.polarsys.capella.core.data.fa.FunctionalChain;
 import org.polarsys.capella.core.data.fa.FunctionalExchange;
@@ -65,6 +68,35 @@ public final class ArcadiaAPI {
         return change(() -> behavior.linearChain(owner, name, functions, exchanges));
     }
 
+    public FunctionalChain chain(
+            AbstractFunction owner, String name, List<? extends FunctionalExchange> exchanges) {
+        return change(() -> behavior.chain(owner, name, exchanges));
+    }
+
+    public Scenario functionalScenario(
+            AbstractCapability owner,
+            String name,
+            List<? extends FunctionalExchange> orderedExchanges,
+            String precondition,
+            String postcondition) {
+        return change(
+                () ->
+                        behavior.functionalScenario(
+                                owner, name, orderedExchanges, precondition, postcondition));
+    }
+
+    public Scenario exchangeScenario(
+            AbstractCapability owner,
+            String name,
+            List<?> orderedExchanges,
+            String precondition,
+            String postcondition) {
+        return change(
+                () ->
+                        behavior.exchangeScenario(
+                                owner, name, orderedExchanges, precondition, postcondition));
+    }
+
     public Scenario scenario(
             org.polarsys.capella.core.data.interaction.AbstractCapability owner,
             String name,
@@ -100,6 +132,15 @@ public final class ArcadiaAPI {
 
     public PhysicalLink physicalLink(String name, Part sourcePart, Part targetPart) {
         return change(() -> structure.physicalLink(name, sourcePart, targetPart));
+    }
+
+    public PhysicalPath physicalPath(String name, List<PhysicalLink> orderedLinks) {
+        return change(() -> structure.physicalPath(name, orderedLinks));
+    }
+
+    public ComponentExchangeAllocation allocateOnLink(
+            ComponentExchange exchange, ComponentExchangeAllocator carrier) {
+        return change(() -> structure.allocateOnLink(exchange, carrier));
     }
 
     public ComponentExchangeFunctionalExchangeAllocation allocateExchange(

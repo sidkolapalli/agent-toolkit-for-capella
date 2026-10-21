@@ -7,6 +7,7 @@ import org.eclipse.sirius.business.api.session.Session;
 import org.polarsys.capella.ai.model.ModelSummary;
 import org.polarsys.capella.ai.session.SessionSafeguards;
 import org.polarsys.capella.core.data.capellacore.CapellaElement;
+import org.polarsys.capella.core.data.cs.AbstractPathInvolvedElement;
 import org.polarsys.capella.core.data.cs.BlockArchitecture;
 import org.polarsys.capella.core.data.cs.Component;
 import org.polarsys.capella.core.data.cs.ComponentPkg;
@@ -14,9 +15,13 @@ import org.polarsys.capella.core.data.cs.CsFactory;
 import org.polarsys.capella.core.data.cs.Part;
 import org.polarsys.capella.core.data.cs.PhysicalLink;
 import org.polarsys.capella.core.data.cs.PhysicalLinkEnd;
+import org.polarsys.capella.core.data.cs.PhysicalPath;
+import org.polarsys.capella.core.data.cs.PhysicalPathInvolvement;
 import org.polarsys.capella.core.data.cs.PhysicalPort;
 import org.polarsys.capella.core.data.fa.AbstractFunction;
 import org.polarsys.capella.core.data.fa.ComponentExchange;
+import org.polarsys.capella.core.data.fa.ComponentExchangeAllocation;
+import org.polarsys.capella.core.data.fa.ComponentExchangeAllocator;
 import org.polarsys.capella.core.data.fa.ComponentExchangeEnd;
 import org.polarsys.capella.core.data.fa.ComponentExchangeFunctionalExchangeAllocation;
 import org.polarsys.capella.core.data.fa.ComponentExchangeKind;
@@ -37,6 +42,7 @@ import org.polarsys.capella.core.data.pa.deployment.DeploymentFactory;
 import org.polarsys.capella.core.data.pa.deployment.PartDeploymentLink;
 import org.polarsys.capella.core.model.helpers.PhysicalComponentExt;
 import org.polarsys.capella.core.model.helpers.PhysicalLinkExt;
+import org.polarsys.capella.core.model.helpers.PhysicalPathExt;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -274,6 +280,162 @@ public final class ArcadiaStructureAPI {
                     if (targetAllocation == null) attachPort(target, targetFunctionPort);
                     return new Change<>(allocation, created);
                 });
+    }
+
+    /**
+     * A physical path through contiguous physical links, in order, as Capella's "Physical Path"
+     * tool builds it (PhysicalPathExt.createPhysicalPath), owned by the links' common component.
+     */
+    public PhysicalPath physicalPath(String name, List<PhysicalLink> orderedLinks) {
+        return write(
+                "Create physical path",
+                () -> {
+                    String label = name(name);
+                    if (orderedLinks == null || orderedLinks.isEmpty())
+                        throw new IllegalArgumentException("A physical path needs physical links");
+                    List<Part> stops = route(orderedLinks);
+                    var container =
+                            PhysicalLinkExt.getDefaultContainer(
+                                    stops.get(0), stops.get(stops.size() - 1));
+                    Component owner =
+                            container instanceof Component component
+                                    ? component
+                                    : (Component) roots(orderedLinks.get(0));
+                    // PhysicalPathExt.createPhysicalPath's structure (part, link, part, ...)
+                    // without
+                    // its workbench-only creation command.
+                    PhysicalPath path = identified(CsFactory.eINSTANCE.createPhysicalPath());
+                    path.setName(label);
+                    owner.getOwnedPhysicalPath().add(path);
+                    PhysicalPathInvolvement previous = involve(path, stops.get(0));
+                    for (int index = 0; index < orderedLinks.size(); index++) {
+                        PhysicalPathInvolvement link = involve(path, orderedLinks.get(index));
+                        previous.getNextInvolvements().add(link);
+                        previous = involve(path, stops.get(index + 1));
+                        link.getNextInvolvements().add(previous);
+                    }
+                    return changed(path);
+                });
+    }
+
+    /**
+     * Carry a PA component exchange on a physical link or physical path, as Capella's allocation
+     * tools do: a component exchange allocation on the carrier, then the native port allocations
+     * (PhysicalLinkExt/PhysicalPathExt.synchronizeAllocations). The exchange's two components must
+     * be deployed on the nodes at the carrier's two ends.
+     */
+    public ComponentExchangeAllocation allocateOnLink(
+            ComponentExchange exchange, ComponentExchangeAllocator carrier) {
+        return write(
+                "Allocate component exchange to physical link",
+                () -> {
+                    BlockArchitecture architecture = sameArchitecture(exchange, carrier);
+                    if (!(architecture instanceof PhysicalArchitecture))
+                        throw new IllegalArgumentException(
+                                "Component exchanges are carried by physical links in PA");
+                    List<Part> ends;
+                    if (carrier instanceof PhysicalLink link) ends = route(List.of(link));
+                    else if (carrier instanceof PhysicalPath path) ends = route(links(path));
+                    else
+                        throw new IllegalArgumentException(
+                                "A component exchange is carried by a physical link or path");
+                    Structure graph = scan(architecture);
+                    Component source = (Component) componentPort(exchange, "source").eContainer(),
+                            target = (Component) componentPort(exchange, "target").eContainer();
+                    Set<Component> first = hierarchy(physicalType(ends.get(0)), graph),
+                            last = hierarchy(physicalType(ends.get(ends.size() - 1)), graph);
+                    if (!(first.contains(source) && last.contains(target)
+                            || first.contains(target) && last.contains(source)))
+                        throw new IllegalArgumentException(
+                                "The exchange's components must be deployed on the nodes at the"
+                                        + " two ends of the physical link or path");
+                    for (var existing : carrier.getOwnedComponentExchangeAllocations())
+                        if (existing.getComponentExchangeAllocated() == exchange)
+                            return unchanged(existing);
+                    var allocation =
+                            identified(FaFactory.eINSTANCE.createComponentExchangeAllocation());
+                    allocation.setSourceElement(carrier);
+                    allocation.setTargetElement(exchange);
+                    carrier.getOwnedComponentExchangeAllocations().add(allocation);
+                    if (carrier instanceof PhysicalLink link)
+                        PhysicalLinkExt.synchronizeAllocations(link, exchange);
+                    else PhysicalPathExt.synchronizeAllocations((PhysicalPath) carrier, exchange);
+                    return changed(allocation);
+                });
+    }
+
+    /** A simple path's links in order, following the involvements from the first one. */
+    private static List<PhysicalLink> links(PhysicalPath path) {
+        var involvements = path.getOwnedPhysicalPathInvolvements();
+        PhysicalPathInvolvement step =
+                involvements.stream()
+                        .filter(
+                                i ->
+                                        involvements.stream()
+                                                .noneMatch(
+                                                        o -> o.getNextInvolvements().contains(i)))
+                        .findFirst()
+                        .orElseThrow(
+                                () ->
+                                        new IllegalArgumentException(
+                                                "A physical path needs a first part"));
+        List<PhysicalLink> links = new ArrayList<>();
+        for (int guard = 0; step != null && guard <= involvements.size(); guard++) {
+            if (step.getInvolved() instanceof PhysicalLink link) links.add(link);
+            if (step.getNextInvolvements().size() > 1)
+                throw new IllegalArgumentException("Branching physical paths are not supported");
+            step = step.getNextInvolvements().isEmpty() ? null : step.getNextInvolvements().get(0);
+        }
+        return links;
+    }
+
+    private static PhysicalPathInvolvement involve(
+            PhysicalPath path, AbstractPathInvolvedElement element) {
+        var involvement = identified(CsFactory.eINSTANCE.createPhysicalPathInvolvement());
+        involvement.setInvolved(element);
+        path.getOwnedPhysicalPathInvolvements().add(involvement);
+        return involvement;
+    }
+
+    /** The parts a path of links passes through, in order; consecutive links share a part. */
+    private List<Part> route(List<PhysicalLink> links) {
+        List<Part> stops = new ArrayList<>();
+        for (PhysicalLink link : links) {
+            requireOwned(link);
+            List<Part> ends = new ArrayList<>();
+            for (var end : link.getLinkEnds())
+                if (end instanceof PhysicalLinkEnd linkEnd && linkEnd.getPart() != null)
+                    ends.add(linkEnd.getPart());
+            if (ends.size() != 2)
+                throw new IllegalArgumentException(
+                        "Each physical link needs two part ends: " + link.getName());
+            if (stops.isEmpty()) {
+                stops.addAll(ends);
+                continue;
+            }
+            Part last = stops.get(stops.size() - 1);
+            if (stops.size() == 2 && !ends.contains(last) && ends.contains(stops.get(0)))
+                Collections.reverse(stops);
+            last = stops.get(stops.size() - 1);
+            if (!ends.contains(last))
+                throw new IllegalArgumentException(
+                        "Physical path links must be contiguous, in order: " + link.getName());
+            Part next = ends.get(0) == last ? ends.get(1) : ends.get(0);
+            if (stops.contains(next))
+                throw new IllegalArgumentException(
+                        "A physical path cannot loop: " + link.getName());
+            stops.add(next);
+        }
+        return stops;
+    }
+
+    /** The PA root physical component, which owns paths whose links sit in a package. */
+    private static EObject roots(PhysicalLink link) {
+        BlockArchitecture layer = null;
+        for (EObject o = link; o != null && layer == null; o = o.eContainer())
+            if (o instanceof BlockArchitecture found) layer = found;
+        if (layer != null && layer.getSystem() != null) return layer.getSystem();
+        throw new IllegalArgumentException("A physical path needs the PA root component");
     }
 
     private PhysicalComponent physicalType(Part part) {

@@ -12,11 +12,19 @@ api.arcadia.realizeCapability(lowerCapability, upperCapability)
 
 def chain = api.arcadia.linearChain(rootFunction, "Nominal drive request",
     orderedLeafFunctions, orderedFunctionalExchanges)
+// Branching and joining chains; in OA this makes an operational process
+def trips = api.arcadia.chain(rootFunction, "Trip sources", exchangesThatBranchAndJoin)
 
 // SA/LA/PA: an empty scenario of kind exchange, functional or interface in a Capability or
 // CapabilityRealization; then its sequence diagram on the scenario (ES, FS or IS).
 def exchangeScenario = api.arcadia.scenario(systemCapability, "IMD fault shutdown", "exchange")
 api.diagram.create("ES", "IMD fault shutdown", exchangeScenario)
+
+// SA/LA/PA scenarios with their messages, in order (functions and components involved first)
+def fs = api.arcadia.functionalScenario(capability, "Shutdown on trip", orderedFunctionalExchanges,
+    "A trip condition is present", "The shutdown path is open")
+def es = api.arcadia.exchangeScenario(capability, "Shutdown on trip (components)",
+    orderedFunctionalOrComponentExchanges, "A trip condition is present", "The shutdown path is open")
 
 def scenario = api.arcadia.operationalScenario(operationalCapability,
     "Nominal motion request", orderedOperationalInteractions,
@@ -26,11 +34,13 @@ def scenario = api.arcadia.operationalScenario(operationalCapability,
 
 - Capability involvement uses native owned involvement objects. Repeating an identical involvement returns the existing relationship.
 - Capability realization is lower-to-upper and adjacent: SA→OA, LA→SA, PA→LA. EPBS configuration items use `PhysicalArtifactRealization` instead.
-- `linearChain` is for SA/LA/PA. Pass the native root function, at least two distinct leaf functions, and exactly one fewer exchanges in their actual source→target order. It creates the chain, function involvements and link involvements with actual endpoints. It does not model branching, loops or nested chains. A duplicate chain name is rejected.
+- `linearChain` is for SA/LA/PA. Pass the native root function, at least two distinct leaf functions, and exactly one fewer exchanges in their actual source→target order. It creates the chain, function involvements and link involvements with actual endpoints. It does not model branching; use `chain` for that. A duplicate chain name is rejected.
+- `chain` takes the chain's exchanges in any order; they may branch and join but must connect into one graph. It creates one function involvement per function they connect and one link per exchange. In OA it creates an `OperationalProcess` under the root activity. Control nodes and sequence links are not created.
 - Native `FunctionalChainInvolvementFunction` and `FunctionalChainInvolvementLink` objects have no `name` attribute. Identify them by native UUID or by their stored `involved` reference and exact owning chain. Do not call `api.set(involvement, "name", ...)` or use a type/name postcondition selector for them. The FunctionalChain itself has a name.
 - `linearChain` populates `involved` with each actual function or exchange. `realizedFlow` is a separate reference and is not populated by this helper. Check the link's `source` and `target` against the actual function involvements; do not substitute `realizedFlow` for `involved`.
 - `scenario` creates an empty SA/LA/PA scenario under a `Capability` (SA) or `CapabilityRealization` (LA/PA). Its native `kind` is `DATA_FLOW` for "exchange", `FUNCTIONAL` for "functional" and `INTERFACE` for "interface"; check those values, not INTERACTION. Create its sequence diagram on the scenario (ES, FS or IS). A duplicate name in the capability is rejected.
 - `operationalScenario` creates a native OA INTERACTION scenario beneath its OperationalCapability. Roles represent actual OperationalActivities; ordered messages invoke the actual FunctionalExchanges using sending/receiving events and ends. It stores pre/postconditions. An OA role here represents an activity, not an Entity Part. A duplicate scenario name is rejected.
+- `functionalScenario` (FS, kind FUNCTIONAL) gives each function a lifeline and each functional exchange a message, in order; every function must already be involved in the capability. `exchangeScenario` (ES, kind DATA_FLOW) gives each component's part a lifeline; its messages are all functional exchanges (lifelines are the components their functions are allocated to) or all component exchanges, never mixed; every component must already be involved in the capability.
 - Preconditions, postconditions and descriptions express modeled assumptions. They do not execute a controller or prove safety. Represent nominal and inhibited cases separately with meaningful exchanges and verification obligations.
 
 ## Deployment and topology
@@ -47,6 +57,15 @@ def link = api.arcadia.physicalLink("Control transport TBD",
 - Deployment requires a BEHAVIOR PhysicalComponent Part and a NODE location Part in the same PA. The native PartDeploymentLink is owned by the location Part. Identical deployment is idempotent; an existing different host is rejected. Remove an old deployment explicitly before redeploying.
 - Physical links require explicit NODE instances. The convenience overload creates dedicated PhysicalPorts; the explicit overload checks port ownership. Links contain two actual PhysicalLinkEnds referencing the intended Parts and ports. A ComponentExchange is a behavioral interface and does not create physical cabling or deployment.
 - Do not guess electrical ratings, routing, protocol, power or timing. Keep unresolved choices explicit. A physical link labeled control transport does not represent traction energy.
+
+## Component exchanges on physical links
+
+```groovy
+def path = api.arcadia.physicalPath("BMS trip route", [firstLink, secondLink])   // contiguous, in order
+api.arcadia.allocateOnLink(componentExchange, physicalLinkOrPath)
+```
+
+- `allocateOnLink` carries a PA component exchange on a physical link or path and synchronizes the port allocations as Capella does. The exchange's two components must be deployed (`deploy`) on the nodes at the carrier's two ends. Repeating it returns the existing allocation.
 
 ## Functional transport
 

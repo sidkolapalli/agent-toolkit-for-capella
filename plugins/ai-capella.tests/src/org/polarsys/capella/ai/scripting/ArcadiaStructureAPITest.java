@@ -24,6 +24,7 @@ import org.polarsys.capella.core.data.cs.CsFactory;
 import org.polarsys.capella.core.data.cs.Part;
 import org.polarsys.capella.core.data.cs.PhysicalLink;
 import org.polarsys.capella.core.data.cs.PhysicalLinkEnd;
+import org.polarsys.capella.core.data.cs.PhysicalPath;
 import org.polarsys.capella.core.data.cs.PhysicalPort;
 import org.polarsys.capella.core.data.ctx.CtxFactory;
 import org.polarsys.capella.core.data.fa.AbstractFunction;
@@ -47,12 +48,14 @@ import org.polarsys.capella.core.data.pa.deployment.PartDeploymentLink;
 import org.polarsys.capella.core.model.handler.helpers.CapellaProjectHelper;
 import org.polarsys.capella.core.model.handler.helpers.CapellaProjectHelper.ProjectApproach;
 import org.polarsys.capella.core.model.helpers.PhysicalLinkExt;
+import org.polarsys.capella.core.model.helpers.PhysicalPathExt;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -600,6 +603,52 @@ public class ArcadiaStructureAPITest {
         Part secondInstance = prepare(() -> ownedPart(roots[2], behavior));
         reject(() -> structure.deploy(secondInstance, otherNodePart));
         assertTrue(otherNodePart.getOwnedDeploymentLinks().isEmpty());
+    }
+
+    /** GAPS a3: component exchanges could not be carried on physical links or paths. */
+    @Test
+    public void componentExchangeRidesTheLinkBetweenTheNodesItsComponentsAreDeployedOn()
+            throws Exception {
+        Flow fixture = prepare(() -> flow(2, false));
+        structure.deploy(behaviorPart, nodePart);
+        structure.deploy(otherBehaviorPart, otherNodePart);
+        PhysicalLink link = structure.physicalLink("Harness", nodePart, otherNodePart);
+        var allocation = structure.allocateOnLink(fixture.transport, link);
+        assertSame(link, allocation.eContainer());
+        assertSame(link, allocation.getSourceElement());
+        assertSame(fixture.transport, allocation.getTargetElement());
+        int priorSaves = saves;
+        assertSame(allocation, structure.allocateOnLink(fixture.transport, link));
+        assertEquals(priorSaves, saves);
+        Resource copy = reload();
+        assertNotNull(copy.getEObject(allocation.getId()));
+    }
+
+    @Test
+    public void physicalPathFollowsContiguousLinksAndCarriesTheExchange() {
+        Flow fixture = prepare(() -> flow(2, false));
+        PhysicalComponent relay =
+                prepare(() -> physical("Relay box", PhysicalComponentNature.NODE, false));
+        Part relayPart = prepare(() -> ownedPart(roots[2], relay));
+        structure.deploy(behaviorPart, nodePart);
+        structure.deploy(otherBehaviorPart, otherNodePart);
+        PhysicalLink first = structure.physicalLink("First", relayPart, nodePart),
+                second = structure.physicalLink("Second", relayPart, otherNodePart);
+        PhysicalPath path = structure.physicalPath("Through the relay", List.of(first, second));
+        assertEquals("Through the relay", path.getName());
+        assertEquals(Set.of(first, second), Set.copyOf(PhysicalPathExt.getFlatPhysicalLinks(path)));
+        assertNotNull(path.getId());
+        var allocation = structure.allocateOnLink(fixture.transport, path);
+        assertSame(path, allocation.eContainer());
+        reject(() -> structure.physicalPath("Gap", List.of(first, first)));
+    }
+
+    @Test
+    public void exchangeOnALinkBetweenOtherNodesIsRejected() {
+        Flow fixture = prepare(() -> flow(2, false));
+        structure.deploy(behaviorPart, nodePart);
+        PhysicalLink link = structure.physicalLink("Elsewhere", nodePart, actorPart);
+        reject(() -> structure.allocateOnLink(fixture.transport, link));
     }
 
     private void reject(Supplier<?> action) {
