@@ -51,6 +51,17 @@ The internal Codex code-mode host is enabled so models that require it can orche
 
 The Codex thread ID is persisted with each model's local conversation and resumed on the next request or after restarting Capella. Privacy-tokenized conversations start a fresh remote thread from re-encoded local history because token dictionaries are not durably stored; a previous private thread is also invalidated when privacy is turned off. New conversation clears that binding. An interrupted or committed operation is recorded as history and must be inspected before a follow-up; resuming never executes a saved script or restores an approval. Recent local execution evidence is supplied on resume. Initial native tools use app-server's experimental `dynamicTools` contract rather than assistant text containing JSON commands. SDK migration does not by itself establish Arcadia methodology correctness or complete requirements coverage.
 
+## Use with your own agent
+
+Any MCP client (Claude Code, Codex, ...) can work on the model open in Capella through the plugin's MCP server, with every edit still reviewed by a person in Capella. [`skills/`](skills) holds agent skills that teach the method and the workflow:
+
+- [`capella-setup`](skills/capella-setup/SKILL.md): start the server and register it with your agent.
+- [`arcadia-method`](skills/arcadia-method/SKILL.md): which perspective a change belongs in and what to check before claiming it is right.
+- [`capella-model-edits`](skills/capella-model-edits/SKILL.md): read tools, reviewed edit proposals, receipts and repair.
+- [`capella-diagrams`](skills/capella-diagrams/SKILL.md): which view answers which question, and how to build it through the API.
+
+Copy the folders into your agent's skills directory (for Claude Code, `~/.claude/skills/` or the project's `.claude/skills/`), then follow `capella-setup`.
+
 ## Working with models
 
 Example requests:
