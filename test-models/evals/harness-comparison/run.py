@@ -5,6 +5,7 @@ B  bare Codex CLI + the plugin's MCP server on a live Capella (edits approved by
 C  the plugin's own agent loop through /eval.
 S  B plus the toolkit skills in the agent's .agents/skills, where Codex discovers them (experiment 2).
 K  as B with headless Claude Code as the agent; KS adds the skills in its .claude/skills.
+KH, KSH  K and KS with Claude Haiku as the agent (experiment 4).
 E  as K on an underspecified task, with a simulated team member answering the agent's questions; ES adds the skills
    (experiment 3).
 Every run starts from a fresh copy of the pristine model and is scored by grade.groovy in a fresh Capella.
@@ -16,12 +17,13 @@ HERE = capella.HERE
 RESULTS = HERE / "results"
 CODEX = r"<local-path>"
 PYTHON = HERE / "bare-venv" / "Scripts" / "python.exe"
-PORTS = {"A": 8781, "B": 8782, "C": 8783, "S": 8784, "K": 8785, "KS": 8786, "E": 8787, "ES": 8788}
+PORTS = {"A": 8781, "B": 8782, "C": 8783, "S": 8784, "K": 8785, "KS": 8786, "E": 8787, "ES": 8788, "KH": 8789, "KSH": 8790}
 SKILLS = pathlib.Path(capella.os.environ.get("TOOLKIT_SKILLS", HERE.parents[2] / "skills"))
 AGENT_LIMIT = 1800  # seconds per task, every arm
 MODEL = "gpt-6.1-sol"  # what the plugin's runtime uses: model and effort from ~/.codex/config.toml
 EFFORT = "ultra"
 CLAUDE_MODEL = "claude-sonnet-5-5"
+HAIKU_MODEL = "claude-haiku-5-5"
 STAKEHOLDER_MODEL = "claude-haiku-5-5"
 ROUNDS = 6  # most answers the stakeholder gives in one run
 
@@ -101,14 +103,14 @@ def codex(cwd, out, prompt, sandbox, extra=()):
     return {"exit": code, "agent_seconds": round(time.time() - started), "usage": usage}
 
 
-def claude(cwd, out, prompt, port, resume=None, keep=False):
+def claude(cwd, out, prompt, port, resume=None, keep=False, model=CLAUDE_MODEL):
     """One headless Claude Code run with only the capella MCP server: no user settings, plugins or other MCP servers.
     An unsaved single turn by default; keep saves the conversation and resume continues it by session id."""
     config = out / "mcp.json"
     config.write_text(json.dumps({"mcpServers": {"capella": {
         "type": "http", "url": f"http://127.0.0.1:{port}/mcp",
         "headers": {"Authorization": f"Bearer {capella.TOKEN}"}}}}), "utf-8")
-    command = [shutil.which("claude"), "-p", "--output-format", "stream-json", "--verbose", "--model", CLAUDE_MODEL,
+    command = [shutil.which("claude"), "-p", "--output-format", "stream-json", "--verbose", "--model", model,
                "--setting-sources", "project,local", "--strict-mcp-config", "--mcp-config", str(config),
                *(["--resume", resume] if resume else []), *([] if keep or resume else ["--no-session-persistence"]),
                "--allowedTools", "mcp__capella", "Skill", "Read", "Glob", "Grep",
@@ -195,7 +197,7 @@ def arm_a(task, rep):
 def arm_b(task, rep, arm="B"):
     ws = workspace(arm, task, rep)
     (ws / "agent").mkdir()
-    if arm in ("S", "KS", "ES"):
+    if arm in ("S", "KS", "ES", "KSH"):
         shutil.copytree(SKILLS, ws / "agent" / (".agents" if arm == "S" else ".claude") / "skills")
     port = int(capella.os.environ.get("EVAL_PORT", PORTS[arm]))
     pid = capella.launch(ws, port)
@@ -216,7 +218,8 @@ def arm_b(task, rep, arm="B"):
                "-c", 'mcp_servers.capella.tools.propose_model_edit.approval_mode="approve"']
         prompt = CONTEXT_B + capella.TASKS[task]["prompt"]
         run = (conversation(ws / "agent", ws, capella.TASKS[task], port) if arm.startswith("E")
-               else claude(ws / "agent", ws, prompt, port) if arm.startswith("K")
+               else claude(ws / "agent", ws, prompt, port, model=HAIKU_MODEL if arm.endswith("H") else CLAUDE_MODEL)
+               if arm.startswith("K")
                else codex(ws / "agent", ws, prompt, "read-only", mcp))
         done.set()
         clicker.join()
