@@ -257,6 +257,76 @@ def CHECKS = [
         def fns = api.findAll('LogicalFunction').findAll { f -> allocators(f).any { inside.contains(it) } }
         def bad = fns.findAll { f -> def a = allocators(f); f.ownedFunctions || a.size() != 1 || !isLeafComponent(a[0]) }
         [fns && !bad, "${fns.size()} allocated functions, not leaf-on-leaf exactly once: ${names(bad)}"] },
+    // ---- Experiment 4: Arcadia depth ----
+    machine_modes: { c ->
+        def comp = find(c.component)
+        def machines = comp.ownedStateMachines.findAll { sm -> descendants(sm).count { kind(it) == 'Mode' } >= c.min }
+        if (machines.size() != 1) return [false, "${machines.size()} state machines with >= ${c.min} modes on '${comp.name}'"]
+        def all = descendants(machines[0]), modes = all.findAll { kind(it) == 'Mode' }
+        def transitions = all.findAll { kind(it) == 'StateTransition' }
+        def next = [:].withDefault { [] }
+        transitions.each { next[it.source] << it.target }
+        def initial = all.findAll { kind(it) == 'InitialPseudoState' }
+        def seen = initial as Set, todo = initial.collect()
+        while (todo) { def s = todo.pop(); next[s].each { if (seen.add(it)) todo << it } }
+        def unreachable = modes.findAll { !seen.contains(it) }
+        def untriggered = transitions.findAll { kind(it.source) == 'Mode' && !it.triggers && !it.triggerDescription?.trim() && it.guard == null }
+        def states = all.findAll { kind(it) == 'State' }
+        [initial && !unreachable && !untriggered && !states,
+         "${modes.size()} modes, ${states.size()} states, ${initial.size()} initial; unreachable: ${names(unreachable)}; transitions without trigger or guard: ${untriggered.size()}"] },
+    available_only: { c ->
+        def f = find(c.function), in_ = f.availableInStates
+        [in_.size() == 1 && kind(in_[0]) == 'Mode' && in_[0].name =~ c.pattern, "available in: ${in_.collect { kind(it) + ' ' + it.name }.join('; ')}"] },
+    item_kind: { c ->
+        def items = find(c.exchange).exchangedItems
+        [items && items.every { it.exchangeMechanism.toString() in c.mechanisms }, "items: ${items.collect { it.name + ' ' + it.exchangeMechanism }.join('; ')}"] },
+    item_typed: { c ->
+        def leaves = find(c.exchange).exchangedItems.collectMany { it.ownedElements*.abstractType }.findAll { it != null }
+            .collectMany { t -> kind(t) == 'Class' ? t.ownedFeatures.findAll { kind(it) == 'Property' }*.abstractType.findAll { it != null } : [t] }
+        def quantity = leaves.any { kind(it) == 'PhysicalQuantity' && it.unit != null }, flag = leaves.any { kind(it) == 'BooleanType' }
+        [quantity && flag, "leaf types: ${leaves.collect { kind(it) + ' ' + it.name + (kind(it) == 'PhysicalQuantity' ? ' [' + it.unit?.name + ']' : '') }.join('; ')}"] },
+    transported: { c ->
+        def fe = find(c.exchange)
+        def s = ancestors(owner(endFunction(fe.source))) as Set, t = ancestors(owner(endFunction(fe.target))) as Set
+        def ok = fe.allocatingComponentExchanges.findAll { ce -> def a = endComponent(ce.source), b = endComponent(ce.target)
+            s.contains(a) && t.contains(b) || s.contains(b) && t.contains(a) }
+        [!ok.isEmpty(), "on component exchanges: ${names(fe.allocatingComponentExchanges)}"] },
+    interface_contract: { c ->
+        def faces = api.findAll('Interface').findAll { it.name == c.name && layerOf(it) == 'LA' }
+        if (faces.size() != 1) return [false, "${faces.size()} interfaces named '${c.name}'"]
+        def face = faces[0], items = find(c.exchange).exchangedItems
+        def carried = face.ownedExchangeItemAllocations*.allocatedItem as Set
+        def ports = { comp -> subtree(comp).collectMany { it.ownedFeatures.findAll { kind(it) == 'ComponentPort' } } }
+        def provides = { comp -> subtree(comp).any { it.ownedInterfaceImplementations*.implementedInterface.contains(face) } || ports(comp).any { it.providedInterfaces.contains(face) } }
+        def requires = { comp -> subtree(comp).any { it.ownedInterfaceUses*.usedInterface.contains(face) } || ports(comp).any { it.requiredInterfaces.contains(face) } }
+        def p = find(c.provider), r = find(c.consumer)
+        boolean ok = items && carried.containsAll(items) && provides(p) && requires(r) && !requires(p) && !provides(r)
+        [ok, "carries ${items.count { carried.contains(it) }}/${items.size()} items; provider provides ${provides(p)}, requires ${requires(p)}; consumer requires ${requires(r)}, provides ${provides(r)}"] },
+    missions: { c ->
+        def missions = api.findAll('Mission').findAll { layerOf(it) == 'SA' }
+        def caps = api.findAll('Capability').findAll { layerOf(it) == 'SA' }
+        def used = missions.collectMany { it.ownedCapabilityExploitations*.capability } as Set
+        def idle = missions.findAll { !it.ownedCapabilityExploitations }, unused = caps.findAll { !used.contains(it) }
+        [missions.size() >= c.min && !idle && !unused, "${missions.size()} missions, without exploitation: ${names(idle)}; capabilities not exploited: ${names(unused)}"] },
+    control_function: { c ->
+        def source = find(c.source), consumers = c.consumers.collect { find(it) }
+        def into = { f -> laExchanges().findAll { endFunction(it.target) == f } }, outOf = { f -> laExchanges().findAll { endFunction(it.source) == f } }
+        def hits = api.findAll('LogicalFunction').findAll { it.kind.toString() == c.function_kind && into(it).any { endFunction(it.source) == source } &&
+            consumers.every { k -> outOf(it).any { endFunction(it.target) == k } } }
+        def bypass = outOf(source).findAll { consumers.contains(endFunction(it.target)) }
+        [hits && !bypass, "${hits.size()} ${c.function_kind} functions from the source to every consumer; direct source-to-consumer exchanges: ${names(bypass)}"] },
+    property_group: { c ->
+        def e = find(c.element)
+        def groups = (e.ownedPropertyValueGroups + e.appliedPropertyValueGroups).findAll { it.name =~ c.group }
+        def values = groups.collectMany { it.ownedPropertyValues }
+        def missing = c.values.findAll { w -> !values.any { v -> v.name =~ w.name && (w.type == 'number' ? kind(v) in ['IntegerPropertyValue', 'FloatPropertyValue'] && v.value == w.value : kind(v) == w.type && v.value == w.value) } }
+        [groups && !missing, "${groups.size()} groups; values: ${values.collect { kind(it) + ' ' + it.name + '=' + it.value }.join('; ')}; missing: ${missing*.name.join(', ')}"] },
+    category: { c ->
+        def cats = api.findAll('ExchangeCategory').findAll { it.name == c.name && layerOf(it) == 'LA' }
+        def want = laExchanges().findAll { endFunction(it.target) == find(c.into) }
+        def got = cats.collectMany { it.exchanges } as Set
+        def missing = want.findAll { !got.contains(it) }
+        [cats.size() == 1 && want && !missing, "${cats.size()} categories named so; ${want.size()} exchanges in, not grouped: ${names(missing)}"] },
     diagram_quality: { c ->
         def matches = DialectManager.INSTANCE.getAllRepresentationDescriptors(session).findAll { it.name == c.diagram }
         if (matches.size() != 1) return [false, "${matches.size()} diagrams named '${c.diagram}'"]
@@ -287,7 +357,9 @@ def out = AgentJson.write([
     id: taskJson.id, passed: nativePassed && method.every { it.passed }, native_passed: nativePassed,
     checks: report?.markdownSummary() ?: '', method: method,
     errors: validation.errors, warnings: validation.warnings,
-    unresolved_proxies: proxies, dangling_diagram_elements: dangling, new_diagrams: fresh])
+    unresolved_proxies: proxies, dangling_diagram_elements: dangling, new_diagrams: fresh,
+    // Each raises DWF_D_51; the API cannot set cardinalities, so experiment 4 discounts these errors.
+    eie_without_min_card: api.findAll('ExchangeItemElement').count { it.ownedMinCard == null }])
 // /execute caps a returned value at 200 characters; log lines carry up to 500.
 out.toList().collate(400)*.join().each { log.info('G|' + it) }
 return out.length()
