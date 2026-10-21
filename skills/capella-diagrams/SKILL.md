@@ -46,7 +46,7 @@ log.info("View ${view.name} shows ${functions.size()} functions")
 
 - Allocate functions before adding them; an unallocated function has no box to sit in.
 - Run `layout(view, "auto")` last, after every add. Don't position shapes, ports or bendpoints by hand.
-- Verify with a postcondition: `{"kind":"native_structure","check":{"kind":"diagram_shows","diagram":"Brake system - logical","elements":[...ids...]}}`.
+- Verify with a postcondition: `{"kind":"native_structure","check":{"kind":"diagram_shows","diagram":"Brake system - logical","elements":[{"id":"<uuid>"}, ...]}}`.
 
 Full API: `capella_docs` paths `api/diagram.md`, `api/diagram-layout.md`, `api/style.md`,
 `skills/diagram/SKILL.md`.
