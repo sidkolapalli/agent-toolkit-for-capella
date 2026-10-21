@@ -99,7 +99,7 @@ api.diagram.create("System Data Flow Blank", "My SDFB", saLayer)
 
 ### 2. OAB Diagram Viewpoint
 
-Operational Activity Blank requires viewpoint activation:
+Operational Entity Blank (OAB) requires viewpoint activation:
 
 ```groovy
 def oaLayer = api.layer("OA")

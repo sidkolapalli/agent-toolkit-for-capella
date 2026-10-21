@@ -1096,10 +1096,9 @@ public final class DiagramAPI {
         // List abbreviations with their full names
         if (layer == null || "OA".equalsIgnoreCase(layer)) {
             sb.append("Operational Analysis (OA):\n");
-            sb.append("  OAB  - Operational Activity Blank\n");
-            sb.append("  OAIB - Operational Interaction Blank\n");
+            sb.append("  OAB  - Operational Entity Blank (also OES)\n");
+            sb.append("  OAIB - Operational Activity Interaction Blank\n");
             sb.append("  OCB  - Operational Capabilities Blank\n");
-            sb.append("  OES  - Operational Entity Blank\n");
         }
         if (layer == null || "SA".equalsIgnoreCase(layer)) {
             sb.append("System Analysis (SA):\n");
