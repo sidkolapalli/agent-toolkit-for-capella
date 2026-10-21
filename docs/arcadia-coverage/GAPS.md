@@ -4,6 +4,23 @@ Ranked from [MATRIX.md](MATRIX.md). Rank = how central the concept is to the Arc
 Reference – Activities, "ACT") × how often a real model needs it × how far we are from supporting it. Row
 numbers refer to the matrix.
 
+## Status (2026-10-21)
+
+| Gap | State | Where |
+|---|---|---|
+| a1 scenario content | FS and ES lifelines and ordered messages built; fragments (LOOP/ALT/PAR), references and scenario realization still open | `functionalScenario`, `exchangeScenario`; SCENARIOS.md |
+| a2 non-linear chains | branching and joining chains and OA operational processes built; control nodes, sequence links and composite chains still open | `chain`; CHAINS.md |
+| a3 physical paths | paths and component exchanges on links or paths built | `physicalPath`, `allocateOnLink`; PHYSICAL.md |
+| a4 transitions | every Capella transition kind, LA→PA and PA→EPBS included | `api.ops.transition`; TRANSITIONS.md |
+| a5 REC/RPL, libraries | open | |
+| b1–b6 | taught and measured (experiment 4) | MODES, DATA, INTERFACES, MISSIONS, CONTROL, PROPERTIES |
+| b5 categories, b8 roles and communication means, b9 capability relations | taught; measured in experiment 5 | CATEGORIES, OPERATIONAL, CAPABILITIES |
+| b7 port kind | dropped: Capella's glossary says FLOW vs STANDARD is graphical only | |
+| b10 validation vocabulary | open | |
+
+Also still open in the API: properties on classes (`api.create("Property", …, aClass)` is rejected) and exchange
+item element cardinalities (DWF_D_51).
+
 ## Top 10 overall
 
 | Rank | Gap | Kind | Rows |
