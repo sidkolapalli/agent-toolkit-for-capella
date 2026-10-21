@@ -1,0 +1,209 @@
+{
+ "tasks": [
+  {
+   "id": "fsae-e-charging",
+   "prompt": "Model the car's charging subsystem in the logical architecture (LA): the functions and components involved in charging the accumulator, how they connect to the rest of the car, and the limits that apply.",
+   "brief": [
+    "The charger is an off-board commercial unit that stays in the paddock; no part of it is mounted on the car.",
+    "The charger and the BMS talk over CAN: the BMS sends the current and voltage setpoints and can tell the charger to stop.",
+    "The maximum charge current is 15 A.",
+    "Charging stops when any cell reaches 4.15 V.",
+    "Charging also stops when any cell temperature exceeds 45 °C.",
+    "The charging shutdown circuit runs through an HVIL loop in the charging connector: unplugging the connector opens it."
+   ],
+   "method": [
+    {
+     "kind": "mentions",
+     "fact": "The charger is an off-board commercial unit that stays in the paddock; no part of it is mounted on the car.",
+     "pattern": "(?i)off[- ]?board"
+    },
+    {
+     "kind": "mentions",
+     "fact": "The charger and the BMS talk over CAN: the BMS sends the current and voltage setpoints and can tell the charger to stop.",
+     "pattern": "\\bCAN\\b"
+    },
+    {
+     "kind": "mentions",
+     "fact": "The maximum charge current is 15 A.",
+     "pattern": "\\b15\\s*A\\b"
+    },
+    {
+     "kind": "mentions",
+     "fact": "Charging stops when any cell reaches 4.15 V.",
+     "pattern": "4\\.15\\s*V"
+    },
+    {
+     "kind": "mentions",
+     "fact": "Charging also stops when any cell temperature exceeds 45 °C.",
+     "pattern": "\\b45\\s*°?\\s*C\\b"
+    },
+    {
+     "kind": "mentions",
+     "fact": "The charging shutdown circuit runs through an HVIL loop in the charging connector: unplugging the connector opens it.",
+     "pattern": "(?i)\\bHVIL\\b|high[- ]voltage interlock"
+    },
+    {
+     "kind": "absent",
+     "fact": "The charger is an off-board commercial unit that stays in the paddock; no part of it is mounted on the car.",
+     "pattern": "(?i)on[- ]?board charger"
+    },
+    {
+     "kind": "absent",
+     "fact": "Charging stops when any cell reaches 4.15 V.",
+     "pattern": "4\\.2\\d*\\s*V"
+    },
+    {
+     "kind": "absent",
+     "fact": "Charging also stops when any cell temperature exceeds 45 °C.",
+     "pattern": "\\b60\\s*°?\\s*C\\b"
+    }
+   ]
+  },
+  {
+   "id": "fsae-e-thermal",
+   "prompt": "Model the cooling of the tractive system in the logical architecture (LA): what is cooled, how heat is moved and rejected, and the temperature limits that apply.",
+   "brief": [
+    "Motor and inverter share one liquid loop; the coolant is plain water.",
+    "There is a single radiator, in the left sidepod.",
+    "The radiator fan switches on above 40 °C coolant temperature.",
+    "The inverter derates torque when its coolant inlet exceeds 50 °C.",
+    "The motor derates when its winding temperature reaches 120 °C.",
+    "The accumulator is not on the water loop: it is air-cooled by two fans pulling air through the segments."
+   ],
+   "method": [
+    {
+     "kind": "mentions",
+     "fact": "Motor and inverter share one liquid loop; the coolant is plain water.",
+     "pattern": "(?i)\\bwater\\b"
+    },
+    {
+     "kind": "mentions",
+     "fact": "There is a single radiator, in the left sidepod.",
+     "pattern": "(?i)left sidepod"
+    },
+    {
+     "kind": "mentions",
+     "fact": "The radiator fan switches on above 40 °C coolant temperature.",
+     "pattern": "\\b40\\s*°?\\s*C\\b"
+    },
+    {
+     "kind": "mentions",
+     "fact": "The inverter derates torque when its coolant inlet exceeds 50 °C.",
+     "pattern": "\\b50\\s*°?\\s*C\\b"
+    },
+    {
+     "kind": "mentions",
+     "fact": "The motor derates when its winding temperature reaches 120 °C.",
+     "pattern": "\\b120\\s*°?\\s*C\\b"
+    },
+    {
+     "kind": "mentions",
+     "fact": "The accumulator is not on the water loop: it is air-cooled by two fans pulling air through the segments.",
+     "pattern": "(?i)air[- ]?cool"
+    },
+    {
+     "kind": "absent",
+     "fact": "Motor and inverter share one liquid loop; the coolant is plain water.",
+     "pattern": "(?i)glycol"
+    },
+    {
+     "kind": "absent",
+     "fact": "The accumulator is not on the water loop: it is air-cooled by two fans pulling air through the segments.",
+     "pattern": "(?i)cold ?plate"
+    }
+   ]
+  },
+  {
+   "id": "fsae-e-drive",
+   "prompt": "Model the drive subsystem in the logical architecture (LA): how the driver's torque request becomes wheel torque, with the components and exchanges involved.",
+   "brief": [
+    "One motor drives the rear axle through a chain drive.",
+    "The motor is an Emrax 228, an axial-flux permanent-magnet motor.",
+    "The inverter is a Cascadia PM100.",
+    "The VCU sends the torque request to the inverter over CAN every 10 ms.",
+    "The torque request is capped at 180 N·m at the motor.",
+    "There is no differential: the rear axle is a spool."
+   ],
+   "method": [
+    {
+     "kind": "mentions",
+     "fact": "One motor drives the rear axle through a chain drive.",
+     "pattern": "(?i)chain drive"
+    },
+    {
+     "kind": "mentions",
+     "fact": "The motor is an Emrax 228, an axial-flux permanent-magnet motor.",
+     "pattern": "(?i)emrax|axial[- ]flux"
+    },
+    {
+     "kind": "mentions",
+     "fact": "The inverter is a Cascadia PM100.",
+     "pattern": "(?i)\\bPM100\\b|cascadia"
+    },
+    {
+     "kind": "mentions",
+     "fact": "The VCU sends the torque request to the inverter over CAN every 10 ms.",
+     "pattern": "\\b10\\s*ms\\b"
+    },
+    {
+     "kind": "mentions",
+     "fact": "The torque request is capped at 180 N·m at the motor.",
+     "pattern": "\\b180\\s*N\\s*[·.\\-]?\\s*m\\b"
+    },
+    {
+     "kind": "mentions",
+     "fact": "There is no differential: the rear axle is a spool.",
+     "pattern": "(?i)\\bspool\\b"
+    },
+    {
+     "kind": "absent",
+     "fact": "One motor drives the rear axle through a chain drive.",
+     "pattern": "(?i)hub motor|in-wheel|four[- ]wheel drive|\\b4WD\\b|\\bAWD\\b"
+    }
+   ]
+  },
+  {
+   "id": "fsae-e-charging-ops",
+   "prompt": "Model how the team charges the accumulator at competition, in the operational analysis (OA): who takes part, what each of them does, and where.",
+   "brief": [
+    "Charging happens only in the charging area of the paddock.",
+    "The accumulator is taken out of the car and charged on the team's charging cart.",
+    "Only the ESO starts charging, with a key switch on the charging cart.",
+    "A second team member stands fire watch for the whole charge.",
+    "The ESO keeps a charging log, signed at the start and the end of each charge."
+   ],
+   "method": [
+    {
+     "kind": "mentions",
+     "fact": "Charging happens only in the charging area of the paddock.",
+     "pattern": "(?i)charging area"
+    },
+    {
+     "kind": "mentions",
+     "fact": "The accumulator is taken out of the car and charged on the team's charging cart.",
+     "pattern": "(?i)charging cart"
+    },
+    {
+     "kind": "mentions",
+     "fact": "Only the ESO starts charging, with a key switch on the charging cart.",
+     "pattern": "(?i)key[- ]?switch"
+    },
+    {
+     "kind": "mentions",
+     "fact": "A second team member stands fire watch for the whole charge.",
+     "pattern": "(?i)fire[- ]?watch"
+    },
+    {
+     "kind": "mentions",
+     "fact": "The ESO keeps a charging log, signed at the start and the end of each charge.",
+     "pattern": "(?i)charg(ing|e) log(book)?\b"
+    },
+    {
+     "kind": "absent",
+     "fact": "The accumulator is taken out of the car and charged on the team's charging cart.",
+     "pattern": "(?i)charg\\w* (in|inside) the (car|vehicle)"
+    }
+   ]
+  }
+ ]
+}

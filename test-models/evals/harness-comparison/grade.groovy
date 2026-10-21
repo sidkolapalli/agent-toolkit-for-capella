@@ -168,8 +168,33 @@ def quality = { dd ->
 def shownTargets = { dd -> dd.diagramElements.findAll { !(it instanceof DEdge) }*.target.collectMany { it != null && kind(it) == 'Part' ? [it, it.abstractType] : [it] } as Set }
 def shownEdges = { dd -> dd.diagramElements.findAll { it instanceof DEdge }*.target as Set }
 
+// ---- Elicitation: the text of every Capella element (names, descriptions, constraint bodies, property values) ----
+// Requirements (Requirements Viewpoint) are left out: they quote the rules, not the team's decisions.
+def corpus = null
+def texts = {
+    if (corpus == null) {
+        corpus = []
+        for (r in session.semanticResources) {
+            def all = r.allContents
+            while (all.hasNext()) {
+                def o = all.next()
+                if (!o.eClass().EPackage.nsURI.contains('/capella/core/')) continue
+                def text = o.eClass().EAllAttributes.findAll { !(it.name in ['id', 'sid']) }
+                    .collect { a -> def v = o.eGet(a); v instanceof Collection ? v.join(' ') : v }
+                    .findAll { it instanceof String || it instanceof Number }.join(' ')
+                if (text) corpus << [o, text]
+            }
+        }
+    }
+    corpus
+}
+def matching = { c -> def p = java.util.regex.Pattern.compile(c.pattern); texts().findAll { p.matcher(it[1]).find() }*.getAt(0) }
+def labels = { list -> list.take(3).collect { kind(it) + (it.respondsTo('getName') && it.name ? " '${it.name}'" : '') }.join('; ') }
+
 // ---- Method checks: each returns [passed, detail] ----
 def CHECKS = [
+    mentions: { c -> def hits = matching(c); [!hits.isEmpty(), "${hits.size()} elements match /${c.pattern}/: ${labels(hits)}"] },
+    absent: { c -> def hits = matching(c); [hits.isEmpty(), "${hits.size()} elements match /${c.pattern}/: ${labels(hits)}"] },
     children_at_least: { c -> def n = find(c.parent).ownedFunctions.size(); [n >= c.min, "${n} children"] },
     leaves_realized: { c ->
         def leaves = leavesUnder(find(c.parent)), missing = leaves.findAll { realizers(it).isEmpty() }
