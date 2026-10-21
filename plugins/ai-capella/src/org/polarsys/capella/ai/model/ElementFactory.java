@@ -23,6 +23,10 @@ import org.polarsys.capella.core.data.epbs.EPBSArchitecture;
 import org.polarsys.capella.core.data.epbs.EpbsPackage;
 import org.polarsys.capella.core.data.fa.AbstractFunction;
 import org.polarsys.capella.core.data.fa.FaPackage;
+import org.polarsys.capella.core.data.information.InformationPackage;
+import org.polarsys.capella.core.data.information.MultiplicityElement;
+import org.polarsys.capella.core.data.information.datavalue.DatavalueFactory;
+import org.polarsys.capella.core.data.information.datavalue.LiteralNumericValue;
 import org.polarsys.capella.core.model.helpers.BlockArchitectureExt;
 
 import java.util.ArrayDeque;
@@ -84,6 +88,7 @@ public final class ElementFactory {
                     if (obj instanceof Component component) {
                         createRepresentingPart(component);
                     }
+                    defaultCardinality(obj);
 
                     // Record operation for label inference
                     OperationInferencer.recordCreate(simpleEClassName, name);
@@ -105,13 +110,36 @@ public final class ElementFactory {
         // A Capella constraint must use the concrete native classifier regardless
         // of EMF registry iteration order.
         if ("Constraint".equals(simpleName)) return CapellacorePackage.Literals.CONSTRAINT;
+        // Other registered packages (Sirius, Kitalpha) reuse names such as Property: prefer Capella's.
+        EClass other = null;
         for (Object v : EPackage.Registry.INSTANCE.values()) {
             if (v instanceof EPackage) {
                 EClass c = findEClassRec((EPackage) v, simpleName);
-                if (c != null) return c;
+                if (c != null && c.getEPackage().getNsURI().contains("/capella/core/")) return c;
+                if (other == null) other = c;
             }
         }
-        return null;
+        return other;
+    }
+
+    /**
+     * New class properties and exchange item elements get [1..1], as Capella's creation tools give
+     * them; without a minimum cardinality each is a DWF_D_51 validation error.
+     */
+    public static void defaultCardinality(EObject element) {
+        if (!(element instanceof MultiplicityElement multiplicity)
+                || element.eClass() != InformationPackage.Literals.PROPERTY
+                        && element.eClass() != InformationPackage.Literals.EXCHANGE_ITEM_ELEMENT)
+            return;
+        if (multiplicity.getOwnedMinCard() == null) multiplicity.setOwnedMinCard(one());
+        if (multiplicity.getOwnedMaxCard() == null) multiplicity.setOwnedMaxCard(one());
+    }
+
+    private static LiteralNumericValue one() {
+        LiteralNumericValue value = DatavalueFactory.eINSTANCE.createLiteralNumericValue();
+        value.setId(java.util.UUID.randomUUID().toString());
+        value.setValue("1");
+        return value;
     }
 
     private static EClass findEClassRec(EPackage pkg, String simpleName) {
