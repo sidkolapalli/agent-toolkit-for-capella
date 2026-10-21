@@ -301,7 +301,7 @@ Experiments 2 and 3 found no gain: their tasks used parts of Arcadia the agent a
 
 Held constant: the installed plugin build (commit recorded at the start), the skills frozen at a commit recorded at
 the start (the pointer-style depth skill is written after this protocol; its commit is recorded here before the
-pilot: **TBD-at-start**), the agent context line, tools and limits of experiment 2.
+pilot: **d9b2f9d**, the four experiment-2 skills plus `arcadia-depth`; `arcadia-elicit` is left out because these tasks have no one to answer questions; plugin build 0.2.1.202610211401 from 4e75156, with `capella-help`), the agent context line, tools and limits of experiment 2.
 
 ## Tasks
 
