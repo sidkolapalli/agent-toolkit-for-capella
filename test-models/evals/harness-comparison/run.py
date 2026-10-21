@@ -4,6 +4,7 @@ A  bare Codex CLI: shell + capellambse on a copy of the model files, no Capella.
 B  bare Codex CLI + the plugin's MCP server on a live Capella (edits approved by this script's clicker).
 C  the plugin's own agent loop through /eval.
 S  B plus the toolkit skills in the agent's .agents/skills, where Codex discovers them (experiment 2).
+K  as B with headless Claude Code as the agent; KS adds the skills in its .claude/skills.
 Every run starts from a fresh copy of the pristine model and is scored by grade.groovy in a fresh Capella.
 """
 import json, pathlib, shutil, subprocess, sys, threading, time
@@ -13,11 +14,12 @@ HERE = capella.HERE
 RESULTS = HERE / "results"
 CODEX = r"<local-path>"
 PYTHON = HERE / "bare-venv" / "Scripts" / "python.exe"
-PORTS = {"A": 8781, "B": 8782, "C": 8783, "S": 8784}
-SKILLS = HERE.parents[2] / "skills"
+PORTS = {"A": 8781, "B": 8782, "C": 8783, "S": 8784, "K": 8785, "KS": 8786}
+SKILLS = pathlib.Path(capella.os.environ.get("TOOLKIT_SKILLS", HERE.parents[2] / "skills"))
 AGENT_LIMIT = 1800  # seconds per task, every arm
 MODEL = "gpt-6.1-sol"  # what the plugin's runtime uses: model and effort from ~/.codex/config.toml
 EFFORT = "ultra"
+CLAUDE_MODEL = "claude-sonnet-5-5"
 
 CONTEXT_A = f"""You are working on a Capella 7.0 model (Arcadia method) of a Formula SAE 2027 electric vehicle.
 The project is in ./FSAE-2027-Electric-Arcadia. Capella is not running: change the model files directly.
@@ -78,6 +80,35 @@ def codex(cwd, out, prompt, sandbox, extra=()):
     return {"exit": code, "agent_seconds": round(time.time() - started), "usage": usage}
 
 
+def claude(cwd, out, prompt, port):
+    """Headless Claude Code with only the capella MCP server: no user settings, plugins or other MCP servers."""
+    config = out / "mcp.json"
+    config.write_text(json.dumps({"mcpServers": {"capella": {
+        "type": "http", "url": f"http://127.0.0.1:{port}/mcp",
+        "headers": {"Authorization": f"Bearer {capella.TOKEN}"}}}}), "utf-8")
+    command = [shutil.which("claude"), "-p", "--output-format", "stream-json", "--verbose", "--model", CLAUDE_MODEL,
+               "--setting-sources", "project,local", "--strict-mcp-config", "--mcp-config", str(config),
+               "--no-session-persistence", "--allowedTools", "mcp__capella", "Skill", "Read", "Glob", "Grep",
+               "--disallowedTools", "Bash", "PowerShell", "Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch",
+               "Agent"]
+    started = time.time()
+    with open(out / "events.jsonl", "wb") as events, open(out / "claude-stderr.log", "wb") as errors:
+        try:
+            code = subprocess.run(command, input=prompt.encode("utf-8"), stdout=events, stderr=errors, cwd=cwd,
+                                  timeout=AGENT_LIMIT).returncode
+        except subprocess.TimeoutExpired:
+            code = "timeout"
+    run = {"exit": code, "agent_seconds": round(time.time() - started)}
+    for line in (out / "events.jsonl").read_text("utf-8", "replace").splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if event.get("type") == "result":
+            run.update(usage=event.get("usage"), cost_usd=event.get("total_cost_usd"), turns=event.get("num_turns"))
+    return run
+
+
 def scored(ws, port, task, extra):
     pid = capella.launch(ws, port)
     try:
@@ -98,8 +129,8 @@ def arm_a(task, rep):
 def arm_b(task, rep, arm="B"):
     ws = workspace(arm, task, rep)
     (ws / "agent").mkdir()
-    if arm == "S":
-        shutil.copytree(SKILLS, ws / "agent" / ".agents" / "skills")
+    if arm in ("S", "KS"):
+        shutil.copytree(SKILLS, ws / "agent" / (".agents" if arm == "S" else ".claude") / "skills")
     port = PORTS[arm]
     pid = capella.launch(ws, port)
     try:
@@ -117,7 +148,9 @@ def arm_b(task, rep, arm="B"):
                "-c", 'mcp_servers.capella.bearer_token_env_var="CAPELLA_MCP_TOKEN"',
                # Codex's own per-call approval; the Capella review dialog still runs.
                "-c", 'mcp_servers.capella.tools.propose_model_edit.approval_mode="approve"']
-        run = codex(ws / "agent", ws, CONTEXT_B + capella.TASKS[task]["prompt"], "read-only", mcp)
+        prompt = CONTEXT_B + capella.TASKS[task]["prompt"]
+        run = (claude(ws / "agent", ws, prompt, port) if arm.startswith("K")
+               else codex(ws / "agent", ws, prompt, "read-only", mcp))
         done.set()
         clicker.join()
         return {"loaded": True, **capella.grade(port, task), **run}
@@ -172,12 +205,12 @@ def wait_for_quota():
 
 if __name__ == "__main__":
     arm, reps, chosen = sys.argv[1], [int(r) for r in sys.argv[2].split(",")], sys.argv[3:]
-    runner = {"A": arm_a, "B": arm_b, "C": arm_c, "S": lambda task, rep: arm_b(task, rep, "S")}[arm]
+    runner = {"A": arm_a, "B": arm_b, "C": arm_c}.get(arm) or (lambda task, rep: arm_b(task, rep, arm))
     for rep in reps:
         for task in chosen or list(capella.TASKS):
             target = RESULTS / arm / f"{task}-r{rep}.json"
             while not target.exists():
-                if not wait_for_quota():
+                if not arm.startswith("K") and not wait_for_quota():
                     print(arm, "stopped: weekly Codex cap reached", flush=True)
                     sys.exit(0)
                 try:

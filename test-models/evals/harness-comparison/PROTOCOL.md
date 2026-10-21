@@ -159,3 +159,12 @@ It is **rewritten** when it wins nothing and loses nothing. It is **dropped** wh
 
 `capella-model-edits` and `capella-setup` have no tasks of their own. They are kept only if B+S shows no integrity
 regression and the pilot shows them read.
+
+## Experiment 2, amendment 1 (2026-10-21, before any scored run)
+
+The Codex quota is spent until 2026-10-27, so experiment 2 runs first with headless Claude Code as the bare agent
+(`run.py K` and `KS`, model `claude-sonnet-5-5`), then repeats with Codex (`B` and `S`) after the reset.
+Everything else in the protocol holds. K and KS run `claude -p` with `--setting-sources project,local` (no user
+settings or plugins), `--strict-mcp-config` with only the `capella` server, and no shell or file-write tools; KS
+adds the skills in the agent's `.claude/skills`. Claude Code's built-in skills are present in both arms. The
+two agents are analysed separately: the question is skills versus no skills within one agent.
