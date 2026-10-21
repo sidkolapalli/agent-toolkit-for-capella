@@ -3,8 +3,9 @@ import json, os, pathlib, subprocess, time, urllib.request
 
 HERE = pathlib.Path(__file__).parent
 TOKEN = "capella-ai-scratch-token-0001"
-TASKS = {t["id"]: t for t in json.loads(
-    pathlib.Path(r"<local-path>").read_text("utf-8"))["tasks"]}
+# EVAL_TASKS picks the task file: fsae-2027.json (experiment 1) or fsae-2027-method.json (experiment 2).
+TASKS = {t["id"]: t for t in json.loads(pathlib.Path(os.environ.get(
+    "EVAL_TASKS", r"<local-path>")).read_text("utf-8"))["tasks"]}
 PRISTINE = HERE / "pristine-diagrams.json"
 
 
