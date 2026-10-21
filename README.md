@@ -56,11 +56,12 @@ The Codex thread ID is persisted with each model's local conversation and resume
 Any MCP client (Claude Code, Codex, ...) can work on the model open in Capella through the plugin's MCP server, with every edit still reviewed by a person in Capella. [`skills/`](skills) holds agent skills that teach the method and the workflow:
 
 - [`capella-setup`](skills/capella-setup/SKILL.md): start the server and register it with your agent.
+- [`arcadia-elicit`](skills/arcadia-elicit/SKILL.md): interview the user (experience, purpose, then the design decisions in Arcadia order) before modelling a new system.
 - [`arcadia-method`](skills/arcadia-method/SKILL.md): which perspective a change belongs in and what to check before claiming it is right.
 - [`capella-model-edits`](skills/capella-model-edits/SKILL.md): read tools, reviewed edit proposals, receipts and repair.
 - [`capella-diagrams`](skills/capella-diagrams/SKILL.md): which view answers which question, and how to build it through the API.
 
-Copy the folders into your agent's skills directory: `.claude/skills/` (Claude Code) or `.agents/skills/` (Codex), in your project or home directory, then run `/capella-setup` (Codex: `$capella-setup`). Setup runs only when you call it; the other three skills load on their own when a task needs them.
+Copy the folders into your agent's skills directory: `.claude/skills/` (Claude Code) or `.agents/skills/` (Codex), in your project or home directory, then run `/capella-setup` (Codex: `$capella-setup`). Setup runs only when you call it; the other skills load on their own when a task needs them.
 
 ## Working with models
 

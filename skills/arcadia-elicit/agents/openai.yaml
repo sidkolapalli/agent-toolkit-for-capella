@@ -1,0 +1,12 @@
+interface:
+  display_name: "Arcadia Elicitation"
+  short_description: "Interview the user about the system before modelling it"
+policy:
+  allow_implicit_invocation: true
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "capella"
+      description: "Capella AI MCP server on the model open in Capella"
+      transport: "streamable_http"
+      url: "http://127.0.0.1:8765/mcp"
