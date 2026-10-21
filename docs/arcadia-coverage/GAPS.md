@@ -20,7 +20,7 @@ numbers refer to the matrix.
 | 10 | Non-functional properties as property values and groups (safety, performance data per element) | b | 73 |
 
 Method-only activities (architecture drivers, candidate architectures and trade-offs, IVVQ strategy; rows 58,
-76) have no native metaclass: they belong in skills (`arcadia-elicit`, `arcadia-method`) as questions and
+76) have no native metaclass: they belong in skills (`arcadia-elicit`) as questions and
 checklists, pointing at ACT 5.2.2.1–5.2.2.4 and 5.3.1, not in the API.
 
 ## (a) The API cannot create it (Java work)

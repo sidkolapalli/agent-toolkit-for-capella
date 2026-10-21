@@ -9,7 +9,7 @@ Interview the user until you share one understanding of the system, then model i
 Matt Pocock's [`grilling`](https://github.com/mattpocock/skills/blob/main/skills/productivity/grilling/SKILL.md) (MIT).
 
 A request whose every decision is already fixed (named elements, owners, perspective), or a user who
-says to just build it, goes straight to `arcadia-method` and `capella-model-edits`.
+says to just build it, goes straight to building.
 
 ## Model facts, team knowledge, decisions
 

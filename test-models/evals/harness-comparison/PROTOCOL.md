@@ -427,3 +427,11 @@ As experiment 4. Each new file is judged on its own task: **kept** when, for at 
 more often with the skill and no less often for the other; **not shown** when no arm differs (the file stays only if
 it is cheap and correct, and is marked untested in the skill's coverage). The regression arm must pass at least
 17/18 valid tasks; otherwise the larger skill is reverted.
+
+## Experiment 2, decision applied (2026-10-21)
+
+Experiment 2's rule called for the four first skills to be rewritten. On review, three of them restated what every
+agent already gets from the MCP server's tool descriptions and `capella_docs` (the perspective outline and method
+rules, the propose/receipt/repair workflow, the diagram-per-question table in `api/diagram.md`), which explains the
+null result. Rather than rewrite them, `arcadia-method`, `capella-model-edits` and `capella-diagrams` are removed;
+`capella-setup` stays (user-invoked installation, which no eval measures). Experiments 4 and 5 keep their frozen copies.
