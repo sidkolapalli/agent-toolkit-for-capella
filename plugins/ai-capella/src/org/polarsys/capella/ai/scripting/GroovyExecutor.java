@@ -22,6 +22,7 @@ import org.eclipse.swt.widgets.Display;
 import org.polarsys.capella.ai.preferences.LLMPreferences;
 import org.polarsys.capella.ai.privacy.Tokenizer;
 import org.polarsys.capella.ai.session.SessionSafeguards;
+import org.polarsys.capella.ai.tools.DiagramCommands;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -270,7 +271,7 @@ public final class GroovyExecutor {
                 return ExecutionResult.fail(
                         ExecutionResult.ErrorCode.API_ERROR,
                         "Run scripts from a background thread outside an existing model"
-                            + " transaction");
+                                + " transaction");
             }
             if (parent.session() != session) {
                 return recordNestedFailure(
@@ -292,7 +293,7 @@ public final class GroovyExecutor {
             return ExecutionResult.fail(
                     ExecutionResult.ErrorCode.API_ERROR,
                     "Run scripts from a background thread; the SWT UI thread cannot wait for model"
-                        + " execution");
+                            + " execution");
         }
         SessionSafeguards.ExecutionControl control =
                 new SessionSafeguards.ExecutionControl(timeoutMs);
@@ -352,6 +353,7 @@ public final class GroovyExecutor {
                 };
 
         Future<Object> future = null;
+        DiagramCommands.discardPending();
         try {
             future = EXECUTOR.submit(task);
             Object result;
@@ -365,7 +367,7 @@ public final class GroovyExecutor {
             }
 
             long duration = System.currentTimeMillis() - startTime;
-
+            DiagramCommands.openPending();
             return ExecutionResult.success(result, logger.getMessages(), duration);
         } catch (java.util.concurrent.ExecutionException e) {
             Throwable cause = e.getCause();
@@ -551,7 +553,7 @@ public final class GroovyExecutor {
                     saveFailure != null
                             ? saveFailure.getMessage()
                             : "Model changes were applied, but saving was not confirmed. Save the"
-                                  + " model; do not rerun the script.",
+                                    + " model; do not rerun the script.",
                     saveFailure != null ? getStackTrace(saveFailure) : null,
                     logger.getMessages(),
                     duration);

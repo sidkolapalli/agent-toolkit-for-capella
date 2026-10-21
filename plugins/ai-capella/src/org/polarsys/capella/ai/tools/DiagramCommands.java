@@ -66,6 +66,31 @@ public final class DiagramCommands {
         return lastOpened;
     }
 
+    // ponytail: one queue for all sessions; scripts run one at a time.
+    private static final java.util.List<Runnable> PENDING_OPENS =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    /**
+     * Opens an editor now, or after the running script commits: an editor opened inside the
+     * script's transaction re-arranges the script's layout on its next refresh.
+     */
+    public static void openWhenCommitted(Runnable open) {
+        if (SessionSafeguards.isInWriteContext()) PENDING_OPENS.add(open);
+        else open.run();
+    }
+
+    /** Called once the script has committed. */
+    public static void openPending() {
+        for (Runnable open : PENDING_OPENS) {
+            PENDING_OPENS.remove(open);
+            open.run();
+        }
+    }
+
+    public static void discardPending() {
+        PENDING_OPENS.clear();
+    }
+
     /** Create and open a diagram for the given target using a description name. */
     public static DRepresentation createAndOpenDiagram(
             EObject target, String descriptionName, String diagramName) {
@@ -138,16 +163,20 @@ public final class DiagramCommands {
                 });
 
         if (rep[0] != null) {
-            SessionSafeguards.runOnUiThread(
-                    () -> {
-                        try {
-                            DialectUIManager.INSTANCE.openEditor(
-                                    session, rep[0], new NullProgressMonitor());
-                            lastOpened = rep[0];
-                        } catch (Exception e) {
-                            LOG.warning("Failed to open diagram editor: " + e.getMessage());
-                        }
-                    });
+            lastOpened = rep[0];
+            openWhenCommitted(
+                    () ->
+                            SessionSafeguards.runOnUiThread(
+                                    () -> {
+                                        try {
+                                            DialectUIManager.INSTANCE.openEditor(
+                                                    session, rep[0], new NullProgressMonitor());
+                                        } catch (Exception e) {
+                                            LOG.warning(
+                                                    "Failed to open diagram editor: "
+                                                            + e.getMessage());
+                                        }
+                                    }));
         }
         return rep[0];
     }

@@ -181,6 +181,37 @@ public class DiagramSessionOwnershipTest {
         assertUnchanged(main, referenced, semantic);
     }
 
+    @Test
+    public void aDiagramCreatedByAScriptOpensOnlyAfterTheScriptCommits() {
+        // An editor opened inside the script's transaction later re-arranges the laid-out views.
+        fixture = new Fixture(false, false);
+        AtomicInteger opened = new AtomicInteger();
+        DiagramCommands.openWhenCommitted(opened::incrementAndGet);
+        assertEquals("Outside a script it opens at once", 1, opened.get());
+        SessionSafeguards.runWrite(
+                fixture.session,
+                "Script",
+                () -> {
+                    DiagramCommands.openWhenCommitted(opened::incrementAndGet);
+                    assertEquals(1, opened.get());
+                    return null;
+                });
+        DiagramCommands.openPending();
+        assertEquals(2, opened.get());
+        DiagramCommands.openPending();
+        assertEquals("Each pending editor opens once", 2, opened.get());
+        SessionSafeguards.runWrite(
+                fixture.session,
+                "Rolled-back script",
+                () -> {
+                    DiagramCommands.openWhenCommitted(opened::incrementAndGet);
+                    return null;
+                });
+        DiagramCommands.discardPending();
+        DiagramCommands.openPending();
+        assertEquals("A failed script opens nothing", 2, opened.get());
+    }
+
     private void assertRejectedLifecycle() throws Exception {
         assertSame(
                 fixture.descriptor,
