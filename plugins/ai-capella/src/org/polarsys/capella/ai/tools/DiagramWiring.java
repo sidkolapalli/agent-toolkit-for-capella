@@ -123,19 +123,19 @@ final class DiagramWiring {
                                                                     - size / 2));
                                     switch (side) {
                                         case EAST -> {
-                                            port.setX(frame.getWidth() - port.getWidth() / 2);
+                                            port.setX(frame.getWidth() - ElkDiagramLayout.PORT_INSET);
                                             port.setY(along);
                                         }
                                         case WEST -> {
-                                            port.setX(-port.getWidth() / 2);
+                                            port.setX(ElkDiagramLayout.PORT_INSET - port.getWidth());
                                             port.setY(along);
                                         }
                                         case SOUTH -> {
-                                            port.setY(frame.getHeight() - port.getHeight() / 2);
+                                            port.setY(frame.getHeight() - ElkDiagramLayout.PORT_INSET);
                                             port.setX(along);
                                         }
                                         case NORTH -> {
-                                            port.setY(-port.getHeight() / 2);
+                                            port.setY(ElkDiagramLayout.PORT_INSET - port.getHeight());
                                             port.setX(along);
                                         }
                                     }

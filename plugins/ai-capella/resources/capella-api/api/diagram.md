@@ -20,7 +20,8 @@ def diagram = api.diagram.createSafe("SAB", "My Diagram", saRoot)
 
 | Type | Name | Layer |
 |------|------|-------|
-| `OAB` | Operational Activity Blank | OA |
+| `OAB` (or `OES`) | Operational Entity Blank | OA |
+| `OAIB` | Operational Activity Interaction Blank | OA |
 | `OEBD` | Operational Entity Breakdown | OA |
 | `SAB` | System Architecture Blank | SA |
 | `SDFB` | System Data Flow Blank | SA |

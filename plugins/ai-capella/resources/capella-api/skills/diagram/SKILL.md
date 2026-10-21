@@ -15,8 +15,8 @@ Create and populate Capella diagrams.
 
 | Abbrev | Full Name | Layer |
 |--------|-----------|-------|
-| OAB | Operational Activity Blank | OA |
-| OES | Operational Entity Blank | OA |
+| OAB (or OES) | Operational Entity Blank | OA |
+| OAIB | Operational Activity Interaction Blank | OA |
 | OCB | Operational Capabilities Blank | OA |
 | SAB | System Architecture Blank | SA |
 | SDFB | System Data Flow Blank | SA |

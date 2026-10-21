@@ -67,6 +67,8 @@ final class ElkDiagramLayout {
 
     /** Default Sirius border node size used by Capella ports. */
     private static final int PORT_SIZE = 10;
+    /** Sirius keeps border nodes this far inside their parent (IBorderItemOffsets.DEFAULT_OFFSET). */
+    static final int PORT_INSET = 8;
 
     private static final int GAP = 20;
 
@@ -331,8 +333,8 @@ final class ElkDiagramLayout {
                 if (bounds.getHeight() <= 0) bounds.setHeight(PORT_SIZE);
                 ElkPort port = ElkGraphUtil.createPort(shape);
                 port.setDimensions(bounds.getWidth(), bounds.getHeight());
-                // Sirius draws border nodes centred on the border.
-                port.setProperty(CoreOptions.PORT_BORDER_OFFSET, -bounds.getWidth() / 2.0);
+                // Where Sirius snaps border nodes; anywhere else an open editor moves them.
+                port.setProperty(CoreOptions.PORT_BORDER_OFFSET, (double) -PORT_INSET);
                 graph.ports.put(child, port);
             } else if (isShape(element)
                     && bounds(child) != null
@@ -346,8 +348,11 @@ final class ElkDiagramLayout {
                                 : container ? CONTAINER_HEIGHT : NODE_HEIGHT;
                 ElkNode node = ElkGraphUtil.createNode(parent);
                 node.setDimensions(width, height);
+                // Room for every port: Sirius moves overlapping border nodes to another side.
                 node.setProperty(
-                        CoreOptions.NODE_SIZE_CONSTRAINTS, EnumSet.of(SizeConstraint.MINIMUM_SIZE));
+                        CoreOptions.NODE_SIZE_CONSTRAINTS,
+                        EnumSet.of(SizeConstraint.MINIMUM_SIZE, SizeConstraint.PORTS));
+                node.setProperty(CoreOptions.SPACING_PORT_PORT, (double) GAP / 2);
                 node.setProperty(CoreOptions.NODE_SIZE_MINIMUM, new KVector(width, height));
                 node.setProperty(CoreOptions.PORT_CONSTRAINTS, PortConstraints.FREE);
                 node.setProperty(

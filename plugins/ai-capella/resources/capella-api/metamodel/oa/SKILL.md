@@ -53,6 +53,7 @@ log.info("Created OA structure")
 
 ## Diagram Types
 
-- `OAB` - Operational Activity Blank
+- `OAB` (or `OES`) - Operational Entity Blank
+- `OAIB` - Operational Activity Interaction Blank
 - `OEBD` - Operational Entity Breakdown
 - `OCB` - Operational Capabilities Blank
