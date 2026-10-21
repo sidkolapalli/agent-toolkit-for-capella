@@ -103,12 +103,74 @@ TASKS = [
      "method": [{"kind": "category", "name": "FSAE2027:Shutdown trip", "into": lf("FSAE2027:SD Accept independent shutdown trips")}]},
 ]
 
-if __name__ == "__main__":
-    doc = {"description": "Arcadia-depth FSAE 2027 tasks for experiment 4 (bare agent + MCP, with and without skills, "
-                          "Sonnet and Haiku). Scored by native checks (if any) and method checks in "
-                          "harness-comparison/grade.groovy.",
+
+def ent(name):
+    return {"type": "Entity", "name": name, "layer": "OA"}
+
+
+def cap(name):
+    return {"type": "Capability", "name": name, "layer": "SA"}
+
+
+TEAM = ent("FSAE2027:Team personnel Operational actor")
+VEHICLE = ent("FSAE2027:Vehicle in operational context")
+INSPECTION = ["FSAE2027:VP Inspect protection geometry and inject brake failures",
+              "FSAE2027:SD Demonstrate every shutdown feature and fault effect",
+              "FSAE2027:DD Provide and exercise safe inspection interfaces",
+              "FSAE2027:process Inspect and present the vehicle"]
+
+# Experiment 5: the second batch of depth files, plus the categories task reworded (PROTOCOL.md, experiment 5).
+TASKS_5 = [
+    {"id": "fsae-d-roles", "skill": "arcadia-method",
+     "prompt": "At technical inspection the team personnel play one coherent part, 'FSAE2027:Inspection presenter', made "
+               "up of these operational activities: " + ", ".join(f"'{a}'" for a in INSPECTION) + ". Model that part in "
+               "the operational analysis the Arcadia way, so it could later be handed to another entity, and say that "
+               "'FSAE2027:Team personnel Operational actor' plays it.",
+     "checks": [],
+     "method": [{"kind": "role", "name": "FSAE2027:Inspection presenter", "entity": TEAM,
+                 "activities": [{"type": "OperationalActivity", "name": a, "layer": "OA"} for a in INSPECTION]}]},
+    {"id": "fsae-d-communication", "skill": "arcadia-method",
+     "prompt": "In the operational analysis, the team personnel and the vehicle exchange inspection stimuli and responses. "
+               "Model the means by which 'FSAE2027:Team personnel Operational actor' and 'FSAE2027:Vehicle in operational "
+               "context' communicate, name it 'FSAE2027:Inspection access', and make every operational interaction between "
+               "their activities travel on it.",
+     "checks": [],
+     "method": [{"kind": "communication_mean", "name": "FSAE2027:Inspection access", "a": TEAM, "b": VEHICLE}]},
+    {"id": "fsae-d-capabilities", "skill": "arcadia-method",
+     "prompt": "Record in the system analysis how three capabilities depend on each other. Charging the car always "
+               "performs energy storage as part of it: 'FSAE2027:charging System capability' and 'FSAE2027:energy-storage "
+               "System capability'. The status indications optionally add behaviour to a shutdown: "
+               "'FSAE2027:status System capability' and 'FSAE2027:shutdown System capability'. And add a new capability "
+               "'FSAE2027:Regenerative braking System capability', a specialised form of 'FSAE2027:brakes System "
+               "capability'.",
+     "checks": [{"kind": "element_exists", "type": "Capability", "name": "FSAE2027:Regenerative braking System capability", "layer": "SA"}],
+     "method": [{"kind": "capability_relation", "relation": "include", "from": cap("FSAE2027:charging System capability"),
+                 "to": cap("FSAE2027:energy-storage System capability")},
+                {"kind": "capability_relation", "relation": "extend", "from": cap("FSAE2027:status System capability"),
+                 "to": cap("FSAE2027:shutdown System capability")},
+                {"kind": "capability_relation", "relation": "generalization",
+                 "from": cap("FSAE2027:Regenerative braking System capability"), "to": cap("FSAE2027:brakes System capability")}]},
+    {"id": "fsae-d-categories-2", "skill": "arcadia-method",
+     "prompt": "Group every functional exchange that enters 'FSAE2027:SD Accept independent shutdown trips', whatever its "
+               "source, as one family 'FSAE2027:Shutdown trip' in the logical architecture, so that everything that can "
+               "trip the car can be filtered and reasoned about together.",
+     "checks": [],
+     "method": [{"kind": "category", "name": "FSAE2027:Shutdown trip", "into": lf("FSAE2027:SD Accept independent shutdown trips")}]},
+]
+
+
+def write(name, description, tasks):
+    doc = {"description": description,
            "requires": "The FSAE-2027-Electric-Arcadia model, the same pristine copy as fsae-2027.json.",
-           "tasks": TASKS}
-    out = pathlib.Path(__file__).with_name("fsae-2027-depth.json")
+           "tasks": tasks}
+    out = pathlib.Path(__file__).with_name(name)
     out.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n", "utf-8")
-    print(len(TASKS), "tasks ->", out.name)
+    print(len(tasks), "tasks ->", out.name)
+
+
+if __name__ == "__main__":
+    write("fsae-2027-depth.json", "Arcadia-depth FSAE 2027 tasks for experiment 4 (bare agent + MCP, with and without "
+          "skills, Sonnet and Haiku). Scored by native checks (if any) and method checks in harness-comparison/grade.groovy.",
+          TASKS)
+    write("fsae-2027-depth-5.json", "Arcadia-depth FSAE 2027 tasks for experiment 5 (the second batch of depth files). "
+          "Scored as fsae-2027-depth.json.", TASKS_5)

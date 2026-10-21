@@ -327,6 +327,28 @@ def CHECKS = [
         def got = cats.collectMany { it.exchanges } as Set
         def missing = want.findAll { !got.contains(it) }
         [cats.size() == 1 && want && !missing, "${cats.size()} categories named so; ${want.size()} exchanges in, not grouped: ${names(missing)}"] },
+    // ---- Experiment 5: Arcadia depth, second batch ----
+    role: { c ->
+        def roles = api.findAll('Role').findAll { it.name == c.name && layerOf(it) == 'OA' }
+        if (roles.size() != 1) return [false, "${roles.size()} roles named '${c.name}'"]
+        def got = roles[0].activityAllocations*.activity.findAll { it != null } as Set, want = c.activities.collect { find(it) } as Set
+        def entity = find(c.entity)
+        [got == want && entity.allocatedRoles.contains(roles[0]),
+         "role activities ${got.size()} (want ${want.size()}), missing: ${names((want - got) as List)}, extra: ${names((got - want) as List)}; played by entity: ${entity.allocatedRoles.contains(roles[0])}"] },
+    communication_mean: { c ->
+        def a = find(c.a), b = find(c.b), pair = [a, b] as Set
+        def entityOf = { f -> allocators(f).find { it != null } }
+        def between = api.findAll('FunctionalExchange').findAll { layerOf(it) == 'OA' &&
+            [entityOf(endFunction(it.source)), entityOf(endFunction(it.target))] as Set == pair }
+        def cms = api.findAll('CommunicationMean').findAll { it.name == c.name && [endComponent(it.source), endComponent(it.target)] as Set == pair }
+        def carried = cms.collectMany { it.allocatedFunctionalExchanges } as Set
+        def missing = between.findAll { !carried.contains(it) }
+        [cms.size() == 1 && between && !missing, "${cms.size()} communication means named so between the two; ${between.size()} interactions, not carried: ${names(missing)}"] },
+    capability_relation: { c ->
+        def from = find(c.from), to = find(c.to)
+        def targets = [include: { x -> x.includedAbstractCapabilities }, extend: { x -> x.extendedAbstractCapabilities }, generalization: { x -> x.super }][c.relation]
+        boolean forward = targets(from).contains(to), backward = targets(to).contains(from)
+        [forward && !backward, "${c.relation} '${from.name}' -> '${to.name}': ${forward}; reversed: ${backward}"] },
     diagram_quality: { c ->
         def matches = DialectManager.INSTANCE.getAllRepresentationDescriptors(session).findAll { it.name == c.diagram }
         if (matches.size() != 1) return [false, "${matches.size()} diagrams named '${c.diagram}'"]

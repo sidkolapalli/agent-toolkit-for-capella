@@ -3,8 +3,7 @@
 **Rule.** In SA a **mission** is a high-level goal the system serves for its users; it **exploits**
 capabilities, and every system capability should be exploited by some mission (otherwise nothing
 justifies it). Missions live in `ownedMissionPkg`; the exploitation is a child of the mission.
-Capability include, extend and generalisation are not creatable through the API; report that rather
-than imitating them with other links.
+How capabilities depend on each other is in [CAPABILITIES.md](CAPABILITIES.md).
 
 ```groovy
 def mission = api.create('Mission', 'Compete in dynamic events', api.layer('SA').ownedMissionPkg)

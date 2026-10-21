@@ -1,6 +1,6 @@
 ---
 name: arcadia-depth
-description: Arcadia constructs beyond functions and components. Use when a task involves modes or states, exchange items or the data model, interfaces, missions, control functions (duplicate, split, gather, route, select), property values, or exchange categories.
+description: Arcadia constructs beyond functions and components. Use when a task involves modes or states, exchange items or the data model, interfaces, missions, capability include/extend/generalization, operational roles or communication means, control functions (duplicate, split, gather, route, select), property values, or exchange categories.
 ---
 
 # Arcadia depth
@@ -15,6 +15,8 @@ on Capella 7. Read the file for every construct the task touches before proposin
 | Exchange items, data types, units | [DATA.md](DATA.md) | `exchange-items`, `data-types`, `classes`, `data-modeling-method` |
 | Interfaces on components and ports | [INTERFACES.md](INTERFACES.md) | `fa-to-interfaces`, `exchange-items` |
 | Missions and capability exploitation | [MISSIONS.md](MISSIONS.md) | `diagram-mcb`, `diagram-crb` |
+| Capability include, extend, generalization | [CAPABILITIES.md](CAPABILITIES.md) | `diagram-mcb`, `diagram-ocb` |
+| Operational roles, communication means | [OPERATIONAL.md](OPERATIONAL.md) | `diagram-oeb`, `diagram-oaib` |
 | Control functions in a dataflow | [CONTROL.md](CONTROL.md) | `diagram-sdfb`, `diagram-ldfb` |
 | Property values | [PROPERTIES.md](PROPERTIES.md) | `constraints` |
 | Exchange categories | [CATEGORIES.md](CATEGORIES.md) | `categories` |
