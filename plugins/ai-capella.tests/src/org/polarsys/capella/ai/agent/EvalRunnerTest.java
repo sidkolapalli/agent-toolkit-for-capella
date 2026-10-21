@@ -122,6 +122,25 @@ public class EvalRunnerTest {
                 files++;
                 String json = java.nio.file.Files.readString(file);
                 var raw = (Map<?, ?>) AgentJson.parse(json, 2_000_000);
+                // Harness tasks graded by harness-comparison/grade.groovy may carry only method
+                // checks; /eval never runs those.
+                List<Object> scored = new java.util.ArrayList<>();
+                for (Object task : (List<?>) raw.get("tasks")) {
+                    Map<?, ?> fields = (Map<?, ?>) task;
+                    if (fields.get("checks") instanceof List<?> checks && !checks.isEmpty()) {
+                        scored.add(task);
+                        continue;
+                    }
+                    assertTrue(
+                            "A task without native checks has a prompt and method checks",
+                            fields.get("prompt") instanceof String
+                                    && fields.get("method") instanceof List<?> method
+                                    && !method.isEmpty());
+                    assertTrue(
+                            "Task ids are unique across files: " + fields.get("id"),
+                            ids.add(String.valueOf(fields.get("id"))));
+                }
+                json = AgentJson.write(Map.of("tasks", scored));
                 // A file can need an optional Capella add-on (the FSAE tasks trace to Requirements
                 // Viewpoint
                 // requirements); its native types exist only where that add-on is installed.
@@ -136,7 +155,7 @@ public class EvalRunnerTest {
                                 ids.add(task.id()));
                     }
                 } else {
-                    for (Object task : (List<?>) raw.get("tasks")) {
+                    for (Object task : scored) {
                         Map<?, ?> fields = (Map<?, ?>) task;
                         assertTrue(
                                 "Every task has a prompt and checks",
