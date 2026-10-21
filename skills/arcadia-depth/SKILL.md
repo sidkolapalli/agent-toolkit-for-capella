@@ -1,6 +1,6 @@
 ---
 name: arcadia-depth
-description: Arcadia constructs beyond functions and components. Use when a task involves modes or states, exchange items or the data model, interfaces, missions, capability include/extend/generalization, operational roles or communication means, control functions (duplicate, split, gather, route, select), property values, or exchange categories.
+description: Arcadia constructs beyond functions and components. Use when a task involves modes or states, exchange items or the data model, interfaces, missions, capability include/extend/generalization, operational roles or communication means, control functions (duplicate, split, gather, route, select), property values, exchange categories, scenarios, functional chains or operational processes, physical links and paths, or transitions between perspectives.
 ---
 
 # Arcadia depth
@@ -20,5 +20,9 @@ on Capella 7. Read the file for every construct the task touches before proposin
 | Control functions in a dataflow | [CONTROL.md](CONTROL.md) | `diagram-sdfb`, `diagram-ldfb` |
 | Property values | [PROPERTIES.md](PROPERTIES.md) | `constraints` |
 | Exchange categories | [CATEGORIES.md](CATEGORIES.md) | `categories` |
+| Scenarios with their messages (FS, ES) | [SCENARIOS.md](SCENARIOS.md) | `diagram-fs`, `diagram-es` |
+| Functional chains that branch, operational processes | [CHAINS.md](CHAINS.md) | `functional-chains-physical-paths`, `diagram-fcd` |
+| Physical links and paths carrying component exchanges | [PHYSICAL.md](PHYSICAL.md) | `functional-chains-physical-paths`, `diagram-pab` |
+| Transitions to the next perspective (LA to PA, PA to EPBS) | [TRANSITIONS.md](TRANSITIONS.md) | `transitions` |
 
 Done when every construct the task names is built with its file's pattern and its file's check holds.

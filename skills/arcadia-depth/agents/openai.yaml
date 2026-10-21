@@ -1,6 +1,6 @@
 interface:
   display_name: "Arcadia depth"
-  short_description: "Modes, data, interfaces, missions, control functions, properties"
+  short_description: "The parts of Arcadia agents get wrong, with verified patterns"
 dependencies:
   tools:
     - type: "mcp"
