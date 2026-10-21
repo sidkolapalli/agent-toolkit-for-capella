@@ -18,6 +18,7 @@ import org.eclipse.gmf.runtime.notation.Routing;
 import org.eclipse.gmf.runtime.notation.RoutingStyle;
 import org.eclipse.gmf.runtime.notation.datatype.RelativeBendpoint;
 import org.eclipse.sirius.business.api.session.Session;
+import org.eclipse.sirius.diagram.ArrangeConstraint;
 import org.eclipse.sirius.diagram.DEdge;
 import org.eclipse.sirius.diagram.DNode;
 import org.eclipse.sirius.diagram.DSemanticDiagram;
@@ -180,6 +181,21 @@ public class PersistedDiagramLayoutTest {
         startDomain();
         assertTrue(DiagramCommands.arrangeSelection(session, target.semantic, "auto"));
         assertTrue(bounds(target.nodes[0]).getX() != bounds(target.nodes[2]).getX());
+    }
+
+    @Test
+    public void laidOutNodesAndPortsAreKeptWhereTheLayoutPutThem() {
+        // Without these Sirius re-arranges the views on an open editor's next refresh.
+        Fixture target = fixture(true);
+        startDomain();
+        assertTrue(DiagramCommands.arrangeSelection(session, target.semantic, "auto"));
+        for (Node shape : List.of(target.nodes[1], target.ports[1]))
+            assertEquals(
+                    List.of(
+                            ArrangeConstraint.KEEP_LOCATION,
+                            ArrangeConstraint.KEEP_SIZE,
+                            ArrangeConstraint.KEEP_RATIO),
+                    ((DNode) shape.getElement()).getArrangeConstraints());
     }
 
     @Test

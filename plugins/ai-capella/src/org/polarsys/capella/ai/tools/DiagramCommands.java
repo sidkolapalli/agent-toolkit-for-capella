@@ -17,6 +17,8 @@ import org.eclipse.sirius.business.api.dialect.command.RenameRepresentationComma
 import org.eclipse.sirius.business.api.query.DRepresentationQuery;
 import org.eclipse.sirius.business.api.session.Session;
 import org.eclipse.sirius.common.tools.api.interpreter.IInterpreter;
+import org.eclipse.sirius.diagram.AbstractDNode;
+import org.eclipse.sirius.diagram.ArrangeConstraint;
 import org.eclipse.sirius.diagram.DDiagram;
 import org.eclipse.sirius.diagram.DDiagramElement;
 import org.eclipse.sirius.diagram.DNode;
@@ -61,6 +63,12 @@ public final class DiagramCommands {
     private DiagramCommands() {}
 
     public static volatile DRepresentation lastOpened;
+
+    private static final java.util.List<ArrangeConstraint> KEEP_PLACED =
+            java.util.List.of(
+                    ArrangeConstraint.KEEP_LOCATION,
+                    ArrangeConstraint.KEEP_SIZE,
+                    ArrangeConstraint.KEEP_RATIO);
 
     public static DRepresentation getLastOpened() {
         return lastOpened;
@@ -455,6 +463,19 @@ public final class DiagramCommands {
                         // ELK routes its own wiring; the geometric strategies get the generic
                         // tidy-up.
                         if (!"layered".equals(strat)) DiagramWiring.tidy(notation);
+                        // As after a user's move: otherwise Sirius re-arranges these views on an
+                        // open editor's next refresh and the layout is lost.
+                        notation.eAllContents()
+                                .forEachRemaining(
+                                        view -> {
+                                            if (view instanceof Node shape
+                                                    && shape.getElement()
+                                                            instanceof AbstractDNode placed)
+                                                for (ArrangeConstraint keep : KEEP_PLACED)
+                                                    if (!placed.getArrangeConstraints()
+                                                            .contains(keep))
+                                                        placed.getArrangeConstraints().add(keep);
+                                        });
                         // Native notation notifications update an open editor after commit.
                         // A semantic refresh is neither needed nor a substitute for layout.
                         // Telemetry post-metrics
