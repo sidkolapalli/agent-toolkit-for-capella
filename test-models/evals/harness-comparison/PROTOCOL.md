@@ -250,3 +250,35 @@ A grader bug hid every multi-valued text attribute, constraint bodies included: 
 `instanceof Collection` is false for EMF lists. Fixed with `instanceof Iterable`. With bodies visible, the pristine
 model already says 60 °C (the rules' cell limit), so that wrong-guess check is dropped. The off-board fact also
 accepts "off-car" and "off-vehicle". All runs are regraded from their saved models with the fixed grader.
+
+## Experiment 2, result (2026-10-21; headless Claude Code, claude-sonnet-5-5, skills frozen at eef6da8)
+
+| | K (MCP) | KS (MCP + skills) |
+|---|---|---|
+| Passed | 33/33 | 33/33 |
+| Median agent time | 79 s | 71 s (-10%) |
+| Median tokens | 749k | 705k (-6%) |
+| Cost | $11.19 | $11.30 |
+| Integrity vs pristine | equal (0 errors, 28 proxies, 0 dangling) | equal |
+
+Per-task median time: skills faster on 6 of 11 tasks (sign test p = 1.0), faster on 19 of 33 paired runs. Faster on the
+derive, chain, interface, allocation and transport tasks; slower on all three diagram tasks. Decision rule: no gain in
+pass rate and no 20% cut in time or tokens, so the four skills as written are not shown to help this agent on these
+tasks. They are rewritten, not kept on faith; the next tests target what the agent does not already know
+(docs/arcadia-coverage/GAPS.md), a weaker agent, and process measures.
+
+## Experiment 3, repetition 1 result (2026-10-21; grader fixed per amendment 1, all runs regraded)
+
+| | E (no skill) | ES v1 (b4ec066) | ES v2 (4b88e7c) |
+|---|---|---|---|
+| Passed | 4/4 | 3/4 | 3/4 |
+| Brief facts in the model | 23/23 | 21/23 | 23/23 |
+| Wrong guesses | 0 | 0 | 1 (cold plate on the motor loop; the check flags any cold plate) |
+| Brief shown and answered before building | 0/4 | 0/4 | 2/4 |
+| Median agent time | 92 s | 105 s | 141 s |
+| Cost | $2.55 | $2.69 | $3.14 |
+
+v1's recommended answers anchored the team member, who corrected the proposal and never mentioned the motor or the
+torque cap; v2's open questions fixed that. Told that someone answers, the agent without the skill already asks one
+good round, so fact capture shows no gain. v2 is exploratory (one repetition, after seeing v1), not a pre-registered
+test. The prompt-only brief gate holds half the time; Capella's review dialog is the real gate.
