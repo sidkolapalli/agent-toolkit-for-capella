@@ -1,0 +1,488 @@
+{
+ "description": "Method-heavy FSAE 2027 tasks for experiment 2 (bare agent + MCP, with and without skills). Scored by native checks (if any) and method checks in harness-comparison/grade.groovy.",
+ "requires": "The FSAE-2027-Electric-Arcadia model, the same pristine copy as fsae-2027.json.",
+ "tasks": [
+  {
+   "id": "fsae-m-charging-derive",
+   "prompt": "In the system analysis, the charging area's top function has no sub-functions yet. Following the Arcadia method, decompose it into at least three leaf system functions that cover safe accumulator charging for this car: power transfer from the charger, accumulator monitoring while charging, and opening the shutdown circuit on a charging fault. Realize every new system function with a logical function, allocate each of those logical functions to a leaf logical component inside the charging logical subsystem (create components there as needed), and connect them with functional exchanges to the battery monitoring functions of 'FSAE2027:SD Independent BMS Logical monitor' and to the functions of the shutdown logical subsystem.",
+   "checks": [],
+   "method": [
+    {
+     "kind": "children_at_least",
+     "parent": {
+      "id": "67214fbc-4ec0-465e-9287-c761cc23cfa8"
+     },
+     "min": 3
+    },
+    {
+     "kind": "leaves_realized",
+     "parent": {
+      "id": "67214fbc-4ec0-465e-9287-c761cc23cfa8"
+     }
+    },
+    {
+     "kind": "realizers_allocated_once",
+     "parent": {
+      "id": "67214fbc-4ec0-465e-9287-c761cc23cfa8"
+     },
+     "within": {
+      "id": "10bf2bf9-86c9-4437-b167-7d085279bf69"
+     }
+    },
+    {
+     "kind": "connected",
+     "from": {
+      "realizers_of": {
+       "id": "67214fbc-4ec0-465e-9287-c761cc23cfa8"
+      }
+     },
+     "to": {
+      "functions_of": {
+       "type": "LogicalComponent",
+       "name": "FSAE2027:SD Independent BMS Logical monitor",
+       "layer": "LA"
+      }
+     }
+    },
+    {
+     "kind": "connected",
+     "from": {
+      "realizers_of": {
+       "id": "67214fbc-4ec0-465e-9287-c761cc23cfa8"
+      }
+     },
+     "to": {
+      "functions_of": {
+       "id": "0ef29217-83cf-457f-8378-c86463c9c2be"
+      }
+     }
+    }
+   ],
+   "skill": "arcadia-method"
+  },
+  {
+   "id": "fsae-m-thermal-derive",
+   "prompt": "In the system analysis, the thermal area's top function has no sub-functions yet. Following the Arcadia method, decompose it into at least three leaf system functions covering accumulator cooling, motor and motor controller cooling, and reporting over-temperature to the battery monitor. Realize every new system function with a logical function, allocate each of those logical functions to a leaf logical component inside the thermal logical subsystem (create components there as needed), and connect them with functional exchanges to the functions of 'FSAE2027:SD Independent BMS Logical monitor'.",
+   "checks": [],
+   "method": [
+    {
+     "kind": "children_at_least",
+     "parent": {
+      "id": "dcad0e9b-6c38-4351-928d-026c62c5cb09"
+     },
+     "min": 3
+    },
+    {
+     "kind": "leaves_realized",
+     "parent": {
+      "id": "dcad0e9b-6c38-4351-928d-026c62c5cb09"
+     }
+    },
+    {
+     "kind": "realizers_allocated_once",
+     "parent": {
+      "id": "dcad0e9b-6c38-4351-928d-026c62c5cb09"
+     },
+     "within": {
+      "id": "93dd97cb-42b1-4cfb-b31c-e098e7dd34cf"
+     }
+    },
+    {
+     "kind": "connected",
+     "from": {
+      "realizers_of": {
+       "id": "dcad0e9b-6c38-4351-928d-026c62c5cb09"
+      }
+     },
+     "to": {
+      "functions_of": {
+       "type": "LogicalComponent",
+       "name": "FSAE2027:SD Independent BMS Logical monitor",
+       "layer": "LA"
+      }
+     }
+    }
+   ],
+   "skill": "arcadia-method"
+  },
+  {
+   "id": "fsae-m-chain-imd-path",
+   "prompt": "In the logical architecture, create the functional chain 'FSAE2027:Chain insulation fault to battery current interruption' from 'FSAE2027:SD Independently detect insulation and IMD operational faults' to 'FSAE2027:SD Interrupt all tractive battery current'. Find the path through the existing functional exchanges and involve every function and exchange on it; add an exchange only where the path is really missing.",
+   "checks": [
+    {
+     "kind": "element_exists",
+     "type": "FunctionalChain",
+     "name": "FSAE2027:Chain insulation fault to battery current interruption",
+     "layer": "LA"
+    }
+   ],
+   "method": [
+    {
+     "kind": "chain_path",
+     "start": {
+      "type": "LogicalFunction",
+      "name": "FSAE2027:SD Independently detect insulation and IMD operational faults",
+      "layer": "LA"
+     },
+     "end": {
+      "type": "LogicalFunction",
+      "name": "FSAE2027:SD Interrupt all tractive battery current",
+      "layer": "LA"
+     }
+    }
+   ],
+   "skill": "arcadia-method"
+  },
+  {
+   "id": "fsae-m-chains-all-trips",
+   "prompt": "Every protective trip source of the shutdown circuit needs its own functional chain in the logical architecture, running through the existing functional exchanges from the source function to 'FSAE2027:SD Open high-side shutdown current path'. Find all trip sources: the functions whose output opens the shutdown current path, whether through 'FSAE2027:SD Accept independent shutdown trips' or directly. Create one chain per source.",
+   "checks": [],
+   "method": [
+    {
+     "kind": "chain_path",
+     "start": {
+      "type": "LogicalFunction",
+      "name": "FSAE2027:SD Independently detect insulation and IMD operational faults",
+      "layer": "LA"
+     },
+     "end": {
+      "type": "LogicalFunction",
+      "name": "FSAE2027:SD Open high-side shutdown current path",
+      "layer": "LA"
+     }
+    },
+    {
+     "kind": "chain_path",
+     "start": {
+      "type": "LogicalFunction",
+      "name": "FSAE2027:SD Issue independent BMS trip for any monitored fault",
+      "layer": "LA"
+     },
+     "end": {
+      "type": "LogicalFunction",
+      "name": "FSAE2027:SD Open high-side shutdown current path",
+      "layer": "LA"
+     }
+    },
+    {
+     "kind": "chain_path",
+     "start": {
+      "type": "LogicalFunction",
+      "name": "FSAE2027:DD BSPD latched shutdown request",
+      "layer": "LA"
+     },
+     "end": {
+      "type": "LogicalFunction",
+      "name": "FSAE2027:SD Open high-side shutdown current path",
+      "layer": "LA"
+     }
+    },
+    {
+     "kind": "chain_path",
+     "start": {
+      "id": "4a7a58e2-1786-33f7-928e-8599440b1398"
+     },
+     "end": {
+      "type": "LogicalFunction",
+      "name": "FSAE2027:SD Open high-side shutdown current path",
+      "layer": "LA"
+     }
+    },
+    {
+     "kind": "chain_path",
+     "start": {
+      "id": "a2c09551-b43f-3835-986d-84ee4bdddf3e"
+     },
+     "end": {
+      "type": "LogicalFunction",
+      "name": "FSAE2027:SD Open high-side shutdown current path",
+      "layer": "LA"
+     }
+    },
+    {
+     "kind": "chain_path",
+     "start": {
+      "id": "a4d31a0a-bb20-392c-939b-10032b213075"
+     },
+     "end": {
+      "type": "LogicalFunction",
+      "name": "FSAE2027:SD Open high-side shutdown current path",
+      "layer": "LA"
+     }
+    },
+    {
+     "kind": "chain_path",
+     "start": {
+      "id": "1df38e00-4761-393e-8268-289d053ed4b6"
+     },
+     "end": {
+      "type": "LogicalFunction",
+      "name": "FSAE2027:SD Open high-side shutdown current path",
+      "layer": "LA"
+     }
+    }
+   ],
+   "skill": "arcadia-method"
+  },
+  {
+   "id": "fsae-m-shutdown-component-exchanges",
+   "prompt": "In the logical architecture, every functional exchange between functions of two different logical components, where at least one of them is in the shutdown logical subsystem, must be allocated to a component exchange between those two components (or their parent components). Most of them are not yet. Fix all of them, reusing a component exchange where one already connects the right components.",
+   "checks": [],
+   "method": [
+    {
+     "kind": "crossing_allocated",
+     "scope": {
+      "id": "0ef29217-83cf-457f-8378-c86463c9c2be"
+     }
+    }
+   ],
+   "skill": "arcadia-method"
+  },
+  {
+   "id": "fsae-m-driver-demand-transports",
+   "prompt": "The component exchanges around the driver-demand logical subsystem were created without the functional exchanges they transport. Each component exchange named '<exchange> transport' carries the functional exchange of that name. Allocate every functional exchange that crosses logical components in the driver-demand subsystem to its component exchange, and create a component exchange only where none connects the two components.",
+   "checks": [],
+   "method": [
+    {
+     "kind": "crossing_allocated",
+     "scope": {
+      "id": "0ad7250e-9610-449c-b155-617d11fa7be6"
+     }
+    },
+    {
+     "kind": "ce_used",
+     "scope": {
+      "id": "0ad7250e-9610-449c-b155-617d11fa7be6"
+     }
+    },
+    {
+     "kind": "transport_names",
+     "scope": {
+      "id": "0ad7250e-9610-449c-b155-617d11fa7be6"
+     }
+    }
+   ],
+   "skill": "arcadia-method"
+  },
+  {
+   "id": "fsae-m-bms-interface",
+   "prompt": "Define the logical interface of 'FSAE2027:SD Independent BMS Logical monitor'. Every functional exchange between one of its functions and a function of another logical component must carry at least one exchange item naming the data or signal it conveys, and one interface 'FSAE2027:BMS monitor interface' must carry all of those exchange items.",
+   "checks": [
+    {
+     "kind": "element_exists",
+     "type": "Interface",
+     "name": "FSAE2027:BMS monitor interface",
+     "layer": "LA"
+    }
+   ],
+   "method": [
+    {
+     "kind": "items_on",
+     "scope": {
+      "type": "LogicalComponent",
+      "name": "FSAE2027:SD Independent BMS Logical monitor",
+      "layer": "LA"
+     }
+    },
+    {
+     "kind": "interface_carries",
+     "name": "FSAE2027:BMS monitor interface",
+     "scope": {
+      "type": "LogicalComponent",
+      "name": "FSAE2027:SD Independent BMS Logical monitor",
+      "layer": "LA"
+     }
+    }
+   ],
+   "skill": "arcadia-method"
+  },
+  {
+   "id": "fsae-m-leaf-allocation",
+   "prompt": "Arcadia allocates functions to leaf components. In the shutdown and energy-storage logical subsystems, some logical functions are allocated to a component that has sub-components. Move each of them to the sub-component that performs it (create a sub-component only when none fits), so that every function allocated in those two subsystems is a leaf function allocated exactly once, to a leaf component.",
+   "checks": [],
+   "method": [
+    {
+     "kind": "leaf_allocation",
+     "scope": {
+      "id": "0ef29217-83cf-457f-8378-c86463c9c2be"
+     }
+    },
+    {
+     "kind": "leaf_allocation",
+     "scope": {
+      "id": "0bd1be2a-d9a0-455b-bca4-c877ee2246c5"
+     }
+    }
+   ],
+   "skill": "arcadia-method"
+  },
+  {
+   "id": "fsae-m-shutdown-flow-diagram",
+   "prompt": "Create a Logical Data Flow Blank diagram 'FSAE2027:Shutdown trip flow' showing every logical function allocated in the shutdown logical subsystem (including its sub-components) and every functional exchange between those functions. Make it readable: no overlapping shapes or ports, every port on its shape's border, shapes inside their containers, and each exchange's label next to its own line.",
+   "checks": [
+    {
+     "kind": "native_structure",
+     "check": {
+      "kind": "diagram_shows",
+      "diagram": "FSAE2027:Shutdown trip flow",
+      "elements": [
+       {
+        "type": "LogicalFunction",
+        "name": "FSAE2027:SD Independently detect insulation and IMD operational faults",
+        "layer": "LA"
+       },
+       {
+        "type": "LogicalFunction",
+        "name": "FSAE2027:SD Open high-side shutdown current path",
+        "layer": "LA"
+       }
+      ]
+     }
+    }
+   ],
+   "method": [
+    {
+     "kind": "diagram_quality",
+     "diagram": "FSAE2027:Shutdown trip flow",
+     "elements": [
+      {
+       "functions_of": {
+        "id": "0ef29217-83cf-457f-8378-c86463c9c2be"
+       }
+      }
+     ],
+     "edges": "between"
+    }
+   ],
+   "skill": "capella-diagrams"
+  },
+  {
+   "id": "fsae-m-trip-architecture-diagram",
+   "prompt": "Create a Logical Architecture Blank diagram 'FSAE2027:Shutdown trip architecture' showing 'FSAE2027:SD Independent IMD Logical monitor', 'FSAE2027:SD Independent BMS Logical monitor', 'FSAE2027:DD Independent nonprogrammable BSPD Logical component' and 'FSAE2027:SD Hardwired shutdown current path Logical subsystem', the functions allocated to each, and every functional exchange between those functions. Make it readable: no overlapping shapes or ports, every port on its shape's border, shapes inside their containers, and each exchange's label next to its own line.",
+   "checks": [
+    {
+     "kind": "native_structure",
+     "check": {
+      "kind": "diagram_shows",
+      "diagram": "FSAE2027:Shutdown trip architecture",
+      "elements": [
+       {
+        "type": "LogicalComponent",
+        "name": "FSAE2027:SD Independent IMD Logical monitor",
+        "layer": "LA"
+       },
+       {
+        "type": "LogicalComponent",
+        "name": "FSAE2027:SD Independent BMS Logical monitor",
+        "layer": "LA"
+       },
+       {
+        "type": "LogicalComponent",
+        "name": "FSAE2027:DD Independent nonprogrammable BSPD Logical component",
+        "layer": "LA"
+       },
+       {
+        "type": "LogicalComponent",
+        "name": "FSAE2027:SD Hardwired shutdown current path Logical subsystem",
+        "layer": "LA"
+       }
+      ]
+     }
+    }
+   ],
+   "method": [
+    {
+     "kind": "diagram_quality",
+     "diagram": "FSAE2027:Shutdown trip architecture",
+     "elements": [
+      {
+       "type": "LogicalComponent",
+       "name": "FSAE2027:SD Independent IMD Logical monitor",
+       "layer": "LA"
+      },
+      {
+       "type": "LogicalComponent",
+       "name": "FSAE2027:SD Independent BMS Logical monitor",
+       "layer": "LA"
+      },
+      {
+       "type": "LogicalComponent",
+       "name": "FSAE2027:DD Independent nonprogrammable BSPD Logical component",
+       "layer": "LA"
+      },
+      {
+       "type": "LogicalComponent",
+       "name": "FSAE2027:SD Hardwired shutdown current path Logical subsystem",
+       "layer": "LA"
+      },
+      {
+       "functions_of": {
+        "type": "LogicalComponent",
+        "name": "FSAE2027:SD Independent IMD Logical monitor",
+        "layer": "LA"
+       }
+      },
+      {
+       "functions_of": {
+        "type": "LogicalComponent",
+        "name": "FSAE2027:SD Independent BMS Logical monitor",
+        "layer": "LA"
+       }
+      },
+      {
+       "functions_of": {
+        "type": "LogicalComponent",
+        "name": "FSAE2027:DD Independent nonprogrammable BSPD Logical component",
+        "layer": "LA"
+       }
+      },
+      {
+       "functions_of": {
+        "type": "LogicalComponent",
+        "name": "FSAE2027:SD Hardwired shutdown current path Logical subsystem",
+        "layer": "LA"
+       }
+      }
+     ],
+     "edges": "between"
+    }
+   ],
+   "skill": "capella-diagrams"
+  },
+  {
+   "id": "fsae-m-driver-demand-flow-diagram",
+   "prompt": "Create a Logical Data Flow Blank diagram 'FSAE2027:Driver demand data flow' showing every logical function allocated in the driver-demand logical subsystem (including its sub-components) and every functional exchange between those functions. Make it readable: no overlapping shapes or ports, every port on its shape's border, shapes inside their containers, and each exchange's label next to its own line.",
+   "checks": [
+    {
+     "kind": "native_structure",
+     "check": {
+      "kind": "diagram_shows",
+      "diagram": "FSAE2027:Driver demand data flow",
+      "elements": [
+       {
+        "type": "LogicalFunction",
+        "name": "FSAE2027:DD Acquire separate analogue APPS channels A and B",
+        "layer": "LA"
+       }
+      ]
+     }
+    }
+   ],
+   "method": [
+    {
+     "kind": "diagram_quality",
+     "diagram": "FSAE2027:Driver demand data flow",
+     "elements": [
+      {
+       "functions_of": {
+        "id": "0ad7250e-9610-449c-b155-617d11fa7be6"
+       }
+      }
+     ],
+     "edges": "between"
+    }
+   ],
+   "skill": "capella-diagrams"
+  }
+ ]
+}
