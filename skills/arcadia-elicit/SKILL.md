@@ -11,39 +11,41 @@ Matt Pocock's [`grilling`](https://github.com/mattpocock/skills/blob/main/skills
 A request whose every decision is already fixed (named elements, owners, perspective), or a user who
 says to just build it, goes straight to `arcadia-method` and `capella-model-edits`.
 
-## Facts and decisions
+## Model facts, team knowledge, decisions
 
-**Facts** are yours: what the model already holds, read through the `capella` read tools and
-`capella_docs`. **Decisions** are the user's: need, boundary, decomposition, trade-offs. Put each
-decision to the user; look up each fact yourself before asking anything that depends on it.
+- **Model facts** are yours: read them through the `capella` read tools and `capella_docs` before
+  asking anything that depends on them.
+- **Team knowledge** is what the user already holds and the model lacks: chosen parts, limits,
+  protocols, rules, who operates what. Draw it out with **open questions** ("What is fixed about the
+  drivetrain?") so the user tells you what they know in their own words.
+- **Decisions** are what nobody has settled yet: put each with your recommended answer.
 
 ## Steps
 
-1. **Round 0: calibrate.** Ask, in one round: experience with the domain, experience with
-   Arcadia/MBSE (novice, practitioner or expert), and what the model is for (concept study, design
-   review, interface control, safety analysis, teaching). Done when all three are answered.
+1. **Read the model.** `model_summary`, then search and inspect what the request touches. Done when
+   you know which perspectives exist and what the model already settles.
+2. **Round 1: calibrate and harvest.** In one round ask: experience with the domain and with
+   Arcadia/MBSE (novice, practitioner or expert); what the model is for; and one open question per
+   area the request touches, asking what is already fixed (parts, values, interfaces, rules,
+   operators). Done when every area has an answer, even "nothing fixed".
    - Novice: explain each Arcadia concept in a plain sentence where it first appears.
    - Expert: terse questions, concept names only.
-2. **Read the model.** `model_summary`, then search and inspect what the request touches. Done when
-   you know which perspectives exist and which decisions the model already settles.
-3. **Grill the design tree.** Each decision branches into the decisions that hang off it, in Arcadia
-   order: need → boundary → behaviour → logical → physical. Questions per perspective are in
-   [`QUESTIONS.md`](QUESTIONS.md). The **frontier** is every open decision whose prerequisites are
-   settled. Ask the whole frontier as one round, then wait for answers and recompute it. A question
-   that depends on another question in the same round belongs to the next round. Done when the
-   frontier is empty for the perspectives the request reaches.
-4. **Write the brief.** A short system brief: decisions, assumptions (every decision the user
-   deferred, with your recommended value), open items. Done when the user confirms it.
-5. **Build from the brief** with `arcadia-method` and `capella-model-edits`. Record each assumption
-   as a TBD on the element it affects. Done when every brief decision maps to a native element or a
-   recorded TBD.
+3. **Grill the decisions.** What round 1 left open is the design tree, in Arcadia order:
+   need → boundary → behaviour → logical → physical ([`QUESTIONS.md`](QUESTIONS.md)). The
+   **frontier** is every open decision whose prerequisites are settled. Ask the whole frontier as one
+   round, then recompute: every answer that names a new part, value or actor opens its own branch,
+   asked as an open question first. Done when the frontier is empty for the perspectives the request
+   reaches.
+4. **Brief and stop.** Write the system brief: team knowledge with its values, decisions, assumptions
+   (each deferred decision with your recommended value) and open items. End the turn by asking the
+   user to confirm or correct it. Done only when the user confirms; then read [`BUILD.md`](BUILD.md).
 
 ## Round format
 
 ```
 ❓ **Q1** - **<title>**: <question; options when there are any; for a novice, one sentence on the concept>
 
-➡️ <your recommended answer>
+➡️ <your recommended answer, for decisions only>
 ```
 
-Number the questions and word each so "yes" accepts your recommendation.
+Number the questions. Word each decision so "yes" accepts your recommendation.
