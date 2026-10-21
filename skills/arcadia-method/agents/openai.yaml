@@ -1,0 +1,10 @@
+interface:
+  display_name: "Arcadia Method"
+  short_description: "Place, build and review Capella model changes by the Arcadia method"
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "capella"
+      description: "Capella AI MCP server on the model open in Capella"
+      transport: "streamable_http"
+      url: "http://127.0.0.1:8765/mcp"
