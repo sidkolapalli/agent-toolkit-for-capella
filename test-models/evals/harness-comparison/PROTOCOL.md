@@ -357,3 +357,30 @@ therefore search the whole disk. Audit of all 156 Claude runs so far:
   and the Haiku pilot started under the same setting, are void.
 Fix: Read, Glob and Grep are no longer listed, so Claude Code allows them only inside the agent's folder (its own
 skills included) and denies the rest in `-p` mode; verified with a probe. Experiment 4 pilots rerun.
+
+## Experiment 4, result (2026-10-21; skills d9b2f9d, plugin build 0.2.1.202610211401, file access fixed per 9252b55)
+
+Pass counts over the six valid tasks x 3 repetitions; `categories` failed in all 12 runs of every arm (every agent
+grouped the 3 monitor trips and left out 3 other shutdown causes: the prompt is ambiguous), so it is reported but
+excluded from the pass rate. Time and cost cover all 7 tasks.
+
+| | K (Sonnet) | KS (Sonnet + skills) | KH (Haiku) | KSH (Haiku + skills) |
+|---|---|---|---|---|
+| Passed, valid tasks | 16/18 | 18/18 | 11/18 | 18/18 |
+| Median agent time | 69 s | 40 s (-42%) | 121 s | 70 s (-42%) |
+| Cost | $5.89 | $3.37 | $2.11 | $0.51 |
+| New validation errors beyond the known cardinality gap | 2 in one run | 0 | 0 | 0 |
+
+| Task | K | KS | KH | KSH |
+|---|---|---|---|---|
+| modes | PFP | PPP | FFP | PPP |
+| interface | PFP | PPP | FPP | PPP |
+| duplicate | PPP | PPP | FFF | PPP |
+| property-values | PPP | PPP | PPF | PPP |
+| exchange-items | PPP | PPP | PPP | PPP |
+| missions | PPP | PPP | PPP | PPP |
+
+With skills both models are faster on all 7 tasks (sign test p = 0.016 each). Every failure without the skill is a
+construct the skill teaches (states for modes, interface sides swapped or missing, no control function, untyped or
+wrong property values). Decision rule: pass rate up and time down by 42% for both models with no integrity cost, so
+`arcadia-depth` is kept. Haiku with the skill passed more than Sonnet without it, at under a tenth of the cost.
