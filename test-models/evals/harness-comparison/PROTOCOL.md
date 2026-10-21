@@ -516,3 +516,12 @@ ESH beats EH on calibration and the brief gate, records at least as many open de
 wrong guesses, and on the regression tasks asks no more rounds than EH and passes as often. **Rewritten** when the
 process measures improve but a cost appears (lost facts, wrong guesses or needless questions). **Dropped** when the
 process measures do not improve.
+
+## Experiment 6, amendment 1 (2026-10-21, before any experiment-6 run)
+
+The after build is **0.2.1.202610212140** (plugin code of 2db9d89; 900 tests pass), installed into a separate copy
+of Capella 7.0.0 so the old build stays installed for the before runs and experiment 7. After skills: the
+experiment-5 set (82ed60b) with `arcadia-depth` replaced by its state at **c58ddc9** (the four new files and their
+router rows). One solution per task, written only with those files' patterns, passed all four on the new build
+with no new validation error; its functional scenario renders correctly in Capella's FS diagram. The after runs
+start when the before runs finish, alongside experiment 7.
