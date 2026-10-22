@@ -144,3 +144,7 @@ Open **AI Dev Server** and click **Start**, or opt into startup with `CAPELLA_AI
 - `POST /mcp`: [Model Context Protocol](https://modelcontextprotocol.io) endpoint (JSON-RPC 2.0, Streamable HTTP without server streaming). It exposes the eight native read tools for the model open in Capella to any MCP client, for example `claude mcp add --transport http capella http://127.0.0.1:8765/mcp --header "Authorization: Bearer $(cat ~/.capella-ai/devserver-8765.token)"`. Reads never save or change the model. `propose_model_edit` submits a Groovy script and returns a `proposal_id` immediately; nothing runs until a person approves it in Capella's review dialog (always, whatever the chat's review preference), after which it runs once through the same transaction, change capture, declared checks and native validation comparison as chat edits. `edit_status` returns the review state and the execution receipt. Repeating an identical proposal returns the same proposal, so a client retry never runs a script twice.
 
 Use `test-dev-server.sh` for an opt-in smoke test against a disposable model. Telemetry and dataset logging are opt-in and local.
+
+## License
+
+[Eclipse Public License 2.0](LICENSE), as for Capella itself. The vendored `writing-for-agents` skill keeps its MIT license, and the Codex runtime fetched by `scripts/fetch-codex.py` is Apache-2.0 (see its `LICENSE` and `NOTICE`).
