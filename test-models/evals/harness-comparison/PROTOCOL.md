@@ -769,3 +769,42 @@ for S's folder returns the three skills (scope `repo`, enabled), and S's session
 its description in the agent's context, while B's lists none. Whether to open a skill is the agent's choice, as it
 is for Claude Code. The scored runs go ahead unchanged, and the result adds one reported measure, not in the
 decision rule: the number of S runs whose events show a read of an `arcadia-depth` file.
+
+## Experiment 8, result (2026-10-22; Codex 0.160.1, `gpt-6-luna` at `medium`, skills 5158bd4, plugin build 0.2.1.202610221048)
+
+| Task | B | S |
+|---|---|---|
+| modes | FPF | PFP |
+| exchange items | FPF | FFP |
+| interface | FFF | FFF |
+| missions | FFF | FFF |
+| duplicate | FFF | FFF |
+| property values | PFP | FPP |
+| roles | FFF | FFF |
+| communication means | FFF | FFF |
+| capability relations | FFF | FFF |
+| categories (reworded) | FPF | FFF |
+| functional scenario | PPF | PFP |
+| branching chain (reworded) | PPF | PFP |
+| physical path | FPF | PPP |
+| transition | PPP | PPP |
+| **Passed** | **13/42** | **15/42** |
+| Median agent time | 36 s | 40.5 s |
+| Runs adding validation errors (cardinality gap excluded) | 0 | 2 (missions r2: 6, roles r2: 4; both failed anyway) |
+
+S won 2 tasks and lost 1 (sign test p = 1.0). The rule's **transfer** needs no added integrity failures, and S had
+2, so the skills did not transfer; S did not lose more tasks than it won, so not **worse**; the pass rates are 2
+runs apart, one more than **not shown** allows. The rule does not name this case. It is reported as **not shown**,
+the weaker of the two neighbouring outcomes.
+
+Reported measure (amendment 1): S opened `arcadia-depth/SKILL.md` in 4 of 42 runs (modes r2 and r3, property
+values r3, transition r2) and followed it to a construct file in 2 (`MODES.md` in modes r3, `PROPERTIES.md` in
+property values r3), both of which passed. In the other 38 runs the skills were listed in the agent's context and
+not opened. The experiment therefore measures whether luna uses the skills, and it almost never does; it says
+little about whether the files would help it if read.
+
+Failures in both arms were mostly the constructs the skills teach (wrong or missing construct in a saved edit), plus
+behaviour Haiku and `gpt-6.1-sol` did not show: stopping after one rolled-back proposal, ending while a proposal was
+still `awaiting_review` instead of polling `edit_status`, and one S run (exchange items r1) deciding the read-only
+sandbox forbade model edits. Codex usage for all 86 runs: about 1% of the weekly window. Folders:
+`results/B-exp8/`, `results/S-exp8/` (local only).
