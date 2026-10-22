@@ -18,8 +18,9 @@ numbers refer to the matrix.
 | b7 port kind | dropped: Capella's glossary says FLOW vs STANDARD is graphical only | |
 | b10 validation vocabulary | open | |
 
-Also still open in the API: properties on classes (`api.create("Property", …, aClass)` is rejected) and exchange
-item element cardinalities (DWF_D_51).
+Closed in build 0.2.1.202610221048 (7e925fc), checked live on 2026-10-22: properties on classes
+(`api.create("Property", …, aClass)`), and a [1..1] default cardinality for new properties and exchange item
+elements, so native validation no longer reports DWF_D_51 on them (it still does on an element with none).
 
 ## Top 10 overall
 
