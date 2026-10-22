@@ -38,3 +38,6 @@ plugins/ai-capella.tests/target/
 
 # Private archive (not for publication)
 archive/
+
+# Local evaluation reports
+test-models/native-integration/results/

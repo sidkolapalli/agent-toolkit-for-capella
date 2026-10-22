@@ -145,4 +145,4 @@ If you find an API operation that fails silently or behaves unexpectedly:
 
 1. Test with the dev server: `curl -X POST http://localhost:8765/execute -H "Authorization: Bearer $(cat ~/.capella-ai/devserver-8765.token)" -d 'your code'`
 2. Check if error message is helpful
-3. If not, file an issue at: https://github.com/akon2997/capella-ai/issues
+3. If not, file an issue in the project's repository

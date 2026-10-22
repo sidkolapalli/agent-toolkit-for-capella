@@ -23,7 +23,7 @@ mvn -f plugins clean verify -DskipTests           # refresh binaries only
 - Update site: `plugins/ai-capella-repository/target/repository` (plus a ZIP in `target/`).
 - Tests: `plugins/ai-capella.tests` (JUnit, Tycho surefire, `useUIHarness=false`). They use Capella's real metamodel and a real EMF transactional editing domain behind a controlled `Session` proxy. They do not cover a full workbench.
 - Live provider tests are skipped unless `CAPELLA_AI_RUN_LLM_TESTS=true` and an API key are set.
-- Run `git lfs pull` after cloning; the bundled Codex executables in `plugins/ai-capella/resources/codex/windows-x64/` are LFS-tracked and checked against `provenance.json` at runtime.
+- Run `python scripts/fetch-codex.py` after cloning; it downloads the bundled Codex executables into `plugins/ai-capella/resources/codex/windows-x64/` and checks them against `provenance.json` (the runtime checks them again).
 
 ### Manual testing in Capella
 
@@ -83,7 +83,7 @@ When you add or change API methods, update the matching docs in `resources/capel
 
 ## Verifying in Capella
 
-Unit tests use a proxied `Session`; they cannot show rendering, OSGi wiring or install problems. For changes there, build, install into the Capella at `<local-path> with the p2 director (`capellac.exe -application org.eclipse.equinox.p2.director`), launch it on a scratch copy of a project from `capella-test-workspace/` with the dev server on, and drive it over `/execute`. Diagram changes: export PNGs with `DialectUIManager.INSTANCE.export(...)` and look at them. Chat-loop changes: run a scenario from `.build-tools/arcadia-agent/configure_scenario.py` against `mock_provider.py` with the Direct runtime.
+Unit tests use a proxied `Session`; they cannot show rendering, OSGi wiring or install problems. For changes there, build, install into your Capella 7.0.0 (`$CAPELLA_HOME`) with the p2 director (`capellac.exe -application org.eclipse.equinox.p2.director`), launch it on a scratch copy of a project with the dev server on, and drive it over `/execute`. Diagram changes: export PNGs with `DialectUIManager.INSTANCE.export(...)` and look at them.
 
 Known traps: Capella 7.0.0 ships Guava 21 and 31.1 only, so bundled dependencies must resolve against those (the feature ships Guava 30.1 for `xtext.xbase.lib`). Tycho's ECJ can hang on a ternary that binds the same pattern variable name in both branches; javac accepts it.
 

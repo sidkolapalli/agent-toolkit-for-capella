@@ -5,7 +5,7 @@ import org.polarsys.capella.ai.session.SessionSafeguards
 // Run after phase90 and91 in the disposable marker model. Keep the model idle until the report appears.
 def nativeSession = session
 def workspacePath = org.eclipse.core.resources.ResourcesPlugin.workspace.root.location.toString().replace('\\','/')
-assert workspacePath.equalsIgnoreCase('<local-path>')
+assert workspacePath.toLowerCase().endsWith('/capella-test-workspace')
 assert nativeSession.sessionResource.URI.toString().startsWith('platform:/resource/capella-ai-native-integration/')
 def reportPath = 'workspace/native-requirements-lifecycle-results.json'
 assert api.fs.write(reportPath,'{"success":false,"status":"started","checks":[]}').success()

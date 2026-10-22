@@ -7,7 +7,7 @@ import org.polarsys.capella.ai.session.SessionSafeguards
 
 def nativeSession = session
 def workspace = org.eclipse.core.resources.ResourcesPlugin.workspace.root.location.toString().replace('\\', '/')
-assert workspace.equalsIgnoreCase('<local-path>')
+assert workspace.toLowerCase().endsWith('/capella-test-workspace')
 assert nativeSession.sessionResource.URI.toString().startsWith('platform:/resource/capella-ai-native-integration/')
 
 def worker = new Thread({

@@ -9,7 +9,7 @@ param(
     [string]$DiagramLayer = 'LA',
     [ValidateSet('architecture', 'flow')]
     [string]$DiagramKind = 'architecture',
-    [string]$ReportDirectory = '<local-path>'
+    [string]$ReportDirectory = (Join-Path $PSScriptRoot 'results')
 )
 
 $ErrorActionPreference = 'Stop'

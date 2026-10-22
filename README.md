@@ -6,7 +6,7 @@ An Eclipse plug-in for working with live Arcadia models inside Capella 7. Its ch
 
 Use a Java 17 JDK and Maven. The Tycho reactor downloads its declared Capella 7.0.1 target platform.
 
-Install Git LFS before cloning, or run `git lfs pull` after cloning, to retrieve the bundled Windows Codex executables. These binaries are tracked with LFS; their original bytes and checksums are pinned in `plugins/ai-capella/resources/codex/windows-x64/provenance.json`.
+Run `python scripts/fetch-codex.py` once to download the bundled Windows Codex executables from the official OpenAI release; it checks every byte against `plugins/ai-capella/resources/codex/windows-x64/provenance.json` and skips files already present.
 
 Eclipse update sites require the following XML entity settings:
 
