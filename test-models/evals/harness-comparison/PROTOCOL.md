@@ -806,5 +806,5 @@ little about whether the files would help it if read.
 Failures in both arms were mostly the constructs the skills teach (wrong or missing construct in a saved edit), plus
 behaviour Haiku and `gpt-6.1-sol` did not show: stopping after one rolled-back proposal, ending while a proposal was
 still `awaiting_review` instead of polling `edit_status`, and one S run (exchange items r1) deciding the read-only
-sandbox forbade model edits. Codex usage for all 86 runs: about 1% of the weekly window. Folders:
+sandbox forbade model edits. Codex usage for all 86 runs: about 2% of the weekly window (15% of one 5-hour window). Folders:
 `results/B-exp8/`, `results/S-exp8/` (local only).
