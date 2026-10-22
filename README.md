@@ -83,6 +83,7 @@ Every experiment ran headless agents on fresh copies of this model and graded th
 | 5. Roles, communication means, capability relations | Haiku 1/9 → 8/9; Sonnet already knew them |
 | 6. New API: scenarios, branching chains, physical paths | Haiku 0/3 → 3/3 on scenarios and paths; branching chains possible before, reliable after |
 | 7. `arcadia-elicit` on Haiku | Asked anything 1/12 → 12/12; hidden facts in the model 7/69 → 51/69; no wrong guesses |
+| Release baseline: the published files, rerun | Depth tasks reproduced (Haiku with skills 39/42). Elicitation did not: asked anything 8/12, hidden facts 34/69, still no wrong guesses. Restoring experiment 7's skill set did not bring it back (6/12); the cause is not yet known. See PROTOCOL |
 
 To repeat a run (Windows, Python 3.11+, [Claude Code](https://claude.com/claude-code) signed in, Capella 7.0.0 with this plug-in and the Requirements Viewpoint installed):
 

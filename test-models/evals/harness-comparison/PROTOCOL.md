@@ -687,7 +687,7 @@ ESH: 3/12 passed, wrong guesses 0, cost $1.18. Two mechanisms show in the transc
 
 Experiment 7's run folders were overwritten by later runs at the same paths, so the comparison is against its
 recorded table, not its transcripts. The baseline's own folders are kept as `results/ESH-baseline/` and
-`results/KSH-baseline/`.
+`results/KSH-baseline/` (local only; `results/` is not in the repository).
 
 Between experiment 7 and this baseline the harness changed only in paths. Two things did change: the skill set
 (64d70b5 removed `arcadia-method`, `capella-model-edits` and `capella-diagrams`, none of which mentions
@@ -701,3 +701,27 @@ at the skills exactly as at 82ed60b, which is experiment 7's five skills. Result
 **The skill set is the cause** when the agent asks the team member anything in at least 11/12 runs and calibrates in
 at least 9/12. **Not shown** when it asks in at most 8/12. In between, inconclusive. Either way the outcome is
 recorded here and no further amendment follows before release.
+
+## Release baseline, amendment 1 result (2026-10-22)
+
+| Measure | Baseline (skills 5158bd4) | Amendment 1 (skills 82ed60b) | Experiment 7 (skills 82ed60b) |
+|---|---|---|---|
+| Asked the team member anything | 8/12 | 6/12 | 12/12 |
+| Loaded `arcadia-elicit` | 7/12 | 7/12 | not recorded |
+| Calibration | 6/12 | 4/12 | 11/12 |
+| Brief gate | 5/12 | 3/12 | 10/12 |
+| Hidden facts in the model | 34/69 | 32/69 | 51/69 |
+| Wrong guesses | 0 | 0 | 0 |
+| Passed | 3/12 | 5/12 | 6/12 |
+| Cost | $1.18 | $2.33 | $1.57 |
+
+**Not shown** (asked in 6/12, at most 8): restoring experiment 7's skills does not restore its result, so the
+removal in 64d70b5 is not the cause. With all five skills, Haiku loaded `capella-model-edits` in every run,
+`arcadia-method` in 11 and `arcadia-elicit` in 7; every run that skipped it built first. All three drive runs built first.
+
+Untested, so not claimed: the plugin build (0.2.1.202610211401 then, 0.2.1.202610221048 now) and the Claude Code
+client (2.1.305 now; experiment 7's version was not recorded). The model, `claude-haiku-5-5`, is the same id.
+
+What stands: on the published files, Haiku with `arcadia-elicit` asks before building in about half to two thirds of
+runs, not in all of them, and still adds no wrong guesses. The README quotes these numbers next to experiment 7.
+Folders: `results/ESH-amend1/` (local only).
