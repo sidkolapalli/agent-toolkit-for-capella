@@ -21,8 +21,9 @@ PYTHON = HERE / "bare-venv" / "Scripts" / "python.exe"
 PORTS = {"A": 8781, "B": 8782, "C": 8783, "S": 8784, "K": 8785, "KS": 8786, "E": 8787, "ES": 8788, "KH": 8789, "KSH": 8790, "EH": 8791, "ESH": 8792}
 SKILLS = pathlib.Path(capella.os.environ.get("TOOLKIT_SKILLS", HERE.parents[2] / "skills"))
 AGENT_LIMIT = 1800  # seconds per task, every arm
-MODEL = "gpt-6.1-sol"  # what the plugin's runtime uses: model and effort from ~/.codex/config.toml
-EFFORT = "ultra"
+# Default: what the plugin's runtime uses (model and effort from ~/.codex/config.toml); experiment 8 overrides both.
+MODEL = capella.os.environ.get("CODEX_MODEL", "gpt-6.1-sol")
+EFFORT = capella.os.environ.get("CODEX_EFFORT", "ultra")
 CLAUDE_MODEL = "claude-sonnet-5-5"
 HAIKU_MODEL = "claude-haiku-5-5"
 STAKEHOLDER_MODEL = "claude-haiku-5-5"

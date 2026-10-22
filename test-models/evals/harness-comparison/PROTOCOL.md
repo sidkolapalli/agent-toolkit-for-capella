@@ -725,3 +725,38 @@ client (2.1.305 now; experiment 7's version was not recorded). The model, `claud
 What stands: on the published files, Haiku with `arcadia-elicit` asks before building in about half to two thirds of
 runs, not in all of them, and still adds no wrong guesses. The README quotes these numbers next to experiment 7.
 Folders: `results/ESH-amend1/` (local only).
+
+# Experiment 8: do the depth skills transfer to Codex? Protocol (fixed before any run, 2026-10-22)
+
+Question: experiments 4 to 6 and the release baseline showed `arcadia-depth` helping Claude models only. Does a small
+Codex model with the MCP server do better on the same tasks with the skills than without?
+
+## Setups
+
+| Arm | Agent | Skills |
+|---|---|---|
+| **B** | Codex CLI 0.160.1 (`CODEX_EXE`), `gpt-6-luna` at reasoning effort `medium`, MCP server, read-only sandbox, as experiment 1's B otherwise | none |
+| **S** | as B | the toolkit skills (`arcadia-depth`, `arcadia-elicit`, `capella-setup`, unchanged since 5158bd4) in the agent's `.agents/skills` |
+
+`gpt-6-luna` is Codex's "fast and affordable" model, the counterpart of `claude-haiku-5-5`; `medium` is Codex's
+default effort, and luna offers no `ultra`. `run.py` takes them from `CODEX_MODEL` and `CODEX_EFFORT`. Plugin build
+0.2.1.202610221048, as the release baseline.
+
+## Tasks
+
+The release baseline's 14: `fsae-2027-depth.json` without `fsae-d-categories`, all 4 of `fsae-2027-depth-5.json`,
+and `fsae-2027-depth-6.json` without `fsae-d-branching-chain`.
+
+## Runs
+
+14 tasks × 2 arms × 3 repetitions = 84 runs, plus a one-task pilot per arm (`fsae-d-modes`, repetition 0,
+excluded). The pilot must show S reading a `SKILL.md` or an `arcadia-depth` file in `events.jsonl`; if it does not,
+the harness is fixed and the pilot repeated before any scored run. Arms alternate per task (B then S). Runs stop
+at 80% of the weekly Codex window; the analysis then uses only the task repetitions both arms completed.
+
+## Scoring, analysis and decision rule
+
+Scoring as experiment 4 (cardinality errors counted apart). Per-task exact sign test, S against B. The skills
+**transfer** when S wins more tasks than it loses, adds no integrity failures and raises the pass rate; **not
+shown** when the pass rates are within one run of each other; **worse** when S loses more tasks than it wins. Folders
+move to `results/B-exp8/` and `results/S-exp8/` afterwards (local only).
