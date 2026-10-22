@@ -2,10 +2,10 @@
 import json, os, pathlib, subprocess, time, urllib.request
 
 HERE = pathlib.Path(__file__).parent
-TOKEN = "capella-ai-scratch-token-0001"
+TOKEN = os.environ.get("CAPELLA_AI_DEVSERVER_TOKEN", "capella-ai-scratch-token-0001")
 # EVAL_TASKS picks the task file: fsae-2027.json (experiment 1) or fsae-2027-method.json (experiment 2).
 TASKS = {t["id"]: t for t in json.loads(pathlib.Path(os.environ.get(
-    "EVAL_TASKS", r"<local-path>")).read_text("utf-8"))["tasks"]}
+    "EVAL_TASKS", HERE.parent / "fsae-2027.json")).read_text("utf-8"))["tasks"]}
 PRISTINE = HERE / "pristine-diagrams.json"
 
 
@@ -19,7 +19,8 @@ def call(port, path, body=None, timeout=3600):
         return error.code, error.read().decode("utf-8")
 
 
-CAPELLA = pathlib.Path(r"<local-path>")
+CAPELLA = pathlib.Path(os.environ.get("CAPELLA_HOME", "capella"))  # the folder holding capella.exe, plugin installed
+CODEX = os.environ.get("CODEX_EXE", "codex")  # arms A, B, C, S only
 
 
 def launch(ws, port):
@@ -70,8 +71,7 @@ def grade(port, task_id):
 
 def quota():
     """(5-hour %, weekly %, usable) from the Codex account; reading it uses no model quota."""
-    codex = r"<local-path>"
-    p = subprocess.Popen([codex, "app-server"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+    p = subprocess.Popen([CODEX, "app-server"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.DEVNULL, text=True, encoding="utf-8")
     try:
         def ask(message):

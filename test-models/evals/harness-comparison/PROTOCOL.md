@@ -60,8 +60,9 @@ Only disposable copies are used. Transcripts (`events.jsonl`), final messages an
 ## Files
 
 `run.py` (setups and runs; `python run.py <A|B|C> <rep>`), `capella.py` (launch, wait, score, stop),
-`grade.groovy` (the scorer), `NOTES.md` (what setup A is given), `analyze.py` (the tables above). Paths point at the
-author's machine; adjust `CAPELLA`, `CODEX`, the pristine model copy and the venv to rerun. Pilot (rep 0): one task,
+`grade.groovy` (the scorer), `NOTES.md` (what setup A is given), `analyze.py` (the tables above). Set `CAPELLA_HOME`
+(Capella 7.0 with the plugin installed) and, for the Codex setups, `CODEX_EXE`; the pristine model is unzipped from
+`../../fsae-2027/` on first use. (Amended 2026-10-22: these paths were hard-coded during experiments 1 to 7.) Pilot (rep 0): one task,
 all three setups passed with no integrity change.
 
 ## Amendment (2026-10-20, before any result was analysed)
@@ -633,3 +634,27 @@ were the prompt. By the rule the a2 gap is **closed** (after 3/3, before 2/3), b
 runs built the branching chain by hand from generic `api.create`/`api.link` calls, and the third stopped, reporting
 that `linearChain` cannot branch and that it found no other way. The new `chain` helper made branching chains
 reliable rather than possible. No run added a validation error.
+
+## Experiment 3, closed (2026-10-22)
+
+Repetitions 2 and 3 were never run. Repetition 1 showed the ceiling (the agent without the skill reflected 23/23
+facts), so more repetitions on Sonnet could not show a gain, and experiment 7 asked the question again on Haiku with
+pre-registered process measures. Experiment 3 stands as one repetition and is reported that way.
+
+# Release baseline: do the published files reproduce the results? Protocol (fixed before any run, 2026-10-22)
+
+The experiments above ran from copies on the author's machine. This run uses only what is published: the model
+from `../../fsae-2027/FSAE-2027-Electric-Arcadia.zip` (SHA-256 `66e693ab…ba3`, the same file every experiment
+used), this folder's harness with paths from the environment (`CAPELLA_HOME`, `EVAL_TASKS`, `TOOLKIT_SKILLS`), the
+skills at the commit that adds this section, and plugin build 0.2.1.202610221048.
+
+- **KSH** (Haiku with skills), 3 repetitions, on every depth task with an unambiguous prompt: the 6 of
+  `fsae-2027-depth.json` other than `fsae-d-categories`, the 4 of `fsae-2027-depth-5.json`, and the 4 of
+  `fsae-2027-depth-6.json` other than `fsae-d-branching-chain`. 42 runs. Reference (experiments 4, 5 and 6 after,
+  amendment 2): 41/42.
+- **ESH** (Haiku with skills and the simulated team member), 3 repetitions, on the 4 tasks of
+  `fsae-2027-elicit.json`. 12 runs. Reference (experiment 7): facts 51/69, calibration 11/12, brief gate 10/12.
+
+Runs go one at a time. Scoring as in experiments 4 and 7. **Reproduced** when KSH passes at least 38/42 and ESH
+reaches at least 45/69 facts, 9/12 calibration and 8/12 brief gate. Otherwise the README quotes this baseline, not
+the experiment numbers, and the gap is investigated before release.
