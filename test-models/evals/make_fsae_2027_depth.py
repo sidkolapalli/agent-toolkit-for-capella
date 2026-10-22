@@ -187,6 +187,14 @@ TASKS_6 = [
      "checks": [],
      "method": [{"kind": "chain_exchanges", "name": "FSAE2027:Any trip opens the shutdown path",
                  "exchanges": [fe(n) for n in TRIPS_IN] + [fe("FSAE2027:SD LA Any series path open request")]}]},
+    # Amendment 2: the wording of categories-2, so "trip" is not read as the monitor trips only.
+    {"id": "fsae-d-branching-chain-2", "skill": "arcadia-method",
+     "prompt": "In the logical architecture, model one functional chain 'FSAE2027:Any trip opens the shutdown path' that "
+               f"gathers every functional exchange entering '{ACCEPT}', whatever its source, and continues to "
+               "'FSAE2027:SD Open high-side shutdown current path'.",
+     "checks": [],
+     "method": [{"kind": "chain_exchanges", "name": "FSAE2027:Any trip opens the shutdown path",
+                 "exchanges": [fe(n) for n in TRIPS_IN] + [fe("FSAE2027:SD LA Any series path open request")]}]},
     {"id": "fsae-d-physical-path", "skill": "arcadia-method",
      "prompt": "The battery safety status ('FSAE2027:PA Battery safety status transport') runs in a harness from "
                "'FSAE2027:energy-storage Equipment' through 'FSAE2027:low-voltage Equipment' to 'FSAE2027:shutdown "

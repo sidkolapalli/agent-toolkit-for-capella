@@ -613,3 +613,10 @@ kept.** The regression gain on `duplicate` comes from `arcadia-depth` (in the ES
 Not in the rule, reported: the thermal runs with the skill ended with 2, 5 (3 of them the known cardinality gap)
 and 1 validation errors, against 2 in one run without it. With the facts in hand they built more, and so had more
 to get wrong.
+
+## Experiment 6, amendment 2 (2026-10-22, before the rerun)
+
+The branching-chain result above reads as prompt ambiguity, not API failure. `fsae-d-branching-chain-2` repeats the
+task and check with the wording that fixed `categories`: "every functional exchange entering ..., whatever its
+source". Both arms run it 3 times, set up exactly as above (same builds, frozen skills and model). Rule unchanged:
+the a2 gap is **closed** when after passes at least 2 of 3 and before passes fewer.

@@ -86,6 +86,55 @@
    ]
   },
   {
+   "id": "fsae-d-branching-chain-2",
+   "skill": "arcadia-method",
+   "prompt": "In the logical architecture, model one functional chain 'FSAE2027:Any trip opens the shutdown path' that gathers every functional exchange entering 'FSAE2027:SD Accept independent shutdown trips', whatever its source, and continues to 'FSAE2027:SD Open high-side shutdown current path'.",
+   "checks": [],
+   "method": [
+    {
+     "kind": "chain_exchanges",
+     "name": "FSAE2027:Any trip opens the shutdown path",
+     "exchanges": [
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA Independent IMD shutdown trip",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA GLV supply loss",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA Direct manual switch opening",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA Interlock continuity lost",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:DD LA BSPD trip request",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA Independent BMS shutdown trip",
+       "layer": "LA"
+      },
+      {
+       "type": "FunctionalExchange",
+       "name": "FSAE2027:SD LA Any series path open request",
+       "layer": "LA"
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "fsae-d-physical-path",
    "skill": "arcadia-method",
    "prompt": "The battery safety status ('FSAE2027:PA Battery safety status transport') runs in a harness from 'FSAE2027:energy-storage Equipment' through 'FSAE2027:low-voltage Equipment' to 'FSAE2027:shutdown Equipment'. Model that physical route in the physical architecture and make the component exchange travel on it.",
