@@ -2,6 +2,8 @@
 
 An Eclipse plug-in for working with live Arcadia models inside Capella 7. Its chat agent can inspect the current model, maintain a task plan, propose reviewed Groovy changes, and check actual execution with Capella's installed validator. Model, diagram and documentation APIs cover Operational Analysis (OA), System Analysis (SA), Logical Architecture (LA), Physical Architecture (PA) and End-Product Breakdown Structure (EPBS).
 
+The same plug-in serves an MCP server, so any agent (Claude Code, Codex, ...) can work on the open model, with every edit reviewed by a person in Capella. [`skills/`](skills) holds agent skills for it, each kept only after a measured with/without test. Everything needed to repeat those tests is here: an [example model](#the-example-model-and-the-experiments), the tasks, the grader and the protocol.
+
 ## Build
 
 Use a Java 17 JDK and Maven. The Tycho reactor downloads its declared Capella 7.0.1 target platform.
@@ -65,6 +67,34 @@ already give every agent (the Arcadia outline, the edit-and-receipt workflow, di
 showing no gain.
 
 Copy the folders into your agent's skills directory: `.claude/skills/` (Claude Code) or `.agents/skills/` (Codex), in your project or home directory, then run `/capella-setup` (Codex: `$capella-setup`). Setup runs only when you call it; the other skills load on their own when a task needs them.
+
+## The example model and the experiments
+
+[`test-models/fsae-2027/FSAE-2027-Electric-Arcadia.zip`](test-models/fsae-2027) is a Capella 7.0 model of a Formula SAE 2027 electric car: about 86,000 elements across the five Arcadia perspectives, every numbered paragraph of the 2027 rules as a native requirement (identifier, page, heading and hash, not the paragraph text), and three detailed safety slices (shutdown circuit, driver demand, vehicle protection) with 86 paraphrased obligations. The scripts in [`test-models/fsae-acceptance`](test-models/fsae-acceptance) built it from the public rulebook; its design decisions stay open on purpose. It needs [Requirements Viewpoint 0.14.0](https://github.com/eclipse-capella/capella-requirements-vp/releases/tag/v0.14.0). Unzip it and import the project into a Capella workspace.
+
+Every experiment ran headless agents on fresh copies of this model and graded the saved model in a fresh Capella, never the agent's own account. Protocols were fixed before the runs; [`PROTOCOL.md`](test-models/evals/harness-comparison/PROTOCOL.md) has each one, its amendments and its result.
+
+| Experiment | Finding |
+|---|---|
+| 1. Plug-in vs bare agent + MCP (Codex) | The bare agent with the MCP server matched the plug-in's own agent loop: 45/45 vs 51/53 (cut short by the weekly quota) |
+| 2. Four general skills (Sonnet) | No gain (33/33 either way); the skills only restated the tool descriptions and were deleted |
+| 3. An interviewing skill (Sonnet) | No gain on facts: Sonnet already asks one good round when told someone can answer |
+| 4. `arcadia-depth`, the parts of Arcadia agents miss | Sonnet 16/18 → 18/18 and 42% faster; Haiku 11/18 → 18/18 at a quarter of the cost, beating Sonnet without the skill |
+| 5. Roles, communication means, capability relations | Haiku 1/9 → 8/9; Sonnet already knew them |
+| 6. New API: scenarios, branching chains, physical paths | Haiku 0/3 → 3/3 on scenarios and paths; branching chains possible before, reliable after |
+| 7. `arcadia-elicit` on Haiku | Asked anything 1/12 → 12/12; hidden facts in the model 7/69 → 51/69; no wrong guesses |
+
+To repeat a run (Windows, Python 3.11+, [Claude Code](https://claude.com/claude-code) signed in, Capella 7.0.0 with this plug-in and the Requirements Viewpoint installed):
+
+```bash
+cd test-models/evals/harness-comparison
+export CAPELLA_HOME=/path/to/capella          # the folder holding capella.exe
+export EVAL_TASKS=../fsae-2027-depth.json     # any task file in test-models/evals
+export TOOLKIT_SKILLS=../../../skills         # the skills the "with skills" arms get
+python -X utf8 run.py KSH 1 fsae-d-modes      # arm, repetitions, task ids (all tasks if none)
+```
+
+`run.py`'s docstring lists the arms (KH/KSH: Haiku without/with skills, K/KS: Sonnet, E*: with a simulated team member, A/B/C/S: Codex). Each run unzips the model on first use, launches its own Capella, and writes the transcript and grade to `results/<arm>/`. Costs are Claude Code's list-price estimates; a Haiku run costs a few cents.
 
 ## Working with models
 
