@@ -558,3 +558,58 @@ Regression arm (KSH, experiment 4's tasks, larger skill): 17/18 valid tasks (`du
 exchange on the source port instead of a DUPLICATE function; `categories` failed 3/3 as in every experiment-4 arm and
 stays excluded). Its only validation errors (2 or 3 in some runs) are the known exchange-item cardinality gap, as in
 experiment 4. The rule's floor of 17/18 is met, so the larger skill stays.
+
+## Experiment 6, result (2026-10-21; before: build 0.2.1.202610211401, skills 82ed60b; after: amendment 1)
+
+Haiku with the skills (KSH), 3 repetitions. Every model loaded; neither arm added a validation error.
+
+| Task | Before | After | Decision |
+|---|---|---|---|
+| fs-scenario (a1) | FFF | PPP | **closed** |
+| physical-path (a3) | FFF | PPP | **closed** |
+| branching-chain (a2) | FFF | FFP | **still open** |
+| transition (a4) | PPP | PPP | not shown: the task is buildable without the transition |
+| Median agent time | 116 s | 56 s | |
+| Cost | $0.81 | $0.30 | |
+
+Before, the scenario runs left the scenario without messages (3/3) and no path carried the exchange (3/3: two built
+none, one an empty path). After, all six built them right.
+
+Branching chain, read from the model: after, both failures built 4 links, every one between the right functions;
+both left out the same 3 exchanges (GLV supply loss, manual switch opening, interlock continuity lost). These are
+the 3 shutdown causes experiment 4's `categories` prompt lost the same way: agents read "every trip" as the
+monitor trips only. The API built every link it was asked for, but by the rule the gap is still open, and the next
+test needs the reworded prompt ("every exchange that enters the function, whatever its source"), as `categories-2`.
+
+Transition: before, all three runs built the PA component and function by hand with realization links and
+an allocation, which the check accepts. The task doesn't need `api.ops.transition`, so it can't show whether it helps.
+
+# Experiment 7, result (2026-10-21; skills 82ed60b, plugin build 0.2.1.202610211401)
+
+12 elicitation runs and 6 regression runs per arm. The pristine model has 207 TBD elements (every run that added
+none reports 207).
+
+| Measure | EH (Haiku) | ESH (Haiku + skills) |
+|---|---|---|
+| Asked the team member anything | 1/12 | 12/12 |
+| Calibration (first message asks about experience or role) | 0/12 | 11/12 |
+| Brief gate (summary and confirmation before building) | 0/12 | 10/12 |
+| Open decisions recorded (TBD elements added) | +7, in 3 runs | +47, in 8 runs |
+| Hidden facts in the model | 7/69 | 51/69 |
+| Wrong guesses | 1 | 0 |
+| Passed (all facts, no wrong guess) | 1/12 | 6/12 |
+| Regression: rounds asked | 0 | 0 |
+| Regression: passed | 3/6 (`duplicate` 0/3) | 6/6 |
+| Cost, agent and team member | $1.63 elicit + $0.19 regression | $1.57 + $0.12 |
+
+Without the skill, Haiku told someone can answer almost never asks: 11 of 12 runs built at once on their own
+assumptions (experiment 3 found Sonnet asks one good round unprompted; Haiku does not). With the skill every run
+asked, usually one round of 6 to 9 questions, and 10 of 12 showed a brief and waited.
+
+Decision rule: ESH beats EH on calibration and the brief gate, records more open decisions, loses no facts, adds no
+wrong guesses, and on the regression tasks asks no more rounds and passes at least as often. **`arcadia-elicit` is
+kept.** The regression gain on `duplicate` comes from `arcadia-depth` (in the ESH skill set), not from elicitation.
+
+Not in the rule, reported: the thermal runs with the skill ended with 2, 5 (3 of them the known cardinality gap)
+and 1 validation errors, against 2 in one run without it. With the facts in hand they built more, and so had more
+to get wrong.
