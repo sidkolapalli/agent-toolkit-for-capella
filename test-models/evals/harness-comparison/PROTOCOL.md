@@ -658,3 +658,46 @@ skills at the commit that adds this section, and plugin build 0.2.1.202610221048
 Runs go one at a time. Scoring as in experiments 4 and 7. **Reproduced** when KSH passes at least 38/42 and ESH
 reaches at least 45/69 facts, 9/12 calibration and 8/12 brief gate. Otherwise the README quotes this baseline, not
 the experiment numbers, and the gap is investigated before release.
+
+## Release baseline, result (2026-10-22; skills 5158bd4, plugin build 0.2.1.202610221048)
+
+| | Result | Rule | Reference |
+|---|---|---|---|
+| KSH passed | 39/42 | at least 38 | 41/42 |
+| ESH hidden facts in the model | 34/69 | at least 45 | 51/69 |
+| ESH calibration | 6/12 | at least 9 | 11/12 |
+| ESH brief gate | 5/12 | at least 8 | 10/12 |
+
+**KSH reproduced; ESH did not.** By the rule, the README quotes this baseline next to experiment 7.
+
+KSH: `interface` failed 2 of 3 (the agent did not set the provides/requires roles and said so). The grader timed
+out after 30 s on `missions` r2, so that run counts as a failure. The other 39 passed.
+
+ESH: 3/12 passed, wrong guesses 0, cost $1.18. Two mechanisms show in the transcripts:
+
+- **The skill was not loaded.** In 5 runs `events.jsonl` has no skill invocation: charging r1, charging-ops r1 to r3
+  and thermal r2. Three of them (charging r1, charging-ops r1 and r3) built at once on their own assumptions and
+  asked their questions after building, when the harness no longer answers. Charging-ops r2 and thermal r2 asked one
+  round without the skill; charging-ops r2 passed. Drive r3 loaded the skill and still built first. In all, 8/12 runs
+  asked the team member anything; in experiment 7, 12/12 did.
+- **The brief ended without a question mark.** Drive r1 and thermal r1 followed the skill: calibration, one round,
+  the brief. Each then ended with "Please confirm this brief or correct it.", with no `?`. `run.py` answers only a
+  turn containing `?`, so nobody confirmed, nothing was built and both scored 0 facts with the answers in hand.
+  Experiment 7 used the same loop. The baseline keeps it, for comparability.
+
+Experiment 7's run folders were overwritten by later runs at the same paths, so the comparison is against its
+recorded table, not its transcripts. The baseline's own folders are kept as `results/ESH-baseline/` and
+`results/KSH-baseline/`.
+
+Between experiment 7 and this baseline the harness changed only in paths. Two things did change: the skill set
+(64d70b5 removed `arcadia-method`, `capella-model-edits` and `capella-diagrams`, none of which mentions
+`arcadia-elicit`) and the plugin build (0.2.1.202610211401 then, 0.2.1.202610221048 now).
+
+## Release baseline, amendment 1: was it the skill set? Protocol (fixed before any run, 2026-10-22)
+
+ESH runs 3 repetitions on the 4 elicit tasks again, set up as the baseline, with one change: `TOOLKIT_SKILLS` points
+at the skills exactly as at 82ed60b, which is experiment 7's five skills. Results go to `results/ESH/`.
+
+**The skill set is the cause** when the agent asks the team member anything in at least 11/12 runs and calibrates in
+at least 9/12. **Not shown** when it asks in at most 8/12. In between, inconclusive. Either way the outcome is
+recorded here and no further amendment follows before release.
