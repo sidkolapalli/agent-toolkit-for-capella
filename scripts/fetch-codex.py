@@ -18,7 +18,8 @@ for exe in json.loads((DIR / "provenance.json").read_text("utf-8"))["executables
     if sha256(data) != archive["sha256"]:
         sys.exit(f"{archive['name']}: archive hash does not match provenance.json")
     with zipfile.ZipFile(io.BytesIO(data)) as z:
-        payload = z.read(next(n for n in z.namelist() if n.lower().endswith(".exe")))
+        # The archive holds several executables; the pinned one is known by its size, then checked by hash.
+        payload = z.read(next(i for i in z.infolist() if i.file_size == exe["size_bytes"]))
     if sha256(payload) != exe["sha256"]:
         sys.exit(f"{exe['packaged_name']}: executable hash does not match provenance.json")
     target.write_bytes(payload)
