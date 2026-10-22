@@ -620,3 +620,16 @@ The branching-chain result above reads as prompt ambiguity, not API failure. `fs
 task and check with the wording that fixed `categories`: "every functional exchange entering ..., whatever its
 source". Both arms run it 3 times, set up exactly as above (same builds, frozen skills and model). Rule unchanged:
 the a2 gap is **closed** when after passes at least 2 of 3 and before passes fewer.
+
+## Experiment 6, amendment 2 result (2026-10-22)
+
+| | Before | After |
+|---|---|---|
+| `fsae-d-branching-chain-2` | FPP | PPP |
+| Agent time | 61, 112, 112 s | 50, 445, 52 s |
+
+With the reworded prompt every chain built had all 7 links between the right functions, so the original misses
+were the prompt. By the rule the a2 gap is **closed** (after 3/3, before 2/3), but narrowly: on the old build two
+runs built the branching chain by hand from generic `api.create`/`api.link` calls, and the third stopped, reporting
+that `linearChain` cannot branch and that it found no other way. The new `chain` helper made branching chains
+reliable rather than possible. No run added a validation error.

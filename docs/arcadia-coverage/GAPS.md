@@ -9,7 +9,7 @@ numbers refer to the matrix.
 | Gap | State | Where |
 |---|---|---|
 | a1 scenario content | FS and ES lifelines and ordered messages built; fragments (LOOP/ALT/PAR), references and scenario realization still open. Experiment 6: Haiku 0/3 before, 3/3 after | `functionalScenario`, `exchangeScenario`; SCENARIOS.md |
-| a2 non-linear chains | branching and joining chains and OA operational processes built; control nodes, sequence links and composite chains still open. Experiment 6: 0/3 before, 1/3 after; both misses left out the same 3 exchanges as the ambiguous categories prompt, so a reworded rerun is owed | `chain`; CHAINS.md |
+| a2 non-linear chains | branching and joining chains and OA operational processes built; control nodes, sequence links and composite chains still open. Experiment 6: 0/3 before, 1/3 after on an ambiguous prompt; reworded, 2/3 before (built by hand) and 3/3 after | `chain`; CHAINS.md |
 | a3 physical paths | paths and component exchanges on links or paths built. Experiment 6: 0/3 before, 3/3 after | `physicalPath`, `allocateOnLink`; PHYSICAL.md |
 | a4 transitions | every Capella transition kind, LA→PA and PA→EPBS included. Experiment 6: the task passed 3/3 before too (built by hand), so not shown | `api.ops.transition`; TRANSITIONS.md |
 | a5 REC/RPL, libraries | open | |
