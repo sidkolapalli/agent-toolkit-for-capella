@@ -760,3 +760,12 @@ Scoring as experiment 4 (cardinality errors counted apart). Per-task exact sign 
 **transfer** when S wins more tasks than it loses, adds no integrity failures and raises the pass rate; **not
 shown** when the pass rates are within one run of each other; **worse** when S loses more tasks than it wins. Folders
 move to `results/B-exp8/` and `results/S-exp8/` afterwards (local only).
+
+## Experiment 8, amendment 1 (2026-10-22, after the pilot, before any scored run)
+
+Pilot (`fsae-d-modes`, rep 0): B and S both passed (47 s and 36 s). S did not open a skill file: it ran no shell
+command and read the plugin's own docs through `capella_docs`. The harness is not at fault: Codex's `skills/list`
+for S's folder returns the three skills (scope `repo`, enabled), and S's session rollout lists `arcadia-depth` with
+its description in the agent's context, while B's lists none. Whether to open a skill is the agent's choice, as it
+is for Claude Code. The scored runs go ahead unchanged, and the result adds one reported measure, not in the
+decision rule: the number of S runs whose events show a read of an `arcadia-depth` file.
