@@ -943,9 +943,11 @@ tasks; B's only change was the new sentence, which names a skill B does not have
 variance or the moved run folders explain the 9 runs is not separable here; B's failures stayed on the constructs the
 skill teaches (duplicate, roles, communication means, capability relations).
 
-Audit: every shell command in all 84 runs was read. B ran none. S's were reads of `arcadia-depth` files, one read
-of `arcadia-elicit/SKILL.md` (modes r1), and interface r1's failed read in the home folder. No run read outside its
-own folder otherwise.
+Audit: every shell command in all 84 runs was read. B ran none. S's were reads of `arcadia-depth` files, reads of
+`arcadia-elicit/SKILL.md` (modes r1, missions r3), and interface r1's failed read in the home folder. No run read outside its
+own folder otherwise. The new sentence appears in all 86 of the day's Codex session rollouts. Caveat on the read
+rate: experiment 8's unprompted rate (4 of 42 opened the skill, 2 reached a construct file) was at `medium`; no
+arm ran at `high` with skills and no pointer, so effort and pointer are not separated for the read rate.
 
 Codex usage for experiment 10 (86 runs): about 4% of the weekly window (5% to 9%). Folders:
 `E:/capella-eval-runs/B`, `S`, `pilot/` (local only).

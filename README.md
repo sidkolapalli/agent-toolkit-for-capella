@@ -66,7 +66,7 @@ A skill stays here only if it measurably helps an agent: each one is tested with
 already give every agent (the Arcadia outline, the edit-and-receipt workflow, diagram choice) were removed after
 showing no gain.
 
-Copy the folders into your agent's skills directory: `.claude/skills/` (Claude Code) or `.agents/skills/` (Codex), in your project or home directory, then run `/capella-setup` (Codex: `$capella-setup`). Setup runs only when you call it; the other skills load on their own when a task needs them, and the MCP server's instructions tell the agent to read `arcadia-depth` before modelling (without that pointer, Codex `gpt-6-luna` opened it in 4 of 42 runs; with it, in 40 of 42).
+Copy the folders into your agent's skills directory: `.claude/skills/` (Claude Code) or `.agents/skills/` (Codex), in your project or home directory, then run `/capella-setup` (Codex: `$capella-setup`). Setup runs only when you call it; the other skills load on their own when a task needs them, and the MCP server's instructions tell the agent to read `arcadia-depth` before modelling (Codex `gpt-6-luna` without a pointer, at medium effort, opened it in 4 of 42 runs; with the pointer, at high effort, it read the matching construct file in 40 of 42).
 
 ## The example model and the experiments
 
