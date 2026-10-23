@@ -222,6 +222,8 @@ def arm_b(task, rep, arm="B"):
                # Codex's own per-call approval; the Capella review dialog still runs.
                "-c", 'mcp_servers.capella.tools.propose_model_edit.approval_mode="approve"']
         prompt = CONTEXT_B + capella.TASKS[task]["prompt"]
+        if arm == "S" and capella.os.environ.get("SKILL_POINTER"):  # experiment 9
+            prompt = CONTEXT_B.replace("\nTask: ", f"\n{capella.os.environ['SKILL_POINTER']}\n\nTask: ") + capella.TASKS[task]["prompt"]
         model = HAIKU_MODEL if arm.endswith("H") else CLAUDE_MODEL
         run = (conversation(ws / "agent", ws, capella.TASKS[task], port, model) if arm.startswith("E")
                else claude(ws / "agent", ws, prompt, port, model=model)

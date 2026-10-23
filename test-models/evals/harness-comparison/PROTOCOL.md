@@ -808,3 +808,30 @@ behaviour Haiku and `gpt-6.1-sol` did not show: stopping after one rolled-back p
 still `awaiting_review` instead of polling `edit_status`, and one S run (exchange items r1) deciding the read-only
 sandbox forbade model edits. Codex usage for all 86 runs: about 2% of the weekly window (15% of one 5-hour window). Folders:
 `results/B-exp8/`, `results/S-exp8/` (local only).
+
+# Experiment 9: do the depth skills help Codex luna when it reads them? Protocol (fixed before any run, 2026-10-22)
+
+Question: experiment 8's S arm opened the skills in 4 of 42 runs. With more reasoning, and told to read the
+skill, does luna with the skills do better than luna at the same effort without them?
+
+## Setups
+
+As experiment 8, with two changes. Both arms run `gpt-6-luna` at reasoning effort **`high`** (`CODEX_EFFORT`). S's
+context gains one line before the task (`SKILL_POINTER` in `run.py`): "Before you start, read
+.agents/skills/arcadia-depth/SKILL.md and the construct files it points to for this task, and follow them." B is
+unchanged apart from effort. The comparison is therefore skills plus pointer against neither, at equal effort; it
+does not separate the pointer from the files' content.
+
+## Tasks, runs, scoring
+
+Experiment 8's 14 tasks, 3 repetitions, 84 runs, plus a one-task pilot per arm (`fsae-d-interface`, rep 0,
+excluded). The pilot must show S reading `arcadia-depth/SKILL.md` and a construct file; if it does not, the pointer
+is reworded and the pilot repeated before any scored run. Scoring as experiment 8.
+
+## Decision rule
+
+As experiment 8, with the case that rule left open named: **helps** when S wins more tasks than it loses and passes
+at least 5 more runs (the rule's integrity condition becomes: S adds no more integrity failures than B plus 1);
+**not shown** when the pass counts are within 4 runs; **worse** when S loses more tasks than it wins and passes at
+least 5 fewer. Reported, not in the rule: S runs that read a construct file, and median time and tokens per arm
+against experiment 8's `medium`.
