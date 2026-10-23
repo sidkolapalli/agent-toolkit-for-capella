@@ -978,3 +978,45 @@ of 42 (the pointer adds little at `high`), **pointer needed** at 10 or fewer (ex
 **partial** in between. Reported, not in the rule: S's pass count against experiment 10's S (40/42) and B (29/42) and
 experiment 9's B (20/42), median time and tokens, integrity failures, and an audit of every shell command for reads
 outside the run folder.
+
+## Experiment 11, result (2026-10-23; Codex 0.160.1, `gpt-6-luna` at `high`, skills 5158bd4, plugin build 0.2.1.202610231418 without the pointer)
+
+| Task | S | S read |
+|---|---|---|
+| modes | FPP | MODES (r2) |
+| exchange items | PPP | DATA (r1); r3 looked only in the home folder |
+| interface | PPF | none |
+| missions | FPP | MISSIONS (r2) |
+| duplicate | FFF | none |
+| property values | PPP | PROPERTIES |
+| roles | FPP | OPERATIONAL (r2, r3) |
+| communication means | FFF | none |
+| capability relations | FPP | CAPABILITIES (r2, r3) |
+| categories (reworded) | PPF | none |
+| functional scenario | PPP | SCENARIOS (r1, r2) |
+| branching chain (reworded) | PPP | CHAINS (r2) |
+| physical path | PPP | PHYSICAL (r2, r3) |
+| transition | PPP | TRANSITIONS (r2) |
+| **Passed** | **30/42** | |
+| Median agent time | 72.5 s | |
+| Median tokens (input + output) | 622k | |
+| Runs adding validation errors | 1 | |
+
+Primary: S read a construct file in 16 of 42 runs: **partial**. Unprompted reading rose from 2 of 42 at `medium`
+(experiment 8) to 16 of 42 at `high`; the pointer took it to 40 of 42 (experiments 9 and 10). Effort explains part of
+the gap and the pointer most of it.
+
+Reported: S passed 30/42, against experiment 10's S 40/42 and B 29/42 and experiment 9's B 20/42 (other days, no
+concurrent B). Against experiment 10's S, task by task, the pointer won 7 and lost 1 (functional scenario). All 16 runs
+that read a construct file passed; 14 of the 26 that read none passed. Not a test: reading is concentrated by task
+(no run read on duplicate or communication means, all failed; property values reads and passes in every arm). Missions
+r1 read nothing, left 8 missions without capability links (8 validation errors) and said so in its final message.
+
+Audit: every shell command in all 42 runs was read. 17 runs ran any; all were reads of `arcadia-depth` files, one read
+of `arcadia-elicit/SKILL.md` (missions r2), and two attempts at `~/.agents/skills/arcadia-depth/SKILL.md`, which does
+not exist (exchange items r3, which then stopped looking; roles r3, which then read its own folder). The 42 Codex
+session rollouts of the run name the experiment 11 folders and none contains the pointer sentence. The current build
+(0.2.1.202610230925) was reinstalled afterwards.
+
+Codex usage for experiment 11 (42 runs): about 3% of the weekly window (9% to 12%). Folder:
+`E:/capella-eval-runs/exp11/S` (local only).

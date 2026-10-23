@@ -66,7 +66,7 @@ A skill stays here only if it measurably helps an agent: each one is tested with
 already give every agent (the Arcadia outline, the edit-and-receipt workflow, diagram choice) were removed after
 showing no gain.
 
-Copy the folders into your agent's skills directory: `.claude/skills/` (Claude Code) or `.agents/skills/` (Codex), in your project or home directory, then run `/capella-setup` (Codex: `$capella-setup`). Setup runs only when you call it; the other skills load on their own when a task needs them, and the MCP server's instructions tell the agent to read `arcadia-depth` before modelling (Codex `gpt-6-luna` without a pointer, at medium effort, opened it in 4 of 42 runs; with the pointer, at high effort, it read the matching construct file in 40 of 42).
+Copy the folders into your agent's skills directory: `.claude/skills/` (Claude Code) or `.agents/skills/` (Codex), in your project or home directory, then run `/capella-setup` (Codex: `$capella-setup`). Setup runs only when you call it; the other skills load on their own when a task needs them, and the MCP server's instructions tell the agent to read `arcadia-depth` before modelling (Codex `gpt-6-luna` at high effort read the matching construct file in 16 of 42 runs without the pointer and in 40 of 42 with it).
 
 ## The example model and the experiments
 
@@ -87,6 +87,7 @@ Every experiment ran headless agents on fresh copies of this model and graded th
 | 8. `arcadia-depth` on Codex `gpt-6-luna` (medium effort) | Not shown (13/42 vs 15/42): the agent saw the skill listed but opened it in only 4 of 42 runs |
 | 9. The same, high effort, told in the prompt to read the skill | 20/42 → 42/42, faster and with fewer tokens; a construct file was read in 40 of 42 runs |
 | 10. The same, with the pointer moved into the MCP server's instructions | 29/42 → 40/42; a construct file was read in 40 of 42 runs with nothing in the prompt |
+| 11. The same skills at high effort with no pointer anywhere | Partial: a construct file was read in 16 of 42 runs, and 30/42 passed (all 16 runs that read one passed) |
 
 To repeat a run (Windows, Python 3.11+, [Claude Code](https://claude.com/claude-code) signed in, Capella 7.0.0 with this plug-in and the Requirements Viewpoint installed):
 
