@@ -951,3 +951,30 @@ arm ran at `high` with skills and no pointer, so effort and pointer are not sepa
 
 Codex usage for experiment 10 (86 runs): about 4% of the weekly window (5% to 9%). Folders:
 `E:/capella-eval-runs/B`, `S`, `pilot/` (local only).
+
+# Experiment 11: does luna read the depth skill unprompted at `high`? Protocol (fixed before any run, 2026-10-23)
+
+Question: experiment 8's unprompted read rate (2 of 42 runs reached a construct file) was at `medium`; experiments
+9 and 10 pointed the agent to the skill and ran at `high`. Effort and pointer changed together. With the effort at
+`high` and no pointer anywhere, how often does luna read the skill?
+
+## Setups
+
+S only, as experiment 10 (`gpt-6-luna` at `high`, `SKILL_POINTER` unset, run folders in
+`E:/capella-eval-runs/exp11`), but on a plugin build without the server pointer: `McpServer.java` as of 714e40c,
+the same plugin source as experiments 8 and 9's build 0.2.1.202610221048, rebuilt because that build is no longer
+installed. No B arm: B has no skill to read, and experiments 9 and 10 give B at `high` (20/42, 29/42). Afterwards the
+current build (0.2.1.202610230925) is reinstalled.
+
+## Tasks, runs, scoring
+
+Experiment 10's 14 tasks, 3 repetitions, 42 runs, no pilot (nothing to tune). Scoring and the read count as
+experiment 10.
+
+## Decision rule
+
+Primary, S runs whose events show a read of an `arcadia-depth` construct file: **effort explains it** at 34 or more
+of 42 (the pointer adds little at `high`), **pointer needed** at 10 or fewer (experiment 8's finding holds at `high`),
+**partial** in between. Reported, not in the rule: S's pass count against experiment 10's S (40/42) and B (29/42) and
+experiment 9's B (20/42), median time and tokens, integrity failures, and an audit of every shell command for reads
+outside the run folder.
