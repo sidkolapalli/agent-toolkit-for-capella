@@ -835,3 +835,47 @@ at least 5 more runs (the rule's integrity condition becomes: S adds no more int
 **not shown** when the pass counts are within 4 runs; **worse** when S loses more tasks than it wins and passes at
 least 5 fewer. Reported, not in the rule: S runs that read a construct file, and median time and tokens per arm
 against experiment 8's `medium`.
+
+## Experiment 9, result (2026-10-22; Codex 0.160.1, `gpt-6-luna` at `high`, skills 5158bd4, plugin build 0.2.1.202610221048)
+
+Pilot (`fsae-d-interface`, rep 0, excluded): S read `SKILL.md`, `INTERFACES.md` and `DATA.md` and passed in 58 s;
+B failed in 83 s. The gate was met.
+
+| Task | B | S | S read |
+|---|---|---|---|
+| modes | FFF | PPP | MODES |
+| exchange items | PPF | PPP | DATA |
+| interface | PPF | PPP | INTERFACES, DATA (r2, r3); router only (r1) |
+| missions | FFF | PPP | MISSIONS, CAPABILITIES |
+| duplicate | FFF | PPP | CONTROL |
+| property values | PPP | PPP | PROPERTIES |
+| roles | FFF | PPP | OPERATIONAL |
+| communication means | FFF | PPP | OPERATIONAL |
+| capability relations | FPF | PPP | CAPABILITIES |
+| categories (reworded) | FPF | PPP | CATEGORIES |
+| functional scenario | PPP | PPP | SCENARIOS |
+| branching chain (reworded) | PPF | PPP | CHAINS |
+| physical path | PPP | PPP | PHYSICAL |
+| transition | PPP | PPP | TRANSITIONS |
+| **Passed** | **20/42** | **42/42** |
+| Median agent time | 63.5 s | 57.5 s |
+| Median tokens (input + output) | 663k | 517k |
+| Runs adding validation errors (cardinality gap excluded) | 2 | 0 |
+
+S won 10 tasks and lost none (sign test p = 0.002), passed 22 more runs and added no integrity failure. **The skills
+help** luna when it reads them. S opened a construct file in 40 of 42 runs (the other two read the router, or the
+read did not show in the events), and was faster and used fewer tokens than B. Against experiment 8, `high` effort
+alone took B from 13/42 to 20/42; skills with the pointer took S from 15/42 to 42/42. The pointer and the files'
+content are not separated (as the protocol says), but experiment 8 shows that the files unread do nothing.
+
+File access, found in the audit of every shell command: Codex's read-only sandbox lets the agent read outside its
+folder. 6 S runs (capability relations r1 and r3, categories r2, functional scenario r1, modes r3, transition r1)
+looked for `CONTRIBUTING.md` and `CLAUDE.md`, which no skill names; capability relations r3 and transition r1
+found and read the repository's own `CLAUDE.md` and `CONTRIBUTING.md` by walking up from the run folder. Those
+files describe the plugin's architecture and conventions, not Arcadia constructs, tasks, checks or solutions. No run
+in either arm read a task file, the grader, the protocol or another run's folder. Without the 6 runs S is 36/36, and
+the per-task result is unchanged. B ran no shell command beyond listing its own folder. For later experiments the
+run folders should sit outside the repository (experiment 1's Codex arms had the same exposure).
+
+Codex usage for experiment 9 (86 runs): about 3% of the weekly window. Folders: `results/B-exp9/`, `results/S-exp9/`
+(local only).
