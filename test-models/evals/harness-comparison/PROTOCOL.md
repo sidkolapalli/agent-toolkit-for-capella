@@ -879,3 +879,30 @@ run folders should sit outside the repository (experiment 1's Codex arms had the
 
 Codex usage for experiment 9 (86 runs): about 3% of the weekly window. Folders: `results/B-exp9/`, `results/S-exp9/`
 (local only).
+
+# Experiment 10: does a pointer in the MCP server's instructions work like one in the prompt? Protocol (fixed before any run, 2026-10-23)
+
+Question: experiment 9's pointer was in the prompt, which a user of the toolkit does not write. MCP clients pass the
+server's `instructions` to the agent (Codex 0.160.1 shows them at the top of its tool listing, as the
+2026-10-22 harness rollouts show). With the pointer moved there, does luna read the depth skill as often as in experiment 9?
+
+## Setups
+
+As experiment 9 (`gpt-6-luna` at `high`, both arms), with three changes. `SKILL_POINTER` is unset, so neither prompt
+mentions the skills. The plugin build adds one sentence to the MCP server's instructions: "Before modelling, if the
+arcadia-depth skill is installed, read its SKILL.md and the construct files it points to for the task, and follow
+them." Both arms get that build; B has no skills to read. Run folders sit outside the repository
+(`EVAL_RESULTS=E:/capella-eval-runs`), following experiment 9's file-access finding.
+
+## Tasks, runs, scoring
+
+Experiment 9's 14 tasks, 3 repetitions, 84 runs, plus a one-task pilot per arm (`fsae-d-interface`, rep 0,
+excluded). If the pilot's S run reads no `arcadia-depth` file, the sentence may be reworded once, recorded as an
+amendment, and the pilot repeated; the scored runs go ahead either way. Scoring as experiment 9.
+
+## Decision rule
+
+Primary, the number of S runs whose events show a read of an `arcadia-depth` construct file: **works** at 34 or
+more of 42 (experiment 9 had 40), **fails** at 10 or fewer (experiment 8 had 2), **partial** in between. Secondary,
+B against S under experiment 9's rule (helps, not shown, worse). Reported, not in the rule: S's pass count against
+experiment 9's 42/42, B's against 20/42, and an audit of every shell command for reads outside the run folder.

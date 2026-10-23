@@ -14,7 +14,7 @@ import collections, json, pathlib, shutil, subprocess, sys, threading, time, zip
 import capella
 
 HERE = capella.HERE
-RESULTS = HERE / "results"
+RESULTS = pathlib.Path(capella.os.environ.get("EVAL_RESULTS", HERE / "results"))  # experiment 10: outside the repo
 CODEX = capella.CODEX
 MODEL_ZIP = HERE.parents[1] / "fsae-2027" / "FSAE-2027-Electric-Arcadia.zip"  # the pristine model
 PYTHON = HERE / "bare-venv" / "Scripts" / "python.exe"
