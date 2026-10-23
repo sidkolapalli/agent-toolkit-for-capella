@@ -906,3 +906,46 @@ Primary, the number of S runs whose events show a read of an `arcadia-depth` con
 more of 42 (experiment 9 had 40), **fails** at 10 or fewer (experiment 8 had 2), **partial** in between. Secondary,
 B against S under experiment 9's rule (helps, not shown, worse). Reported, not in the rule: S's pass count against
 experiment 9's 42/42, B's against 20/42, and an audit of every shell command for reads outside the run folder.
+
+## Experiment 10, result (2026-10-23; Codex 0.160.1, `gpt-6-luna` at `high`, skills 5158bd4, plugin build 0.2.1.202610230925)
+
+Pilot (`fsae-d-interface`, rep 0, excluded): S read `SKILL.md`, `INTERFACES.md` and `DATA.md` and passed in 52 s; B
+passed in 143 s. The sentence was not reworded.
+
+| Task | B | S | S read |
+|---|---|---|---|
+| modes | FPP | PPP | MODES |
+| exchange items | PFP | PPP | DATA |
+| interface | PPP | FPP | INTERFACES, DATA (r2, r3); none (r1) |
+| missions | PPP | PPP | MISSIONS |
+| duplicate | FFF | PPP | CONTROL |
+| property values | PPP | PPP | PROPERTIES |
+| roles | FFF | PPP | OPERATIONAL |
+| communication means | FFP | PPP | OPERATIONAL |
+| capability relations | PFF | PPP | CAPABILITIES |
+| categories (reworded) | PPF | PPP | CATEGORIES |
+| functional scenario | PPP | PFP | SCENARIOS (r2, r3); none (r1) |
+| branching chain (reworded) | PPP | PPP | CHAINS |
+| physical path | PPP | PPP | PHYSICAL |
+| transition | PPP | PPP | TRANSITIONS |
+| **Passed** | **29/42** | **40/42** |
+| Median agent time | 70.5 s | 60 s |
+| Median tokens (input + output) | 758k | 580k |
+| Runs adding validation errors | 0 | 0 |
+
+Primary: S read a construct file in 40 of 42 runs, as in experiment 9. **The pointer works** from the server's
+instructions. Of the two runs that read none, interface r1 looked for the skill in the user's home folder
+(`~/.agents/skills`, absent), never found it and failed; functional scenario r1 ran no shell command and passed.
+
+Secondary: S won 7 tasks and lost 2 (sign test p = 0.18), passed 11 more runs and added no integrity failure:
+**helps** under experiment 9's rule. B passed 29/42 against experiment 9's 20/42 with the same model, effort and
+tasks; B's only change was the new sentence, which names a skill B does not have. Whether that sentence, run-to-run
+variance or the moved run folders explain the 9 runs is not separable here; B's failures stayed on the constructs the
+skill teaches (duplicate, roles, communication means, capability relations).
+
+Audit: every shell command in all 84 runs was read. B ran none. S's were reads of `arcadia-depth` files, one read
+of `arcadia-elicit/SKILL.md` (modes r1), and interface r1's failed read in the home folder. No run read outside its
+own folder otherwise.
+
+Codex usage for experiment 10 (86 runs): about 4% of the weekly window (5% to 9%). Folders:
+`E:/capella-eval-runs/B`, `S`, `pilot/` (local only).
