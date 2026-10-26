@@ -1,11 +1,14 @@
-# AI Capella Plugin (Prototype)
+# ai-capella
 
-Goal: In‑process chat assistant inside Capella that can read, modify, and visualize models using EMF/Sirius APIs.
+The Eclipse plug-in, shown in Capella as **Capella AI Assistant**. It hosts the MCP server, the chat assistant and
+the Groovy script API that both use.
 
-This is a skeleton Eclipse/Capella plugin to host a Chat view and tool layer. It will be wired to the active Capella Session for safe, undoable edits and live diagram updates.
+| Path | Contents |
+|---|---|
+| `src/org/polarsys/capella/ai/` | Java sources; [ARCHITECTURE.md](../../ARCHITECTURE.md) explains how they fit together |
+| `resources/capella-api/` | The API documentation agents read on demand (`api.fs`, `capella_docs`) |
+| `resources/codex/windows-x64/` | Provenance of the bundled Codex runtime; the executables come from `scripts/fetch-codex.py` |
+| `plugin.xml`, `META-INF/` | Views, preferences and bundle manifest |
 
-Key pieces to implement next:
-- Bridge to current `Session` and `TransactionalEditingDomain`.
-- EMF transactions (RecordingCommand) for CRUD.
-- Sirius UI commands for node/edge add and layout.
-- LLM connector and optional MCP server inside the plugin.
+Tests are in [`../ai-capella.tests`](../ai-capella.tests). Build, install and use are covered in the
+[README](../../README.md) and [docs/PLUGIN.md](../../docs/PLUGIN.md).

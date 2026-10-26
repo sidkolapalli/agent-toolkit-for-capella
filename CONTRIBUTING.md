@@ -3,7 +3,7 @@
 `README.md` describes what the plug-in does; `CLAUDE.md` and `ARCHITECTURE.md` explain how the code fits together and the invariants changes must keep.
 
 ## Project structure
-The plug-in is `plugins/ai-capella` (sources under `src/org/polarsys/capella/ai/**`, plus `plugin.xml` and `META-INF/MANIFEST.MF`). The Tycho reactor is `plugins/pom.xml`, the feature is `plugins/ai-capella-feature`, and the p2 update site is written to `plugins/ai-capella-repository/target/repository`. The target platform is `releng/capella-target`. Sample models and evaluation tasks live in `test-models/`. Run `git lfs pull` after cloning: the bundled Codex executables are LFS-tracked.
+The plug-in is `plugins/ai-capella` (sources under `src/org/polarsys/capella/ai/**`, plus `plugin.xml` and `META-INF/MANIFEST.MF`). The Tycho reactor is `plugins/pom.xml`, the feature is `plugins/ai-capella-feature`, and the p2 update site is written to `plugins/ai-capella-repository/target/repository`. The target platform is `releng/capella-target`. Sample models and evaluation tasks live in `test-models/`. Run `python scripts/fetch-codex.py` after cloning: it downloads the bundled Codex executables and checks them against `provenance.json`.
 
 ## Build and test
 Java 17 and Maven. Export the XML entity limits once per shell (Eclipse update sites need them):

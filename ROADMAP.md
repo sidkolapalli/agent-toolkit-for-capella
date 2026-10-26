@@ -1,6 +1,6 @@
 # Roadmap
 
-Measured with `test-models/evals/` on the bundled Codex runtime (see the README's evaluation section). Update the scores whenever prompts, tools or models change.
+Measured with `test-models/evals/` on the bundled Codex runtime (see [docs/PLUGIN.md](docs/PLUGIN.md#evaluating-agent-quality)). Update the scores whenever prompts, tools or models change.
 
 ## Latest score
 

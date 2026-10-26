@@ -3,7 +3,7 @@
 #
 # 1. Open a disposable copy of a Capella model.
 # 2. Start the dev server: Window -> Show View -> Other -> Capella AI -> AI Dev Server -> Start.
-# 3. ./test-dev-server.sh [port]
+# 3. scripts/test-dev-server.sh [port]
 
 PORT=${1:-8765}
 BASE_URL="http://localhost:$PORT"

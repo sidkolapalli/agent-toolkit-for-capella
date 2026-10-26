@@ -1,43 +1,19 @@
-# Exclude reference datasets and private models
-plugins/Reference/
+# Build outputs
+target/
+bin/
+.tycho-consumer-pom.xml
 
-# Python venvs and artifacts
+# Python
 .venv/
 __pycache__/
 *.pyc
 
-# Build outputs
-.tycho-consumer-pom.xml
-plugins/ai-capella-repository/target/
-plugins/ai-capella-feature/target/
-plugins/ai-capella/target/
-src/java/target/
-plugins/**/bin/
-releng/**/target/
-
-# Local logs and transient artifacts
-build.log
-build2.log
-build.out
-docs/log.txt
-.serena/
-.m2-tmp/
-.workspace-capella/
-
-# IDE files
+# IDE and OS files
 .vscode/
 .idea/
 *.iml
-
-# OS files
 Thumbs.db
 .DS_Store
-
-# build outputs
-plugins/ai-capella.tests/target/
-
-# Private archive (not for publication)
-archive/
 
 # Local evaluation reports
 test-models/native-integration/results/
