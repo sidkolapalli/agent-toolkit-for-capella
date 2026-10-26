@@ -1,0 +1,12 @@
+{
+  "name": "capella-tools",
+  "description": "Arcadia/Capella MBSE skills and the Capella MCP server",
+  "owner": { "name": "sidkolapalli", "url": "https://github.com/sidkolapalli" },
+  "plugins": [
+    {
+      "name": "capella-agent-toolkit",
+      "source": "./",
+      "description": "Arcadia/Capella MBSE skills and the Capella MCP server"
+    }
+  ]
+}

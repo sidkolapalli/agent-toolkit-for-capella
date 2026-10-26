@@ -1,7 +1,22 @@
+<div align="center">
+
+<img src=".claude-plugin/icon.png" alt="" width="112">
+
 # Capella Agent Toolkit
 
-Tools that let LLM agents work on [Capella](https://eclipse.dev/capella/) models, and the experiments that show
-which parts of them help.
+**Let AI agents work on [Capella](https://eclipse.dev/capella/) models, with every edit reviewed by a person,
+and measure which parts actually help.**
+
+[![build](https://github.com/sidkolapalli/capella-agent-toolkit/actions/workflows/build.yml/badge.svg)](https://github.com/sidkolapalli/capella-agent-toolkit/actions/workflows/build.yml)
+[![License: EPL-2.0](https://img.shields.io/badge/license-EPL--2.0-blue)](LICENSE)
+[![Capella 7.0](https://img.shields.io/badge/Capella-7.0-1f6feb)](https://eclipse.dev/capella/)
+[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6e40c9)](https://modelcontextprotocol.io)
+[![Agent Skills](https://img.shields.io/badge/Agent%20Skills-SKILL.md-1baf7a)](https://agentskills.io)
+
+[Install](docs/INSTALL.md) · [Quick start](#quick-start) · [Results](#what-the-experiments-found) ·
+[Experiments](#experiments) · [Benchmark model](https://github.com/sidkolapalli/fsae-2027-capella-model)
+
+</div>
 
 - **An MCP server inside Capella.** An Eclipse plug-in for Capella 7 serves the model open in Capella to any MCP
   client (Claude Code, Codex, ...). Agents read through typed tools and propose changes as Groovy scripts; nothing
@@ -26,7 +41,26 @@ The plug-in, which appears in Capella as **Capella AI Assistant**, also has its 
   in the MCP server's instructions raised that to 40 of 42, and the skilled agent then passed 40/42 against 29/42
   without the skills.
 
-All eleven experiments are listed [below](#experiments).
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/results-dark.svg">
+  <img alt="Codex gpt-6-luna on 14 depth tasks, 42 runs per condition. Reading the skill's construct file: 2 runs at medium effort with no pointer, 16 at high effort with no pointer, 40 with a pointer in the prompt, 40 with the pointer in the MCP server. Passed with the skills: 15, 30, 42, 40. Passed without the skills: 13, not run, 20, 29." src="docs/images/results-light.svg">
+</picture>
+
+All eleven experiments are listed [below](#experiments); `docs/images/make_results_chart.py` draws the chart from
+them.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["Your agent<br/>Claude Code, Codex, Cursor, Copilot, ..."] -->|"MCP over localhost, bearer token"| S["MCP server<br/>in the Capella plug-in"]
+    K["Skills<br/>arcadia-depth, arcadia-elicit"] -.->|"loaded by the agent"| A
+    S -->|"read tools"| M[("Model open<br/>in Capella")]
+    S -->|"propose_model_edit"| R{"Review dialog:<br/>a person approves<br/>the exact script"}
+    R -->|"Apply"| T["One undoable<br/>transaction + checks"]
+    T --> M
+    T -->|"receipt via edit_status"| A
+```
 
 ## Quick start
 
@@ -48,17 +82,17 @@ On Windows PowerShell, set the variable with `$env:JAVA_TOOL_OPTIONS='...'`. The
 
 **3. Start the MCP server.** Open a model, then **Window → Show View → Other → AI Dev Server → Start** (port 8765).
 
-**4. Connect your agent and add the skills.** Copy the folders in [`skills/`](skills) into `.claude/skills/`
-(Claude Code) or `.agents/skills/` (Codex), in your project or home folder, and run `/capella-setup` (Codex:
-`$capella-setup`). It registers the server with your agent. To do it by hand in Claude Code:
+**4. Connect your agent and add the skills.** Set a fixed token first, so your agent's configuration survives
+Capella restarts: set `CAPELLA_AI_DEVSERVER_TOKEN` to a random value for both Capella and your agent
+([how](docs/INSTALL.md#set-a-fixed-mcp-token)). Then pick your agent:
 
-```bash
-claude mcp add --transport http capella http://127.0.0.1:8765/mcp \
-  --header "Authorization: Bearer $(cat ~/.capella-ai/devserver-8765.token)"
-```
+| Agent | Fastest route |
+|---|---|
+| Claude Code | `/plugin marketplace add sidkolapalli/capella-agent-toolkit`, then `/plugin install capella-agent-toolkit@capella-tools` (skills and server in one step) |
+| Any agent with Agent Skills | `npx skills add sidkolapalli/capella-agent-toolkit` or `gh skill install sidkolapalli/capella-agent-toolkit --all`, then connect the server |
+| Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf / Devin, OpenCode, Claude Desktop | Step-by-step in [docs/INSTALL.md](docs/INSTALL.md), from each tool's official documentation |
 
-The token changes each time the server starts; run the command again after a restart, or set
-`CAPELLA_AI_DEVSERVER_TOKEN` before launching Capella for a fixed token.
+Then run `/capella-setup` (Codex: `$capella-setup`) to check the connection.
 
 Then ask for the work in plain language, for example "Add a Charging mode to the vehicle and the transitions into
 it". Each edit opens a review dialog in Capella.
@@ -71,6 +105,12 @@ it". Each edit opens a review dialog in Capella.
   Capella. An approved script runs once, in one undoable transaction, and `edit_status` returns a receipt: what
   changed, the declared checks, and the validator's findings before and after.
 - Model content returned to the agent is data, not instructions.
+
+## Privacy
+
+The toolkit sends nothing anywhere. The MCP server listens on your machine only, and the plug-in's telemetry and
+dataset logging are off unless you turn them on, and stay local when on. What your agent reads from the model goes
+to that agent's model provider under that provider's terms, as with any file the agent reads.
 
 ## Skills
 
@@ -146,7 +186,7 @@ Haiku run costs a few cents.
 | [`skills/`](skills) | Agent skills |
 | [`test-models/evals`](test-models/evals) | Task sets, and in `harness-comparison/` the harness, grader and protocol |
 | [`test-models/native-integration`](test-models/native-integration) | Scripts that test the installed plug-in in a real Capella session |
-| [`docs/`](docs) | The plug-in in detail, Codex setup, Arcadia coverage |
+| [`docs/`](docs) | Install guide for each agent, the plug-in in detail, Codex setup, Arcadia coverage, images |
 | [`scripts/`](scripts) | Codex download, MCP client check, dev launch and smoke test |
 
 [`ARCHITECTURE.md`](ARCHITECTURE.md) explains how the code fits together and [`CONTRIBUTING.md`](CONTRIBUTING.md)
