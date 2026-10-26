@@ -407,7 +407,14 @@ public final class CodexAppServer implements CodexTransport {
     }
 
     private void fail(IOException error, boolean clearEvents) {
-        if (failure.compareAndSet(null, error)) {
+        boolean first = failure.compareAndSet(null, error);
+        // Clear before waking callers: one woken by a failed reply must not read stale events.
+        if (clearEvents)
+            synchronized (events) {
+                events.clear();
+                eventBytes.set(0);
+            }
+        if (first) {
             synchronized (pending) {
                 pending.forEach((id, reply) -> reply.completeExceptionally(error));
                 pending.clear();
@@ -421,11 +428,6 @@ public final class CodexAppServer implements CodexTransport {
             closeQuietly(stdout);
             closeQuietly(stderr);
         }
-        if (clearEvents)
-            synchronized (events) {
-                events.clear();
-                eventBytes.set(0);
-            }
     }
 
     @Override
