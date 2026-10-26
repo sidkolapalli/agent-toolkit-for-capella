@@ -2,7 +2,7 @@
 
 Capella AI lets a language model work on a live Arcadia model in Capella 7 without ever changing it unreviewed. The model reads through typed, read-only tools and changes the model only by proposing a Groovy script against a curated API. A person reviews every proposal; the plugin runs the exact reviewed source once, in one undoable transaction, and then checks the result independently before the model is told what happened.
 
-All Java code is under `plugins/ai-capella/src/org/polarsys/capella/ai/`.
+All Java code is under `plugins/ai-capella/src/com/sidkolapalli/capella/ai/`.
 
 ## Why scripts for writes and typed tools for reads
 

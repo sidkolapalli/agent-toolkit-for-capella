@@ -31,7 +31,7 @@ Install the update site with **Help → Install New Software → Add → Local**
 
 ## Architecture
 
-All code is under `plugins/ai-capella/src/org/polarsys/capella/ai/`.
+All code is under `plugins/ai-capella/src/com/sidkolapalli/capella/ai/`.
 
 ### Request flow
 
@@ -89,7 +89,7 @@ Known traps: Capella 7.0.0 ships Guava 21 and 31.1 only, so bundled dependencies
 
 ## Conventions
 
-- Packages: `org.polarsys.capella.ai.*`. Java 17, UTF-8, google-java-format AOSP style (command in `CONTRIBUTING.md`). Test-called classes must be `public`: tests run in a separate OSGi bundle.
+- Packages: `com.sidkolapalli.capella.ai.*`. Java 17, UTF-8, google-java-format AOSP style (command in `CONTRIBUTING.md`). Test-called classes must be `public`: tests run in a separate OSGi bundle.
 - When adding views, pages or services, update `plugin.xml`, `build.properties` and `plugins/ai-capella-feature/feature.xml`. Bundle and feature versions follow `0.x.y.qualifier`; the reactor is `plugins/pom.xml`, and the target platform is `releng/capella-target`.
 - Tests go in `plugins/ai-capella.tests/src`, mirror the source package, are named `*Test`, and must be deterministic.
 - Commits use Conventional Commits (`feat:`, `fix(diagram):`, ...).

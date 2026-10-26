@@ -3,31 +3,31 @@
 <plugin>
     <extension point="org.eclipse.ui.views">
         <category
-            id="org.polarsys.capella.ai"
+            id="com.sidkolapalli.capella.ai"
             name="Capella AI Assistant"/>
         <view
             allowMultiple="false"
-            category="org.polarsys.capella.ai"
-            class="org.polarsys.capella.ai.ChatView"
-            id="org.polarsys.capella.ai.chatview"
+            category="com.sidkolapalli.capella.ai"
+            class="com.sidkolapalli.capella.ai.ChatView"
+            id="com.sidkolapalli.capella.ai.chatview"
             name="Capella AI Assistant"/>
         <view
             allowMultiple="false"
-            category="org.polarsys.capella.ai"
-            class="org.polarsys.capella.ai.views.DiagramsView"
-            id="org.polarsys.capella.ai.diagrams"
+            category="com.sidkolapalli.capella.ai"
+            class="com.sidkolapalli.capella.ai.views.DiagramsView"
+            id="com.sidkolapalli.capella.ai.diagrams"
             name="AI Diagrams"/>
         <view
             allowMultiple="false"
-            category="org.polarsys.capella.ai"
-            class="org.polarsys.capella.ai.views.LogInspectorView"
-            id="org.polarsys.capella.ai.logs"
+            category="com.sidkolapalli.capella.ai"
+            class="com.sidkolapalli.capella.ai.views.LogInspectorView"
+            id="com.sidkolapalli.capella.ai.logs"
             name="AI Log Inspector"/>
         <view
             allowMultiple="false"
-            category="org.polarsys.capella.ai"
-            class="org.polarsys.capella.ai.dev.DevServerView"
-            id="org.polarsys.capella.ai.dev.DevServerView"
+            category="com.sidkolapalli.capella.ai"
+            class="com.sidkolapalli.capella.ai.dev.DevServerView"
+            id="com.sidkolapalli.capella.ai.dev.DevServerView"
             name="AI Dev Server"/>
     </extension>
 
@@ -35,7 +35,7 @@
         <perspectiveExtension targetID="capella.sirius.perspective">
             <view
                 closeable="true"
-                id="org.polarsys.capella.ai.chatview"
+                id="com.sidkolapalli.capella.ai.chatview"
                 minimized="false"
                 moveable="true"
                 relationship="right"
@@ -44,37 +44,37 @@
                 visible="true"/>
             <view
                 closeable="true"
-                id="org.polarsys.capella.ai.diagrams"
+                id="com.sidkolapalli.capella.ai.diagrams"
                 minimized="false"
                 moveable="true"
                 relationship="right"
-                relative="org.polarsys.capella.ai.chatview"
+                relative="com.sidkolapalli.capella.ai.chatview"
                 visible="false"/>
             <view
                 closeable="true"
-                id="org.polarsys.capella.ai.logs"
+                id="com.sidkolapalli.capella.ai.logs"
                 minimized="false"
                 moveable="true"
                 relationship="bottom"
-                relative="org.polarsys.capella.ai.chatview"
+                relative="com.sidkolapalli.capella.ai.chatview"
                 visible="false"/>
         </perspectiveExtension>
     </extension>
 
     <extension point="org.eclipse.ui.preferencePages">
         <page
-            id="org.polarsys.capella.ai.preferences.llm"
+            id="com.sidkolapalli.capella.ai.preferences.llm"
             name="LLM"
-            class="org.polarsys.capella.ai.preferences.LLMPreferencePage"
+            class="com.sidkolapalli.capella.ai.preferences.LLMPreferencePage"
             category="org.polarsys.capella.core.platform.sirius.ui.actions.Capella.page"/>
         <page
-            id="org.polarsys.capella.ai.preferences.advanced"
+            id="com.sidkolapalli.capella.ai.preferences.advanced"
             name="AI Advanced Settings"
-            class="org.polarsys.capella.ai.preferences.AdvancedPreferencePage"
+            class="com.sidkolapalli.capella.ai.preferences.AdvancedPreferencePage"
             category="org.polarsys.capella.core.platform.sirius.ui.actions.Capella.page"/>
     </extension>
 
     <extension point="org.eclipse.ui.startup">
-        <startup class="org.polarsys.capella.ai.dev.DevServerStartup"/>
+        <startup class="com.sidkolapalli.capella.ai.dev.DevServerStartup"/>
     </extension>
 </plugin>

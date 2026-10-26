@@ -3,7 +3,7 @@
 `README.md` describes what the plug-in does; `CLAUDE.md` and `ARCHITECTURE.md` explain how the code fits together and the invariants changes must keep.
 
 ## Project structure
-The plug-in is `plugins/ai-capella` (sources under `src/org/polarsys/capella/ai/**`, plus `plugin.xml` and `META-INF/MANIFEST.MF`). The Tycho reactor is `plugins/pom.xml`, the feature is `plugins/ai-capella-feature`, and the p2 update site is written to `plugins/ai-capella-repository/target/repository`. The target platform is `releng/capella-target`. Sample models and evaluation tasks live in `test-models/`. Run `python scripts/fetch-codex.py` after cloning: it downloads the bundled Codex executables and checks them against `provenance.json`.
+The plug-in is `plugins/ai-capella` (sources under `src/com/sidkolapalli/capella/ai/**`, plus `plugin.xml` and `META-INF/MANIFEST.MF`). The Tycho reactor is `plugins/pom.xml`, the feature is `plugins/ai-capella-feature`, and the p2 update site is written to `plugins/ai-capella-repository/target/repository`. The target platform is `releng/capella-target`. Sample models and evaluation tasks live in `test-models/`. Run `python scripts/fetch-codex.py` after cloning: it downloads the bundled Codex executables and checks them against `provenance.json`.
 
 ## Build and test
 Java 17 and Maven 3.9.11, the version the build is tested with and CI pins (the CI runner's default Maven failed to resolve Tycho 2.7.5's dependencies). Export the XML entity limits once per shell (Eclipse update sites need them):
@@ -33,7 +33,7 @@ java --add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED \
 
 The one-time reformat is listed in `.git-blame-ignore-revs`; run `git config blame.ignoreRevsFile .git-blame-ignore-revs` so `git blame` skips it.
 
-Keep packages under `org.polarsys.capella.ai.*`. When you add views, pages or services, update `plugin.xml`, `build.properties` and `plugins/ai-capella-feature/feature.xml`. Bundle and feature versions follow `0.x.y.qualifier`. When you add or change a script API method, update the matching docs in `plugins/ai-capella/resources/capella-api/`: the agent learns the API from them.
+Keep packages under `com.sidkolapalli.capella.ai.*`. When you add views, pages or services, update `plugin.xml`, `build.properties` and `plugins/ai-capella-feature/feature.xml`. Bundle and feature versions follow `0.x.y.qualifier`. When you add or change a script API method, update the matching docs in `plugins/ai-capella/resources/capella-api/`: the agent learns the API from them.
 
 ## Branches and releases
 The repository follows gitflow:
