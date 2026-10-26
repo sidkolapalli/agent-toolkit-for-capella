@@ -4,8 +4,8 @@
 
 # Capella Agent Toolkit
 
-**Let AI agents work on [Capella](https://eclipse.dev/capella/) models, with every edit reviewed by a person,
-and measure which parts actually help.**
+**AI assistance for model-based systems engineering in [Capella](https://eclipse.dev/capella/): ask questions about
+your Arcadia model, and have changes proposed that you review before anything runs.**
 
 [![build](https://github.com/sidkolapalli/capella-agent-toolkit/actions/workflows/build.yml/badge.svg)](https://github.com/sidkolapalli/capella-agent-toolkit/actions/workflows/build.yml)
 [![License: EPL-2.0](https://img.shields.io/badge/license-EPL--2.0-blue)](LICENSE)
@@ -13,41 +13,45 @@ and measure which parts actually help.**
 [![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6e40c9)](https://modelcontextprotocol.io)
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-SKILL.md-1baf7a)](https://agentskills.io)
 
-[Install](docs/INSTALL.md) · [Quick start](#quick-start) · [Results](#what-the-experiments-found) ·
-[Experiments](#experiments) · [Benchmark model](https://github.com/sidkolapalli/fsae-2027-capella-model)
+[Install](docs/INSTALL.md) · [What you can do](#what-you-can-do) · [Quick start](#quick-start) ·
+[Example model](https://github.com/sidkolapalli/fsae-2027-capella-model)
 
 </div>
 
-- **An MCP server inside Capella.** An Eclipse plug-in for Capella 7 serves the model open in Capella to any MCP
-  client (Claude Code, Codex, ...). Agents read through typed tools and propose changes as Groovy scripts; nothing
-  runs until a person approves it in Capella's review dialog.
-- **Agent skills, each kept only if it measurably helps.** [`skills/`](skills) teaches the parts of the Arcadia
-  method agents get wrong, and how to interview the user before modelling.
-- **A benchmark.** Task sets, a grader that judges the saved model in a fresh Capella, and the pre-registered
-  protocol and result of every experiment. The model they run on, a Capella model of a Formula SAE 2027 electric
-  car, is in its own repository: [fsae-2027-capella-model](https://github.com/sidkolapalli/fsae-2027-capella-model).
+An Eclipse plug-in for Capella 7 connects an AI agent of your choice (Claude Code, Codex, Cursor, GitHub Copilot,
+Gemini CLI and others) to the model open in Capella. The agent reads the model through typed tools and proposes
+every change as a script that you approve in Capella. Agent skills add what general-purpose agents lack about the
+Arcadia method.
 
-The plug-in, which appears in Capella as **Capella AI Assistant**, also has its own chat assistant; see
+## What you can do
+
+- **Understand a model.** Get a summary of each perspective, find elements, follow traceability from a requirement
+  to the functions and components that satisfy it, and have validation warnings explained.
+- **Model with the method.** Create and connect operational activities, system functions, logical and physical
+  components, exchanges, interfaces, functional chains, scenarios, modes and states, and the realizations between
+  perspectives, from OA down to EPBS, and lay out diagrams.
+- **Get the Arcadia constructs right.** The [`arcadia-depth`](skills/arcadia-depth/SKILL.md) skill teaches the
+  constructs agents tend to get wrong, such as modes versus states, exchange items, interfaces, capability
+  relations, control functions and physical paths, each with its method rule and the matching page of Capella's
+  help.
+- **Start a new system by interview.** The [`arcadia-elicit`](skills/arcadia-elicit/SKILL.md) skill has the agent
+  ask about purpose, users and design decisions, in Arcadia order, before it models anything.
+- **Stay in control.** Nothing changes until you approve the exact script in Capella. An approved change runs once,
+  in one undoable transaction, and you get a receipt: what changed, the declared checks, and the validator's
+  findings before and after.
+
+Capella also gets a built-in chat assistant, **Capella AI Assistant**, for working without an external agent; see
 [docs/PLUGIN.md](docs/PLUGIN.md).
 
-## What the experiments found
+### Example requests
 
-- A general-purpose agent using the MCP server matched the plug-in's purpose-built agent loop (45/45 against
-  51/53 tasks).
-- Skills that restated the tool documentation changed nothing (33/33 either way) and were deleted.
-- [`arcadia-depth`](skills/arcadia-depth/SKILL.md), which teaches the constructs agents get wrong, took Claude
-  Haiku from 11/18 to 18/18, ahead of Sonnet without it at a fraction of the cost.
-- A skill helps only when the agent reads it. Codex `gpt-6-luna` read it in 16 of 42 runs on its own; one sentence
-  in the MCP server's instructions raised that to 40 of 42, and the skilled agent then passed 40/42 against 29/42
-  without the skills.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/results-dark.svg">
-  <img alt="Codex gpt-6-luna on 14 depth tasks, 42 runs per condition. Reading the skill's construct file: 2 runs at medium effort with no pointer, 16 at high effort with no pointer, 40 with a pointer in the prompt, 40 with the pointer in the MCP server. Passed with the skills: 15, 30, 42, 40. Passed without the skills: 13, not run, 20, 29." src="docs/images/results-light.svg">
-</picture>
-
-All eleven experiments are listed [below](#experiments); `docs/images/make_results_chart.py` draws the chart from
-them.
+- "Summarize the logical architecture: the subsystems and what they exchange."
+- "Which functions and components satisfy requirement EV.8.2, and is anything left untraced?"
+- "Explain the validation warnings on the physical architecture and propose fixes."
+- "Add a Charging mode to the vehicle and the transitions into it from Ready and Off."
+- "Create a functional chain from the driver's pedal input to motor torque, through the driver-demand functions."
+- "Realize the logical component Sensor with a physical component, preserving traceability."
+- "Interview me about a battery management system before you model it."
 
 ## How it works
 
@@ -56,7 +60,7 @@ flowchart LR
     A["Your agent<br/>Claude Code, Codex, Cursor, Copilot, ..."] -->|"MCP over localhost, bearer token"| S["MCP server<br/>in the Capella plug-in"]
     K["Skills<br/>arcadia-depth, arcadia-elicit"] -.->|"loaded by the agent"| A
     S -->|"read tools"| M[("Model open<br/>in Capella")]
-    S -->|"propose_model_edit"| R{"Review dialog:<br/>a person approves<br/>the exact script"}
+    S -->|"propose_model_edit"| R{"Review dialog:<br/>you approve<br/>the exact script"}
     R -->|"Apply"| T["One undoable<br/>transaction + checks"]
     T --> M
     T -->|"receipt via edit_status"| A
@@ -92,25 +96,22 @@ Capella restarts: set `CAPELLA_AI_DEVSERVER_TOKEN` to a random value for both Ca
 | Any agent with Agent Skills | `npx skills add sidkolapalli/capella-agent-toolkit` or `gh skill install sidkolapalli/capella-agent-toolkit --all`, then connect the server |
 | Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf / Devin, OpenCode, Claude Desktop | Step-by-step in [docs/INSTALL.md](docs/INSTALL.md), from each tool's official documentation |
 
-Then run `/capella-setup` (Codex: `$capella-setup`) to check the connection.
+Then run `/capella-setup` (Codex: `$capella-setup`) to check the connection, and ask for the work in plain
+language. Each change opens a review dialog in Capella.
 
-Then ask for the work in plain language, for example "Add a Charging mode to the vehicle and the transitions into
-it". Each edit opens a review dialog in Capella.
+To try it on a full model first, use [fsae-2027-capella-model](https://github.com/sidkolapalli/fsae-2027-capella-model):
+a Capella model of a Formula SAE 2027 electric car, with the rules as requirements, a candidate architecture across
+all five perspectives, and open design decisions.
 
-## How edits stay safe
+## Safety and privacy
 
-- The server listens on loopback only, refuses browser requests, and requires a bearer token that it writes to
+- The server listens on your machine only, refuses browser requests, and requires a bearer token that it writes to
   `~/.capella-ai/devserver-<port>.token` and deletes on stop.
-- Read tools never change the model. `propose_model_edit` runs nothing until a person approves the exact script in
-  Capella. An approved script runs once, in one undoable transaction, and `edit_status` returns a receipt: what
-  changed, the declared checks, and the validator's findings before and after.
+- Read tools never change the model. Changes run only after you approve them, once, in one undoable transaction.
 - Model content returned to the agent is data, not instructions.
-
-## Privacy
-
-The toolkit sends nothing anywhere. The MCP server listens on your machine only, and the plug-in's telemetry and
-dataset logging are off unless you turn them on, and stay local when on. What your agent reads from the model goes
-to that agent's model provider under that provider's terms, as with any file the agent reads.
+- The toolkit sends nothing anywhere. The plug-in's telemetry and dataset logging are off unless you turn them on,
+  and stay local when on. What your agent reads from the model goes to that agent's model provider under that
+  provider's terms, as with any file the agent reads.
 
 ## Skills
 
@@ -125,79 +126,19 @@ to that agent's model provider under that provider's terms, as with any file the
 Setup runs only when you call it. The other skills load when a task needs them, and the MCP server's instructions
 point the agent to `arcadia-depth` before modelling.
 
-## Experiments
-
-The experiments ran on [fsae-2027-capella-model](https://github.com/sidkolapalli/fsae-2027-capella-model), a
-Capella 7.0 model of a Formula SAE 2027 electric car: about 86,000 elements across the five Arcadia perspectives,
-every numbered paragraph of the 2027 rules as a native requirement (identifier, page, heading and hash, not the
-paragraph text), and three detailed safety slices with 86 paraphrased obligations. That repository also holds the
-scripts that built it from the public rulebook. It needs
-[Requirements Viewpoint 0.14.0](https://github.com/eclipse-capella/capella-requirements-vp/releases/tag/v0.14.0).
-Every experiment used its tag [`v1.0.0`](https://github.com/sidkolapalli/fsae-2027-capella-model/tree/v1.0.0), where
-the project was stored as a zip; the project folder on its default branch is byte-identical to that zip's contents,
-so use the default branch with the current `run.py` (or unzip the tag's zip and point `EVAL_MODEL` at the folder).
-
-Every experiment ran headless agents on fresh copies of this model and graded the saved model in a fresh Capella,
-never the agent's own account. Protocols were fixed before the runs;
-[`PROTOCOL.md`](test-models/evals/harness-comparison/PROTOCOL.md) has each one, its amendments and its result. The
-history was rewritten once before publication to remove private files; commit hashes cited in older versions of
-`PROTOCOL.md` are from before that rewrite, and the current version cites the published ones.
-
-| Experiment | Finding |
-|---|---|
-| 1. Plug-in vs bare agent + MCP (Codex) | The bare agent with the MCP server matched the plug-in's own agent loop: 45/45 vs 51/53 (cut short by the weekly quota) |
-| 2. Four general skills (Sonnet) | No gain (33/33 either way); the skills only restated the tool descriptions and were deleted |
-| 3. An interviewing skill (Sonnet) | No gain on facts: Sonnet already asks one good round when told someone can answer |
-| 4. `arcadia-depth`, the parts of Arcadia agents miss | Sonnet 16/18 → 18/18 and 42% faster; Haiku 11/18 → 18/18 at a quarter of the cost, beating Sonnet without the skill |
-| 5. Roles, communication means, capability relations | Haiku 1/9 → 8/9; Sonnet already knew them |
-| 6. New API: scenarios, branching chains, physical paths | Haiku 0/3 → 3/3 on scenarios and paths; branching chains possible before, reliable after |
-| 7. `arcadia-elicit` on Haiku | Asked anything 1/12 → 12/12; hidden facts in the model 7/69 → 51/69; no wrong guesses |
-| Release baseline: the published files, rerun | Depth tasks reproduced (Haiku with skills 39/42). Elicitation did not: asked anything 8/12, hidden facts 34/69, still no wrong guesses. Restoring experiment 7's skill set did not bring it back (6/12); the cause is not yet known |
-| 8. `arcadia-depth` on Codex `gpt-6-luna` (medium effort) | Not shown (13/42 vs 15/42): the agent saw the skill listed but opened it in only 4 of 42 runs |
-| 9. The same, high effort, told in the prompt to read the skill | 20/42 → 42/42, faster and with fewer tokens; a construct file was read in 40 of 42 runs |
-| 10. The same, with the pointer moved into the MCP server's instructions | 29/42 → 40/42; a construct file was read in 40 of 42 runs with nothing in the prompt |
-| 11. The same skills at high effort with no pointer anywhere | Partial: a construct file was read in 16 of 42 runs, and 30/42 passed (all 16 runs that read one passed) |
-
-To repeat a run (Windows, Python 3.11+, [Claude Code](https://claude.com/claude-code) signed in, Capella 7.0.0 with
-this plug-in and the Requirements Viewpoint installed):
-
-```bash
-git clone https://github.com/sidkolapalli/fsae-2027-capella-model ../fsae-2027-capella-model   # next to this repository
-cd test-models/evals/harness-comparison
-export CAPELLA_HOME=/path/to/capella          # the folder holding capella.exe
-export EVAL_TASKS=../fsae-2027-depth.json     # any task file in test-models/evals
-export TOOLKIT_SKILLS=../../../skills         # the skills the "with skills" arms get
-python -X utf8 run.py KSH 1 fsae-d-modes      # arm, repetition numbers (e.g. 1 or 1,2,3), task ids (all tasks if none)
-```
-
-`run.py`'s docstring lists the arms (KH/KSH: Haiku without/with skills, K/KS: Sonnet, E*: with a simulated team
-member, A/B/C/S: Codex). The Codex arms need the Codex CLI (`codex` on PATH or set `CODEX_EXE`), and arm A
-also needs a venv at `harness-comparison/bare-venv` with capellambse 0.8.1 (`python -m venv bare-venv` then
-`bare-venv/Scripts/pip install capellambse==0.8.1`). Each run copies the model's project folder (from the clone above, or set `EVAL_MODEL` to the
-`FSAE-2027-Electric-Arcadia` project folder itself), launches its own Capella, and writes the
-transcript and grade to `results/<arm>/` (or `$EVAL_RESULTS`). Costs are Claude Code's list-price estimates; a
-Haiku run costs a few cents.
-
-## Repository layout
-
-| Path | Contents |
-|---|---|
-| [`plugins/`](plugins) | The Eclipse plug-in (MCP server, chat assistant, script API), its tests, feature and update site |
-| [`skills/`](skills) | Agent skills |
-| [`test-models/evals`](test-models/evals) | Task sets, and in `harness-comparison/` the harness, grader and protocol |
-| [`test-models/native-integration`](test-models/native-integration) | Scripts that test the installed plug-in in a real Capella session |
-| [`docs/`](docs) | Install guide for each agent, the plug-in in detail, Codex setup, Arcadia coverage, images |
-| [`scripts/`](scripts) | Codex download, MCP client check, dev launch and smoke test |
-
-[`ARCHITECTURE.md`](ARCHITECTURE.md) explains how the code fits together and [`CONTRIBUTING.md`](CONTRIBUTING.md)
-covers building, testing and commits.
-
 ## Platforms
 
 Built and tested on Windows with Capella 7.0.0. The build and all tests also pass on Linux (Ubuntu under WSL2), and
 Capella 7.0.0 for Linux ran the chat review, diagram and MCP edit flows. macOS has not been run. The bundled Codex
 runtime is Windows x64 only; elsewhere the chat needs an external Codex 0.160.1 or a direct API provider (see
 [docs/PLUGIN.md](docs/PLUGIN.md)). The MCP server needs neither.
+
+## Contributing
+
+[`CONTRIBUTING.md`](CONTRIBUTING.md) covers building, testing and the branch workflow, and
+[`ARCHITECTURE.md`](ARCHITECTURE.md) explains how the code fits together. The plug-in is in [`plugins/`](plugins),
+the skills in [`skills/`](skills), and the evaluation harness in
+[`test-models/evals`](test-models/evals).
 
 ## License
 
