@@ -65,7 +65,8 @@ Only disposable copies are used. Transcripts (`events.jsonl`), final messages an
 `../../fsae-2027/` on first use. (Amended 2026-10-22: these paths were hard-coded during experiments 1 to 7.
 Since 2026-10-26 the model lives in its own repository,
 [fsae-2027-capella-model](https://github.com/sidkolapalli/fsae-2027-capella-model), and `run.py` reads it from a
-clone next to this one or from `EVAL_MODEL_ZIP`.) Pilot (rep 0): one task,
+clone next to this one or from `EVAL_MODEL`, the project folder. Its tag `v1.0.0` holds the zip every experiment
+used, and the folder is byte-identical to that zip's contents.) Pilot (rep 0): one task,
 all three setups passed with no integrity change.
 
 ## Amendment (2026-10-20, before any result was analysed)

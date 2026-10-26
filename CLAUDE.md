@@ -8,7 +8,7 @@ Capella AI Assistant is an Eclipse plug-in for Capella 7 that lets a chat agent 
 
 ## Build and Test
 
-Java 17, Maven, Tycho. Export the XML entity limits once per shell (Eclipse update sites need them):
+Java 17, Maven 3.9.11 (CI pins it; the runner's default Maven failed with Tycho 2.7.5), Tycho. Export the XML entity limits once per shell (Eclipse update sites need them):
 
 ```bash
 export JAVA_TOOL_OPTIONS="-Djdk.xml.maxGeneralEntitySizeLimit=0 -Djdk.xml.totalEntitySizeLimit=0 -Djdk.xml.entityExpansionLimit=0"

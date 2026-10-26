@@ -30,7 +30,7 @@ All eleven experiments are listed [below](#experiments).
 
 ## Quick start
 
-You need Capella 7.0, a Java 17 JDK, Maven and Python 3.
+You need Capella 7.0, a Java 17 JDK, Maven 3.9.11 (the version the build is tested with) and Python 3.
 
 **1. Build the plug-in.**
 
@@ -56,6 +56,9 @@ On Windows PowerShell, set the variable with `$env:JAVA_TOOL_OPTIONS='...'`. The
 claude mcp add --transport http capella http://127.0.0.1:8765/mcp \
   --header "Authorization: Bearer $(cat ~/.capella-ai/devserver-8765.token)"
 ```
+
+The token changes each time the server starts; run the command again after a restart, or set
+`CAPELLA_AI_DEVSERVER_TOKEN` before launching Capella for a fixed token.
 
 Then ask for the work in plain language, for example "Add a Charging mode to the vehicle and the transitions into
 it". Each edit opens a review dialog in Capella.
@@ -90,6 +93,9 @@ every numbered paragraph of the 2027 rules as a native requirement (identifier, 
 paragraph text), and three detailed safety slices with 86 paraphrased obligations. That repository also holds the
 scripts that built it from the public rulebook. It needs
 [Requirements Viewpoint 0.14.0](https://github.com/eclipse-capella/capella-requirements-vp/releases/tag/v0.14.0).
+Every experiment used its tag [`v1.0.0`](https://github.com/sidkolapalli/fsae-2027-capella-model/tree/v1.0.0), where
+the project was stored as a zip; the project folder on its default branch is byte-identical to that zip's contents,
+so use the default branch with the current `run.py` (or unzip the tag's zip and point `EVAL_MODEL` at the folder).
 
 Every experiment ran headless agents on fresh copies of this model and graded the saved model in a fresh Capella,
 never the agent's own account. Protocols were fixed before the runs;
@@ -121,11 +127,14 @@ cd test-models/evals/harness-comparison
 export CAPELLA_HOME=/path/to/capella          # the folder holding capella.exe
 export EVAL_TASKS=../fsae-2027-depth.json     # any task file in test-models/evals
 export TOOLKIT_SKILLS=../../../skills         # the skills the "with skills" arms get
-python -X utf8 run.py KSH 1 fsae-d-modes      # arm, repetitions, task ids (all tasks if none)
+python -X utf8 run.py KSH 1 fsae-d-modes      # arm, repetition numbers (e.g. 1 or 1,2,3), task ids (all tasks if none)
 ```
 
 `run.py`'s docstring lists the arms (KH/KSH: Haiku without/with skills, K/KS: Sonnet, E*: with a simulated team
-member, A/B/C/S: Codex). Each run unzips the model on first use (from the clone above, or set `EVAL_MODEL_ZIP`), launches its own Capella, and writes the
+member, A/B/C/S: Codex). The Codex arms need the Codex CLI (`codex` on PATH or set `CODEX_EXE`), and arm A
+also needs a venv at `harness-comparison/bare-venv` with capellambse 0.8.1 (`python -m venv bare-venv` then
+`bare-venv/Scripts/pip install capellambse==0.8.1`). Each run copies the model's project folder (from the clone above, or set `EVAL_MODEL` to the
+`FSAE-2027-Electric-Arcadia` project folder itself), launches its own Capella, and writes the
 transcript and grade to `results/<arm>/` (or `$EVAL_RESULTS`). Costs are Claude Code's list-price estimates; a
 Haiku run costs a few cents.
 
