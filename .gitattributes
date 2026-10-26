@@ -1,1 +1,0 @@
-plugins/ai-capella/resources/codex/windows-x64/*.exe filter=lfs diff=lfs merge=lfs -text

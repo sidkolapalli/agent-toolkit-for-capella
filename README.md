@@ -72,7 +72,7 @@ Copy the folders into your agent's skills directory: `.claude/skills/` (Claude C
 
 [`test-models/fsae-2027/FSAE-2027-Electric-Arcadia.zip`](test-models/fsae-2027) is a Capella 7.0 model of a Formula SAE 2027 electric car: about 86,000 elements across the five Arcadia perspectives, every numbered paragraph of the 2027 rules as a native requirement (identifier, page, heading and hash, not the paragraph text), and three detailed safety slices (shutdown circuit, driver demand, vehicle protection) with 86 paraphrased obligations. The scripts in [`test-models/fsae-acceptance`](test-models/fsae-acceptance) built it from the public rulebook; its design decisions stay open on purpose. It needs [Requirements Viewpoint 0.14.0](https://github.com/eclipse-capella/capella-requirements-vp/releases/tag/v0.14.0). Unzip it and import the project into a Capella workspace.
 
-Every experiment ran headless agents on fresh copies of this model and graded the saved model in a fresh Capella, never the agent's own account. Protocols were fixed before the runs; [`PROTOCOL.md`](test-models/evals/harness-comparison/PROTOCOL.md) has each one, its amendments and its result.
+Every experiment ran headless agents on fresh copies of this model and graded the saved model in a fresh Capella, never the agent's own account. Protocols were fixed before the runs; [`PROTOCOL.md`](test-models/evals/harness-comparison/PROTOCOL.md) has each one, its amendments and its result. The history was rewritten once before publication to remove private files; commit hashes cited in older versions of `PROTOCOL.md` are from before that rewrite, and the current version cites the published ones.
 
 | Experiment | Finding |
 |---|---|

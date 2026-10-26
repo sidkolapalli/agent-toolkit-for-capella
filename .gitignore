@@ -41,3 +41,6 @@ archive/
 
 # Local evaluation reports
 test-models/native-integration/results/
+
+# Fetched by scripts/fetch-codex.py
+plugins/ai-capella/resources/codex/windows-x64/*.exe
