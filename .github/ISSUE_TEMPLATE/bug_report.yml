@@ -1,0 +1,31 @@
+name: Bug report
+description: Something in the plug-in, MCP server, skills or evals does not work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Steps, the agent and model if one was involved, and a model or task file if you can share one.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Capella version, plug-in build (Help → About), operating system.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Error Log view, dev server output or the MCP receipt. Remove secrets and private model content.
+      render: text

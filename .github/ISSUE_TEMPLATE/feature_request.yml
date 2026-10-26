@@ -1,0 +1,16 @@
+name: Feature request
+description: A new capability, API method, skill or evaluation task.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What you need
+      description: The modelling task or workflow, and where the current toolkit falls short.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: How it could work, and how we would measure that it helps.
