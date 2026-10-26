@@ -10,15 +10,15 @@ E  as K on an underspecified task, with a simulated team member answering the ag
    (experiment 3). EH, ESH: E and ES with Claude Haiku as the agent (experiment 7).
 Every run starts from a fresh copy of the pristine model and is scored by grade.groovy in a fresh Capella.
 """
-import collections, json, pathlib, shutil, subprocess, sys, threading, time, zipfile
+import collections, json, pathlib, shutil, subprocess, sys, threading, time
 import capella
 
 HERE = capella.HERE
 RESULTS = pathlib.Path(capella.os.environ.get("EVAL_RESULTS", HERE / "results"))  # experiment 10: outside the repo
 CODEX = capella.CODEX
-# The pristine model, from github.com/sidkolapalli/fsae-2027-capella-model cloned next to this repository.
-MODEL_ZIP = pathlib.Path(capella.os.environ.get(
-    "EVAL_MODEL_ZIP", HERE.parents[3] / "fsae-2027-capella-model" / "model" / "FSAE-2027-Electric-Arcadia.zip"))
+# The pristine model project, from github.com/sidkolapalli/fsae-2027-capella-model cloned next to this repository.
+MODEL_DIR = pathlib.Path(capella.os.environ.get(
+    "EVAL_MODEL", HERE.parents[3] / "fsae-2027-capella-model" / "model" / "FSAE-2027-Electric-Arcadia"))
 PYTHON = HERE / "bare-venv" / "Scripts" / "python.exe"
 PORTS = {"A": 8781, "B": 8782, "C": 8783, "S": 8784, "K": 8785, "KS": 8786, "E": 8787, "ES": 8788, "KH": 8789, "KSH": 8790, "EH": 8791, "ESH": 8792}
 SKILLS = pathlib.Path(capella.os.environ.get("TOOLKIT_SKILLS", HERE.parents[2] / "skills"))
@@ -72,9 +72,7 @@ def workspace(arm, task, rep):
     ws = RESULTS / arm / f"{task}-r{rep}"
     shutil.rmtree(ws, ignore_errors=True)
     ws.mkdir(parents=True)
-    if not (HERE / "pristine").exists():
-        zipfile.ZipFile(MODEL_ZIP).extractall(HERE / "pristine")
-    shutil.copytree(HERE / "pristine" / "FSAE-2027-Electric-Arcadia", ws / "FSAE-2027-Electric-Arcadia")
+    shutil.copytree(MODEL_DIR, ws / "FSAE-2027-Electric-Arcadia")
     return ws
 
 
