@@ -201,8 +201,10 @@ public final class McpEdits {
             BY_ID.put(proposal.id, proposal);
             BY_KEY.put(key, proposal);
         }
-        worker.execute(() -> run(session, proposal, summary, code, checks));
+        // Snapshot before the worker starts: the reply reports the proposal as submitted, not a race
+        // with its review dialog. Clients follow progress through edit_status.
         Map<String, Object> view = proposal.view();
+        worker.execute(() -> run(session, proposal, summary, code, checks));
         view.put(
                 "message",
                 "A person must approve this change in Capella before it runs. Poll edit_status with"
