@@ -62,7 +62,10 @@ Only disposable copies are used. Transcripts (`events.jsonl`), final messages an
 `run.py` (setups and runs; `python run.py <A|B|C> <rep>`), `capella.py` (launch, wait, score, stop),
 `grade.groovy` (the scorer), `NOTES.md` (what setup A is given), `analyze.py` (the tables above). Set `CAPELLA_HOME`
 (Capella 7.0 with the plugin installed) and, for the Codex setups, `CODEX_EXE`; the pristine model is unzipped from
-`../../fsae-2027/` on first use. (Amended 2026-10-22: these paths were hard-coded during experiments 1 to 7.) Pilot (rep 0): one task,
+`../../fsae-2027/` on first use. (Amended 2026-10-22: these paths were hard-coded during experiments 1 to 7.
+Since 2026-10-26 the model lives in its own repository,
+[fsae-2027-capella-model](https://github.com/sidkolapalli/fsae-2027-capella-model), and `run.py` reads it from a
+clone next to this one or from `EVAL_MODEL_ZIP`.) Pilot (rep 0): one task,
 all three setups passed with no integrity change.
 
 ## Amendment (2026-10-20, before any result was analysed)
@@ -77,7 +80,7 @@ window reaches 80%, so the account stays usable; repetitions finish in order, so
 Setup C's two failures so far both ended "blocked: proposal did not apply": the agent's script threw on its own
 assertion and rolled back, and `EvalRunner` stopped there. The chat does not stop there; it hands the receipt
 back to the agent, which can correct the script (each correction is reviewed again). So `/eval` measured C more
-strictly than the product behaves. Fixed in commit 6afb3f8, but the fix is not installed during the runs: C
+strictly than the product behaves. Fixed in commit 3f2567e, but the fix is not installed during the runs: C
 stays on the frozen build and its scored results stand. After the runs, the C tasks that ended this way are
 rerun once on the fixed build and reported separately, never mixed into the scored table.
 
@@ -252,7 +255,7 @@ A grader bug hid every multi-valued text attribute, constraint bodies included: 
 model already says 60 °C (the rules' cell limit), so that wrong-guess check is dropped. The off-board fact also
 accepts "off-car" and "off-vehicle". All runs are regraded from their saved models with the fixed grader.
 
-## Experiment 2, result (2026-10-21; headless Claude Code, claude-sonnet-5-5, skills frozen at 5ecfa11)
+## Experiment 2, result (2026-10-21; headless Claude Code, claude-sonnet-5-5, skills frozen at 995c8c1)
 
 | | K (MCP) | KS (MCP + skills) |
 |---|---|---|
@@ -270,7 +273,7 @@ tasks. They are rewritten, not kept on faith; the next tests target what the age
 
 ## Experiment 3, repetition 1 result (2026-10-21; grader fixed per amendment 1, all runs regraded)
 
-| | E (no skill) | ES v1 (427a2e5) | ES v2 (7a675cd) |
+| | E (no skill) | ES v1 (72e2257) | ES v2 (0360e1e) |
 |---|---|---|---|
 | Passed | 4/4 | 3/4 | 3/4 |
 | Brief facts in the model | 23/23 | 21/23 | 23/23 |
@@ -302,7 +305,7 @@ Experiments 2 and 3 found no gain: their tasks used parts of Arcadia the agent a
 
 Held constant: the installed plugin build (commit recorded at the start), the skills frozen at a commit recorded at
 the start (the pointer-style depth skill is written after this protocol; its commit is recorded here before the
-pilot: **a110432**, the four experiment-2 skills plus `arcadia-depth`; `arcadia-elicit` is left out because these tasks have no one to answer questions; plugin build 0.2.1.202610211401 from 95c9735, with `capella-help`), the agent context line, tools and limits of experiment 2.
+pilot: **1d267dc**, the four experiment-2 skills plus `arcadia-depth`; `arcadia-elicit` is left out because these tasks have no one to answer questions; plugin build 0.2.1.202610211401 from ad2420c, with `capella-help`), the agent context line, tools and limits of experiment 2.
 
 ## Tasks
 
@@ -359,7 +362,7 @@ therefore search the whole disk. Audit of all 156 Claude runs so far:
 Fix: Read, Glob and Grep are no longer listed, so Claude Code allows them only inside the agent's folder (its own
 skills included) and denies the rest in `-p` mode; verified with a probe. Experiment 4 pilots rerun.
 
-## Experiment 4, result (2026-10-21; skills a110432, plugin build 0.2.1.202610211401, file access fixed per 1eb3a7f)
+## Experiment 4, result (2026-10-21; skills 1d267dc, plugin build 0.2.1.202610211401, file access fixed per 8348643)
 
 Pass counts over the six valid tasks x 3 repetitions; `categories` failed in all 12 runs of every arm (every agent
 grouped the 3 monitor trips and left out 3 other shutdown causes: the prompt is ambiguous), so it is reported but
@@ -393,7 +396,7 @@ generalization) help as the first batch did, and does the reworded categories ta
 
 ## Setups
 
-The four arms of experiment 4 (K, KS, KH, KSH), unchanged, with the skills frozen at **0194dc9** (the experiment-4
+The four arms of experiment 4 (K, KS, KH, KSH), unchanged, with the skills frozen at **5557895** (the experiment-4
 skills plus OPERATIONAL.md and CAPABILITIES.md) and the same plugin build 0.2.1.202610211401. Haiku runs first.
 
 A regression arm reruns KSH on experiment 4's 7 tasks with the larger skill, against experiment 4's KSH (18/18).
@@ -440,7 +443,7 @@ null result. Rather than rewrite them, `arcadia-method`, `capella-model-edits` a
 # Experiment 6: the API gaps. Protocol (fixed before any scored run, 2026-10-21)
 
 Question: with the new API (functional and exchange scenarios with messages, branching chains, physical paths
-and component exchanges on them, every Capella transition; commits f11f26e and 086f7e9) and a depth file for
+and component exchanges on them, every Capella transition; commits 88d67a9 and 1f532e8) and a depth file for
 each, does a small model build what it could not before?
 
 This is an acceptance test of build plus skill together, not a skill-only comparison: the gaps could not be built
@@ -450,8 +453,8 @@ without the API.
 
 | Arm | Plugin build | Skills |
 |---|---|---|
-| **before** | 0.2.1.202610211401 (experiments 4 and 5) | the experiment-5 skills (0194dc9) |
-| **after** | the build from 086f7e9 or later (recorded before the pilot) | those plus SCENARIOS.md, CHAINS.md, PHYSICAL.md, TRANSITIONS.md (commit recorded before the pilot) |
+| **before** | 0.2.1.202610211401 (experiments 4 and 5) | the experiment-5 skills (5557895) |
+| **after** | the build from 1f532e8 or later (recorded before the pilot) | those plus SCENARIOS.md, CHAINS.md, PHYSICAL.md, TRANSITIONS.md (commit recorded before the pilot) |
 
 Agent: headless Claude Code with `claude-haiku-5-5`, as KSH. Before runs first, on the installed old build;
 then the new build is installed and the after runs follow.
@@ -520,14 +523,14 @@ process measures do not improve.
 
 ## Experiment 6, amendment 1 (2026-10-21, before any experiment-6 run)
 
-The after build is **0.2.1.202610212140** (plugin code of 086f7e9; 900 tests pass), installed into a separate copy
+The after build is **0.2.1.202610212140** (plugin code of 1f532e8; 900 tests pass), installed into a separate copy
 of Capella 7.0.0 so the old build stays installed for the before runs and experiment 7. After skills: the
-experiment-5 set (0194dc9) with `arcadia-depth` replaced by its state at **a77855b** (the four new files and their
+experiment-5 set (5557895) with `arcadia-depth` replaced by its state at **6b87e29** (the four new files and their
 router rows). One solution per task, written only with those files' patterns, passed all four on the new build
 with no new validation error; its functional scenario renders correctly in Capella's FS diagram. The after runs
 start when the before runs finish, alongside experiment 7.
 
-## Experiment 5, result (2026-10-21; skills 0194dc9, plugin build 0.2.1.202610211401)
+## Experiment 5, result (2026-10-21; skills 5557895, plugin build 0.2.1.202610211401)
 
 Pass counts over the 4 tasks x 3 repetitions. Every run's model loaded; no arm added a validation error.
 The pilot gate held: both skilled pilots read OPERATIONAL.md, and every scored skilled run read its task's file.
@@ -560,7 +563,7 @@ exchange on the source port instead of a DUPLICATE function; `categories` failed
 stays excluded). Its only validation errors (2 or 3 in some runs) are the known exchange-item cardinality gap, as in
 experiment 4. The rule's floor of 17/18 is met, so the larger skill stays.
 
-## Experiment 6, result (2026-10-21; before: build 0.2.1.202610211401, skills 0194dc9; after: amendment 1)
+## Experiment 6, result (2026-10-21; before: build 0.2.1.202610211401, skills 5557895; after: amendment 1)
 
 Haiku with the skills (KSH), 3 repetitions. Every model loaded; neither arm added a validation error.
 
@@ -585,7 +588,7 @@ test needs the reworded prompt ("every exchange that enters the function, whatev
 Transition: before, all three runs built the PA component and function by hand with realization links and
 an allocation, which the check accepts. The task doesn't need `api.ops.transition`, so it can't show whether it helps.
 
-# Experiment 7, result (2026-10-21; skills 0194dc9, plugin build 0.2.1.202610211401)
+# Experiment 7, result (2026-10-21; skills 5557895, plugin build 0.2.1.202610211401)
 
 12 elicitation runs and 6 regression runs per arm. The pristine model has 207 TBD elements (every run that added
 none reports 207).
@@ -659,7 +662,7 @@ Runs go one at a time. Scoring as in experiments 4 and 7. **Reproduced** when KS
 reaches at least 45/69 facts, 9/12 calibration and 8/12 brief gate. Otherwise the README quotes this baseline, not
 the experiment numbers, and the gap is investigated before release.
 
-## Release baseline, result (2026-10-22; skills eac1862, plugin build 0.2.1.202610221048)
+## Release baseline, result (2026-10-22; skills 8406223, plugin build 0.2.1.202610221048)
 
 | | Result | Rule | Reference |
 |---|---|---|---|
@@ -690,13 +693,13 @@ recorded table, not its transcripts. The baseline's own folders are kept as `res
 `results/KSH-baseline/` (local only; `results/` is not in the repository).
 
 Between experiment 7 and this baseline the harness changed only in paths. Two things did change: the skill set
-(f40ad48 removed `arcadia-method`, `capella-model-edits` and `capella-diagrams`, none of which mentions
+(b7765d2 removed `arcadia-method`, `capella-model-edits` and `capella-diagrams`, none of which mentions
 `arcadia-elicit`) and the plugin build (0.2.1.202610211401 then, 0.2.1.202610221048 now).
 
 ## Release baseline, amendment 1: was it the skill set? Protocol (fixed before any run, 2026-10-22)
 
 ESH runs 3 repetitions on the 4 elicit tasks again, set up as the baseline, with one change: `TOOLKIT_SKILLS` points
-at the skills exactly as at 0194dc9, which is experiment 7's five skills. Results go to `results/ESH/`.
+at the skills exactly as at 5557895, which is experiment 7's five skills. Results go to `results/ESH/`.
 
 **The skill set is the cause** when the agent asks the team member anything in at least 11/12 runs and calibrates in
 at least 9/12. **Not shown** when it asks in at most 8/12. In between, inconclusive. Either way the outcome is
@@ -704,7 +707,7 @@ recorded here and no further amendment follows before release.
 
 ## Release baseline, amendment 1 result (2026-10-22)
 
-| Measure | Baseline (skills eac1862) | Amendment 1 (skills 0194dc9) | Experiment 7 (skills 0194dc9) |
+| Measure | Baseline (skills 8406223) | Amendment 1 (skills 5557895) | Experiment 7 (skills 5557895) |
 |---|---|---|---|
 | Asked the team member anything | 8/12 | 6/12 | 12/12 |
 | Loaded `arcadia-elicit` | 7/12 | 7/12 | not recorded |
@@ -716,7 +719,7 @@ recorded here and no further amendment follows before release.
 | Cost | $1.18 | $2.33 | $1.57 |
 
 **Not shown** (asked in 6/12, at most 8): restoring experiment 7's skills does not restore its result, so the
-removal in f40ad48 is not the cause. With all five skills, Haiku loaded `capella-model-edits` in every run,
+removal in b7765d2 is not the cause. With all five skills, Haiku loaded `capella-model-edits` in every run,
 `arcadia-method` in 11 and `arcadia-elicit` in 7; every run that skipped it built first. All three drive runs built first.
 
 Untested, so not claimed: the plugin build (0.2.1.202610211401 then, 0.2.1.202610221048 now) and the Claude Code
@@ -736,7 +739,7 @@ Codex model with the MCP server do better on the same tasks with the skills than
 | Arm | Agent | Skills |
 |---|---|---|
 | **B** | Codex CLI 0.160.1 (`CODEX_EXE`), `gpt-6-luna` at reasoning effort `medium`, MCP server, read-only sandbox, as experiment 1's B otherwise | none |
-| **S** | as B | the toolkit skills (`arcadia-depth`, `arcadia-elicit`, `capella-setup`, unchanged since eac1862) in the agent's `.agents/skills` |
+| **S** | as B | the toolkit skills (`arcadia-depth`, `arcadia-elicit`, `capella-setup`, unchanged since 8406223) in the agent's `.agents/skills` |
 
 `gpt-6-luna` is Codex's "fast and affordable" model, the counterpart of `claude-haiku-5-5`; `medium` is Codex's
 default effort, and luna offers no `ultra`. `run.py` takes them from `CODEX_MODEL` and `CODEX_EFFORT`. Plugin build
@@ -770,7 +773,7 @@ its description in the agent's context, while B's lists none. Whether to open a 
 is for Claude Code. The scored runs go ahead unchanged, and the result adds one reported measure, not in the
 decision rule: the number of S runs whose events show a read of an `arcadia-depth` file.
 
-## Experiment 8, result (2026-10-22; Codex 0.160.1, `gpt-6-luna` at `medium`, skills eac1862, plugin build 0.2.1.202610221048)
+## Experiment 8, result (2026-10-22; Codex 0.160.1, `gpt-6-luna` at `medium`, skills 8406223, plugin build 0.2.1.202610221048)
 
 | Task | B | S |
 |---|---|---|
@@ -836,7 +839,7 @@ at least 5 more runs (the rule's integrity condition becomes: S adds no more int
 least 5 fewer. Reported, not in the rule: S runs that read a construct file, and median time and tokens per arm
 against experiment 8's `medium`.
 
-## Experiment 9, result (2026-10-22; Codex 0.160.1, `gpt-6-luna` at `high`, skills eac1862, plugin build 0.2.1.202610221048)
+## Experiment 9, result (2026-10-22; Codex 0.160.1, `gpt-6-luna` at `high`, skills 8406223, plugin build 0.2.1.202610221048)
 
 Pilot (`fsae-d-interface`, rep 0, excluded): S read `SKILL.md`, `INTERFACES.md` and `DATA.md` and passed in 58 s;
 B failed in 83 s. The gate was met.
@@ -907,7 +910,7 @@ more of 42 (experiment 9 had 40), **fails** at 10 or fewer (experiment 8 had 2),
 B against S under experiment 9's rule (helps, not shown, worse). Reported, not in the rule: S's pass count against
 experiment 9's 42/42, B's against 20/42, and an audit of every shell command for reads outside the run folder.
 
-## Experiment 10, result (2026-10-23; Codex 0.160.1, `gpt-6-luna` at `high`, skills eac1862, plugin build 0.2.1.202610230925)
+## Experiment 10, result (2026-10-23; Codex 0.160.1, `gpt-6-luna` at `high`, skills 8406223, plugin build 0.2.1.202610230925)
 
 Pilot (`fsae-d-interface`, rep 0, excluded): S read `SKILL.md`, `INTERFACES.md` and `DATA.md` and passed in 52 s; B
 passed in 143 s. The sentence was not reworded.
@@ -961,7 +964,7 @@ Question: experiment 8's unprompted read rate (2 of 42 runs reached a construct 
 ## Setups
 
 S only, as experiment 10 (`gpt-6-luna` at `high`, `SKILL_POINTER` unset, run folders in
-`E:/capella-eval-runs/exp11`), but on a plugin build without the server pointer: `McpServer.java` as of 1405335,
+`E:/capella-eval-runs/exp11`), but on a plugin build without the server pointer: `McpServer.java` as of 674265f,
 the same plugin source as experiments 8 and 9's build 0.2.1.202610221048, rebuilt because that build is no longer
 installed. No B arm: B has no skill to read, and experiments 9 and 10 give B at `high` (20/42, 29/42). Afterwards the
 current build (0.2.1.202610230925) is reinstalled.
@@ -979,7 +982,7 @@ of 42 (the pointer adds little at `high`), **pointer needed** at 10 or fewer (ex
 experiment 9's B (20/42), median time and tokens, integrity failures, and an audit of every shell command for reads
 outside the run folder.
 
-## Experiment 11, result (2026-10-23; Codex 0.160.1, `gpt-6-luna` at `high`, skills eac1862, plugin build 0.2.1.202610231418 without the pointer)
+## Experiment 11, result (2026-10-23; Codex 0.160.1, `gpt-6-luna` at `high`, skills 8406223, plugin build 0.2.1.202610231418 without the pointer)
 
 | Task | S | S read |
 |---|---|---|

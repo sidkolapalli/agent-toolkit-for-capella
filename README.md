@@ -8,8 +8,9 @@ which parts of them help.
   runs until a person approves it in Capella's review dialog.
 - **Agent skills, each kept only if it measurably helps.** [`skills/`](skills) teaches the parts of the Arcadia
   method agents get wrong, and how to interview the user before modelling.
-- **A benchmark.** A Capella model of a Formula SAE 2027 electric car, task sets, a grader that judges the saved
-  model in a fresh Capella, and the pre-registered protocol and result of every experiment.
+- **A benchmark.** Task sets, a grader that judges the saved model in a fresh Capella, and the pre-registered
+  protocol and result of every experiment. The model they run on, a Capella model of a Formula SAE 2027 electric
+  car, is in its own repository: [fsae-2027-capella-model](https://github.com/sidkolapalli/fsae-2027-capella-model).
 
 The plug-in, which appears in Capella as **Capella AI Assistant**, also has its own chat assistant; see
 [docs/PLUGIN.md](docs/PLUGIN.md).
@@ -83,11 +84,11 @@ point the agent to `arcadia-depth` before modelling.
 
 ## Experiments
 
-[`test-models/fsae-2027/FSAE-2027-Electric-Arcadia.zip`](test-models/fsae-2027) is a Capella 7.0 model of a
-Formula SAE 2027 electric car: about 86,000 elements across the five Arcadia perspectives, every numbered paragraph
-of the 2027 rules as a native requirement (identifier, page, heading and hash, not the paragraph text), and three
-detailed safety slices with 86 paraphrased obligations. The scripts in
-[`test-models/fsae-acceptance`](test-models/fsae-acceptance) built it from the public rulebook. It needs
+The experiments ran on [fsae-2027-capella-model](https://github.com/sidkolapalli/fsae-2027-capella-model), a
+Capella 7.0 model of a Formula SAE 2027 electric car: about 86,000 elements across the five Arcadia perspectives,
+every numbered paragraph of the 2027 rules as a native requirement (identifier, page, heading and hash, not the
+paragraph text), and three detailed safety slices with 86 paraphrased obligations. That repository also holds the
+scripts that built it from the public rulebook. It needs
 [Requirements Viewpoint 0.14.0](https://github.com/eclipse-capella/capella-requirements-vp/releases/tag/v0.14.0).
 
 Every experiment ran headless agents on fresh copies of this model and graded the saved model in a fresh Capella,
@@ -115,6 +116,7 @@ To repeat a run (Windows, Python 3.11+, [Claude Code](https://claude.com/claude-
 this plug-in and the Requirements Viewpoint installed):
 
 ```bash
+git clone https://github.com/sidkolapalli/fsae-2027-capella-model ../fsae-2027-capella-model   # next to this repository
 cd test-models/evals/harness-comparison
 export CAPELLA_HOME=/path/to/capella          # the folder holding capella.exe
 export EVAL_TASKS=../fsae-2027-depth.json     # any task file in test-models/evals
@@ -123,7 +125,7 @@ python -X utf8 run.py KSH 1 fsae-d-modes      # arm, repetitions, task ids (all 
 ```
 
 `run.py`'s docstring lists the arms (KH/KSH: Haiku without/with skills, K/KS: Sonnet, E*: with a simulated team
-member, A/B/C/S: Codex). Each run unzips the model on first use, launches its own Capella, and writes the
+member, A/B/C/S: Codex). Each run unzips the model on first use (from the clone above, or set `EVAL_MODEL_ZIP`), launches its own Capella, and writes the
 transcript and grade to `results/<arm>/` (or `$EVAL_RESULTS`). Costs are Claude Code's list-price estimates; a
 Haiku run costs a few cents.
 
@@ -133,9 +135,8 @@ Haiku run costs a few cents.
 |---|---|
 | [`plugins/`](plugins) | The Eclipse plug-in (MCP server, chat assistant, script API), its tests, feature and update site |
 | [`skills/`](skills) | Agent skills |
-| [`test-models/fsae-2027`](test-models/fsae-2027) | The benchmark model |
 | [`test-models/evals`](test-models/evals) | Task sets, and in `harness-comparison/` the harness, grader and protocol |
-| [`test-models/fsae-acceptance`](test-models/fsae-acceptance) | The scripts that built the benchmark model |
+| [`test-models/native-integration`](test-models/native-integration) | Scripts that test the installed plug-in in a real Capella session |
 | [`docs/`](docs) | The plug-in in detail, Codex setup, Arcadia coverage |
 | [`scripts/`](scripts) | Codex download, MCP client check, dev launch and smoke test |
 
