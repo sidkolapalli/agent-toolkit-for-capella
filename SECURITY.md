@@ -3,6 +3,7 @@
 Report a vulnerability privately through
 [GitHub's private reporting](https://github.com/sidkolapalli/capella-agent-toolkit/security/advisories/new), not
 in a public issue. Please include the affected build, the steps to reproduce and what an attacker gains.
+You get a first response within 14 days; fixes are disclosed through a GitHub security advisory.
 
 Areas that matter most:
 
