@@ -2,6 +2,8 @@
 
 `README.md` describes what the plug-in does; `CLAUDE.md` and `ARCHITECTURE.md` explain how the code fits together and the invariants changes must keep.
 
+Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Project structure
 The plug-in is `plugins/ai-capella` (sources under `src/com/sidkolapalli/capella/ai/**`, plus `plugin.xml` and `META-INF/MANIFEST.MF`). The Tycho reactor is `plugins/pom.xml`, the feature is `plugins/ai-capella-feature`, and the p2 update site is written to `plugins/ai-capella-repository/target/repository`. The target platform is `releng/capella-target`. Sample models and evaluation tasks live in `test-models/`. Run `python scripts/fetch-codex.py` after cloning: it downloads the bundled Codex executables and checks them against `provenance.json`.
 
