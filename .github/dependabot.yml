@@ -1,5 +1,7 @@
-# Monthly, one grouped pull request per ecosystem. The Capella target platform (p2), MANIFEST.MF
-# and the Codex pins in provenance.json are outside Dependabot's reach and stay manual.
+# Monthly, one grouped pull request for the GitHub Actions. Maven is left out: the reactor
+# (plugins/pom.xml) includes ../releng/capella-target, which Dependabot cannot read, and its
+# versions (Tycho 2.7.5, the Capella target platform, MANIFEST.MF, the Codex pins in
+# provenance.json) are pinned to Capella 7.0 and updated by hand.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -10,15 +12,3 @@ updates:
     groups:
       actions:
         patterns: ["*"]
-  - package-ecosystem: maven
-    directory: /plugins
-    target-branch: develop
-    schedule:
-      interval: monthly
-    groups:
-      maven:
-        patterns: ["*"]
-    ignore:
-      # Tycho 2.7.x is the line that builds against Capella 7.0
-      - dependency-name: "org.eclipse.tycho:*"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
