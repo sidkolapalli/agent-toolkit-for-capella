@@ -1,6 +1,6 @@
 import java.util.concurrent.atomic.AtomicReference
 import org.eclipse.core.runtime.NullProgressMonitor
-import org.polarsys.capella.ai.session.SessionSafeguards
+import com.sidkolapalli.capella.ai.session.SessionSafeguards
 
 // Run after phase90 and91 in the disposable marker model. Keep the model idle until the report appears.
 def nativeSession = session

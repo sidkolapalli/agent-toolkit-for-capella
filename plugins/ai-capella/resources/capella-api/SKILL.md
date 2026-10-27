@@ -178,7 +178,7 @@ project.eContents().each { log.info(it.eClass().name) }
 element.eClass().eAllStructuralFeatures.each { log.info(it.name) }
 
 // Get a factory for any EClass
-def eClass = org.polarsys.capella.ai.model.ElementFactory.findEClass("SystemUserRequirement")
+def eClass = com.sidkolapalli.capella.ai.model.ElementFactory.findEClass("SystemUserRequirement")
 def factory = eClass.EPackage.EFactoryInstance
 ```
 

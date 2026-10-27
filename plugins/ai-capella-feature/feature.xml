@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <feature
-      id="org.polarsys.capella.ai.feature"
+      id="com.sidkolapalli.capella.ai.feature"
       label="Capella AI Assistant"
       version="0.2.1.qualifier"
-      provider-name="Capella MCP Team">
+      provider-name="Capella Agent Toolkit">
 
    <description>
       In-IDE AI assistant for Capella: reviewed model edits from chat or MCP clients, Arcadia method checks and clean diagram layout.
    </description>
 
    <plugin
-         id="org.polarsys.capella.ai"
+         id="com.sidkolapalli.capella.ai"
          download-size="0"
          install-size="0"
          version="0.0.0"
