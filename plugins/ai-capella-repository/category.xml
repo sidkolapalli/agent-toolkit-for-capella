@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <site>
-  <feature id="org.polarsys.capella.ai.feature" version="0.0.0">
+  <feature id="com.sidkolapalli.capella.ai.feature" version="0.0.0">
     <category name="capella-ai"/>
   </feature>
   <category-def name="capella-ai" label="Capella AI Assistant"/>

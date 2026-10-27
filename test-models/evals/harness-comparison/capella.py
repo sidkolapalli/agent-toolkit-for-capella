@@ -26,6 +26,11 @@ CODEX = os.environ.get("CODEX_EXE", "codex")  # arms A, B, C, S only
 def launch(ws, port):
     """Capella with its default (Codex) runtime on one disposable workspace; dev server on port, eval mode on."""
     ws = pathlib.Path(ws)
+    try:  # a second Capella could not bind the port, and wait_for_model would talk to the first one
+        call(port, "/status", timeout=5)
+        raise SystemExit(f"a dev server already answers on port {port}; stop that Capella first")  # not a run failure
+    except OSError:
+        pass  # nothing listening: free to launch
     env = {k: v for k, v in os.environ.items()
            if k not in ("CAPELLA_AI_RUNTIME", "OPENAI_API_KEY", "CAPELLA_AI_BASE_URL", "CAPELLA_AI_MODEL")}
     env.update(CAPELLA_AI_DEVSERVER_AUTOSTART="1", CAPELLA_AI_DEVSERVER_TOKEN=TOKEN, CAPELLA_AI_DEVSERVER_PORT=str(port),

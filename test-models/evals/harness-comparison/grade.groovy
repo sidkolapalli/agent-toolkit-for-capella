@@ -1,8 +1,8 @@
 // Scores the open model for one task: the task's native checks, its method checks, native validation, integrity
 // and the drawing quality of every diagram the run created.
 // capella.py substitutes TASK_JSON and PRISTINE_DIAGRAMS before posting this to /execute.
-import org.polarsys.capella.ai.agent.EvalRunner
-import org.polarsys.capella.ai.agent.ModelPostconditions
+import com.sidkolapalli.capella.ai.agent.EvalRunner
+import com.sidkolapalli.capella.ai.agent.ModelPostconditions
 import org.eclipse.emf.ecore.util.EcoreUtil
 import org.eclipse.sirius.business.api.dialect.DialectManager
 import org.eclipse.sirius.viewpoint.DSemanticDecorator
@@ -13,7 +13,7 @@ import org.eclipse.gmf.runtime.notation.Node
 import org.eclipse.gmf.runtime.notation.Bounds
 import org.eclipse.gmf.runtime.notation.Location
 import org.eclipse.gmf.runtime.notation.RelativeBendpoints
-import org.polarsys.capella.ai.agent.AgentJson
+import com.sidkolapalli.capella.ai.agent.AgentJson
 
 def session = api.session
 def taskJson = AgentJson.parse(TASK_JSON, 2_000_000).tasks[0]

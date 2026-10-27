@@ -3,7 +3,7 @@ import java.util.concurrent.atomic.AtomicReference
 import org.eclipse.core.runtime.NullProgressMonitor
 import org.eclipse.sirius.business.api.query.DRepresentationQuery
 import org.eclipse.sirius.business.api.dialect.DialectManager
-import org.polarsys.capella.ai.session.SessionSafeguards
+import com.sidkolapalli.capella.ai.session.SessionSafeguards
 
 def nativeSession = session
 def workspace = org.eclipse.core.resources.ResourcesPlugin.workspace.root.location.toString().replace('\\', '/')

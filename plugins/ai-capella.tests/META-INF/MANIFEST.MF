@@ -1,11 +1,11 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Capella AI Assistant Tests
-Bundle-SymbolicName: org.polarsys.capella.ai.tests
+Bundle-SymbolicName: com.sidkolapalli.capella.ai.tests
 Bundle-Version: 0.2.1.qualifier
 Bundle-RequiredExecutionEnvironment: JavaSE-17
 Require-Bundle: org.junit;bundle-version="4.13.2",
- org.polarsys.capella.ai,
+ com.sidkolapalli.capella.ai,
  org.codehaus.groovy;bundle-version="[4.0.0,5.0.0)",
  org.eclipse.emf.ecore,
  org.eclipse.emf.ecore.xmi,
