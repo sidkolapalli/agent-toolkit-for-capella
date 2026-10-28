@@ -1,4 +1,4 @@
-# Install the Capella Agent Toolkit
+# Install the Agent Toolkit for Eclipse Capella®
 
 The toolkit has two parts:
 
@@ -14,7 +14,7 @@ For each agent you do three things: install the skills, connect the MCP server, 
 
 ### Set a fixed MCP token
 
-Every request to the Capella MCP server needs the header `Authorization: Bearer <token>`. By default Capella writes a new token to `~/.capella-ai/devserver-8765.token` **every time it starts**, so any agent config that stores the token stops working after a Capella restart.
+Every request to the MCP server in Capella needs the header `Authorization: Bearer <token>`. By default Capella writes a new token to `~/.capella-ai/devserver-8765.token` **every time it starts**, so any agent config that stores the token stops working after a Capella restart.
 
 To avoid this, set `CAPELLA_AI_DEVSERVER_TOKEN` to a fixed value before you start Capella. Capella then uses that value as its token, and your agent reads the same variable. Most sections below assume you have done this.
 
@@ -38,7 +38,7 @@ Always copy the whole skill folder, not just `SKILL.md`. The extra `.md` files a
 
 ## Any agent
 
-Our layout (`skills/<name>/SKILL.md`, folder name equal to `name`) is the layout the Agent Skills specification describes. Two cross-agent installers find it with no extra flags. Neither one configures MCP servers, so connect the Capella server separately in each agent (see the agent sections below).
+Our layout (`skills/<name>/SKILL.md`, folder name equal to `name`) is the layout the Agent Skills specification describes. Two cross-agent installers find it with no extra flags. Neither one configures MCP servers, so connect the MCP server separately in each agent (see the agent sections below).
 
 ### Option A: `npx skills` (Vercel skills CLI)
 
@@ -46,19 +46,19 @@ Requires Node.js 22.20 or later. It installs into the current project by default
 
 ```sh
 # see what the repo offers
-npx skills add sidkolapalli/capella-agent-toolkit --list
+npx skills add sidkolapalli/agent-toolkit-for-capella --list
 
 # interactive install
-npx skills add sidkolapalli/capella-agent-toolkit
+npx skills add sidkolapalli/agent-toolkit-for-capella
 
 # all three skills into Claude Code, Codex and Cursor for this project
-npx skills add sidkolapalli/capella-agent-toolkit --skill capella-setup --skill arcadia-depth --skill arcadia-elicit -a claude-code -a codex -a cursor
+npx skills add sidkolapalli/agent-toolkit-for-capella --skill capella-setup --skill arcadia-depth --skill arcadia-elicit -a claude-code -a codex -a cursor
 
 # user-wide, no prompts
-npx skills add sidkolapalli/capella-agent-toolkit --skill '*' -g -a claude-code -y
+npx skills add sidkolapalli/agent-toolkit-for-capella --skill '*' -g -a claude-code -y
 
 # one skill by URL
-npx skills add https://github.com/sidkolapalli/capella-agent-toolkit/tree/main/skills/arcadia-elicit
+npx skills add https://github.com/sidkolapalli/agent-toolkit-for-capella/tree/main/skills/arcadia-elicit
 ```
 
 In an interactive install, choose **Symlink** (recommended, one shared copy) or **Copy** (`--copy`, separate copies). To manage installed skills:
@@ -76,15 +76,15 @@ Requires GitHub CLI 2.90.0 or later. `gh skill` is in public preview. The defaul
 
 ```sh
 # all skills, default agent (GitHub Copilot), project scope
-gh skill install sidkolapalli/capella-agent-toolkit --all
+gh skill install sidkolapalli/agent-toolkit-for-capella --all
 
 # one skill for a specific agent and scope
-gh skill install sidkolapalli/capella-agent-toolkit arcadia-elicit --agent claude-code --scope user
-gh skill install sidkolapalli/capella-agent-toolkit arcadia-depth --agent codex
+gh skill install sidkolapalli/agent-toolkit-for-capella arcadia-elicit --agent claude-code --scope user
+gh skill install sidkolapalli/agent-toolkit-for-capella arcadia-depth --agent codex
 
 # preview a skill, or install from a local clone
-gh skill preview sidkolapalli/capella-agent-toolkit arcadia-elicit
-gh skill install ./capella-agent-toolkit --from-local --all
+gh skill preview sidkolapalli/agent-toolkit-for-capella arcadia-elicit
+gh skill install ./agent-toolkit-for-capella --from-local --all
 
 # update later
 gh skill update --all
@@ -101,9 +101,9 @@ Notes:
 `.agents/skills/` (in a project, or `~/.agents/skills/` in your home folder) is the cross-client location. Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf / Devin Desktop and OpenCode all read it. Claude Code uses `.claude/skills/` instead (see below).
 
 ```sh
-git clone https://github.com/sidkolapalli/capella-agent-toolkit
+git clone https://github.com/sidkolapalli/agent-toolkit-for-capella
 mkdir -p .agents/skills
-cp -r capella-agent-toolkit/skills/capella-setup capella-agent-toolkit/skills/arcadia-depth capella-agent-toolkit/skills/arcadia-elicit .agents/skills/
+cp -r agent-toolkit-for-capella/skills/capella-setup agent-toolkit-for-capella/skills/arcadia-depth agent-toolkit-for-capella/skills/arcadia-elicit .agents/skills/
 ```
 
 Some agents load project-level skills only after you mark the folder as trusted.
@@ -127,7 +127,7 @@ One project only (commit `.claude/skills` so teammates get it):
 
 ```sh
 mkdir -p .claude/skills
-cp -r /path/to/capella-agent-toolkit/skills/capella-setup /path/to/capella-agent-toolkit/skills/arcadia-depth /path/to/capella-agent-toolkit/skills/arcadia-elicit .claude/skills/
+cp -r /path/to/agent-toolkit-for-capella/skills/capella-setup /path/to/agent-toolkit-for-capella/skills/arcadia-depth /path/to/agent-toolkit-for-capella/skills/arcadia-elicit .claude/skills/
 ```
 
 Claude Code picks up new skills in the current session without a restart. If the top-level skills folder did not exist when the session started, run:
@@ -136,7 +136,7 @@ Claude Code picks up new skills in the current session without a restart. If the
 /reload-skills
 ```
 
-### 2. Connect the Capella MCP server
+### 2. Connect the MCP server
 
 **Recommended (fixed token).** Add the server at user scope. Use single quotes so your shell leaves `${CAPELLA_AI_DEVSERVER_TOKEN}` alone; Claude Code expands it when it connects.
 
@@ -223,36 +223,36 @@ Standalone skills work in the Codex CLI, the IDE extension and the ChatGPT deskt
 User install (every repo):
 
 ```sh
-git clone https://github.com/sidkolapalli/capella-agent-toolkit.git
+git clone https://github.com/sidkolapalli/agent-toolkit-for-capella.git
 mkdir -p ~/.agents/skills
-cp -R capella-agent-toolkit/skills/capella-setup capella-agent-toolkit/skills/arcadia-depth capella-agent-toolkit/skills/arcadia-elicit ~/.agents/skills/
+cp -R agent-toolkit-for-capella/skills/capella-setup agent-toolkit-for-capella/skills/arcadia-depth agent-toolkit-for-capella/skills/arcadia-elicit ~/.agents/skills/
 ```
 
 Or symlink them, so `git pull` in the clone updates them:
 
 ```sh
 mkdir -p ~/.agents/skills
-for s in capella-setup arcadia-depth arcadia-elicit; do ln -s "$PWD/capella-agent-toolkit/skills/$s" ~/.agents/skills/$s; done
+for s in capella-setup arcadia-depth arcadia-elicit; do ln -s "$PWD/agent-toolkit-for-capella/skills/$s" ~/.agents/skills/$s; done
 ```
 
 Project install. Codex scans `.agents/skills` from the current folder up to the repo root. Our toolkit keeps its skills in `skills/`, so copy them into your own project:
 
 ```sh
 mkdir -p .agents/skills
-cp -R /path/to/capella-agent-toolkit/skills/capella-setup /path/to/capella-agent-toolkit/skills/arcadia-depth /path/to/capella-agent-toolkit/skills/arcadia-elicit .agents/skills/
+cp -R /path/to/agent-toolkit-for-capella/skills/capella-setup /path/to/agent-toolkit-for-capella/skills/arcadia-depth /path/to/agent-toolkit-for-capella/skills/arcadia-elicit .agents/skills/
 ```
 
 Alternative: the built-in `$skill-installer` skill. It installs into `$CODEX_HOME/skills/<skill-name>` (default `~/.codex/skills`) and stops if the folder already exists.
 
 ```
-$skill-installer install https://github.com/sidkolapalli/capella-agent-toolkit/tree/main/skills/capella-setup
-$skill-installer install https://github.com/sidkolapalli/capella-agent-toolkit/tree/main/skills/arcadia-depth
-$skill-installer install https://github.com/sidkolapalli/capella-agent-toolkit/tree/main/skills/arcadia-elicit
+$skill-installer install https://github.com/sidkolapalli/agent-toolkit-for-capella/tree/main/skills/capella-setup
+$skill-installer install https://github.com/sidkolapalli/agent-toolkit-for-capella/tree/main/skills/arcadia-depth
+$skill-installer install https://github.com/sidkolapalli/agent-toolkit-for-capella/tree/main/skills/arcadia-elicit
 ```
 
 Codex detects new skills automatically. If one does not appear, restart Codex.
 
-Each skill includes `agents/openai.yaml`. For `capella-setup` it sets `policy.allow_implicit_invocation: false`, so Codex never picks it on its own; `$capella-setup` still works. The `arcadia-depth` and `arcadia-elicit` files declare the Capella MCP server as a dependency.
+Each skill includes `agents/openai.yaml`. For `capella-setup` it sets `policy.allow_implicit_invocation: false`, so Codex never picks it on its own; `$capella-setup` still works. The `arcadia-depth` and `arcadia-elicit` files declare the plug-in's MCP server as a dependency.
 
 To turn a skill off without deleting it, add this to `~/.codex/config.toml` and restart Codex:
 
@@ -262,7 +262,7 @@ path = "/home/you/.agents/skills/arcadia-elicit/SKILL.md"
 enabled = false
 ```
 
-### 2. Connect the Capella MCP server
+### 2. Connect the MCP server
 
 The CLI, IDE extension and ChatGPT desktop app share `~/.codex/config.toml` (or `.codex/config.toml` in a trusted project). One setup covers all three.
 
@@ -316,23 +316,23 @@ User install (all projects):
 
 ```sh
 # macOS / Linux
-git clone https://github.com/sidkolapalli/capella-agent-toolkit
+git clone https://github.com/sidkolapalli/agent-toolkit-for-capella
 mkdir -p ~/.cursor/skills
-cp -r capella-agent-toolkit/skills/capella-setup capella-agent-toolkit/skills/arcadia-depth capella-agent-toolkit/skills/arcadia-elicit ~/.cursor/skills/
+cp -r agent-toolkit-for-capella/skills/capella-setup agent-toolkit-for-capella/skills/arcadia-depth agent-toolkit-for-capella/skills/arcadia-elicit ~/.cursor/skills/
 ```
 
 ```powershell
 # Windows (PowerShell)
-git clone https://github.com/sidkolapalli/capella-agent-toolkit
+git clone https://github.com/sidkolapalli/agent-toolkit-for-capella
 New-Item -ItemType Directory -Force "$HOME\.cursor\skills" | Out-Null
-Copy-Item -Recurse capella-agent-toolkit\skills\capella-setup, capella-agent-toolkit\skills\arcadia-depth, capella-agent-toolkit\skills\arcadia-elicit "$HOME\.cursor\skills\"
+Copy-Item -Recurse agent-toolkit-for-capella\skills\capella-setup, agent-toolkit-for-capella\skills\arcadia-depth, agent-toolkit-for-capella\skills\arcadia-elicit "$HOME\.cursor\skills\"
 ```
 
 For one project, copy the same folders into `.cursor/skills/` in that repo. Skills in `~/.cursor/skills/` stay on your machine; they reach Cloud Agents only after you sync them.
 
 Cursor cannot import standalone skills from a GitHub URL. Copying the folders is the supported route.
 
-### 2. Connect the Capella MCP server
+### 2. Connect the MCP server
 
 Put this in `~/.cursor/mcp.json` (all projects) or `.cursor/mcp.json` (one project):
 
@@ -377,35 +377,35 @@ Source: [Cursor skills](https://cursor.com/docs/context/skills), [Cursor MCP](ht
 Use `~/.copilot/skills/` or `~/.agents/skills/` for a personal install that works in both.
 
 ```sh
-git clone https://github.com/sidkolapalli/capella-agent-toolkit.git
+git clone https://github.com/sidkolapalli/agent-toolkit-for-capella.git
 
 # Project install (run in the repo where you want the skills)
 mkdir -p .github/skills
-cp -r capella-agent-toolkit/skills/capella-setup capella-agent-toolkit/skills/arcadia-depth capella-agent-toolkit/skills/arcadia-elicit .github/skills/
+cp -r agent-toolkit-for-capella/skills/capella-setup agent-toolkit-for-capella/skills/arcadia-depth agent-toolkit-for-capella/skills/arcadia-elicit .github/skills/
 
 # Personal install (all projects)
 mkdir -p ~/.copilot/skills
-cp -r capella-agent-toolkit/skills/capella-setup capella-agent-toolkit/skills/arcadia-depth capella-agent-toolkit/skills/arcadia-elicit ~/.copilot/skills/
+cp -r agent-toolkit-for-capella/skills/capella-setup agent-toolkit-for-capella/skills/arcadia-depth agent-toolkit-for-capella/skills/arcadia-elicit ~/.copilot/skills/
 ```
 
 Or use the GitHub CLI (2.90.0 or later; project scope installs to `.agents/skills`):
 
 ```sh
-gh skill install sidkolapalli/capella-agent-toolkit --all
-gh skill install sidkolapalli/capella-agent-toolkit --all --agent github-copilot --scope user
+gh skill install sidkolapalli/agent-toolkit-for-capella --all
+gh skill install sidkolapalli/agent-toolkit-for-capella --all --agent github-copilot --scope user
 ```
 
 Copilot CLI can also read a cloned `skills/` folder directly:
 
 ```sh
-export COPILOT_SKILLS_DIRS="$HOME/capella-agent-toolkit/skills"
+export COPILOT_SKILLS_DIRS="$HOME/agent-toolkit-for-capella/skills"
 ```
 
 For the cloud agent, commit the three folders under `.github/skills/` (or `.agents/skills/` or `.claude/skills/`).
 
 Do not rename the folders: in VS Code a skill whose `name` does not match its folder fails to load without a warning. Keep the relative links in each `SKILL.md`; VS Code loads only the extra files that `SKILL.md` links to.
 
-### 2. Connect the Capella MCP server
+### 2. Connect the MCP server
 
 **Recommended (fixed token).** Put this in `~/.copilot/mcp-config.json` (or `$COPILOT_HOME/mcp-config.json`). Both Copilot CLI and the VS Code Copilot harness read it. Copilot CLI requires the `tools` field.
 
@@ -453,7 +453,7 @@ Other places:
 
 Use `${NAME}` in the portable files (`.mcp.json`, `~/.copilot/mcp-config.json`) and `${env:NAME}` only in `.vscode/mcp.json`. Avoid `${input:...}` prompts: VS Code stores the value you type, which goes stale when Capella's token changes, and Copilot (non-Local) harness sessions do not receive such servers.
 
-The cloud agent runs in a GitHub Actions environment, so it cannot reach the Capella server on your machine. Committed skills still work there; steps that need Capella do not.
+The cloud agent runs in a GitHub Actions environment, so it cannot reach the MCP server in Capella on your machine. Committed skills still work there; steps that need Capella do not.
 
 ### 3. Check it works
 
@@ -515,7 +515,7 @@ Notes:
 - The sources disagree on the description limit. An older support article says 200 characters; the newer docs and the Agent Skills spec say 1,024. `arcadia-depth`'s description is about 440 characters. If its upload is rejected, shorten the description.
 - Claude picks skills automatically from your request; chat has no documented manual invocation. It is not documented whether claude.ai honours `disable-model-invocation`, so `capella-setup`'s manual-only setting may not apply here.
 
-### 2. Connect the Capella MCP server (Claude Desktop only)
+### 2. Connect the MCP server (Claude Desktop only)
 
 claude.ai on the web and custom connectors connect from Anthropic's cloud, not from your machine, so they cannot reach `http://127.0.0.1:8765/mcp`. Making it reachable would need a public tunnel, which exposes your Capella model to the internet. We do not recommend it.
 
@@ -575,31 +575,31 @@ Install all three from GitHub. `--path skills` is required, because Gemini looks
 
 ```sh
 # user scope (default, all projects)
-gemini skills install https://github.com/sidkolapalli/capella-agent-toolkit --path skills
+gemini skills install https://github.com/sidkolapalli/agent-toolkit-for-capella --path skills
 
 # this project only
-gemini skills install https://github.com/sidkolapalli/capella-agent-toolkit --path skills --scope workspace
+gemini skills install https://github.com/sidkolapalli/agent-toolkit-for-capella --path skills --scope workspace
 ```
 
 Add `--consent` to skip the confirmation prompt. From a local clone, point at the `skills/` folder itself:
 
 ```sh
-git clone https://github.com/sidkolapalli/capella-agent-toolkit
-gemini skills install ./capella-agent-toolkit/skills
+git clone https://github.com/sidkolapalli/agent-toolkit-for-capella
+gemini skills install ./agent-toolkit-for-capella/skills
 # or symlink, so edits in the clone show up immediately:
-gemini skills link ./capella-agent-toolkit/skills
+gemini skills link ./agent-toolkit-for-capella/skills
 ```
 
 Manual copy also works. Each skill folder must sit directly under the skills folder (`~/.gemini/skills/arcadia-depth/SKILL.md`).
 
 ```sh
 # macOS / Linux, user scope
-mkdir -p ~/.gemini/skills && cp -r capella-agent-toolkit/skills/* ~/.gemini/skills/
+mkdir -p ~/.gemini/skills && cp -r agent-toolkit-for-capella/skills/* ~/.gemini/skills/
 ```
 
 ```powershell
 # Windows PowerShell, user scope
-New-Item -ItemType Directory -Force -Path "$HOME\.gemini\skills"; Copy-Item -Recurse capella-agent-toolkit\skills\* "$HOME\.gemini\skills\"
+New-Item -ItemType Directory -Force -Path "$HOME\.gemini\skills"; Copy-Item -Recurse agent-toolkit-for-capella\skills\* "$HOME\.gemini\skills\"
 ```
 
 For a project, use `.gemini/skills/` or `.agents/skills/` and commit it. Workspace skills load only in a trusted folder: run `/trust` and restart if needed.
@@ -611,7 +611,7 @@ Gemini CLI ignores `disable-model-invocation`, so it may start `capella-setup` o
 /skills enable capella-setup
 ```
 
-### 2. Connect the Capella MCP server
+### 2. Connect the MCP server
 
 Add this to `~/.gemini/settings.json` (user) or `.gemini/settings.json` (project). Keep the name `capella`: Gemini warns against underscores in server names.
 
@@ -671,23 +671,23 @@ Global install:
 
 ```sh
 # macOS / Linux
-git clone https://github.com/sidkolapalli/capella-agent-toolkit
+git clone https://github.com/sidkolapalli/agent-toolkit-for-capella
 mkdir -p ~/.config/devin/skills
-cp -R capella-agent-toolkit/skills/capella-setup capella-agent-toolkit/skills/arcadia-depth capella-agent-toolkit/skills/arcadia-elicit ~/.config/devin/skills/
+cp -R agent-toolkit-for-capella/skills/capella-setup agent-toolkit-for-capella/skills/arcadia-depth agent-toolkit-for-capella/skills/arcadia-elicit ~/.config/devin/skills/
 ```
 
 ```powershell
 # Windows PowerShell
-git clone https://github.com/sidkolapalli/capella-agent-toolkit
+git clone https://github.com/sidkolapalli/agent-toolkit-for-capella
 New-Item -ItemType Directory -Force "$env:APPDATA\devin\skills" | Out-Null
-Copy-Item -Recurse -Force capella-agent-toolkit\skills\capella-setup, capella-agent-toolkit\skills\arcadia-depth, capella-agent-toolkit\skills\arcadia-elicit "$env:APPDATA\devin\skills\"
+Copy-Item -Recurse -Force agent-toolkit-for-capella\skills\capella-setup, agent-toolkit-for-capella\skills\arcadia-depth, agent-toolkit-for-capella\skills\arcadia-elicit "$env:APPDATA\devin\skills\"
 ```
 
 Per project (commit with the repo):
 
 ```sh
 mkdir -p .devin/skills
-cp -R capella-agent-toolkit/skills/capella-setup capella-agent-toolkit/skills/arcadia-depth capella-agent-toolkit/skills/arcadia-elicit .devin/skills/
+cp -R agent-toolkit-for-capella/skills/capella-setup agent-toolkit-for-capella/skills/arcadia-depth agent-toolkit-for-capella/skills/arcadia-elicit .devin/skills/
 ```
 
 Devin also reads `.agents/skills/`, `~/.agents/skills/`, `.windsurf/skills/`, `~/.codeium/<channel>/skills/` and `.claude/skills/`, so skills installed there for other agents are picked up without another copy.
@@ -696,14 +696,14 @@ Or install the repo as a Devin plugin. A repo with only `skills/<name>/SKILL.md`
 
 ```sh
 devin auth login
-devin plugins install sidkolapalli/capella-agent-toolkit
+devin plugins install sidkolapalli/agent-toolkit-for-capella
 ```
 
-Plugin skills are named `/capella-agent-toolkit:<skill>`, for example `/capella-agent-toolkit:arcadia-elicit`.
+Plugin skills are named `/agent-toolkit-for-capella:<skill>`, for example `/agent-toolkit-for-capella:arcadia-elicit`.
 
 Devin's docs describe a `triggers: [user]` field for manual-only skills and do not mention `disable-model-invocation`, so Devin may start `capella-setup` on its own.
 
-### 2. Connect the Capella MCP server
+### 2. Connect the MCP server
 
 Edit the user config: `~/.config/devin/mcp_config.json` (Windows: `%APPDATA%\devin\mcp_config.json`). Project config is `.devin/mcp_config.json`; `.devin/mcp_config.local.json` is the gitignored per-user override.
 
@@ -758,11 +758,11 @@ Source: [Devin Desktop changelog](https://docs.devin.ai/desktop/changelog), [Dev
 Global install:
 
 ```sh
-git clone https://github.com/sidkolapalli/capella-agent-toolkit
+git clone https://github.com/sidkolapalli/agent-toolkit-for-capella
 mkdir -p ~/.config/opencode/skills
-cp -r capella-agent-toolkit/skills/capella-setup \
-      capella-agent-toolkit/skills/arcadia-depth \
-      capella-agent-toolkit/skills/arcadia-elicit \
+cp -r agent-toolkit-for-capella/skills/capella-setup \
+      agent-toolkit-for-capella/skills/arcadia-depth \
+      agent-toolkit-for-capella/skills/arcadia-elicit \
       ~/.config/opencode/skills/
 ```
 
@@ -770,9 +770,9 @@ One project:
 
 ```sh
 mkdir -p .opencode/skills
-cp -r /path/to/capella-agent-toolkit/skills/capella-setup \
-      /path/to/capella-agent-toolkit/skills/arcadia-depth \
-      /path/to/capella-agent-toolkit/skills/arcadia-elicit \
+cp -r /path/to/agent-toolkit-for-capella/skills/capella-setup \
+      /path/to/agent-toolkit-for-capella/skills/arcadia-depth \
+      /path/to/agent-toolkit-for-capella/skills/arcadia-elicit \
       .opencode/skills/
 ```
 
@@ -793,7 +793,7 @@ OpenCode ignores `disable-model-invocation`, so it may load `capella-setup` on i
 }
 ```
 
-### 2. Connect the Capella MCP server
+### 2. Connect the MCP server
 
 Put the server in `~/.config/opencode/opencode.json` (user) or `opencode.json` at the project root. The two files are merged; the project file wins. `oauth: false` stops OpenCode from trying OAuth.
 
@@ -853,35 +853,35 @@ Source: [OpenCode skills](https://opencode.ai/docs/skills/), [OpenCode MCP serve
 ## Plugins
 
 **Claude Code.** The repository is a Claude Code plugin and its own marketplace: `.claude-plugin/plugin.json` and
-`.claude-plugin/marketplace.json` at the root, the skills in `skills/`, and the Capella MCP server in the root
+`.claude-plugin/marketplace.json` at the root, the skills in `skills/`, and the MCP server in the root
 `.mcp.json` (the fixed-token form from [Before you start](#set-a-fixed-mcp-token)). Installing the plugin installs
 all three skills and the server.
 
 ```sh
 # inside Claude Code
-/plugin marketplace add sidkolapalli/capella-agent-toolkit
-/plugin install capella-agent-toolkit@capella-tools
+/plugin marketplace add sidkolapalli/agent-toolkit-for-capella
+/plugin install agent-toolkit-for-capella@sidkolapalli
 
 # or from your shell
-claude plugin marketplace add sidkolapalli/capella-agent-toolkit
-claude plugin install capella-agent-toolkit@capella-tools
+claude plugin marketplace add sidkolapalli/agent-toolkit-for-capella
+claude plugin install agent-toolkit-for-capella@sidkolapalli
 
 # one step (Claude Code v2.1.292 or later from the shell)
-claude plugin install capella-agent-toolkit --marketplace sidkolapalli/capella-agent-toolkit
+claude plugin install agent-toolkit-for-capella --marketplace sidkolapalli/agent-toolkit-for-capella
 
 # enable for collaborators (each collaborator still runs this once)
-claude plugin install capella-agent-toolkit@capella-tools --scope project
+claude plugin install agent-toolkit-for-capella@sidkolapalli --scope project
 ```
 
-- Plugin skills are named `/capella-agent-toolkit:capella-setup`, `/capella-agent-toolkit:arcadia-depth` and
-  `/capella-agent-toolkit:arcadia-elicit`. The plugin's server shows in `/mcp` as
-  `plugin:capella-agent-toolkit:capella`; you add or remove it by installing or uninstalling the plugin.
+- Plugin skills are named `/agent-toolkit-for-capella:capella-setup`, `/agent-toolkit-for-capella:arcadia-depth` and
+  `/agent-toolkit-for-capella:arcadia-elicit`. The plugin's server shows in `/mcp` as
+  `plugin:agent-toolkit-for-capella:capella`; you add or remove it by installing or uninstalling the plugin.
 - Claude Code starts plugin MCP servers automatically. `CAPELLA_AI_DEVSERVER_TOKEN` must be set for both Capella and
   Claude Code, or the server answers 401.
-- Try a local checkout without installing: `claude --plugin-dir /path/to/capella-agent-toolkit`.
+- Try a local checkout without installing: `claude --plugin-dir /path/to/agent-toolkit-for-capella`.
 
-**Windsurf / Devin Desktop.** `devin plugins install sidkolapalli/capella-agent-toolkit` installs the repo as a plugin
-(see above). Devin falls back to `.claude-plugin/plugin.json` and honours the root `.mcp.json`.
+**Windsurf / Devin Desktop.** `devin plugins install sidkolapalli/agent-toolkit-for-capella` installs the repo as a
+plugin (see above). Devin falls back to `.claude-plugin/plugin.json` and honours the root `.mcp.json`.
 
 **Others.** `npx skills add` reads skill paths from `.claude-plugin/marketplace.json`. The ChatGPT desktop app can read
 `.claude-plugin/marketplace.json`; the Codex CLI is not documented to read it, so test before relying on it. Native

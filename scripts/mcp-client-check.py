@@ -1,6 +1,6 @@
 # Usage: python -m pip install mcp; python scripts/mcp-client-check.py http://127.0.0.1:8765/mcp "$(cat ~/.capella-ai/devserver-8765.token)"
 # Read-only: lists tools and calls model_summary on the model open in Capella.
-"""Official MCP Python SDK against the Capella dev server: modern (auto) and legacy modes, plus a missing token."""
+"""Official MCP Python SDK against the plug-in's dev server in Capella: modern (auto) and legacy modes, plus a missing token."""
 import asyncio, json, sys
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client, create_mcp_http_client

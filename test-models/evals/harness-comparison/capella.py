@@ -1,4 +1,4 @@
-"""Talks to one Capella dev server: wait for the model, score a task, run /eval, stop."""
+"""Talks to the plug-in's dev server in one Capella instance: wait for the model, score a task, run /eval, stop."""
 import json, os, pathlib, subprocess, time, urllib.request
 
 HERE = pathlib.Path(__file__).parent

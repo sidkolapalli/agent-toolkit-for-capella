@@ -22,7 +22,7 @@ public class ConversationStoreTest {
         state.taskPlan("Done · Inspect SA\nPending · Allocate the interface ⚡");
         state.codexThreadId("019a1803-bb25-7fe0-a523-221910889924");
         state.append("You", "Create a sensor");
-        state.append("Capella AI", "Proposed `Sensor` — not run.");
+        state.append("AI Assistant", "Proposed `Sensor` — not run.");
         state.addReply("Create a sensor", "```groovy\nreturn 42\n```");
         state.addOutcome("Execution feedback: user dismissed; no code ran.");
         new ConversationStore(directory).save("platform:/resource/car/car.aird", state);
@@ -34,6 +34,20 @@ public class ConversationStoreTest {
         assertEquals(3, restored.history().size());
         assertEquals(LLMService.Message.Role.ASSISTANT, restored.history().get(1).getRole());
         assertTrue(restored.history().get(2).getContent().contains("no code ran"));
+    }
+
+    @Test
+    public void legacyCapellaAiRoleLoadsAsTheAssistant() throws Exception {
+        var directory = temporary.newFolder().toPath();
+        var store = new ConversationStore(directory);
+        var state = new ConversationState();
+        state.append("You", "Create a sensor");
+        state.append("Capella AI", "Saved before the rename");
+        store.save("model", state);
+        var entries = store.load("model").entries();
+        assertEquals("You", entries.get(0).role());
+        assertEquals("AI Assistant", entries.get(1).role());
+        assertEquals("Saved before the rename", entries.get(1).text());
     }
 
     @Test

@@ -1,15 +1,15 @@
 {
-  "name": "capella-agent-toolkit",
+  "name": "agent-toolkit-for-capella",
   "version": "0.2.1",
-  "description": "Arcadia/Capella MBSE skills and the Capella MCP server: connect an agent to the model open in Capella, with every edit reviewed by a person",
+  "description": "Arcadia MBSE skills for Capella and the MCP server of AI Assistant for Capella: connect an agent to the model open in Capella, with every edit reviewed by a person",
   "author": {
     "name": "sidkolapalli",
     "url": "https://github.com/sidkolapalli"
   },
-  "homepage": "https://github.com/sidkolapalli/capella-agent-toolkit",
-  "repository": "https://github.com/sidkolapalli/capella-agent-toolkit",
+  "homepage": "https://github.com/sidkolapalli/agent-toolkit-for-capella",
+  "repository": "https://github.com/sidkolapalli/agent-toolkit-for-capella",
   "license": "EPL-2.0",
-  "privacyPolicyUrl": "https://github.com/sidkolapalli/capella-agent-toolkit#privacy",
+  "privacyPolicyUrl": "https://github.com/sidkolapalli/agent-toolkit-for-capella#safety-and-privacy",
   "keywords": [
     "capella",
     "arcadia",

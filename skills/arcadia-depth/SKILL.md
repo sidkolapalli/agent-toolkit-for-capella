@@ -6,7 +6,7 @@ description: Arcadia constructs beyond functions and components. Use when a task
 # Arcadia depth
 
 Each construct below has a method rule the outline of Arcadia leaves out and an API pattern verified
-on Capella 7. Read the file for every construct the task touches before proposing; read its
+on Eclipse Capella® 7. Read the file for every construct the task touches before proposing; read its
 `capella_docs` page (`capella-help/<topic>`) when the rule leaves a choice open.
 
 | Construct | File | `capella-help/` |

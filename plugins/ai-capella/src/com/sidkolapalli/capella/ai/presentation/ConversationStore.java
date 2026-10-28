@@ -17,6 +17,7 @@ import java.util.Properties;
 
 /** Workspace-local history and draft persistence, separated by the model's native URI. */
 public final class ConversationStore {
+    private static final String ASSISTANT = "AI Assistant";
     private final Path directory;
 
     public ConversationStore(Path directory) {
@@ -46,9 +47,10 @@ public final class ConversationStore {
                 Boolean.parseBoolean(values.getProperty("codexPrivacyMode", "false")));
         int count = count(values, "entries", 100);
         for (int index = 0; index < count; index++) {
-            state.append(
-                    values.getProperty("entry." + index + ".role", "Capella AI"),
-                    text(values, "entry." + index + ".text"));
+            String role = values.getProperty("entry." + index + ".role", ASSISTANT);
+            // Conversations saved before the rename label the assistant "Capella AI".
+            if ("Capella AI".equals(role)) role = ASSISTANT;
+            state.append(role, text(values, "entry." + index + ".text"));
         }
         var history = new ArrayList<LLMService.Message>();
         for (int index = 0; index < count(values, "history", 24); index++) {
@@ -88,7 +90,7 @@ public final class ConversationStore {
             try (var output = Files.newOutputStream(temporary)) {
                 values.storeToXML(
                         output,
-                        "Capella AI local conversation; no execution approvals",
+                        "AI Assistant for Capella local conversation; no execution approvals",
                         StandardCharsets.UTF_8);
             }
             try {

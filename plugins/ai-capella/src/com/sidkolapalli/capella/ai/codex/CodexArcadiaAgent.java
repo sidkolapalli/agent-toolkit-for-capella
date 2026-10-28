@@ -477,10 +477,11 @@ public final class CodexArcadiaAgent implements AgentRuntime {
                 switch (code) {
                     case "unauthorized" ->
                             "The ChatGPT sign-in has expired or was rejected. Sign in again in the"
-                                + " Capella AI settings, then retry.";
+                                + " AI Assistant for Capella settings, then retry.";
                     case "usageLimitExceeded" ->
                             "The ChatGPT plan's Codex usage limit is reached. Retry after it"
-                                + " resets, or choose another provider in the Capella AI settings.";
+                                + " resets, or choose another provider in the AI Assistant for"
+                                + " Capella settings.";
                     case "rateLimitExceeded", "serverOverloaded" ->
                             "The provider is busy. Try again in a moment.";
                     case "contextWindowExceeded" ->

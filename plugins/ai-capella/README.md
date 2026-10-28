@@ -1,7 +1,7 @@
 # ai-capella
 
-The Eclipse plug-in, shown in Capella as **Capella AI Assistant**. It hosts the MCP server, the chat assistant and
-the Groovy script API that both use.
+The Eclipse plug-in, shown in Eclipse Capella® as **AI Assistant for Capella**. It hosts the MCP server, the chat
+assistant and the Groovy script API that both use.
 
 | Path | Contents |
 |---|---|

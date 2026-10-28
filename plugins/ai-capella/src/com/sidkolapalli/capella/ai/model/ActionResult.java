@@ -15,7 +15,7 @@ public record ActionResult(
         List<String> alternatives,
         Map<String, Object> context) {
 
-    /** Error codes covering all failure scenarios in Capella AI actions. */
+    /** Error codes covering all failure scenarios in assistant actions. */
     public enum ErrorCode {
         /** Action completed successfully */
         SUCCESS,

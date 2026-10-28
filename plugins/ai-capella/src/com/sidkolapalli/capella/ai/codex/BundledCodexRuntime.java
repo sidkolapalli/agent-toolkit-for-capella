@@ -111,7 +111,7 @@ public final class BundledCodexRuntime {
                 if (binary == null || host == null) {
                     throw new IOException(
                             "The installation is missing a bundled Codex executable. Reinstall"
-                                + " Capella AI.");
+                                + " AI Assistant for Capella.");
                 }
                 Path runtimeRoot = stateDirectory.resolve("runtime");
                 Path directory = runtimeRoot.resolve(version);
@@ -158,7 +158,8 @@ public final class BundledCodexRuntime {
                 throw new IllegalStateException(
                         "Cannot prepare the bundled Codex runtime. "
                                 + failure.getMessage()
-                                + " Select an explicit Codex executable or reinstall Capella AI.",
+                                + " Select an explicit Codex executable or reinstall AI Assistant"
+                                + " for Capella.",
                         failure);
             }
         }

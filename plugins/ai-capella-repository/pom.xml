@@ -11,7 +11,7 @@
   <artifactId>com.sidkolapalli.capella.ai.repository</artifactId>
   <version>0.2.1-SNAPSHOT</version>
   <packaging>eclipse-repository</packaging>
-  <name>Capella AI P2 Repository</name>
+  <name>AI Assistant for Capella (p2 repository)</name>
 
   <build>
     <plugins>

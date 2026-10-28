@@ -1,4 +1,4 @@
-# Arcadia and Capella 7.0 coverage matrix
+# Arcadia and Eclipse Capella® 7.0 coverage matrix
 
 What the Arcadia method and Capella 7.0 offer, what our API can write, what our docs and skills teach, and
 where the trusted specifics live. Skills stay short and point at the "best source" columns for detail

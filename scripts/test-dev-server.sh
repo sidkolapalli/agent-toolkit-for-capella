@@ -1,8 +1,8 @@
 #!/bin/bash
-# Smoke test for the Capella AI dev server. Read-only: it never changes the model. Needs curl and jq.
+# Smoke test for the plug-in's dev server in Capella. Read-only: it never changes the model. Needs curl and jq.
 #
 # 1. Open a disposable copy of a Capella model.
-# 2. Start the dev server: Window -> Show View -> Other -> Capella AI -> AI Dev Server -> Start.
+# 2. Start the dev server: Window -> Show View -> Other -> AI Assistant for Capella -> AI Dev Server -> Start.
 # 3. scripts/test-dev-server.sh [port]
 
 PORT=${1:-8765}

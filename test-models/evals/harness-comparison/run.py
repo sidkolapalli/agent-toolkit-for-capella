@@ -16,9 +16,9 @@ import capella
 HERE = capella.HERE
 RESULTS = pathlib.Path(capella.os.environ.get("EVAL_RESULTS", HERE / "results"))  # experiment 10: outside the repo
 CODEX = capella.CODEX
-# The pristine model project, from github.com/sidkolapalli/fsae-2027-capella-model cloned next to this repository.
+# The pristine model project, from github.com/sidkolapalli/fsae-2027-model-for-capella cloned next to this repository.
 MODEL_DIR = pathlib.Path(capella.os.environ.get(
-    "EVAL_MODEL", HERE.parents[3] / "fsae-2027-capella-model" / "model" / "FSAE-2027-Electric-Arcadia"))
+    "EVAL_MODEL", HERE.parents[3] / "fsae-2027-model-for-capella" / "model" / "FSAE-2027-Electric-Arcadia"))
 PYTHON = HERE / "bare-venv" / "Scripts" / "python.exe"
 PORTS = {"A": 8781, "B": 8782, "C": 8783, "S": 8784, "K": 8785, "KS": 8786, "E": 8787, "ES": 8788, "KH": 8789, "KSH": 8790, "EH": 8791, "ESH": 8792}
 SKILLS = pathlib.Path(capella.os.environ.get("TOOLKIT_SKILLS", HERE.parents[2] / "skills"))

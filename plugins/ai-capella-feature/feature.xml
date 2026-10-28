@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <feature
       id="com.sidkolapalli.capella.ai.feature"
-      label="Capella AI Assistant"
+      label="AI Assistant for Capella"
       version="0.2.1.qualifier"
-      provider-name="Capella Agent Toolkit">
+      provider-name="Agent Toolkit for Capella">
 
    <description>
       In-IDE AI assistant for Capella: reviewed model edits from chat or MCP clients, Arcadia method checks and clean diagram layout.

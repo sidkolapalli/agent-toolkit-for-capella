@@ -18,7 +18,7 @@ mvn -f plugins clean verify -DskipTests     # binaries and update site only
 
 On Linux without a display, run Maven under `xvfb-run -a`, as CI does.
 
-Tests live in `plugins/ai-capella.tests/src`, mirror the source package, are named `*Test`, and must be deterministic. They run in a separate OSGi bundle, so anything a test calls must be `public`. They use Capella's real metamodel and a real transactional editing domain behind a proxied `Session`; they do not cover rendering, OSGi wiring or installation, so check those in a running Capella (see `CLAUDE.md`, "Verifying in Capella"). `scripts/test-dev-server.sh` is a read-only smoke test against the dev server (needs `curl` and `jq`).
+Tests live in `plugins/ai-capella.tests/src`, mirror the source package, are named `*Test`, and must be deterministic. They run in a separate OSGi bundle, so anything a test calls must be `public`. They use the real Eclipse Capella® metamodel and a real transactional editing domain behind a proxied `Session`; they do not cover rendering, OSGi wiring or installation, so check those in a running Capella (see `CLAUDE.md`, "Verifying in Capella"). `scripts/test-dev-server.sh` is a read-only smoke test against the dev server (needs `curl` and `jq`).
 
 ## Code style
 Java sources are formatted with [google-java-format](https://github.com/google/google-java-format) 1.22.0 in AOSP style (4-space indent). Format the files you change before committing:

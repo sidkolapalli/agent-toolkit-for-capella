@@ -2,19 +2,19 @@
 
 <img src=".claude-plugin/icon.png" alt="" width="112">
 
-# Capella Agent Toolkit
+# Agent Toolkit for Eclipse Capella®
 
 **AI assistance for model-based systems engineering in [Capella](https://eclipse.dev/capella/): ask questions about
 your Arcadia model, and have changes proposed that you review before anything runs.**
 
-[![build](https://github.com/sidkolapalli/capella-agent-toolkit/actions/workflows/build.yml/badge.svg)](https://github.com/sidkolapalli/capella-agent-toolkit/actions/workflows/build.yml)
+[![build](https://github.com/sidkolapalli/agent-toolkit-for-capella/actions/workflows/build.yml/badge.svg)](https://github.com/sidkolapalli/agent-toolkit-for-capella/actions/workflows/build.yml)
 [![License: EPL-2.0](https://img.shields.io/badge/license-EPL--2.0-blue)](LICENSE)
 [![Capella 7.0](https://img.shields.io/badge/Capella-7.0-1f6feb)](https://eclipse.dev/capella/)
 [![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6e40c9)](https://modelcontextprotocol.io)
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-SKILL.md-1baf7a)](https://agentskills.io)
 
 [Install](docs/INSTALL.md) · [What you can do](#what-you-can-do) · [Quick start](#quick-start) ·
-[Example model](https://github.com/sidkolapalli/fsae-2027-capella-model)
+[Example model](https://github.com/sidkolapalli/fsae-2027-model-for-capella)
 
 </div>
 
@@ -40,7 +40,7 @@ Arcadia method.
   in one undoable transaction, and you get a receipt: what changed, the declared checks, and the validator's
   findings before and after.
 
-Capella also gets a built-in chat assistant, **Capella AI Assistant**, for working without an external agent; see
+Capella also gets a built-in chat assistant, **AI Assistant for Capella**, for working without an external agent; see
 [docs/PLUGIN.md](docs/PLUGIN.md).
 
 ### Example requests
@@ -57,7 +57,7 @@ Capella also gets a built-in chat assistant, **Capella AI Assistant**, for worki
 
 ```mermaid
 flowchart LR
-    A["Your agent<br/>Claude Code, Codex, Cursor, Copilot, ..."] -->|"MCP over localhost, bearer token"| S["MCP server<br/>in the Capella plug-in"]
+    A["Your agent<br/>Claude Code, Codex, Cursor, Copilot, ..."] -->|"MCP over localhost, bearer token"| S["MCP server<br/>in the plug-in"]
     K["Skills<br/>arcadia-depth, arcadia-elicit"] -.->|"loaded by the agent"| A
     S -->|"read tools"| M[("Model open<br/>in Capella")]
     S -->|"propose_model_edit"| R{"Review dialog:<br/>you approve<br/>the exact script"}
@@ -82,7 +82,7 @@ On Windows PowerShell, set the variable with `$env:JAVA_TOOL_OPTIONS='...'`. The
 `plugins/ai-capella-repository/target/repository`.
 
 **2. Install it.** In Capella, choose **Help → Install New Software → Add → Local**, select that folder, install
-**Capella AI Assistant** and restart.
+**AI Assistant for Capella** and restart.
 
 **3. Start the MCP server.** Open a model, then **Window → Show View → Other → AI Dev Server → Start** (port 8765).
 
@@ -92,16 +92,17 @@ Capella restarts: set `CAPELLA_AI_DEVSERVER_TOKEN` to a random value for both Ca
 
 | Agent | Fastest route |
 |---|---|
-| Claude Code | `/plugin marketplace add sidkolapalli/capella-agent-toolkit`, then `/plugin install capella-agent-toolkit@capella-tools` (skills and server in one step) |
-| Any agent with Agent Skills | `npx skills add sidkolapalli/capella-agent-toolkit` or `gh skill install sidkolapalli/capella-agent-toolkit --all`, then connect the server |
+| Claude Code | `/plugin marketplace add sidkolapalli/agent-toolkit-for-capella`, then `/plugin install agent-toolkit-for-capella@sidkolapalli` (skills and server in one step) |
+| Any agent with Agent Skills | `npx skills add sidkolapalli/agent-toolkit-for-capella` or `gh skill install sidkolapalli/agent-toolkit-for-capella --all`, then connect the server |
 | Codex, Cursor, GitHub Copilot, Gemini CLI, Windsurf / Devin, OpenCode, Claude Desktop | Step-by-step in [docs/INSTALL.md](docs/INSTALL.md), from each tool's official documentation |
 
 Then run `/capella-setup` (Codex: `$capella-setup`) to check the connection, and ask for the work in plain
 language. Each change opens a review dialog in Capella.
 
-To try it on a full model first, use [fsae-2027-capella-model](https://github.com/sidkolapalli/fsae-2027-capella-model):
-a Capella model of a Formula SAE 2027 electric car, with the rules as requirements, a candidate architecture across
-all five perspectives, and open design decisions.
+To try it on a full model first, use
+[fsae-2027-model-for-capella](https://github.com/sidkolapalli/fsae-2027-model-for-capella): a Capella model of a
+Formula SAE 2027 electric car, with the rules as requirements, a candidate architecture across all five perspectives,
+and open design decisions.
 
 ## Safety and privacy
 
@@ -139,6 +140,11 @@ runtime is Windows x64 only; elsewhere the chat needs an external Codex 0.160.1 
 [`ARCHITECTURE.md`](ARCHITECTURE.md) explains how the code fits together. The plug-in is in [`plugins/`](plugins),
 the skills in [`skills/`](skills), and the evaluation harness in
 [`test-models/evals`](test-models/evals).
+
+## Trademarks
+
+Eclipse, Eclipse Capella and Capella are trademarks of Eclipse Foundation AISBL. This project is not affiliated with
+or endorsed by the Eclipse Foundation.
 
 ## License
 

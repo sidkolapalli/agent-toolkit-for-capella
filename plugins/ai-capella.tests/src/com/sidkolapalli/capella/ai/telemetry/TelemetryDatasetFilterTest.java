@@ -84,7 +84,7 @@ public class TelemetryDatasetFilterTest {
     private static void invokeRecordDatasetEntry(String prompt, String code, ExecutionResult result)
             throws Exception {
         Bundle aiBundle = FrameworkUtil.getBundle(LLMPreferences.class);
-        assertNotNull("Expected Capella AI bundle for LLMPreferences", aiBundle);
+        assertNotNull("Expected the AI Assistant for Capella bundle for LLMPreferences", aiBundle);
         Class<?> telemetry = aiBundle.loadClass("com.sidkolapalli.capella.ai.telemetry.Telemetry");
         telemetry
                 .getMethod("recordDatasetEntry", String.class, String.class, ExecutionResult.class)

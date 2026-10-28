@@ -169,15 +169,15 @@ public final class CodexPreferences {
                         "The configured Codex binary is not an executable file: "
                                 + configured
                                 + ". Choose the Codex executable (codex.exe on Windows, codex"
-                                + " elsewhere) in Capella AI preferences, or clear the path to"
-                                + " discover it automatically.");
+                                + " elsewhere) in the AI Assistant for Capella preferences, or"
+                                + " clear the path to discover it automatically.");
             }
             Path packaged = bundledRuntime.get();
             if (packaged != null) {
                 if (usable(packaged)) return packaged.toAbsolutePath().normalize();
                 throw new IllegalStateException(
                         "The bundled Codex runtime did not provide a usable executable. Reinstall"
-                            + " Capella AI.");
+                            + " AI Assistant for Capella.");
             }
             String searchPath = environment.apply("PATH");
             if (searchPath != null) {
@@ -217,17 +217,17 @@ public final class CodexPreferences {
                         throw new IllegalStateException(
                                 "Cannot inspect the installed Codex binaries in "
                                         + directory
-                                        + ". Choose the Codex executable in Capella AI"
-                                        + " preferences.",
+                                        + ". Choose the Codex executable in the AI Assistant"
+                                        + " for Capella preferences.",
                                 exception);
                     }
                 }
             }
             throw new IllegalStateException(
                     "Codex was not found, and this installation has no bundled runtime for this"
-                        + " platform. Choose an installed codex executable in Capella AI"
-                        + " preferences or set CAPELLA_AI_CODEX_BINARY. You can also select Direct"
-                        + " provider.");
+                        + " platform. Choose an installed codex executable in the AI Assistant"
+                        + " for Capella preferences or set CAPELLA_AI_CODEX_BINARY. You can also"
+                        + " select Direct provider.");
         }
 
         public void flush() {
@@ -255,7 +255,7 @@ public final class CodexPreferences {
             String runtime = clean(value).toLowerCase(Locale.ROOT);
             if (!CODEX.equals(runtime) && !DIRECT.equals(runtime)) {
                 throw new IllegalArgumentException(
-                        "Capella AI runtime must be codex or direct. Check CAPELLA_AI_RUNTIME"
+                        "The assistant runtime must be codex or direct. Check CAPELLA_AI_RUNTIME"
                                 + " or the runtime selection in preferences.");
             }
             return runtime;
