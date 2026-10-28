@@ -1024,3 +1024,407 @@ session rollouts of the run name the experiment 11 folders and none contains the
 
 Codex usage for experiment 11 (42 runs): about 3% of the weekly window (9% to 12%). Folder:
 `E:/capella-eval-runs/exp11/S` (local only).
+
+# Record, corrections and data (2026-10-28, after all runs)
+
+These sections were added on 2026-10-28, after every experiment above had finished. They change nothing above:
+the earlier sections stay as the pre-registered and recorded text. Where a number above is wrong, it is corrected
+here, with its evidence. Commit hashes refer to this repository's public history. The per-run data will be
+published as `capella-agent-study-runs.zip`, and its location added here; paths such as `runs/exp09-S/...` are
+paths inside that archive.
+
+## Experiment 1, result (recorded 2026-10-28, after the runs)
+
+This result was not recorded here when the runs ended. Its numbers were first written on 2026-10-21, in a blog
+draft, about two and a half hours after the last scored run. They are recorded now from the raw runs, which
+survive and are published with the run data: `runs/exp01-A`, `runs/exp01-B`, `runs/exp01-C`, the runner logs in
+`logs/exp01-*`, and the pristine model's grade in `extra/exp01/baseline-grade.json` (opens, 0 errors, 517
+warnings, 28 unresolved proxies, 0 dangling diagram elements, as above). The harness is the one committed at
+73c43a8 (`run.py`, `capella.py`, `grade.groovy`, `NOTES.md`), apart from local paths, which the public
+history shows as `<local-path>`. The table is what this folder's `analyze.py`
+prints, run unchanged; an independent recount gives the same rows and p-values.
+
+The scored runs finished between 2026-10-20 13:03 and 2026-10-21 04:58. Every arm stopped at the 80% weekly cap
+of amendment 1 (made during the scored runs, before any analysis); each `scored-*.log` ends "stopped: weekly
+Codex cap reached". The design was 60 runs per arm. What ran:
+
+- A: repetition 1 only, 26 of 30 tasks. Not reached: fsae-apps-dataflow-diagram, fsae-bspd-hardware-diagram,
+  fsae-resolve-tbd-name, fsae-document-imd.
+- B: repetition 1 and 15 tasks of repetition 2, 45 runs.
+- C: repetition 1 and 23 tasks of repetition 2, 53 runs.
+
+The pilot (fsae-trace-imd-function, repetition 0) passed in all three arms and is not counted.
+
+| Setup | Passed | Wilson 95% | Passed, no diagram tasks | Broke the model | Median agent time | Median tokens in / out |
+|---|---|---|---|---|---|---|
+| A: bare (capellambse) | 26/26 | 87–100% | 25/25 | 0 | 131 s | 324,514 / 4,773 |
+| B: bare + MCP | 45/45 | 92–100% | 42/42 | 0 | 84 s | 425,130 / 2,309 |
+| C: plugin | 51/53 | 87–99% | 48/50 | 0 | 72 s | not recorded (the `/eval` grade has no usage field) |
+
+Broke the model: no run added a validation error, an unresolved proxy or a dangling diagram element, and every
+model opened. Warnings ranged from 517 to 522; they are not counted. `analyze.py` reports pass and integrity in
+separate columns; since no run broke anything, a combined pass rule gives the same counts. The Wilson intervals
+treat runs as independent, although repetitions share a task, so they are optimistic.
+
+Per task, exact two-sided sign test: C against A 0 better, 2 worse, 24 tied (p = 0.5); C against B 0 better,
+2 worse, 28 tied (p = 0.5); B against A 0, 0, 26 (p = 1). The two discordant tasks are C's two failures, both in
+repetition 1, the same two against A and B:
+
+- fsae-inertia-switch r1, 104 s: "Native requirement relation is not typed satisfy."
+- fsae-ready-to-drive-states r1, 129 s: "Native satisfy trace does not match the inspected stored direction and
+  type".
+
+Both ended "blocked: proposal did not apply" with `RUNTIME_ERROR` and the model rolled back, as amendment 2
+describes (`runs/exp01-C/<task>-r1.json`, field `eval`). Both passed in repetition 2. A and B passed both tasks.
+
+Diagrams: every run that reached a diagram task passed it. fsae-shutdown-sources-diagram is the only diagram
+task all three arms reached; each arm's diagram had 20 elements, with 0 sibling overlaps in A and 4 in B and in
+C. B and C passed the other two diagram tasks with 0 overlaps. The label and clipping counters came with
+experiment 2; the Experiment 1 grades do not have them.
+
+Usage-limit runs: the 33 runs deleted under amendment 1 survive only as rows in `scored-*.log` (A 11, B 12,
+C 10). All failed; the longest took 51 s. For every scored run, its last log row matches its grade's pass and
+agent time.
+
+Not done, or reported here for the first time:
+
+- The rerun of C's two blocked tasks on the fixed build, promised by amendment 2, was never run. No run folder,
+  log or grade for it exists.
+- The pass rate without the three diagram tasks, pre-registered under Analysis, is reported here for the first
+  time: 25/25, 42/42, 48/50.
+- C's agent scripts were not kept: the `.ai/` folder is empty in all 54 C runs, the two failures included. The
+  cause of the two failures rests on the receipts' messages.
+- `analyze.py` needs `baseline-grade.json`, which was never committed. It is published with the run data.
+
+## Correction (2026-10-28): counting rules and recounts
+
+Every number in the result sections above was recounted from the raw runs on 2026-10-28.
+`tools/reproduce.py` in the data archive applies the rules below and checks 224 values. Most match. The
+mismatches, and the rules the result sections used without writing them down, are listed here.
+
+**The read rule, frozen.** "Read a construct file" (experiments 8 to 11): a completed `command_execution` item in
+`events.jsonl` whose command matches `arcadia-depth[\\/]+(?!SKILL)[A-Z]+\.md`. Requiring the file's text in the output
+as well (the marker `**Rule.**`, which every construct file contains and `SKILL.md` does not) changes no count.
+Experiments 8 and 9 wrote no rule down; experiment 10's summary script (2026-10-23, not in this repository) was the
+first, and it gives the same counts. Under this rule: experiment 8 S 2, experiment 9 S 42, experiment 10 S 40,
+experiment 11 S 16, every B arm 0.
+
+**Experiment 8: `arcadia-depth/SKILL.md` was opened in 3 runs, not 4.** The result says S opened
+`arcadia-depth/SKILL.md` in 4 of 42 runs (modes r2 and r3, property values r3, transition r2). The events show 3.
+Modes r2 never opened it. It read the plug-in's own state-machine guide through `capella_docs`
+(`skills/state-machine/SKILL.md`, `runs/exp08-S/fsae-d-modes-r2/events.jsonl` line 7). Later it asked `capella_docs`
+for `arcadia-depth/SKILL.md`, and the call failed: "Choose an exact shipped documentation path from
+capella_capabilities" (line 29). The 4 counted requests, not opens.
+
+Corrected: opened in 3 of 42 runs (modes r3, property values r3, transition r2) and asked for in 4. "Opened"
+means the file's text appears in a command's output; transition r2's command exited 1 because it chained a
+second file, but its output holds the text. "In the other
+38 runs" becomes 39. The construct-file count is unchanged: 2 (`MODES.md` in modes r3, `PROPERTIES.md` in
+property values r3), both passed. The decision (not shown) does not use this count. Where experiments 9 and 10
+cite experiment 8's "4 of 42", read 3 opened and 4 asked.
+
+**Experiment 9: a construct file was read in 42 of 42 runs, not 40.** The result says 40, that the other two "read the
+router, or the read did not show in the events", and the table says interface r1 read the "router only". Under the
+frozen rule all 42 S runs read a construct file. Interface r1 read `SKILL.md`
+(`runs/exp09-S/fsae-d-interface-r1/events.jsonl` line 5), then `INTERFACES.md` (line 8, exit 0, 1,893 bytes of output)
+and `DATA.md` (line 9, exit 0, 2,328 bytes) by absolute path. Both outputs hold the file's text. The second run behind
+the 40 is never named, and no amendment, regrade or exclusion accounts for it. The 40 was a hand count; the data give
+42. The decision (the skills help) does not use this count. Experiment 10's rule quotes "experiment 9 had 40"; its
+thresholds (34 and 10) and its outcome (works, 40 of 42) are unchanged.
+
+**Experiment 7: ESH passed 5 of 12, not 6.** The result table gives ESH "Passed (all facts, no wrong guess)" 6/12, and
+the amendment-1 table repeats it as the reference. The grade files give 5: charging r1 and r3, charging-ops r3, drive
+r3, thermal r3 (`runs/exp07-ESH/fsae-e-*-r*.json`, field `passed`). The runner log agrees
+(`logs/exp07-ESH/scored-ESH.log`, 5 True of 12), and so does the definition: no other run has every fact and no wrong
+guess. No grade changed after the runs (the last finished 2026-10-21 20:19), no later run wrote to these folders, the
+pilot is not counted, and the per-run summary printed on 2026-10-22, before the result was written, also shows 5
+passes. No source for 6 was found. EH stays at 1/12. The decision rule does not use the pass count, so
+`arcadia-elicit` stays **kept**.
+
+**Experiment 7: the run folders survive, and two "not recorded" items were recorded.** The release baseline result
+says experiment 7's run folders were overwritten. That is true only of the copies in the repository's `results/`
+folder. The folders the experiment ran in survived outside the repository, unchanged (finish times 2026-10-21 19:20 to
+20:19), and are published as `runs/exp07-EH` and `runs/exp07-ESH`. The release reruns wrote to their own folders
+(`results/ESH-baseline/`, `results/ESH-amend1/`).
+
+The amendment-1 result lists two things as not recorded for experiment 7. Both are in its events:
+
+- Loaded `arcadia-elicit` (a `Skill` tool call naming it in `events.jsonl`): ESH 12/12, EH 0/12. The same rule
+  gives 7/12 for both release reruns, as recorded.
+- Claude Code version (`claude_code_version` in the init event): 2.1.305 in all 24 elicitation runs, the same as
+  both reruns. The client version therefore did not differ. Of the two untested differences named there, only the
+  plug-in build remains.
+
+**Experiment 2: 8 K runs searched outside their folder, not 10.** The harness amendment says 10 of 33 K runs grepped
+the user's home or temp folders. The events show 8 runs and 10 calls; chains-all-trips r1 and leaf-allocation r1 made
+two each. The 8 are bms-interface r2, chain-imd-path r1, chains-all-trips r1, driver-demand-transports r2 and r3,
+leaf-allocation r1 and r3, and shutdown-component-exchanges r2. Rule: a Grep, Glob, Read or LS call whose path lies
+outside the run's folder (`runs/exp02-K/*/events.jsonl`). Every one is a Grep in count or file-list mode, so "file
+names and match counts only" holds. The same rule gives no KS run and one experiment-3 E run (drive r1), as recorded.
+
+**Experiment 2: the per-task wording.** "Faster on the derive, chain, interface, allocation and transport tasks" is
+too broad. KS was slower on one of the two derive tasks (charging-derive, median 94 s to 105 s) and on one of the two
+allocation tasks (shutdown-component-exchanges, 80 s to 98 s). The counts (faster on 6, slower on 5, p = 1.0) and
+"slower on all three diagram tasks" hold.
+
+**Experiment 4: the pass rule the tables used.** Experiment 4 scores "as experiment 2". Experiment 2's pass rule also
+requires no new validation errors, unresolved proxies or dangling elements; experiment 4 changes only how errors are
+counted (`errors - eie_without_min_card`). The tables of experiments 4 and 5 count the grader's `passed` field instead
+(the native and method checks) and report new errors in a row of their own. No amendment records this.
+
+One run differs. K exchange-items r1 passed its checks with 3 errors and 1 element of the cardinality gap, so 2
+new errors (`runs/exp04-K/fsae-d-exchange-items-r1.json`). It is the run in the row "2 in one run". Under the
+registered rule:
+
+- K exchange-items is FPP, and K passed 15/18, not 16/18.
+- Over experiments 4 and 5, Sonnet without skills passed 26/30 valid runs.
+- On pass (not reported above), the per-task sign test of KS against K is 3–0 (p = 0.25) instead of 2–0
+  (p = 0.5).
+
+Every other run of experiments 4 and 5 and of the regression arm is the same under both rules. The decision
+(`arcadia-depth` kept) holds under both. The tables above stay as printed; their pass counts mean the checks
+passed, with integrity in its own row.
+
+**Grader timeouts: two runs, not one.** The release baseline names one grader timeout (KSH missions r2). Experiment 9
+had a second: B branching-chain-2 r3 (`runs/exp09-B/fsae-d-branching-chain-2-r3.json`, `grade_error` "Script execution
+exceeded 30000ms timeout", finished 2026-10-22 22:02). It is scored as a failure, as in the release baseline. Counted
+as a pass, S against B in experiment 9 would be 9–0 (p = 0.004), and the decision is unchanged.
+
+**Experiment 3: the regression runs were never run.** The protocol pre-registered 2 regression tasks × 3 runs in ES
+with an empty brief. They were never run. `runs/exp03-ES` holds the 4 elicitation runs of repetition 1 only, and
+`logs/exp03-ES/rep1-ES.log` lists only those. The closing note covers repetitions 2 and 3 but not these. No recorded
+number depends on them.
+
+**Rules the result sections used without writing them down.** Each is the only rule found that reproduces the recorded
+numbers.
+
+- Experiment 2, median tokens: input + cache creation + cache read + output tokens (K 748,890, KS 705,431).
+  Input + output alone gives 6,333 and 5,800. The Codex experiments (8 to 11) use input + output.
+- Experiment 3, "brief shown and answered before building": an agent message after the first matches
+  experiment 7's brief-gate pattern, the team member answers it, and the agent then builds. This gives 0/4, 0/4,
+  2/4. The pattern alone on the second-to-last agent message gives 0, 1 and 3.
+- Integer medians: with an even number of runs a median can end in .5. Experiment 3 truncates (92.5, 105.5 and
+  141.5 become 92, 105 and 141). Experiments 4 to 6 round half to even (experiment 5: 70.5 becomes 70 and 50.5
+  becomes 50; experiment 6: 55.5 becomes 56). The percentage changes use the unrounded medians.
+- Time sign tests in experiments 4 and 5: per task, the median of the 3 repetitions; in experiment 4 over all 7
+  tasks, categories included. With per-task means instead, KSH against KH is 5–2 (p = 0.45) in experiment 4 and
+  3–1 (p = 0.625) in experiment 5.
+- Costs in experiments 4 and 5 are arm totals of the client's `cost_usd`, not costs per run; experiment 4's
+  include the excluded categories runs. Experiment 3's costs are the agent's alone; experiment 7's add the team
+  member's.
+- Experiment 6: median time and cost cover the 12 runs of the original four tasks, not the 3 branching-chain-2
+  runs of amendment 2 (with them: 112 s and 54 s, $0.92 and $0.37).
+- Calibration and brief gate (experiment 7 and the release reruns): the pre-registered patterns on
+  `conversation.md`. Calibration is read from the first agent message of runs that asked; the brief gate from the
+  second-to-last agent message.
+
+## Audit (2026-10-28): AGENTS.md in Codex runs
+
+Codex adds the `AGENTS.md` of the repository it runs in to the agent's context. Experiments 8 and 9 ran in folders
+inside this repository (`results/`), so the repository's `AGENTS.md` was in the context of all 172 of their Codex
+sessions: in each experiment 84 scored and 2 pilot sessions, both arms. It was in none of the 128 sessions of
+experiments 10 and 11 (84 scored and 2 pilot in experiment 10, 42 in experiment 11), whose run folders sat outside the
+repository. Source: the Codex session rollouts of 2026-10-22 (172 files) and 2026-10-23 (128 files) on the author's
+machine, matched to experiments by working folder and reasoning effort. A session counts when it holds a user message
+starting "# AGENTS.md instructions" or an `agents_md` entry in its world state. The rollouts are not published.
+
+The injected text tells the agent to follow `CONTRIBUTING.md` and the invariants in `CLAUDE.md`, which explains
+why S runs looked for those files. It was not noticed before this audit. Both arms had it,
+so it is not a difference between the arms of experiment 8 or 9. It is a difference between experiments 8–9 and
+10–11, so comparisons across them (B's 20/42 against 29/42, and the read rates) carry it as a further
+unseparated cause.
+
+Shell-command audit, recounted with written rules over the completed `command_execution` items in
+`events.jsonl`:
+
+| Rule | Exp 9 S | Exp 8 S | B arms, Exp 10 S, Exp 11 S |
+|---|---|---|---|
+| Named the guides: a command naming `CONTRIBUTING.md` or `CLAUDE.md` | 17 runs | 3 (duplicate r1, property values r3, transition r2) | 0 |
+| Searched outside the folder: such a command that walks up (`..` or `Split-Path -Parent`) | 4 (capability relations r1 and r3, modes r3, transition r1) | 0 | 0 |
+| Read them: a command whose output holds the guides' text ("# Contributing" and "This file provides guidance") | 2 (capability relations r3, transition r1) | 0 | 0 |
+
+The 17 experiment-9 runs: capability relations r1 and r3, categories r2 and r3, communication means r3,
+duplicate r3, exchange items r3, functional scenario r1, missions r2 and r3, modes r1 and r3, physical path r2
+and r3, property values r1 and r2, transition r1.
+
+The 6 runs in the experiment-9 result are what the audit script of the time showed. It hid any command that also
+touched `.agents/skills`, and 11 runs named the guides in the same command as a construct-file read. So the 6 are
+reproducible, but "looked for" understates it: 17 runs named the guides, 4 searched outside the folder and 2 read
+them. The 2 reads are as recorded. Without the 2 runs that read them S passed 40/40; without the 6, 36/36 (as
+recorded). The per-task result is unchanged either way.
+
+## Correction (2026-10-28): model version
+
+Every experiment above, and the release reruns, used the model zip `FSAE-2027-Electric-Arcadia.zip`, SHA-256
+`66e693abfdf821af96f241ee707f74efe44939c4d7b3d63ef830169b075e1ba3`. It is `model/FSAE-2027-Electric-Arcadia.zip`
+at tag `v1.0.0` of fsae-2027-model-for-capella. Tag `v1.1.0` holds the same model unzipped: each of the zip's
+five files matches `model/FSAE-2027-Electric-Arcadia/` at `v1.1.0` byte for byte, as its `model/SHA256SUMS`
+records. Later tags changed the model: `v1.2.0` and `v1.2.1` change the `.aird`, and `v1.3.0` changes the
+`.capella` as well.
+
+The Files amendment above says `run.py` reads the model from a clone next to this one and that "the folder is
+byte-identical to that zip's contents". That is no longer true. `run.py` loads whatever the clone has checked
+out, and its `develop` is past `v1.3.0`, with a different `.aird` and `.capella`. To reproduce, check out `v1.1.0`
+and set `EVAL_MODEL` to it:
+
+```
+git clone --branch v1.1.0 https://github.com/sidkolapalli/fsae-2027-model-for-capella fsae-model-v1.1.0
+(cd fsae-model-v1.1.0/model && sha256sum -c SHA256SUMS)
+export EVAL_MODEL="$PWD/fsae-model-v1.1.0/model/FSAE-2027-Electric-Arcadia"
+```
+
+## Data (2026-10-28)
+
+To be published as `capella-agent-study-runs.zip`; its location, size and SHA-256 are added here when it is.
+For each run it holds the grade (`<task>-r<rep>.json`), the agent's event stream (`events.jsonl`), and the final
+message (`last.md`, Codex) or the transcript (`conversation.md`, elicitation). It also holds the runners' logs and
+experiment 1's pristine grade. Personal paths are redacted; the archive's README lists the rules.
+
+Every scored run behind every result above survives:
+
+| Experiment | Groups | Scored runs | Pilot (r0) included |
+|---|---|---|---|
+| 1 | exp01-A, exp01-B, exp01-C | 26, 45, 53 | 1 each |
+| 2 | exp02-K, exp02-KS | 33, 33 | none |
+| 3 | exp03-E, exp03-ES, exp03-ESv2 (with the amendment-1 regrades) | 4, 4, 4 | none |
+| 4 | exp04-K, exp04-KS, exp04-KH, exp04-KSH | 21 each | none |
+| 5 | exp05-K, exp05-KS, exp05-KH, exp05-KSH; exp05-regression-KSH | 12 each; 21 | KH and KSH |
+| 6 | exp06-before-KSH, exp06-after-KSH (with branching-chain-2) | 15, 15 | none |
+| 7 | exp07-EH, exp07-ESH (12 elicitation and 6 regression runs each) | 18, 18 | none |
+| 8 | exp08-B, exp08-S | 42, 42 | 1 each |
+| 9 | exp09-B, exp09-S | 42, 42 | 1 each |
+| 10 | exp10-B, exp10-S | 42, 42 | 1 each |
+| 11 | exp11-S | 42 | none |
+| Release | release-KSH-baseline, release-ESH-baseline, release-ESH-amend1 | 42, 12, 12 | none |
+
+A pilot is included only where a section above reports it.
+
+To reproduce: `python -I -X utf8 tools/reproduce.py` in the unpacked archive. It recomputes 224 values (the
+result tables above, with the rules of "Correction (2026-10-28): counting rules and recounts" in its docstring)
+and exits 1 if any differs from its frozen values. It also prints the two values that differ from what was
+recorded: experiment 9's reads (42) and experiment 7's ESH passes (5). It prints the same on the redacted data and
+on the originals.
+
+Not in the archive:
+
+- Experiment 1: the 33 usage-limit runs (deleted under amendment 1; only their log rows remain), the amendment-2
+  rerun (never run), and arm C's agent scripts (never kept).
+- Experiment 3: repetitions 2 and 3 and the regression runs (never run).
+- The pilots of experiments 2, 6 and 7 (not reported above), experiment 4's void pilots, and experiment 5's
+  Sonnet pilots (not found).
+- The runner logs of experiments 8 and 9 (not found).
+- The Codex session rollouts used for the AGENTS.md audit, the saved models and the Capella workspace files.
+- Reference solutions to the tasks, withheld so the tasks stay usable as a benchmark.
+
+# Experiment G1: do the depth files help on tasks they were not written from? Protocol (fixed before any run, 2026-10-28)
+
+Question: each `arcadia-depth` construct file was written after its depth task, by the same author, and its worked
+example is drawn from that task (for example `SCENARIOS.md` uses the scenario name of `fsae-d-fs-scenario`). On new
+tasks of the same constructs, whose subsystems, element names and scenarios appear in no skill file and no earlier
+task, does a small model still do better with the files than without?
+
+## Setups
+
+| Arm | Agent | Skills |
+|---|---|---|
+| **KH** | headless Claude Code 2.1.311, `claude-haiku-5-5`, as experiment 4 (MCP server; no shell or write tools; file reads only inside the run folder, per the 2026-10-21 harness amendment) | none |
+| **KSH** | as KH | the released skills in the agent's `.claude/skills` |
+
+Held constant:
+
+- Skills frozen at develop 356214c (`TOOLKIT_SKILLS=E:/capella-eval-runs/skills-frozen-356214c/skills`:
+  `arcadia-depth`, `arcadia-elicit`, `capella-setup`). Against the skills of experiments 8 to 11 (8406223) only the
+  product name, the first-mention trademark and the `capella-setup` agent metadata changed.
+- Plugin build 0.2.1.202610281646: develop 356214c with the server pointer sentence removed from `McpServer.java`, so
+  neither arm is told to read the skill (as in experiments 4 to 6). The build passes all 903 tests.
+- Model v1.1.0 of fsae-2027-model-for-capella (the v1.0.0 archive every earlier experiment used, unzipped; all five
+  files match its `SHA256SUMS`), set with `EVAL_MODEL`. `run.py`'s default now points at a later model version.
+- Run folders outside the repository (`EVAL_RESULTS=E:/capella-eval-runs/g1`).
+- The agent's user-level Claude Code skills (none about Arcadia or Capella) are visible in both arms, as in
+  experiments 4 to 7.
+
+## Tasks
+
+The 14 tasks of `../fsae-2027-heldout.json` (generated by `../make_fsae_2027_heldout.py`), one per construct of the
+14 depth tasks of experiments 8 to 11, with the same method check kinds: modes, exchange items, interface, missions,
+duplicate control function, property values, roles, communication means, capability relations, categories,
+functional scenario with messages, branching functional chain, physical path, transition. Each task's `note` (not
+shown to the agent) records where it differs from its original. Known limits, fixed here:
+
+- `fsae-h-transition` can be solved without the transition operation, like `fsae-d-transition`. Whether the
+  agent used it is reported, not scored (`transition_used`).
+- `fsae-h-communication` builds its own activity and interactions first, because the only actor pair with
+  interactions in the model is named in earlier prompts.
+- `fsae-h-duplicate` uses functions of the driver-demand subsystem, as the original did, with a different source
+  signal and a different second consumer (the brake light).
+
+Leak check (2026-10-28): every quoted name and every distinctive phrase of each prompt, searched case-insensitively
+as a fixed string in every file under `skills/` and every prompt of every other task set, finds nothing.
+
+Dry run (2026-10-28, Capella on port 8799, no LLM, model v1.1.0): the pristine model fails every task with no grader
+error, and a hand-written solution per task, each on its own fresh copy, passes with no new validation error and no
+new unresolved proxy. Solutions are kept out of the repository.
+
+## Runs
+
+14 tasks × 2 arms × 3 repetitions = 84 runs, plus a one-task pilot per arm (`fsae-h-modes`, repetition 0, excluded).
+The pilot must show KSH loading `arcadia-depth`; nothing is tuned after it. Only one Capella runs at a time, so the
+arms alternate per task (KH then KSH).
+
+## Scoring
+
+As experiment 4: pass (native and method checks, integrity no worse than the pristine model, the DWF_D_51 discount for
+exchange item elements), time, tokens, cost. Reported with fixed rules, read from `events.jsonl`: **loaded the skill**
+(a `Skill` tool call with `skill` = `arcadia-depth`) and **read a construct file** (a `Read` tool call whose
+`file_path` ends in `arcadia-depth\<NAME>.md` or `arcadia-depth/<NAME>.md`, other than `SKILL.md`).
+
+## Analysis and decision rule
+
+Per task, KSH against KH on the number of passed repetitions, exact two-sided sign test. The files **transfer** when
+KSH wins more tasks than it loses, passes more runs, and adds no integrity failures; **do not transfer** when KSH
+wins no more tasks than it loses and passes no more runs; **unclear** otherwise. With 14 tasks only large effects
+can show; the rule, not the p-value, decides.
+Reported, not in the rule: pass rates with Wilson 95% intervals, the size of the gain against experiments 4 and 5
+(Haiku 15/30 without the files, 29/30 with them) and against the release baseline's KSH (39/42 on the original
+14 tasks, the same skills, no pointer), the read measures, median time, tokens and cost, and
+`transition_used`.
+
+# Experiment G2: experiment 11 with a same-day B arm. Protocol (fixed before any run, 2026-10-28)
+
+Question: experiment 11 ran S alone on a build without the server pointer (S read a construct file in 16 of 42 runs
+and passed 30/42) and compared it with B arms from other days, which passed 20/42 and 29/42 with the same model,
+effort and tasks. Run on the same day with the same build, does S without a pointer pass more than B, and does
+the unprompted read rate repeat?
+
+## Setups
+
+| Arm | Agent | Skills |
+|---|---|---|
+| **B** | Codex CLI 0.160.1 (bundled), `gpt-6-luna` at `high`, as experiment 10 | none |
+| **S** | as B | the released skills in the agent's `.agents/skills` |
+
+Held constant: `SKILL_POINTER` unset; plugin build 0.2.1.202610281646 without the server pointer; skills frozen at
+356214c; model v1.1.0 via `EVAL_MODEL`; run folders outside the repository (`EVAL_RESULTS=E:/capella-eval-runs/g2`),
+so the repository's `AGENTS.md` is not loaded (an audit found it in all 172 Codex sessions of experiments 8 and 9 and
+in none of the 128 of experiments 10 and 11).
+
+## Tasks, runs, scoring
+
+Experiment 11's 14 tasks (`fsae-2027-depth.json` without `fsae-d-categories`, the 4 of `fsae-2027-depth-5.json`
+with `fsae-d-categories-2`, the 4 of `fsae-2027-depth-6.json` with `fsae-d-branching-chain-2`), 3 repetitions, both
+arms, alternating per task (B then S): 84 runs, no pilot. Scoring as experiment 10. Read a construct file: a
+completed `command_execution` whose command matches `arcadia-depth[\\/]+(?!SKILL)[A-Z]+\.md`, the rule recorded in
+the 2026-10-28 correction. A run that ends only because of a Codex usage limit is not
+scored and is rerun once the limit lifts (`run.py` writes no result for it and waits for the 5-hour window); the
+weekly cap of 80% stops the experiment.
+
+## Decision rule
+
+Primary, S against B per task on passed repetitions, exact two-sided sign test: **skills help unprompted** when S
+wins more tasks than it loses and passes more runs, **no gain shown** when S wins no more than it loses, **unclear**
+otherwise. Secondary: S's read count against experiment 11's 16/42; **repeats** when it lies in 10 to 22 of 42 (the
+range of counts whose Wilson 95% interval contains 16/42; the interval of 16/42 itself is 25% to 53%).
+Reported: pass rates with Wilson intervals, median time and tokens, integrity failures, an audit of every Codex session
+of the run for the pointer sentence and for `AGENTS.md`, and the weekly Codex usage before and after.
+
+Afterwards the build installed before G1 and G2 (0.2.1.202610262123) is reinstalled.
