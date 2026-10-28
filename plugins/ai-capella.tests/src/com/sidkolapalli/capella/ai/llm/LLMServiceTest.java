@@ -156,7 +156,7 @@ public class LLMServiceTest {
                 List.of(
                         LLMService.Message.system(
                                 """
-You are a Capella AI assistant. When asked to create model elements,
+You are an AI assistant for Capella. When asked to create model elements,
 respond with a TOOL_PLAN JSON block like:
 
 ```TOOL_PLAN

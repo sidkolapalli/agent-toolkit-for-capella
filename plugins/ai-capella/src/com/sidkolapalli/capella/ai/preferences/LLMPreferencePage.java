@@ -280,8 +280,8 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
                                                               + " checked. Select Codex "
                                                                 + CodexLaunchConfig
                                                                         .SUPPORTED_VERSION
-                                                                + " or reinstall Capella AI, then"
-                                                                + " try again."
+                                                                + " or reinstall AI Assistant for"
+                                                                + " Capella, then try again."
                                                         : "ERROR: " + exception.getMessage();
                             } finally {
                                 connectionTest = null;
@@ -300,7 +300,7 @@ public class LLMPreferencePage extends PreferencePage implements IWorkbenchPrefe
                                         });
                             }
                         },
-                        "Capella AI connection test");
+                        "AI Assistant connection test");
         worker.setDaemon(true);
         connectionTest = worker;
         worker.start();

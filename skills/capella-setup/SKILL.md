@@ -1,12 +1,12 @@
 ---
 name: capella-setup
-description: Connect your agent to the model open in Capella through the Capella AI MCP server.
+description: Connect your agent to the model open in Eclipse Capella through the MCP server of AI Assistant for Capella.
 disable-model-invocation: true
 ---
 
-# Connect to Capella
+# Connect to Eclipse Capella®
 
-The Capella AI plugin runs an MCP server inside Capella. The server works on the model open in
+The AI Assistant for Capella plug-in runs an MCP server inside Capella. The server works on the model open in
 Capella, live: every change goes through it, so Capella stays the single owner of the model files.
 
 ## 1. Start the server

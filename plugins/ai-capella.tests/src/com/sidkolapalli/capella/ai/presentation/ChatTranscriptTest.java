@@ -57,10 +57,10 @@ public class ChatTranscriptTest {
     @Test
     public void nativeTextHasSemanticStylesAndSafeSelectableCode() throws Exception {
         append(
-                "Capella AI",
+                "AI Assistant",
                 "## Plan\nUse **review** and `api.find`.\n```groovy\nprintln '**literal**'\n```");
         assertEquals(
-                "Capella AI\nPlan\nUse review and api.find.\nprintln '**literal**'\n",
+                "AI Assistant\nPlan\nUse review and api.find.\nprintln '**literal**'\n",
                 control.getText());
         assertEquals(SWT.BOLD, control.getStyleRangeAtOffset(0).fontStyle);
         int code = control.getText().indexOf("println");
@@ -77,7 +77,7 @@ public class ChatTranscriptTest {
         control.setTopPixel(0);
         control.setSelectionRange(0, 6);
         Point before = control.getSelectionRange();
-        append("Capella AI", "A new response at the end of the conversation.");
+        append("AI Assistant", "A new response at the end of the conversation.");
         assertEquals(0, control.getTopPixel());
         assertEquals(before, control.getSelectionRange());
         assertEquals(Boolean.TRUE, invoke("hasUnreadMessages"));
@@ -87,11 +87,11 @@ public class ChatTranscriptTest {
     public void latestActionFollowsSoftWrappedRepliesAndClearsUnread() throws Exception {
         fillConversation();
         control.setTopPixel(0);
-        append("Capella AI", "Unread response");
+        append("AI Assistant", "Unread response");
         assertEquals(Boolean.TRUE, invoke("hasUnreadMessages"));
         invoke("jumpToLatest");
         assertEquals(Boolean.FALSE, invoke("hasUnreadMessages"));
-        append("Capella AI", "This new reply wraps across the narrow pane. ".repeat(20));
+        append("AI Assistant", "This new reply wraps across the narrow pane. ".repeat(20));
         assertEquals(Boolean.FALSE, invoke("hasUnreadMessages"));
         var scrollbar = control.getVerticalBar();
         assertTrue(scrollbar.getSelection() + scrollbar.getThumb() >= scrollbar.getMaximum() - 2);
@@ -107,7 +107,7 @@ public class ChatTranscriptTest {
                 (Consumer<Boolean>) states::add);
         fillConversation();
         control.setTopPixel(0);
-        append("Capella AI", "Unread reply");
+        append("AI Assistant", "Unread reply");
         invoke("clear");
         assertTrue(control.getText().isEmpty());
         assertEquals(Boolean.FALSE, invoke("hasUnreadMessages"));
@@ -116,7 +116,7 @@ public class ChatTranscriptTest {
 
     @Test
     public void disposalReleasesOwnedFontsAndCodeColor() throws Exception {
-        append("Capella AI", "## A heading\n```groovy\nprintln 1\n```");
+        append("AI Assistant", "## A heading\n```groovy\nprintln 1\n```");
         var heading = control.getStyleRangeAtOffset(control.getText().indexOf("A heading")).font;
         Color color =
                 control.getStyleRangeAtOffset(control.getText().indexOf("println")).background;
@@ -128,7 +128,7 @@ public class ChatTranscriptTest {
     private void fillConversation() throws Exception {
         for (int index = 0; index < 20; index++)
             append(
-                    "Capella AI",
+                    "AI Assistant",
                     "Response "
                             + index
                             + ": a readable line that wraps in this narrow native pane. "
@@ -147,7 +147,7 @@ public class ChatTranscriptTest {
                     + " validation diagnostics are reported separately, so this long reply must"
                     + " wrap across many lines in a narrow dock. ";
         for (int i = 0; i < 6; i++)
-            append(i % 2 == 0 ? "Capella AI" : "Model changes", paragraph.repeat(3));
+            append(i % 2 == 0 ? "AI Assistant" : "Model changes", paragraph.repeat(3));
         while (Display.getCurrent().readAndDispatch()) {}
         assertTrue("Scrolled to the very end after appending", atEnd());
         shell.setSize(300, 140);

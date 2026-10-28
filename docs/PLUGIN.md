@@ -1,4 +1,4 @@
-# The Capella AI Assistant plug-in
+# AI Assistant for Eclipse Capella®
 
 Details of the Eclipse plug-in: its chat assistant inside Capella, the script API, the review and verification
 pipeline, the evaluation endpoint and the dev server that hosts the MCP server. The [README](../README.md) covers
@@ -7,7 +7,7 @@ the toolkit as a whole.
 ## Install and configure
 
 1. In Capella, choose **Help → Install New Software → Add → Local** and select the generated update-site directory, or choose **Archive** and select its ZIP.
-2. Install **Capella AI Assistant**, restart, then open **Window → Show View → Other → Capella AI Assistant**.
+2. Install **AI Assistant for Capella**, restart, then open **Window → Show View → Other → AI Assistant for Capella**.
 3. The default runtime is **Codex app-server**. Click **Sign in with ChatGPT** in the assistant header. On Windows x64, the plugin includes the official Codex **0.160.1** runtime and its companion host; a separate Codex installation is not required. An existing Codex ChatGPT connection is reused; an existing OpenAI API-key account is recognized as connected. Otherwise, finish ChatGPT sign-in in your system browser; the assistant confirms the connection before you start chatting.
 4. Open a model and ask for the work in normal language. Review the proposed changes, then choose **Apply changes** or **Cancel**. The **Changes** tab is selected by default; the optional **Script** tab retains the exact Groovy source that will run.
 
@@ -88,7 +88,7 @@ Native workbench acceptance was also run on installed Capella 7.0.0 with Require
 
 The structured agent workflow additionally passed seven installed chat scenarios: five-layer creation, rename and deletion; rollback followed by a separately reviewed correction; dismissal; cancellation; and a read-only question. All eight typed read tools left the native model unchanged. Creation, rename and deletion completed their declared model checks without additional native error diagnostics. A read-only FSAE Requirements Viewpoint probe confirmed native UUID identity, source identifiers and relationship inspection. These scripted provider fixtures exercise execution behavior; they do not measure a live model's planning quality.
 
-The FSAE acceptance project imports all 3,197 pinned 2027 source records and contains candidate architecture across the five perspectives. Its three detailed safety slices scope 588 records through 86 candidate derived obligations. The saved model reopened with 86,658 unique semantic IDs and no unresolved semantic references; nine overview diagrams and three detailed safety diagrams survived reload. Installed native validation reported zero errors and 517 warnings. These results establish the checked native structure and persistence; engineering completeness and competition compliance remain unresolved. See the [acceptance README](https://github.com/sidkolapalli/fsae-2027-capella-model/blob/main/acceptance/README.md) in the model's repository for the completion gates.
+The FSAE acceptance project imports all 3,197 pinned 2027 source records and contains candidate architecture across the five perspectives. Its three detailed safety slices scope 588 records through 86 candidate derived obligations. The saved model reopened with 86,658 unique semantic IDs and no unresolved semantic references; nine overview diagrams and three detailed safety diagrams survived reload. Installed native validation reported zero errors and 517 warnings. These results establish the checked native structure and persistence; engineering completeness and competition compliance remain unresolved. See the [acceptance README](https://github.com/sidkolapalli/fsae-2027-model-for-capella/blob/main/acceptance/README.md) in the model's repository for the completion gates.
 
 ## Evaluating agent quality
 

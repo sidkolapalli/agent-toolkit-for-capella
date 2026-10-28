@@ -54,7 +54,7 @@ import java.util.logging.Logger;
  *   <li>GET /debug - View debug information
  * </ul>
  *
- * <p>Start from Eclipse: Window → Show View → Other → Capella AI Dev Server
+ * <p>Start from Eclipse: Window → Show View → Other → AI Assistant for Capella → AI Dev Server
  *
  * <p>Or programmatically: DevServer.start(8765)
  */

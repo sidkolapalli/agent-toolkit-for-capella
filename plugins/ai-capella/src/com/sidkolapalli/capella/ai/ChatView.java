@@ -72,7 +72,7 @@ public class ChatView extends ViewPart {
     private final ExecutorService requests =
             Executors.newSingleThreadExecutor(
                     runnable -> {
-                        Thread thread = new Thread(runnable, "Capella AI chat");
+                        Thread thread = new Thread(runnable, "AI Assistant chat");
                         thread.setDaemon(true);
                         return thread;
                     });
@@ -420,7 +420,7 @@ public class ChatView extends ViewPart {
                             public void getName(
                                     org.eclipse.swt.accessibility.AccessibleEvent event) {
                                 event.result =
-                                        "Message to Capella AI. Enter to send; Shift Enter for a"
+                                        "Message to AI Assistant. Enter to send; Shift Enter for a"
                                             + " new line.";
                             }
                         });
@@ -1260,7 +1260,7 @@ public class ChatView extends ViewPart {
                         () -> {
                             if (!isUsable()) return;
                             conversation.restoreHistory(displayed.messages());
-                            appendMessage("Capella AI", displayedReply(displayed));
+                            appendMessage("AI Assistant", displayedReply(displayed));
                             saveTaskPlan(displayed.plan());
                             if (ending != displayed.termination())
                                 appendMessage(

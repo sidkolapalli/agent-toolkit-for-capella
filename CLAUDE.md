@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Capella AI Assistant is an Eclipse plug-in for Capella 7 that lets a chat agent inspect a live Arcadia model (OA, SA, LA, PA, EPBS), keep a task plan, and propose **Groovy scripts** that the user reviews before they run. The LLM writes code against a curated API rather than calling one JSON tool per operation. `README.md` is the authoritative user-facing description; `CONTRIBUTING.md` holds the build, style and commit guidelines.
+AI Assistant for Capella is an Eclipse plug-in for Capella 7 that lets a chat agent inspect a live Arcadia model (OA, SA, LA, PA, EPBS), keep a task plan, and propose **Groovy scripts** that the user reviews before they run. The LLM writes code against a curated API rather than calling one JSON tool per operation. `README.md` is the authoritative user-facing description; `CONTRIBUTING.md` holds the build, style and commit guidelines.
 
 ## Build and Test
 
@@ -27,7 +27,7 @@ mvn -f plugins clean verify -DskipTests           # refresh binaries only
 
 ### Manual testing in Capella
 
-Install the update site with **Help → Install New Software → Add → Local**, restart, and open **Window → Show View → Other → Capella AI Assistant**. The **AI Dev Server** view (port 8765, or `CAPELLA_AI_DEVSERVER_AUTOSTART=1`) exposes `GET /status` and `POST /execute` for testing without the UI. Every request needs `Authorization: Bearer <token>` from `~/.capella-ai/devserver-<port>.token` (or `CAPELLA_AI_DEVSERVER_TOKEN`). It also serves `POST /mcp` (`dev/McpServer`: read tools plus `propose_model_edit`/`edit_status` from `dev/McpEdits`, always reviewed by a person in Capella) and `POST /eval` (`agent/EvalRunner`, opt-in with `-Dcapella.ai.eval=true`; tasks in `test-models/evals/`). `scripts/test-dev-server.sh` is a read-only smoke test; `scripts/run-capella-dev.sh` (needs `CAPELLA_HOME` and `SAMPLE_SRC`) launches Capella with the dev server auto-started.
+Install the update site with **Help → Install New Software → Add → Local**, restart, and open **Window → Show View → Other → AI Assistant for Capella**. The **AI Dev Server** view (port 8765, or `CAPELLA_AI_DEVSERVER_AUTOSTART=1`) exposes `GET /status` and `POST /execute` for testing without the UI. Every request needs `Authorization: Bearer <token>` from `~/.capella-ai/devserver-<port>.token` (or `CAPELLA_AI_DEVSERVER_TOKEN`). It also serves `POST /mcp` (`dev/McpServer`: read tools plus `propose_model_edit`/`edit_status` from `dev/McpEdits`, always reviewed by a person in Capella) and `POST /eval` (`agent/EvalRunner`, opt-in with `-Dcapella.ai.eval=true`; tasks in `test-models/evals/`). `scripts/test-dev-server.sh` is a read-only smoke test; `scripts/run-capella-dev.sh` (needs `CAPELLA_HOME` and `SAMPLE_SRC`) launches Capella with the dev server auto-started.
 
 ## Architecture
 

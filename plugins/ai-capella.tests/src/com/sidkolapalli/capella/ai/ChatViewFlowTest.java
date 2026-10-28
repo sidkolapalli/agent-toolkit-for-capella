@@ -219,7 +219,7 @@ public class ChatViewFlowTest {
         call(
                 "appendMessage",
                 new Class<?>[] {String.class, String.class},
-                "Capella AI",
+                "AI Assistant",
                 "First model reply");
         ((Text) field("inputField")).setText("First model draft ⚡");
         call(
@@ -234,7 +234,7 @@ public class ChatViewFlowTest {
         call(
                 "appendMessage",
                 new Class<?>[] {String.class, String.class},
-                "Capella AI",
+                "AI Assistant",
                 "Second model reply");
         call("switchConversation", new Class<?>[] {Session.class}, first);
         assertEquals("First model draft ⚡", ((Text) field("inputField")).getText());

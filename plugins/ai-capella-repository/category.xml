@@ -3,6 +3,6 @@
   <feature id="com.sidkolapalli.capella.ai.feature" version="0.0.0">
     <category name="capella-ai"/>
   </feature>
-  <category-def name="capella-ai" label="Capella AI Assistant"/>
+  <category-def name="capella-ai" label="AI Assistant for Capella"/>
 </site>
 

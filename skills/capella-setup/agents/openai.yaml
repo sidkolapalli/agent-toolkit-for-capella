@@ -1,5 +1,5 @@
 interface:
-  display_name: "Capella Setup"
-  short_description: "Connect your agent to Capella's MCP server"
+  display_name: "Connect to Capella"
+  short_description: "Connect your agent to the MCP server in Capella"
 policy:
   allow_implicit_invocation: false

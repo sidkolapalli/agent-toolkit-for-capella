@@ -60,7 +60,7 @@ final class ChatTranscript {
                             @Override
                             public void getName(
                                     org.eclipse.swt.accessibility.AccessibleEvent event) {
-                                event.result = "Conversation with Capella AI";
+                                event.result = "Conversation with AI Assistant";
                             }
                         });
         installCopyMenu();
@@ -140,7 +140,7 @@ final class ChatTranscript {
         Point selection = control.getSelectionRange();
         String title =
                 role == null || role.isBlank()
-                        ? "Capella AI"
+                        ? "AI Assistant"
                         : role.replace('\n', ' ').replace('\r', ' ');
         Formatted body = TranscriptFormat.parse(message);
         String separator =

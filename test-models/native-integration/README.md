@@ -1,4 +1,4 @@
-These scripts test the installed plug-in inside a real Capella 7.0 Sirius session. They intentionally require a disposable project whose session URI contains `capella-ai-native-integration`; they never select a different model.
+These scripts test the installed plug-in inside a real Eclipse Capella® 7.0 Sirius session. They intentionally require a disposable project whose session URI contains `capella-ai-native-integration`; they never select a different model.
 
 Create the project through Capella's native project wizard with Operational Analysis and EPBS enabled. The equivalent native service is `ProjectSessionCreationHelper(true, true).createFullProject(...)`; it runs `CreateCapellaProjectCmd`, the native model skeleton and viewpoint activation.
 

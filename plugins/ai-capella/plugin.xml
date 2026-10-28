@@ -4,13 +4,13 @@
     <extension point="org.eclipse.ui.views">
         <category
             id="com.sidkolapalli.capella.ai"
-            name="Capella AI Assistant"/>
+            name="AI Assistant for Capella"/>
         <view
             allowMultiple="false"
             category="com.sidkolapalli.capella.ai"
             class="com.sidkolapalli.capella.ai.ChatView"
             id="com.sidkolapalli.capella.ai.chatview"
-            name="Capella AI Assistant"/>
+            name="AI Assistant for Capella"/>
         <view
             allowMultiple="false"
             category="com.sidkolapalli.capella.ai"

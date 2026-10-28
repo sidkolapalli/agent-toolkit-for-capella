@@ -5,7 +5,7 @@
   <artifactId>plugins-aggregator</artifactId>
   <version>0.2.1-SNAPSHOT</version>
   <packaging>pom</packaging>
-  <name>Capella AI Plugins Aggregator</name>
+  <name>AI Assistant for Capella (plugins aggregator)</name>
 
   <properties>
     <tycho.version>2.7.5</tycho.version>

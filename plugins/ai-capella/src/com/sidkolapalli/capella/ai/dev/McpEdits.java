@@ -108,8 +108,8 @@ public final class McpEdits {
                         "name",
                         "propose_model_edit",
                         "description",
-                        "Propose a Groovy script (Capella AI api.* bindings, see capella_docs) that"
-                            + " changes the open model. Nothing runs until a person approves it in"
+                        "Propose a Groovy script (api.* bindings, see capella_docs) that changes"
+                            + " the open model. Nothing runs until a person approves it in"
                             + " Capella. Returns a proposal_id at once; poll edit_status for the"
                             + " review outcome and the authoritative execution receipt. Proposing"
                             + " the same edit again returns the same proposal.",
@@ -277,7 +277,7 @@ public final class McpEdits {
                                                 session,
                                                 code,
                                                 "Proposed by an external MCP client, not by the"
-                                                    + " Capella AI chat.",
+                                                    + " AI Assistant chat.",
                                                 summary,
                                                 checks)));
         return approved.get();

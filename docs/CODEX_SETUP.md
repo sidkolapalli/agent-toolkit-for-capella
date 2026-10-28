@@ -1,6 +1,6 @@
-# ChatGPT / OpenAI connection inside Capella
+# ChatGPT / OpenAI connection inside Eclipse Capella®
 
-Install Capella AI Assistant, open its view, and click **Sign in with ChatGPT** in the assistant header. The default runtime is **Codex app-server**. Windows x64 installations include the official Codex **0.160.1** executable and its companion code-mode host, so the default path needs no separate Codex installation.
+Install AI Assistant for Capella, open its view, and click **Sign in with ChatGPT** in the assistant header. The default runtime is **Codex app-server**. Windows x64 installations include the official Codex **0.160.1** executable and its companion code-mode host, so the default path needs no separate Codex installation.
 
 If Codex is already connected with ChatGPT or an OpenAI API key, the assistant reuses that connection. Otherwise, it opens the official OpenAI sign-in page in your system browser. Finish the browser flow and return to Capella. The assistant waits for that specific login's completion and then checks the account again before reporting a connection. Closing or cancelling the operation cancels its own pending attempt; it does not sign out an existing account.
 

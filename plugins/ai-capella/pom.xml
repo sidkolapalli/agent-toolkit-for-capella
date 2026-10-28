@@ -11,5 +11,5 @@
   <artifactId>com.sidkolapalli.capella.ai</artifactId>
   <version>0.2.1-SNAPSHOT</version>
   <packaging>eclipse-plugin</packaging>
-  <name>Capella AI Assistant Plugin</name>
+  <name>AI Assistant for Capella (plug-in)</name>
 </project>

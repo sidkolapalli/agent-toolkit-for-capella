@@ -42,8 +42,8 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 /**
- * Main API facade for Groovy scripts in Capella AI. Provides a clean, discoverable interface to all
- * Capella operations.
+ * Main API facade for Groovy scripts in AI Assistant for Capella. Provides a clean, discoverable
+ * interface to all Capella operations.
  *
  * <p>This API uses the same internal EMF/Sirius APIs that the Capella UI uses, enabling full
  * control over the model - something external tools like Python4Capella cannot achieve.

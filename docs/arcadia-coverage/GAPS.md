@@ -11,7 +11,7 @@ numbers refer to the matrix.
 | a1 scenario content | FS and ES lifelines and ordered messages built; fragments (LOOP/ALT/PAR), references and scenario realization still open. Experiment 6: Haiku 0/3 before, 3/3 after | `functionalScenario`, `exchangeScenario`; SCENARIOS.md |
 | a2 non-linear chains | branching and joining chains and OA operational processes built; control nodes, sequence links and composite chains still open. Experiment 6: 0/3 before, 1/3 after on an ambiguous prompt; reworded, 2/3 before (built by hand) and 3/3 after | `chain`; CHAINS.md |
 | a3 physical paths | paths and component exchanges on links or paths built. Experiment 6: 0/3 before, 3/3 after | `physicalPath`, `allocateOnLink`; PHYSICAL.md |
-| a4 transitions | every Capella transition kind, LA→PA and PA→EPBS included. Experiment 6: the task passed 3/3 before too (built by hand), so not shown | `api.ops.transition`; TRANSITIONS.md |
+| a4 transitions | every Eclipse Capella® transition kind, LA→PA and PA→EPBS included. Experiment 6: the task passed 3/3 before too (built by hand), so not shown | `api.ops.transition`; TRANSITIONS.md |
 | a5 REC/RPL, libraries | open | |
 | b1–b6 | taught and measured (experiment 4) | MODES, DATA, INTERFACES, MISSIONS, CONTROL, PROPERTIES |
 | b5 categories, b8 roles and communication means, b9 capability relations | taught; experiment 5: roles, communication means and capability relations help (Haiku 1/9 to 8/9), categories untested (every arm passes) | CATEGORIES, OPERATIONAL, CAPABILITIES |
